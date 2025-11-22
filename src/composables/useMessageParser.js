@@ -184,8 +184,7 @@ export function useMessageParser() {
     const allMatches = []
     patterns.forEach(pattern => {
       let match
-      const regex = new RegExp(pattern.regex)
-      while ((match = regex.exec(text)) !== null) {
+      while ((match = pattern.regex.exec(text)) !== null) {
         allMatches.push({
           type: pattern.type,
           start: match.index,

@@ -73,7 +73,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import ChatView from './components/ChatView.vue'
 import { fetchModels } from './services/api.js'
 
@@ -142,6 +142,14 @@ export default {
 
     const startEditingTitle = (chat) => {
       chat.editing = true
+      nextTick(() => {
+        const inputs = document.querySelectorAll('.chat-title-input')
+        const input = inputs[inputs.length - 1]
+        if (input) {
+          input.focus()
+          input.select()
+        }
+      })
     }
 
     const finishEditingTitle = (chat) => {
