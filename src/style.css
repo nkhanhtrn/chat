@@ -41,6 +41,23 @@ body {
   margin-bottom: 12px;
 }
 
+.config-server-btn {
+  width: 100%;
+  padding: 10px;
+  background-color: #565869;
+  color: #fff;
+  border: 1px solid #676879;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+  margin-bottom: 8px;
+}
+
+.config-server-btn:hover {
+  background-color: #676879;
+}
+
 .new-chat-btn {
   width: 100%;
   padding: 10px;
@@ -605,4 +622,106 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #6e6e80;
+}
+
+/* Modal styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background-color: #343541;
+  border-radius: 8px;
+  padding: 32px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  position: relative;
+}
+
+.modal-close-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: #ececf1;
+  font-size: 32px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  transition: color 0.2s;
+}
+
+.modal-close-btn:hover {
+  color: #fff;
+}
+
+.modal h2 {
+  color: #fff;
+  font-size: 24px;
+  margin-bottom: 12px;
+}
+
+.modal p {
+  color: #ececf1;
+  margin-bottom: 24px;
+  font-size: 14px;
+}
+
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  color: #ececf1;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.form-group input {
+  padding: 12px;
+  background-color: #40414f;
+  border: 1px solid #565869;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 14px;
+  outline: none;
+}
+
+.form-group input:focus {
+  border-color: #10a37f;
+}
+
+.modal-btn {
+  padding: 12px 24px;
+  background-color: #10a37f;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.modal-btn:hover {
+  background-color: #0d8c6a;
 }

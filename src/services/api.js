@@ -2,7 +2,7 @@ import axios from 'axios'
 
 // Configure your LM Studio API base URL
 // Default LM Studio local server runs on http://localhost:1234
-const API_BASE_URL = 'http://localhost:1234'
+let API_BASE_URL = 'http://localhost:1234'
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -10,6 +10,14 @@ const api = axios.create({
     'Content-Type': 'application/json'
   }
 })
+
+/**
+ * Update the API base URL
+ */
+export const setApiBaseUrl = (url) => {
+  API_BASE_URL = url
+  api.defaults.baseURL = url
+}
 
 /**
  * GET /v1/models - Fetch available models

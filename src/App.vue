@@ -1,8 +1,18 @@
 <template>
   <div class="app">
+    <!-- API Configuration Modal -->
+    <ApiConfigModal 
+      :show="showApiModal"
+      :hostname="apiConfig.hostname"
+      :port="apiConfig.port"
+      @save="saveApiConfig"
+      @close="showApiModal = false"
+    />
+
     <div class="sidebar">
       <div class="sidebar-header">
         <h2>Chat</h2>
+        <button @click="openApiModal" class="config-server-btn">⚙ Configure Server</button>
         <button @click="createNewChat" class="new-chat-btn">+ New Chat</button>
       </div>
       
@@ -75,17 +85,20 @@
 <script>
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import ChatView from './components/ChatView.vue'
-import { fetchModels } from './services/api.js'
+import ApiConfigModal from './components/ApiConfigModal.vue'
+import { fetchModels, setApiBaseUrl } from './services/api.js'
 
 const STORAGE_KEY_CHATS = 'chat-chats'
 const STORAGE_KEY_ACTIVE = 'chat-active'
 const STORAGE_KEY_MODEL = 'chat-model'
 const STORAGE_KEY_COUNTER = 'chat-counter'
+const STORAGE_KEY_API_CONFIG = 'chat-api-config'
 
 export default {
   name: 'App',
   components: {
-    ChatView
+    ChatView,
+    ApiConfigModal
   },
   setup() {
     const chats = ref([])
@@ -93,6 +106,11 @@ export default {
     const models = ref([])
     const selectedModel = ref('')
     const loadingModels = ref(false)
+    const showApiModal = ref(false)
+    const apiConfig = ref({
+      hostname: '',
+      port: ''
+    })
     let chatIdCounter = 1
 
     const currentChat = computed(() => {
@@ -158,6 +176,42 @@ export default {
         chat.title = 'New Chat'
       }
       saveToLocalStorage()
+    }
+
+    const saveApiConfig = (config) => {
+      // Use default values if inputs are empty
+      const hostname = config.hostname.trim() || 'localhost'
+      const port = config.port.trim() || '1234'
+      
+      const url = `http://${hostname}:${port}`
+      setApiBaseUrl(url)
+      
+      // Save the actual values used (including defaults)
+      const configToSave = { hostname, port }
+      localStorage.setItem(STORAGE_KEY_API_CONFIG, JSON.stringify(configToSave))
+      apiConfig.value = configToSave
+      
+      showApiModal.value = false
+      loadModels()
+    }
+
+    const openApiModal = () => {
+      showApiModal.value = true
+    }
+
+    const loadApiConfig = () => {
+      const saved = localStorage.getItem(STORAGE_KEY_API_CONFIG)
+      if (saved) {
+        try {
+          apiConfig.value = JSON.parse(saved)
+          const url = `http://${apiConfig.value.hostname}:${apiConfig.value.port}`
+          setApiBaseUrl(url)
+          return true
+        } catch (error) {
+          console.error('Failed to load API config:', error)
+        }
+      }
+      return false
     }
 
     const loadModels = async () => {
@@ -271,7 +325,13 @@ export default {
 
     onMounted(() => {
       loadFromLocalStorage()
-      loadModels()
+      
+      // Check if API config exists, otherwise show modal
+      if (loadApiConfig()) {
+        loadModels()
+      } else {
+        showApiModal.value = true
+      }
     })
 
     return {
@@ -281,6 +341,10 @@ export default {
       models,
       selectedModel,
       loadingModels,
+      showApiModal,
+      apiConfig,
+      saveApiConfig,
+      openApiModal,
       createNewChat,
       switchChat,
       deleteChat,
