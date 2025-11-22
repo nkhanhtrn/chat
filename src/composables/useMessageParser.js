@@ -10,10 +10,10 @@ export function useMessageParser() {
     let match
     
     while ((match = codeBlockRegex.exec(content)) !== null) {
-      // Add text before code block (with HTML escaping)
+      // Add text before code block (with selective HTML escaping)
       if (match.index > currentPosition) {
         const textBefore = content.slice(currentPosition, match.index)
-        elements.push(...parseInlineElements(escapeHtml(textBefore)))
+        elements.push(...parseInlineElements(escapeHtmlExceptCode(textBefore)))
       }
       
       // Add code block (WITHOUT HTML escaping)
@@ -26,13 +26,38 @@ export function useMessageParser() {
       currentPosition = match.index + match[0].length
     }
     
-    // Add remaining text (with HTML escaping)
+    // Add remaining text (with selective HTML escaping)
     if (currentPosition < content.length) {
       const remainingText = content.slice(currentPosition)
-      elements.push(...parseInlineElements(escapeHtml(remainingText)))
+      elements.push(...parseInlineElements(escapeHtmlExceptCode(remainingText)))
     }
     
     return elements
+  }
+  
+  const escapeHtmlExceptCode = (text) => {
+    // Extract inline code blocks to preserve them
+    const parts = []
+    let currentPos = 0
+    const codeRegex = /`([^`]+)`/g
+    let match
+    
+    while ((match = codeRegex.exec(text)) !== null) {
+      // Add escaped text before code
+      if (match.index > currentPos) {
+        parts.push(escapeHtml(text.slice(currentPos, match.index)))
+      }
+      // Add code with backticks (unescaped)
+      parts.push('`' + match[1] + '`')
+      currentPos = match.index + match[0].length
+    }
+    
+    // Add remaining escaped text
+    if (currentPos < text.length) {
+      parts.push(escapeHtml(text.slice(currentPos)))
+    }
+    
+    return parts.join('')
   }
   
   const escapeHtml = (text) => {
@@ -44,12 +69,22 @@ export function useMessageParser() {
   
   const parseInlineElements = (text) => {
     const elements = []
-    let currentText = text
+    const lines = text.split('\n')
+    let i = 0
     
-    // Split by newlines to handle headers
-    const lines = currentText.split('\n')
-    
-    lines.forEach((line, index) => {
+    while (i < lines.length) {
+      const line = lines[i]
+      
+      // Check if this line starts a table
+      if (i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
+        const tableResult = parseTable(lines, i)
+        if (tableResult) {
+          elements.push(tableResult.element)
+          i = tableResult.nextIndex
+          continue
+        }
+      }
+      
       // Check for headers
       const headerMatch = line.match(/^(#{1,6})\s+(.+)$/)
       if (headerMatch) {
@@ -66,12 +101,72 @@ export function useMessageParser() {
       }
       
       // Add line break if not last line
-      if (index < lines.length - 1) {
+      if (i < lines.length - 1) {
         elements.push({ type: 'linebreak' })
       }
-    })
+      
+      i++
+    }
     
     return elements
+  }
+  
+  const isTableSeparator = (line) => {
+    // Table separator line like: | --- | --- | or | :--- | :---: | ---: |
+    return /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$/.test(line)
+  }
+  
+  const parseTable = (lines, startIndex) => {
+    const headerLine = lines[startIndex]
+    const separatorLine = lines[startIndex + 1]
+    
+    // Parse header with formatting
+    const headers = headerLine.split('|')
+      .map(h => h.trim())
+      .filter(h => h.length > 0)
+      .map(h => parseTextFormatting(h))
+    
+    if (headers.length === 0) return null
+    
+    // Parse alignments from separator
+    const alignments = separatorLine.split('|')
+      .map(s => s.trim())
+      .filter(s => s.length > 0)
+      .map(s => {
+        if (s.startsWith(':') && s.endsWith(':')) return 'center'
+        if (s.endsWith(':')) return 'right'
+        return 'left'
+      })
+    
+    // Parse rows with formatting
+    const rows = []
+    let i = startIndex + 2
+    
+    while (i < lines.length) {
+      const line = lines[i]
+      // Stop if we hit an empty line or non-table line
+      if (!line.trim() || !line.includes('|')) break
+      
+      const cells = line.split('|')
+        .map(c => c.trim())
+        .filter(c => c.length > 0)
+        .map(c => parseTextFormatting(c))
+      
+      if (cells.length > 0) {
+        rows.push(cells)
+      }
+      i++
+    }
+    
+    return {
+      element: {
+        type: 'table',
+        headers,
+        rows,
+        alignments
+      },
+      nextIndex: i
+    }
   }
   
   const parseTextFormatting = (text) => {

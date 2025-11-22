@@ -6,6 +6,12 @@
         :language="element.language"
         :code="element.code"
       />
+      <MarkdownTable
+        v-else-if="element.type === 'table'"
+        :headers="element.headers"
+        :rows="element.rows"
+        :alignments="element.alignments"
+      />
       <FormattedText
         v-else-if="element.type === 'header'"
         :content="element.content"
@@ -26,12 +32,14 @@
 import { computed } from 'vue'
 import { useMessageParser } from '../composables/useMessageParser.js'
 import CodeBlock from './CodeBlock.vue'
+import MarkdownTable from './MarkdownTable.vue'
 import FormattedText from './FormattedText.vue'
 
 export default {
   name: 'MessageContent',
   components: {
     CodeBlock,
+    MarkdownTable,
     FormattedText
   },
   props: {
