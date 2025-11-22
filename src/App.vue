@@ -87,12 +87,7 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import ChatView from './components/ChatView.vue'
 import ApiConfigModal from './components/ApiConfigModal.vue'
 import { fetchModels, setApiBaseUrl } from './services/api.js'
-
-const STORAGE_KEY_CHATS = 'chat-chats'
-const STORAGE_KEY_ACTIVE = 'chat-active'
-const STORAGE_KEY_MODEL = 'chat-model'
-const STORAGE_KEY_COUNTER = 'chat-counter'
-const STORAGE_KEY_API_CONFIG = 'chat-api-config'
+import * as storage from './services/storage.js'
 
 export default {
   name: 'App',
@@ -125,7 +120,7 @@ export default {
       }
       chats.value.push(newChat)
       activeChat.value = newChat.id
-      saveToLocalStorage()
+      storage.saveChatCounter(chatIdCounter)
     }
 
     const switchChat = (chatId) => {
@@ -146,8 +141,6 @@ export default {
             return
           }
         }
-        
-        saveToLocalStorage()
       }
     }
 
@@ -175,7 +168,6 @@ export default {
       if (!chat.title.trim()) {
         chat.title = 'New Chat'
       }
-      saveToLocalStorage()
     }
 
     const saveApiConfig = (config) => {
@@ -188,7 +180,7 @@ export default {
       
       // Save the actual values used (including defaults)
       const configToSave = { hostname, port }
-      localStorage.setItem(STORAGE_KEY_API_CONFIG, JSON.stringify(configToSave))
+      storage.saveApiConfig(configToSave)
       apiConfig.value = configToSave
       
       showApiModal.value = false
@@ -200,16 +192,12 @@ export default {
     }
 
     const loadApiConfig = () => {
-      const saved = localStorage.getItem(STORAGE_KEY_API_CONFIG)
+      const saved = storage.loadApiConfig()
       if (saved) {
-        try {
-          apiConfig.value = JSON.parse(saved)
-          const url = `http://${apiConfig.value.hostname}:${apiConfig.value.port}`
-          setApiBaseUrl(url)
-          return true
-        } catch (error) {
-          console.error('Failed to load API config:', error)
-        }
+        apiConfig.value = saved
+        const url = `http://${apiConfig.value.hostname}:${apiConfig.value.port}`
+        setApiBaseUrl(url)
+        return true
       }
       return false
     }
@@ -242,60 +230,28 @@ export default {
       }
     }
 
-    const onModelChange = () => {
-      console.log('Model changed to:', selectedModel.value)
-      saveToLocalStorage()
-    }
-
-    const saveToLocalStorage = () => {
-      try {
-        localStorage.setItem(STORAGE_KEY_CHATS, JSON.stringify(chats.value))
-        localStorage.setItem(STORAGE_KEY_ACTIVE, activeChat.value)
-        localStorage.setItem(STORAGE_KEY_MODEL, selectedModel.value)
-        localStorage.setItem(STORAGE_KEY_COUNTER, chatIdCounter)
-      } catch (error) {
-        console.error('Failed to save to localStorage:', error)
-      }
-    }
-
     const loadFromLocalStorage = () => {
       try {
-        const savedChats = localStorage.getItem(STORAGE_KEY_CHATS)
-        const savedActive = localStorage.getItem(STORAGE_KEY_ACTIVE)
-        const savedModel = localStorage.getItem(STORAGE_KEY_MODEL)
-        const savedCounter = localStorage.getItem(STORAGE_KEY_COUNTER)
-
         console.log('Loading from localStorage...')
+        const data = storage.loadAllData()
 
-        if (savedChats) {
-          const parsedChats = JSON.parse(savedChats)
-          
-          // Ensure all messages have required properties
-          chats.value = parsedChats.map(chat => ({
-            ...chat,
-            messages: chat.messages.map(msg => ({
-              ...msg,
-              displayContent: msg.displayContent || msg.content,
-              thinking: msg.thinking || null,
-              showThinking: msg.showThinking || false
-            }))
-          }))
-          
+        if (data.chats) {
+          chats.value = data.chats
           console.log('Loaded chats:', chats.value.length)
         }
         
-        if (savedActive) {
-          activeChat.value = parseInt(savedActive)
+        if (data.activeChat) {
+          activeChat.value = data.activeChat
           console.log('Active chat:', activeChat.value)
         }
         
-        if (savedModel) {
-          selectedModel.value = savedModel
+        if (data.selectedModel) {
+          selectedModel.value = data.selectedModel
           console.log('Selected model:', selectedModel.value)
         }
         
-        if (savedCounter) {
-          chatIdCounter = parseInt(savedCounter)
+        if (data.chatCounter) {
+          chatIdCounter = data.chatCounter
           console.log('Chat counter:', chatIdCounter)
         }
 
@@ -312,15 +268,16 @@ export default {
 
     // Watch for changes and save to localStorage
     watch(chats, () => {
-      saveToLocalStorage()
+      storage.saveChats(chats.value)
     }, { deep: true })
 
     watch(activeChat, () => {
-      saveToLocalStorage()
+      storage.saveActiveChat(activeChat.value)
     })
 
-    watch(selectedModel, () => {
-      saveToLocalStorage()
+    watch(selectedModel, (newModel) => {
+      console.log('Model changed to:', newModel)
+      storage.saveSelectedModel(newModel)
     })
 
     onMounted(() => {
@@ -350,8 +307,7 @@ export default {
       deleteChat,
       updateChatTitle,
       startEditingTitle,
-      finishEditingTitle,
-      onModelChange
+      finishEditingTitle
     }
   }
 }
