@@ -528,7 +528,7 @@ body {
   font-size: 14px;
   font-family: inherit;
   resize: none;
-  min-height: 50px;
+  min-height: 80px;
   max-height: 200px;
 }
 
@@ -537,7 +537,12 @@ body {
   border-color: #8e8ea0;
 }
 
-.input-container button {
+.input-container .button-group {
+  display: flex;
+  gap: 8px;
+}
+
+.input-container .send-btn {
   padding: 12px 24px;
   background-color: #10a37f;
   color: #fff;
@@ -549,11 +554,34 @@ body {
   font-weight: 500;
 }
 
-.input-container button:hover:not(:disabled) {
+.input-container .send-btn:hover:not(:disabled) {
   background-color: #0d8c6a;
 }
 
-.input-container button:disabled {
+.input-container .send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.input-container .compress-btn {
+  padding: 12px 16px;
+  background-color: #565869;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.input-container .compress-btn:hover:not(:disabled) {
+  background-color: #676879;
+}
+
+.input-container .compress-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

@@ -2,27 +2,21 @@ export function useMessageParser() {
   const parseMessage = (content) => {
     if (!content) return []
     
-    // Escape HTML to prevent XSS
-    let text = content
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-    
     const elements = []
     let currentPosition = 0
     
-    // Parse code blocks first
+    // Parse code blocks FIRST (before escaping HTML)
     const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g
     let match
     
-    while ((match = codeBlockRegex.exec(text)) !== null) {
-      // Add text before code block
+    while ((match = codeBlockRegex.exec(content)) !== null) {
+      // Add text before code block (with HTML escaping)
       if (match.index > currentPosition) {
-        const textBefore = text.slice(currentPosition, match.index)
-        elements.push(...parseInlineElements(textBefore))
+        const textBefore = content.slice(currentPosition, match.index)
+        elements.push(...parseInlineElements(escapeHtml(textBefore)))
       }
       
-      // Add code block
+      // Add code block (WITHOUT HTML escaping)
       elements.push({
         type: 'codeblock',
         language: match[1] || 'plaintext',
@@ -32,13 +26,20 @@ export function useMessageParser() {
       currentPosition = match.index + match[0].length
     }
     
-    // Add remaining text
-    if (currentPosition < text.length) {
-      const remainingText = text.slice(currentPosition)
-      elements.push(...parseInlineElements(remainingText))
+    // Add remaining text (with HTML escaping)
+    if (currentPosition < content.length) {
+      const remainingText = content.slice(currentPosition)
+      elements.push(...parseInlineElements(escapeHtml(remainingText)))
     }
     
     return elements
+  }
+  
+  const escapeHtml = (text) => {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
   }
   
   const parseInlineElements = (text) => {

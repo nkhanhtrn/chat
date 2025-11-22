@@ -10,13 +10,15 @@
           @click="toggleThinking(message)"
         >
           <span class="thinking-icon">{{ message.showThinking ? '▼' : '▶' }}</span>
-          <span class="thinking-label">Thinking...</span>
+          <span class="thinking-label">
+            {{ message.compressed ? `Compressed previous conversation (${message.compressedCount} messages)` : 'Thinking...' }}
+          </span>
         </div>
         <div v-if="message.showThinking" class="thinking-content">
           {{ message.thinking }}
         </div>
       </div>
-      <MessageContent :content="message.displayContent" />
+      <MessageContent v-if="!message.compressed || !message.thinking" :content="message.displayContent" />
     </div>
     <div v-if="message.role === 'user' && isLastUserMessage" class="message-actions">
       <button 

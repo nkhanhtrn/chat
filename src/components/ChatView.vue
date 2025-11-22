@@ -14,7 +14,9 @@
     <ChatInput 
       :is-loading="isLoading"
       :selected-model="selectedModel"
+      :show-compress="chat.messages.length > 0"
       @send="handleSendMessage"
+      @compress="compressConversation"
     />
   </div>
 </template>
@@ -115,6 +117,50 @@ export default {
       await sendMessageToAPI(assistantMessage)
     }
 
+    const compressConversation = async () => {
+      if (isLoading.value || !props.selectedModel || props.chat.messages.length === 0) {
+        return
+      }
+
+      const messageCount = props.chat.messages.filter(m => !m.loading && m.role !== 'system').length
+
+      isLoading.value = true
+
+      try {
+        // Create a summary request
+        const conversationText = props.chat.messages
+          .filter(m => !m.loading && m.role !== 'system')
+          .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+          .join('\n\n')
+
+        const compressionPrompt = `Please provide a concise summary of the following conversation, capturing the key points and context:\n\n${conversationText}\n\nSummary:`
+
+        const messages = [{ role: 'user', content: compressionPrompt }]
+        const response = await sendChatMessage(messages, props.selectedModel)
+
+        // Add compressed summary as an assistant message at the end with collapsible display
+        const compressedMessage = {
+          role: 'assistant',
+          content: `[Previous conversation summary]: ${response}`,
+          displayContent: response,
+          compressed: true,
+          compressedCount: messageCount,
+          thinking: response, // Store summary in thinking so it uses the collapsible UI
+          showThinking: false // Start collapsed
+        }
+
+        // Add to end of messages array
+        props.chat.messages.push(compressedMessage)
+
+        scrollToBottom()
+      } catch (error) {
+        console.error('Error compressing conversation:', error)
+        alert('Failed to compress conversation: ' + error.message)
+      } finally {
+        isLoading.value = false
+      }
+    }
+
     const handleSendMessage = async (messageText) => {
       // Add user message
       const userMessage = {
@@ -157,7 +203,8 @@ export default {
       isLoading,
       messagesContainer,
       retryMessage,
-      handleSendMessage
+      handleSendMessage,
+      compressConversation
     }
   }
 }

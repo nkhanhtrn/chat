@@ -7,12 +7,24 @@
         placeholder="Type your message here..."
         :disabled="isLoading"
       ></textarea>
-      <button 
-        @click="handleSend"
-        :disabled="!inputValue.trim() || isLoading || !selectedModel"
-      >
-        {{ isLoading ? 'Sending...' : 'Send' }}
-      </button>
+      <div class="button-group">
+        <button 
+          v-if="showCompress"
+          @click="$emit('compress')"
+          class="compress-btn"
+          :disabled="isLoading"
+          title="Compress conversation"
+        >
+          🗜️
+        </button>
+        <button 
+          @click="handleSend"
+          :disabled="!inputValue.trim() || isLoading || !selectedModel"
+          class="send-btn"
+        >
+          {{ isLoading ? 'Sending...' : 'Send' }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -30,9 +42,13 @@ export default {
     selectedModel: {
       type: String,
       required: true
+    },
+    showCompress: {
+      type: Boolean,
+      default: false
     }
   },
-  emits: ['send'],
+  emits: ['send', 'compress'],
   setup(props, { emit }) {
     const inputValue = ref('')
 
