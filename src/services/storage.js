@@ -14,7 +14,6 @@ export const saveChats = (chats) => {
     localStorage.setItem(STORAGE_KEY_CHATS, JSON.stringify(chats))
   } catch (error) {
     console.error('Failed to save chats to localStorage:', error)
-    throw error
   }
 }
 

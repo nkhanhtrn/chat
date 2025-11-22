@@ -69,6 +69,10 @@ export const sendChatMessage = async (messages, model) => {
     }
   } catch (error) {
     console.error('Error in chat completion:', error.message)
+    // If it's our own error message, rethrow it directly
+    if (error.message === 'No response from model') {
+      throw error
+    }
     if (error.code === 'ERR_NETWORK') {
       throw new Error('Cannot connect to LM Studio server')
     }
