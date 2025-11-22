@@ -1,7 +1,7 @@
 <template>
   <component :is="elementTag" :class="elementClass">
     <template v-for="(part, index) in content" :key="index">
-      <code v-if="part.type === 'code'" class="inline-code">{{ part.text }}</code>
+      <InlineCode v-if="part.type === 'code'" :text="part.text" />
       <strong v-else-if="part.type === 'bold'">{{ part.text }}</strong>
       <em v-else-if="part.type === 'italic'">{{ part.text }}</em>
       <span v-else>{{ part.text }}</span>
@@ -10,8 +10,13 @@
 </template>
 
 <script>
+import InlineCode from './InlineCode.vue'
+
 export default {
   name: 'FormattedText',
+  components: {
+    InlineCode
+  },
   props: {
     content: {
       type: Array,

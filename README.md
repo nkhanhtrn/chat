@@ -1,12 +1,12 @@
-# ChatGPT Clone
+# Chat
 
-A ChatGPT-like interface built with Vue.js that connects to LM Studio API.
+A chat interface built with Vue.js that connects to LM Studio API.
 
 ## Features
 
 - 🗂️ **Multiple Chat Tabs** - Create and manage different chat conversations
 - 🤖 **Model Selection** - Choose from available AI models via dropdown
-- 💬 **Chat Interface** - Clean, modern chat UI similar to ChatGPT
+- 💬 **Chat Interface** - Clean, modern chat UI
 - 🔌 **LM Studio Integration** - Full integration with LM Studio API endpoints
 
 ## LM Studio API Endpoints Used

@@ -2,7 +2,7 @@
   <div class="app">
     <div class="sidebar">
       <div class="sidebar-header">
-        <h2>ChatGPT Clone</h2>
+        <h2>Chat</h2>
         <button @click="createNewChat" class="new-chat-btn">+ New Chat</button>
       </div>
       
@@ -77,10 +77,10 @@ import { ref, computed, onMounted, watch } from 'vue'
 import ChatView from './components/ChatView.vue'
 import { fetchModels } from './services/api.js'
 
-const STORAGE_KEY_CHATS = 'chatgpt-clone-chats'
-const STORAGE_KEY_ACTIVE = 'chatgpt-clone-active'
-const STORAGE_KEY_MODEL = 'chatgpt-clone-model'
-const STORAGE_KEY_COUNTER = 'chatgpt-clone-counter'
+const STORAGE_KEY_CHATS = 'chat-chats'
+const STORAGE_KEY_ACTIVE = 'chat-active'
+const STORAGE_KEY_MODEL = 'chat-model'
+const STORAGE_KEY_COUNTER = 'chat-counter'
 
 export default {
   name: 'App',
