@@ -1,8 +1,10 @@
 <template>
-  <div v-if="show" class="modal-overlay">
-    <div class="modal">
+  <div v-if="show" class="modal-overlay" @click="handleOverlayClick">
+    <div class="modal" @click.stop>
       <button @click="handleClose" class="modal-close-btn">×</button>
-      <h2>API Server Configuration</h2>
+      <h2>LM Studio Server Configuration</h2>
+      <p>This app connects to LM Studio running locally on your machine. LM Studio provides an OpenAI-compatible API server for running local language models.</p>
+      <p><strong>Setup:</strong> Start LM Studio → Load a model → Enable the local server</p>
       <p>Enter your LM Studio server details:</p>
       <div class="modal-form">
         <div class="form-group">
@@ -26,6 +28,9 @@
           />
         </div>
         <button @click="handleSave" class="modal-btn">Save</button>
+      </div>
+      <div class="modal-footer">
+        Made by <a href="https://github.com/nkhanhtrn" target="_blank" rel="noopener noreferrer">@nkhanhtrn</a> with <span class="heart">❤</span>
       </div>
     </div>
   </div>
@@ -74,6 +79,10 @@ export default {
       emit('close')
     }
 
+    const handleOverlayClick = () => {
+      handleClose()
+    }
+
     const handleKeydown = (event) => {
       if (event.key === 'Escape' && props.show) {
         handleClose()
@@ -92,8 +101,47 @@ export default {
       localHostname,
       localPort,
       handleSave,
-      handleClose
+      handleClose,
+      handleOverlayClick
     }
   }
 }
 </script>
+
+<style scoped>
+.modal-footer {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #e9ecef;
+  text-align: center;
+  font-size: 13px;
+  color: #6c757d;
+}
+
+.modal-footer a {
+  color: #007bff;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.modal-footer a:hover {
+  text-decoration: underline;
+}
+
+.heart {
+  color: #e25555;
+  animation: heartbeat 1.5s ease-in-out infinite;
+}
+
+@keyframes heartbeat {
+  0%, 100% {
+    transform: scale(1);
+  }
+  10%, 30% {
+    transform: scale(1.1);
+  }
+  20%, 40% {
+    transform: scale(1);
+  }
+}
+</style>
