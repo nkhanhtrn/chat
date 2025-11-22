@@ -1,67 +1,36 @@
 <template>
   <div class="chat-view">
     <div class="messages-container" ref="messagesContainer">
-      <div 
+      <MessageItem
         v-for="(message, index) in chat.messages" 
         :key="index"
-        :class="['message', message.role, { loading: message.loading }]"
-      >
-        <div class="message-role">
-          {{ message.role === 'user' ? 'You' : 'Assistant' }}
-        </div>
-        <div class="message-content">
-          <div v-if="message.thinking" class="thinking-section">
-            <div 
-              class="thinking-header" 
-              @click="message.showThinking = !message.showThinking"
-            >
-              <span class="thinking-icon">{{ message.showThinking ? '▼' : '▶' }}</span>
-              <span class="thinking-label">Thinking...</span>
-            </div>
-            <div v-if="message.showThinking" class="thinking-content">
-              {{ message.thinking }}
-            </div>
-          </div>
-          <div class="message-text" v-html="formatMessage(message.displayContent)"></div>
-        </div>
-        <div v-if="message.role === 'user'" class="message-actions">
-          <button 
-            @click="retryMessage(index)" 
-            class="retry-btn"
-            :disabled="isLoading"
-            title="Retry this message"
-          >
-            ↻
-          </button>
-        </div>
-      </div>
+        :message="message"
+        :is-loading="isLoading"
+        :is-last-user-message="message.role === 'user' && index === chat.messages.map(m => m.role).lastIndexOf('user')"
+        @retry="retryMessage(index)"
+      />
     </div>
 
-    <div class="input-area">
-      <div class="input-container">
-        <textarea
-          v-model="userInput"
-          @keydown.enter.exact.prevent="sendMessage"
-          placeholder="Type your message here..."
-          :disabled="isLoading"
-        ></textarea>
-        <button 
-          @click="sendMessage"
-          :disabled="!userInput.trim() || isLoading || !selectedModel"
-        >
-          {{ isLoading ? 'Sending...' : 'Send' }}
-        </button>
-      </div>
-    </div>
+    <ChatInput 
+      :is-loading="isLoading"
+      :selected-model="selectedModel"
+      @send="handleSendMessage"
+    />
   </div>
 </template>
 
 <script>
 import { ref, watch, nextTick } from 'vue'
 import { sendChatMessage } from '../services/api.js'
+import MessageItem from './MessageItem.vue'
+import ChatInput from './ChatInput.vue'
 
 export default {
   name: 'ChatView',
+  components: {
+    MessageItem,
+    ChatInput
+  },
   props: {
     chat: {
       type: Object,
@@ -74,7 +43,6 @@ export default {
   },
   emits: ['update-title'],
   setup(props, { emit }) {
-    const userInput = ref('')
     const isLoading = ref(false)
     const messagesContainer = ref(null)
 
@@ -86,63 +54,10 @@ export default {
       })
     }
 
-    const formatMessage = (content) => {
-      if (!content) return ''
-      
-      // Escape HTML to prevent XSS
-      let formatted = content
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-      
-      // Format code blocks with ```
-      formatted = formatted.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-        const language = lang || 'plaintext'
-        return `<div class="code-block"><div class="code-header">${language}</div><pre><code>${code.trim()}</code></pre></div>`
-      })
-      
-      // Format inline code with `
-      formatted = formatted.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>')
-      
-      // Format bold text with **
-      formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      
-      // Format italic text with *
-      formatted = formatted.replace(/\*([^*]+)\*/g, '<em>$1</em>')
-      
-      // Format line breaks
-      formatted = formatted.replace(/\n/g, '<br>')
-      
-      return formatted
-    }
-
-    const retryMessage = async (messageIndex) => {
-      if (isLoading.value || !props.selectedModel) {
-        return
-      }
-
-      // Remove messages after the retry point (user message and any responses)
-      const retryMessage = props.chat.messages[messageIndex]
-      props.chat.messages.splice(messageIndex + 1)
-
-      const messageText = retryMessage.content
-
-      // Add loading assistant message
-      const assistantMessage = {
-        role: 'assistant',
-        content: '',
-        displayContent: '',
-        thinking: 'Analyzing your question and generating a response...',
-        showThinking: true,
-        loading: true
-      }
-      props.chat.messages.push(assistantMessage)
-      scrollToBottom()
-
+    const sendMessageToAPI = async (assistantMessage) => {
       isLoading.value = true
-
+      
       try {
-        // Get all messages for context
         const messages = props.chat.messages
           .filter(m => !m.loading)
           .map(m => ({ role: m.role, content: m.content }))
@@ -166,7 +81,7 @@ export default {
         assistantMessage.showThinking = false
         assistantMessage.loading = false
       } catch (error) {
-        console.error('Error retrying message:', error)
+        console.error('Error processing message:', error)
         assistantMessage.content = `Error: ${error.message || 'Failed to get response from the model'}`
         assistantMessage.displayContent = assistantMessage.content
         assistantMessage.thinking = null
@@ -177,14 +92,30 @@ export default {
       }
     }
 
-    const sendMessage = async () => {
-      if (!userInput.value.trim() || isLoading.value || !props.selectedModel) {
+    const retryMessage = async (messageIndex) => {
+      if (isLoading.value || !props.selectedModel) {
         return
       }
 
-      const messageText = userInput.value.trim()
-      userInput.value = ''
+      // Remove messages after the retry point
+      props.chat.messages.splice(messageIndex + 1)
 
+      // Add loading assistant message
+      const assistantMessage = {
+        role: 'assistant',
+        content: '',
+        displayContent: '',
+        thinking: 'Analyzing your question and generating a response...',
+        showThinking: true,
+        loading: true
+      }
+      props.chat.messages.push(assistantMessage)
+      scrollToBottom()
+
+      await sendMessageToAPI(assistantMessage)
+    }
+
+    const handleSendMessage = async (messageText) => {
       // Add user message
       const userMessage = {
         role: 'user',
@@ -215,40 +146,7 @@ export default {
       props.chat.messages.push(assistantMessage)
       scrollToBottom()
 
-      isLoading.value = true
-
-      try {
-        // Get all messages for context
-        const messages = props.chat.messages
-          .filter(m => !m.loading)
-          .map(m => ({ role: m.role, content: m.content }))
-
-        const response = await sendChatMessage(messages, props.selectedModel)
-        
-        // Parse thinking tags
-        const thinkingMatch = response.match(/<think>([\s\S]*?)<\/think>/i)
-        let thinking = null
-        let displayContent = response
-        
-        if (thinkingMatch) {
-          thinking = thinkingMatch[1].trim()
-          displayContent = response.replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
-        }
-        
-        // Update assistant message with response
-        assistantMessage.content = response
-        assistantMessage.displayContent = displayContent
-        assistantMessage.thinking = thinking
-        assistantMessage.showThinking = false
-        assistantMessage.loading = false
-      } catch (error) {
-        console.error('Error sending message:', error)
-        assistantMessage.content = `Error: ${error.message || 'Failed to get response from the model'}`
-        assistantMessage.loading = false
-      } finally {
-        isLoading.value = false
-        scrollToBottom()
-      }
+      await sendMessageToAPI(assistantMessage)
     }
 
     watch(() => props.chat.messages.length, () => {
@@ -256,12 +154,10 @@ export default {
     })
 
     return {
-      userInput,
       isLoading,
       messagesContainer,
-      sendMessage,
       retryMessage,
-      formatMessage
+      handleSendMessage
     }
   }
 }
