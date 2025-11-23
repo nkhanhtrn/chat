@@ -101,6 +101,23 @@ describe('useMessageParser', () => {
       const boldElement = result[0].content.find(c => c.type === 'bold')
       expect(boldElement.text).toBe('bold')
     })
+
+    it('should add line break after header when not last line', () => {
+      const content = '# Header\nSome text'
+      const result = parseMessage(content)
+      
+      expect(result[0].type).toBe('header')
+      expect(result[1].type).toBe('linebreak')
+      expect(result[2].type).toBe('text')
+    })
+
+    it('should not add line break after header on last line', () => {
+      const content = '# Header'
+      const result = parseMessage(content)
+      
+      expect(result).toHaveLength(1)
+      expect(result[0].type).toBe('header')
+    })
   })
 
   describe('Horizontal Rules', () => {
@@ -205,6 +222,30 @@ describe('useMessageParser', () => {
       const codeInCell = table.rows[0][0].find(c => c.type === 'code')
       expect(codeInCell).toBeDefined()
       expect(codeInCell.text).toBe('npm install')
+    })
+
+    it('should handle table with empty header cells', () => {
+      const content = `| | | |
+| --- | --- | --- |
+| A | B | C |`
+      
+      const result = parseMessage(content)
+      
+      // Should parse as text since headers are empty (returns null)
+      expect(result.some(r => r.type === 'table')).toBe(false)
+      expect(result.some(r => r.type === 'text')).toBe(true)
+    })
+
+    it('should handle malformed table without proper headers', () => {
+      const content = `|||
+| --- | --- |
+| A | B |`
+      
+      const result = parseMessage(content)
+      
+      // Should not parse as table when headers are empty
+      const table = result.find(r => r.type === 'table')
+      expect(table).toBeUndefined()
     })
   })
 

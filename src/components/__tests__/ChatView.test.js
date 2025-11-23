@@ -8,7 +8,8 @@ import * as api from '../../services/api.js'
 
 // Mock the API module
 vi.mock('../../services/api.js', () => ({
-  sendChatMessage: vi.fn()
+  sendChatMessage: vi.fn(),
+  abortChatMessage: vi.fn()
 }))
 
 describe('ChatView', () => {
@@ -409,6 +410,84 @@ describe('ChatView', () => {
       expect(sentAssistantMsg.content).not.toContain('Some thinking')
     })
 
+    it('should handle cancelled request error without displaying error message', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      api.sendChatMessage.mockRejectedValue(new Error('Request cancelled'))
+
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'Test')
+      await nextTick()
+      await new Promise(resolve => setTimeout(resolve, 10))
+
+      const chatMsg = mockChat.messages[1]
+      // Should not show error for cancelled requests
+      expect(chatMsg.content).not.toContain('Error:')
+      expect(chatMsg.isWaiting).toBe(false)
+      
+      consoleErrorSpy.mockRestore()
+    })
+
+    it('should parse complete think tags correctly', async () => {
+      // Mock streaming with complete think tags in one chunk
+      api.sendChatMessage.mockImplementation(async (messages, model, onChunk) => {
+        const fullResponse = '<think>Complete thinking process</think>Final response'
+        if (onChunk) {
+          onChunk(fullResponse)
+        }
+        return fullResponse
+      })
+
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'Test')
+      await nextTick()
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      const chatMsg = mockChat.messages[1]
+      expect(chatMsg.thinking).toBe('Complete thinking process')
+      expect(chatMsg.displayContent).toBe('Final response')
+      expect(chatMsg.content).toBe('<think>Complete thinking process</think>Final response')
+    })
+
+    it('should only update thinking when currentThinking is set', async () => {
+      // Mock streaming without think tags
+      api.sendChatMessage.mockImplementation(async (messages, model, onChunk) => {
+        if (onChunk) {
+          onChunk('Response without thinking')
+        }
+        return 'Response without thinking'
+      })
+
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'Test')
+      await nextTick()
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      const chatMsg = mockChat.messages[1]
+      expect(chatMsg.thinking).toBeUndefined()
+      expect(chatMsg.displayContent).toBe('Response without thinking')
+    })
+
     it('should update correct chat when switching chats during streaming', async () => {
       // Create two separate chat objects
       const chat1 = {
@@ -789,6 +868,166 @@ describe('ChatView', () => {
     })
   })
 
+  describe('Stop Streaming', () => {
+    it('should stop streaming when stop button is triggered', async () => {
+      const abortSpy = vi.spyOn(api, 'abortChatMessage')
+      
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+
+      // Set streaming state
+      wrapper.vm.isStreaming = true
+      wrapper.vm.isLoading = true
+      await nextTick()
+
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('stop')
+      await nextTick()
+
+      expect(abortSpy).toHaveBeenCalled()
+      expect(wrapper.vm.isStreaming).toBe(false)
+      expect(wrapper.vm.isLoading).toBe(false)
+      expect(wrapper.emitted('loading-change')).toBeTruthy()
+      expect(wrapper.emitted('loading-change')[0]).toEqual([false])
+      
+      abortSpy.mockRestore()
+    })
+
+    it('should emit loading-change false when stopping', async () => {
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+
+      wrapper.vm.isStreaming = true
+      wrapper.vm.isLoading = true
+      await nextTick()
+
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('stop')
+      await nextTick()
+
+      expect(wrapper.emitted('loading-change')).toBeTruthy()
+      const loadingChanges = wrapper.emitted('loading-change')
+      expect(loadingChanges[loadingChanges.length - 1]).toEqual([false])
+    })
+  })
+
+  describe('Chat Switching During Streaming', () => {
+    it('should update correct chat when switching chats during streaming', async () => {
+      const chat1 = {
+        id: 1,
+        title: 'Chat 1',
+        messages: []
+      }
+      const chat2 = {
+        id: 2,
+        title: 'Chat 2',
+        messages: []
+      }
+
+      // Mock streaming behavior
+      let streamingCallback
+      api.sendChatMessage.mockImplementation(async (messages, model, onChunk) => {
+        streamingCallback = onChunk
+        if (onChunk) {
+          // Simulate delayed streaming
+          await new Promise(resolve => setTimeout(resolve, 50))
+          onChunk('Response for chat 1')
+        }
+        return 'Response for chat 1'
+      })
+
+      // Start with chat1
+      wrapper = mount(ChatView, {
+        props: {
+          chat: chat1,
+          selectedModel: 'test-model'
+        }
+      })
+
+      // Send message to chat1
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'Hello chat 1')
+      await nextTick()
+
+      // Chat1 should have user message and waiting assistant message
+      expect(chat1.messages).toHaveLength(2)
+      expect(chat1.messages[0].role).toBe('user')
+      expect(chat1.messages[1].role).toBe('assistant')
+      expect(chat1.messages[1].isWaiting).toBe(true)
+
+      // Switch to chat2 before streaming completes
+      await wrapper.setProps({ chat: chat2 })
+      await nextTick()
+
+      // Wait for streaming to complete
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // Chat1 should have the response, not chat2
+      expect(chat1.messages[1].displayContent).toBe('Response for chat 1')
+      expect(chat2.messages).toHaveLength(0)
+    })
+
+    it('should only scroll when viewing the chat receiving the response', async () => {
+      const chat1 = {
+        id: 1,
+        title: 'Chat 1',
+        messages: []
+      }
+      const chat2 = {
+        id: 2,
+        title: 'Chat 2',
+        messages: []
+      }
+
+      // Mock streaming behavior
+      api.sendChatMessage.mockImplementation(async (messages, model, onChunk) => {
+        if (onChunk) {
+          await new Promise(resolve => setTimeout(resolve, 20))
+          onChunk('Chunk 1')
+          await new Promise(resolve => setTimeout(resolve, 20))
+          onChunk(' Chunk 2')
+        }
+        return 'Chunk 1 Chunk 2'
+      })
+
+      wrapper = mount(ChatView, {
+        props: {
+          chat: chat1,
+          selectedModel: 'test-model'
+        },
+        attachTo: document.body
+      })
+
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'Test')
+      await nextTick()
+
+      // Switch to chat2
+      await wrapper.setProps({ chat: chat2 })
+      await nextTick()
+
+      // Get scroll position - should not change for chat2's container
+      const messagesContainer = wrapper.find('.messages-container').element
+      const initialScrollTop = messagesContainer.scrollTop
+
+      // Wait for streaming to complete
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // Scroll position should remain the same since we're viewing chat2
+      expect(messagesContainer.scrollTop).toBe(initialScrollTop)
+
+      wrapper.unmount()
+    })
+  })
+
   describe('MessageItem Props', () => {
     it('should pass correct isLastUserMessage prop', () => {
       mockChat.messages = [
@@ -929,6 +1168,27 @@ describe('ChatView', () => {
       expect(messagesContainer.scrollTop).toBe(messagesContainer.scrollHeight)
       
       wrapper.unmount()
+    })
+
+    it('should handle scrollToBottom when messagesContainer is null', async () => {
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+
+      // Set messagesContainer ref to null
+      wrapper.vm.messagesContainer = null
+      
+      // Call scrollToBottom through a watcher trigger - should not throw error
+      mockChat.messages.push({ role: 'user', content: 'Test', displayContent: 'Test' })
+      
+      await nextTick()
+      await nextTick()
+      
+      // Should complete without error
+      expect(wrapper.vm.messagesContainer).toBeNull()
     })
   })
 })
