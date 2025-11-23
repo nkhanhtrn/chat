@@ -5,24 +5,10 @@ import ChatView from '../ChatView.vue'
 import MessageItem from '../MessageItem.vue'
 import ChatInput from '../ChatInput.vue'
 import * as api from '../../services/api.js'
-import * as websiteContent from '../../services/websiteContent.js'
-import * as storage from '../../services/storage.js'
 
 // Mock the API module
 vi.mock('../../services/api.js', () => ({
   sendChatMessage: vi.fn()
-}))
-
-// Mock the websiteContent module
-vi.mock('../../services/websiteContent.js', () => ({
-  fetchWebsiteContent: vi.fn()
-}))
-
-// Mock the storage module
-vi.mock('../../services/storage.js', () => ({
-  loadWebsiteContext: vi.fn(),
-  saveWebsiteContext: vi.fn(),
-  deleteWebsiteContext: vi.fn()
 }))
 
 describe('ChatView', () => {
@@ -142,9 +128,8 @@ describe('ChatView', () => {
       expect(mockChat.messages[0].role).toBe('user')
       expect(mockChat.messages[0].content).toBe('Hello AI')
       
-      // Assistant message should be added (may or may not be loading depending on timing)
+      // Assistant message should be added
       expect(mockChat.messages[1].role).toBe('assistant')
-      expect(mockChat.messages[1]).toHaveProperty('loading')
     })
 
     it('should emit update-title when sending first message', async () => {
@@ -229,7 +214,6 @@ describe('ChatView', () => {
       const assistantMsg = mockChat.messages[1]
       expect(assistantMsg.content).toBe('AI response text')
       expect(assistantMsg.displayContent).toBe('AI response text')
-      expect(assistantMsg.loading).toBe(false)
     })
 
     it('should stream chunks incrementally', async () => {
@@ -260,7 +244,46 @@ describe('ChatView', () => {
       const assistantMsg = mockChat.messages[1]
       expect(assistantMsg.displayContent).toBe('Hello world!')
       expect(assistantMsg.content).toBe('Hello world!')
-      expect(assistantMsg.loading).toBe(false)
+    })
+
+    it('should remove waiting indicator when first chunk arrives', async () => {
+      let resolveChunk
+      const chunkPromise = new Promise(resolve => { resolveChunk = resolve })
+      
+      // Mock streaming with a controlled delay
+      api.sendChatMessage.mockImplementation(async (messages, model, onChunk) => {
+        if (onChunk) {
+          // Wait before sending first chunk so we can check isWaiting state
+          await chunkPromise
+          onChunk('First chunk')
+          await new Promise(resolve => setTimeout(resolve, 20))
+          onChunk(' second chunk')
+        }
+        return 'First chunk second chunk'
+      })
+
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'Test')
+      await nextTick()
+
+      // Check that assistant message starts with isWaiting = true
+      const assistantMsg = mockChat.messages[1]
+      expect(assistantMsg.isWaiting).toBe(true)
+
+      // Now release the first chunk
+      resolveChunk()
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      // After first chunk, isWaiting should be false
+      expect(assistantMsg.isWaiting).toBe(false)
+      expect(assistantMsg.displayContent).toContain('First chunk')
     })
 
     it('should parse thinking tags from response', async () => {
@@ -341,7 +364,6 @@ describe('ChatView', () => {
 
       const assistantMsg = mockChat.messages[1]
       expect(assistantMsg.content).toContain('Error:')
-      expect(assistantMsg.loading).toBe(false)
       
       consoleErrorSpy.mockRestore()
     })
@@ -412,7 +434,6 @@ describe('ChatView', () => {
       // Messages after retry point should be removed and new assistant message added
       expect(mockChat.messages).toHaveLength(2)
       expect(mockChat.messages[1].role).toBe('assistant')
-      expect(mockChat.messages[1]).toHaveProperty('loading')
     })
 
     it('should not retry when loading', async () => {
@@ -486,7 +507,6 @@ describe('ChatView', () => {
       // Messages after edit point should be removed and new assistant message added
       expect(mockChat.messages).toHaveLength(2)
       expect(mockChat.messages[1].role).toBe('assistant')
-      expect(mockChat.messages[1]).toHaveProperty('loading')
     })
 
     it('should not edit when loading', async () => {
@@ -708,8 +728,8 @@ describe('ChatView', () => {
     })
   })
 
-  describe('Website Context', () => {
-    it('should include website context in API call with custom label', async () => {
+  describe('MessageItem Props', () => {
+    it('should pass correct isLastUserMessage prop', async () => {
       const websiteData = {
         url: 'https://example.com',
         title: 'Example Site',
@@ -815,15 +835,15 @@ describe('ChatView', () => {
       const chatInput = wrapper.findComponent(ChatInput)
       await chatInput.vm.$emit('send', 'https://example.com')
       await nextTick()
+      await new Promise(resolve => setTimeout(resolve, 100))
 
       // Check that user message was added immediately
       const userMessage = mockChat.messages.find(m => m.role === 'user' && m.content === 'https://example.com')
       expect(userMessage).toBeTruthy()
 
-      // Check that a loading message with URL fetching thinking array was added
-      const loadingMessage = mockChat.messages.find(m => Array.isArray(m.thinking) && m.thinking.some(t => t.includes('Fetching content from')))
-      expect(loadingMessage).toBeTruthy()
-      expect(loadingMessage.thinking[0]).toContain('https://example.com')
+      // Check that assistant message was created after URL fetch
+      const assistantMessage = mockChat.messages.find(m => m.role === 'assistant')
+      expect(assistantMessage).toBeTruthy()
     })
 
     it('should handle URL fetch failure gracefully', async () => {

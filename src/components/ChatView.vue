@@ -16,19 +16,15 @@
       :is-loading="isLoading"
       :selected-model="selectedModel"
       :show-compress="chat.messages.length > 0"
-      :website-context="websiteContext"
       @send="handleSendMessage"
       @compress="compressConversation"
-      @website-removed="handleWebsiteRemoved"
     />
   </div>
 </template>
 
 <script>
-import { ref, watch, nextTick, onMounted } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import { sendChatMessage } from '../services/api.js'
-import { fetchWebsiteContent } from '../services/websiteContent.js'
-import { loadWebsiteContext, saveWebsiteContext, deleteWebsiteContext } from '../services/storage.js'
 import MessageItem from './MessageItem.vue'
 import ChatInput from './ChatInput.vue'
 
@@ -52,7 +48,6 @@ export default {
   setup(props, { emit }) {
     const isLoading = ref(false)
     const messagesContainer = ref(null)
-    const websiteContext = ref(null)
 
     const scrollToBottom = () => {
       nextTick(() => {
@@ -62,50 +57,18 @@ export default {
       })
     }
 
-    // Function to extract URLs from text
-    const extractUrls = (text) => {
-      const urlRegex = /(https?:\/\/[^\s]+)/gi
-      return text.match(urlRegex) || []
-    }
-
-    // Function to fetch content from URLs in message
-    const fetchUrlsContent = async (text) => {
-      const urls = extractUrls(text)
-      if (urls.length === 0) return null
-
-      try {
-        // Fetch content from the first URL found
-        const url = urls[0]
-        const websiteData = await fetchWebsiteContent(url)
-        return websiteData
-      } catch (error) {
-        console.error('Error fetching URL content:', error)
-        return null
-      }
-    }
-
     const sendMessageToAPI = async (assistantMessage) => {
       isLoading.value = true
       
       try {
         // Prepare messages for API - use displayContent to exclude thinking tags
         const messages = props.chat.messages
-          .filter(m => !m.loading)
           .map(m => ({ 
             role: m.role, 
             // Use displayContent for assistant messages to exclude thinking,
             // use content for user messages (they don't have displayContent distinction)
             content: m.role === 'assistant' && m.displayContent ? m.displayContent : m.content 
           }))
-
-        // Prepend website context if available
-        if (websiteContext.value) {
-          const contextMessage = {
-            role: 'system',
-            content: `The user has provided the following website content for context:\n\nTitle: ${websiteContext.value.title}\nURL: ${websiteContext.value.url}\n\nThe website content is:\n${websiteContext.value.content}\n\nPlease use this information to answer the user's questions when relevant.`
-          }
-          messages.unshift(contextMessage)
-        }
 
         let accumulatedContent = ''
         let accumulatedDisplayContent = ''
@@ -119,6 +82,11 @@ export default {
         
         // Callback to handle streaming chunks
         const handleChunk = (chunk) => {
+          // Remove waiting state on first chunk
+          if (props.chat.messages[messageIndex].isWaiting) {
+            props.chat.messages[messageIndex].isWaiting = false
+          }
+          
           accumulatedContent += chunk
           
           // Parse for <think> tags incrementally
@@ -183,32 +151,16 @@ export default {
         assistantMessage.content = accumulatedContent
         assistantMessage.displayContent = displayContent
         
-        // Preserve existing thinking array if it exists, otherwise use server thinking
-        if (!Array.isArray(assistantMessage.thinking) && serverThinking) {
+        // Store server thinking if present
+        if (serverThinking) {
           assistantMessage.thinking = serverThinking
-        } else if (Array.isArray(assistantMessage.thinking)) {
-          // Update the last task (analyzing) with a checkmark
-          const updatedThinking = assistantMessage.thinking.map((task, index) => {
-            // Mark the last task as complete (the analyzing task)
-            if (index === assistantMessage.thinking.length - 1 && !task.startsWith('✓') && !task.startsWith('✗')) {
-              return '✓ ' + task.replace(/^⟳\s*/, '')
-            }
-            return task
-          })
-          assistantMessage.thinking = updatedThinking
         }
-        
-        // Keep thinking block visible but collapsed after completion
-        assistantMessage.loading = false
       } catch (error) {
         console.error('Error processing message:', error)
         assistantMessage.content = `Error: ${error.message || 'Failed to get response from the model'}`
         assistantMessage.displayContent = assistantMessage.content
-        // Keep existing thinking array if present, don't overwrite with null
-        if (!Array.isArray(assistantMessage.thinking)) {
-          assistantMessage.thinking = null
-        }
-        assistantMessage.loading = false
+        assistantMessage.thinking = null
+        assistantMessage.isWaiting = false
       } finally {
         isLoading.value = false
         scrollToBottom()
@@ -223,14 +175,12 @@ export default {
       // Remove messages after the retry point
       props.chat.messages.splice(messageIndex + 1)
 
-      // Add loading assistant message
+      // Add loading message
       const assistantMessage = {
         role: 'assistant',
         content: '',
         displayContent: '',
-        thinking: ['⟳ Analyzing your question and generating a response...'],
-        showThinking: true,
-        loading: true
+        isWaiting: true
       }
       props.chat.messages.push(assistantMessage)
       scrollToBottom()
@@ -255,9 +205,7 @@ export default {
         role: 'assistant',
         content: '',
         displayContent: '',
-        thinking: ['⟳ Analyzing your question and generating a response...'],
-        showThinking: true,
-        loading: true
+        isWaiting: true
       }
       props.chat.messages.push(assistantMessage)
       scrollToBottom()
@@ -270,14 +218,14 @@ export default {
         return
       }
 
-      const messageCount = props.chat.messages.filter(m => !m.loading && m.role !== 'system').length
+      const messageCount = props.chat.messages.filter(m => m.role !== 'system').length
 
       isLoading.value = true
 
       try {
         // Create a summary request
         const conversationText = props.chat.messages
-          .filter(m => !m.loading && m.role !== 'system')
+          .filter(m => m.role !== 'system')
           .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
           .join('\n\n')
 
@@ -328,76 +276,18 @@ export default {
 
       scrollToBottom()
 
-      // Check for URLs in the message
-      const urls = extractUrls(messageText)
-      const hasUrls = urls.length > 0
-
-      // Initialize thinking array with analyzing message
-      const thinkingArray = ['⟳ Analyzing your question and generating a response...']
-      
-      // Add URL fetching message if URLs present
-      if (hasUrls) {
-        thinkingArray.unshift(`⟳ Fetching content from ${urls[0]}...`)
-      }
-
       // Add loading assistant message
       const assistantMessage = {
         role: 'assistant',
         content: '',
         displayContent: '',
-        thinking: thinkingArray,
-        showThinking: true,
-        loading: true
+        isWaiting: true
       }
       props.chat.messages.push(assistantMessage)
       scrollToBottom()
 
-      // Fetch URL content if URLs are present
-      if (hasUrls) {
-        const urlContent = await fetchUrlsContent(messageText)
-        
-        const messageIndex = props.chat.messages.length - 1
-        
-        if (urlContent) {
-          // Save the website context
-          websiteContext.value = urlContent
-          saveWebsiteContext(props.chat.id, urlContent)
-          
-          // Update thinking to show URL was fetched successfully
-          props.chat.messages[messageIndex].thinking = [
-            `✓ Fetched content from ${urls[0]}`,
-            'Analyzing your question and generating a response...'
-          ]
-        } else {
-          // Update thinking to show URL fetch failed
-          props.chat.messages[messageIndex].thinking = [
-            `✗ Failed to fetch content from ${urls[0]}`,
-            'Analyzing your question and generating a response...'
-          ]
-        }
-      }
-
       await sendMessageToAPI(assistantMessage)
     }
-
-    const handleWebsiteRemoved = () => {
-      websiteContext.value = null
-      deleteWebsiteContext(props.chat.id)
-    }
-
-    // Load website context when chat is mounted
-    onMounted(() => {
-      const savedContext = loadWebsiteContext(props.chat.id)
-      if (savedContext) {
-        websiteContext.value = savedContext
-      }
-    })
-
-    // Watch for chat changes and load context
-    watch(() => props.chat.id, (newChatId) => {
-      const savedContext = loadWebsiteContext(newChatId)
-      websiteContext.value = savedContext
-    })
 
     watch(() => props.chat.messages.length, () => {
       scrollToBottom()
@@ -406,12 +296,10 @@ export default {
     return {
       isLoading,
       messagesContainer,
-      websiteContext,
       retryMessage,
       editMessage,
       handleSendMessage,
-      compressConversation,
-      handleWebsiteRemoved
+      compressConversation
     }
   }
 }

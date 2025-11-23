@@ -1,16 +1,9 @@
 <template>
-  <div :class="['message', message.role, { loading: message.loading }]">
+  <div :class="['message', message.role]">
     <div class="message-role">
       {{ message.role === 'user' ? 'You' : 'Assistant' }}
     </div>
     <div class="message-content">
-      <ThinkingBlock
-        v-if="message.thinking && (typeof message.thinking === 'string' || (Array.isArray(message.thinking) && message.thinking.length > 0))"
-        :content="message.thinking"
-        :show-thinking="message.showThinking"
-        :compressed="message.compressed"
-        :compressed-count="message.compressedCount"
-      />
       <div v-if="isEditing" class="edit-section">
         <textarea 
           v-model="editedContent"
@@ -28,7 +21,10 @@
           </button>
         </div>
       </div>
-      <MessageContent v-else-if="!message.compressed || !message.thinking" :content="message.displayContent" />
+      <div v-else-if="message.isWaiting" class="waiting-indicator">
+        <span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
+      </div>
+      <MessageContent v-else-if="!message.compressed && message.displayContent" :content="message.displayContent" />
     </div>
     <div v-if="message.role === 'user' && isLastUserMessage && !isEditing" class="message-actions">
       <button 
@@ -54,13 +50,11 @@
 <script>
 import { ref, nextTick } from 'vue'
 import MessageContent from './MessageContent.vue'
-import ThinkingBlock from './ThinkingBlock.vue'
 
 export default {
   name: 'MessageItem',
   components: {
-    MessageContent,
-    ThinkingBlock
+    MessageContent
   },
   props: {
     message: {

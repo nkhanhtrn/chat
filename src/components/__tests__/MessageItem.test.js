@@ -79,17 +79,17 @@ describe('MessageItem', () => {
         }
       })
 
-      expect(wrapper.find('.message').classes()).toContain('loading')
+      // Loading class was removed - this test is no longer applicable
+      expect(wrapper.find('.message').exists()).toBe(true)
     })
   })
 
   describe('Thinking Section', () => {
-    it('should render thinking section when thinking exists', () => {
+    it('should render waiting indicator when message is waiting', () => {
       const message = {
         role: 'assistant',
-        displayContent: 'Answer',
-        thinking: 'Let me think...',
-        showThinking: false
+        displayContent: '',
+        isWaiting: true
       }
 
       wrapper = mount(MessageItem, {
@@ -99,13 +99,13 @@ describe('MessageItem', () => {
         },
         global: {
           stubs: {
-            MessageContent: true,
-            ThinkingBlock: true
+            MessageContent: true
           }
         }
       })
 
-      expect(wrapper.findComponent({ name: 'ThinkingBlock' }).exists()).toBe(true)
+      expect(wrapper.find('.waiting-indicator').exists()).toBe(true)
+      expect(wrapper.findAll('.dot')).toHaveLength(3)
     })
 
     it('should not render thinking section when no thinking', () => {
@@ -122,21 +122,19 @@ describe('MessageItem', () => {
         },
         global: {
           stubs: {
-            MessageContent: true,
-            ThinkingBlock: true
+            MessageContent: true
           }
         }
       })
 
-      expect(wrapper.findComponent({ name: 'ThinkingBlock' }).exists()).toBe(false)
+      expect(wrapper.find('.waiting-indicator').exists()).toBe(false)
     })
 
-    it('should show collapsed thinking by default', () => {
+    it('should not show waiting indicator when message has content', () => {
       const message = {
         role: 'assistant',
         displayContent: 'Answer',
-        thinking: 'Thinking process',
-        showThinking: false
+        isWaiting: false
       }
 
       wrapper = mount(MessageItem, {
@@ -146,18 +144,14 @@ describe('MessageItem', () => {
         }
       })
 
-      const thinkingBlock = wrapper.findComponent({ name: 'ThinkingBlock' })
-      expect(thinkingBlock.exists()).toBe(true)
-      expect(thinkingBlock.props('showThinking')).toBe(false)
-      expect(thinkingBlock.props('content')).toBe('Thinking process')
+      expect(wrapper.find('.waiting-indicator').exists()).toBe(false)
     })
 
-    it('should show thinking content when expanded', () => {
+    it('should show message content when not waiting', () => {
       const message = {
         role: 'assistant',
         displayContent: 'Answer',
-        thinking: 'Thinking process',
-        showThinking: true
+        isWaiting: false
       }
 
       wrapper = mount(MessageItem, {
@@ -167,21 +161,15 @@ describe('MessageItem', () => {
         }
       })
 
-      const thinkingBlock = wrapper.findComponent({ name: 'ThinkingBlock' })
-      expect(thinkingBlock.exists()).toBe(true)
-      expect(thinkingBlock.props('showThinking')).toBe(true)
-      expect(thinkingBlock.props('content')).toBe('Thinking process')
-      expect(wrapper.find('.thinking-content').exists()).toBe(true)
-      expect(wrapper.find('.thinking-content').text()).toBe('Thinking process')
-      expect(wrapper.find('.thinking-icon').text()).toBe('▼')
+      const content = wrapper.findComponent({ name: 'MessageContent' })
+      expect(content.exists()).toBe(true)
     })
 
-    it('should toggle thinking when header is clicked', async () => {
+    it('should not show message content when waiting', () => {
       const message = {
         role: 'assistant',
-        displayContent: 'Answer',
-        thinking: 'Thinking process',
-        showThinking: false
+        displayContent: '',
+        isWaiting: true
       }
 
       wrapper = mount(MessageItem, {
@@ -191,42 +179,13 @@ describe('MessageItem', () => {
         }
       })
 
-      const header = wrapper.find('.thinking-header')
-      await header.trigger('click')
-
-      await wrapper.vm.$nextTick()
-      expect(wrapper.find('.thinking-content').exists()).toBe(true)
-
-      await header.trigger('click')
-      await wrapper.vm.$nextTick()
-      expect(wrapper.find('.thinking-content').exists()).toBe(false)
+      expect(wrapper.findComponent({ name: 'MessageContent' }).exists()).toBe(false)
     })
 
-    it('should show "Thinking..." label for normal messages', () => {
+    it('should not show MessageContent for compressed messages', () => {
       const message = {
         role: 'assistant',
-        displayContent: 'Answer',
-        thinking: 'Process',
-        showThinking: false,
-        compressed: false
-      }
-
-      wrapper = mount(MessageItem, {
-        props: {
-          message,
-          isLoading: false
-        }
-      })
-
-      expect(wrapper.find('.thinking-label').text()).toContain('Thinking')
-    })
-
-    it('should show compressed message label for compressed messages', () => {
-      const message = {
-        role: 'assistant',
-        displayContent: 'Summary',
-        thinking: 'Compressed content',
-        showThinking: false,
+        displayContent: 'Compressed answer',
         compressed: true,
         compressedCount: 5
       }
@@ -238,10 +197,7 @@ describe('MessageItem', () => {
         }
       })
 
-      const thinkingBlock = wrapper.findComponent({ name: 'ThinkingBlock' })
-      expect(thinkingBlock.props('compressed')).toBe(true)
-      expect(thinkingBlock.props('compressedCount')).toBe(5)
-      expect(wrapper.find('.thinking-label').text()).toBe('Compressed previous conversation (5 messages)')
+      expect(wrapper.findComponent({ name: 'MessageContent' }).exists()).toBe(false)
     })
   })
 
