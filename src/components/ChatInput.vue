@@ -10,20 +10,30 @@
       ></textarea>
       <div class="button-group">
         <button 
+          v-if="isStreaming"
+          @click="$emit('stop')"
+          class="stop-btn"
+          title="Stop generating"
+        >
+          Stop
+        </button>
+        <button 
+          v-else
+          @click="handleSend"
+          :disabled="!inputValue.trim() || isLoading || !selectedModel"
+          class="send-btn"
+          title="Send message"
+        >
+          Send
+        </button>
+        <button 
           v-if="showCompress"
           @click="$emit('compress')"
           class="compress-btn"
           :disabled="isLoading"
           title="Compress conversation"
         >
-          🗜️
-        </button>
-        <button 
-          @click="handleSend"
-          :disabled="!inputValue.trim() || isLoading || !selectedModel"
-          class="send-btn"
-        >
-          {{ isLoading ? 'Sending...' : 'Send' }}
+          Compress
         </button>
       </div>
     </div>
@@ -40,6 +50,10 @@ export default {
       type: Boolean,
       default: false
     },
+    isStreaming: {
+      type: Boolean,
+      default: false
+    },
     selectedModel: {
       type: String,
       required: true
@@ -49,7 +63,7 @@ export default {
       default: false
     }
   },
-  emits: ['send', 'compress'],
+  emits: ['send', 'compress', 'stop'],
   setup(props, { emit }) {
     const inputValue = ref('')
     const textareaRef = ref(null)

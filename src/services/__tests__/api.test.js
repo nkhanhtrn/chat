@@ -188,7 +188,7 @@ describe('API Service', () => {
       
       expect(global.fetch).toHaveBeenCalledWith(
         `${mockAxiosInstance.defaults.baseURL}/v1/chat/completions`,
-        {
+        expect.objectContaining({
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -199,8 +199,9 @@ describe('API Service', () => {
             temperature: 0.7,
             max_tokens: -1,
             stream: true
-          })
-        }
+          }),
+          signal: expect.any(AbortSignal)
+        })
       )
       
       expect(onChunk).toHaveBeenCalledTimes(3)
@@ -324,6 +325,114 @@ describe('API Service', () => {
       expect(callArgs.temperature).toBe(0.7)
       expect(callArgs.max_tokens).toBe(-1)
       expect(callArgs.stream).toBe(false)
+    })
+  })
+
+  describe('abortChatMessage', () => {
+    it('should abort ongoing streaming request', async () => {
+      const messages = [{ role: 'user', content: 'Hello' }]
+      const model = 'test-model'
+      
+      let abortController = null
+      
+      // Mock fetch to capture the abort controller
+      global.fetch = vi.fn((url, options) => {
+        abortController = new AbortController()
+        // Simulate the signal being passed
+        return new Promise((resolve, reject) => {
+          setTimeout(() => {
+            if (options.signal.aborted) {
+              reject(new DOMException('Aborted', 'AbortError'))
+            } else {
+              resolve({
+                ok: true,
+                body: {
+                  getReader: () => ({
+                    read: vi.fn().mockResolvedValue({ done: true })
+                  })
+                }
+              })
+            }
+          }, 100)
+        })
+      })
+      
+      const onChunk = vi.fn()
+      const promise = apiModule.sendChatMessage(messages, model, onChunk)
+      
+      // Call abort after a short delay
+      setTimeout(() => {
+        apiModule.abortChatMessage()
+      }, 10)
+      
+      await expect(promise).rejects.toThrow('Request cancelled')
+    })
+
+    it('should handle abort when no request is in progress', () => {
+      // Should not throw error when called with no active request
+      expect(() => apiModule.abortChatMessage()).not.toThrow()
+    })
+
+    it('should handle AbortError during streaming', async () => {
+      const messages = [{ role: 'user', content: 'Test' }]
+      const model = 'test-model'
+      
+      const abortError = new DOMException('The operation was aborted', 'AbortError')
+      global.fetch = vi.fn().mockRejectedValue(abortError)
+      
+      const onChunk = vi.fn()
+      
+      await expect(
+        apiModule.sendChatMessage(messages, model, onChunk)
+      ).rejects.toThrow('Request cancelled')
+    })
+
+    it('should clean up abort controller after successful stream', async () => {
+      const messages = [{ role: 'user', content: 'Test' }]
+      const model = 'test-model'
+      
+      const mockReader = {
+        read: vi.fn()
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode('data: {"choices":[{"delta":{"content":"Hi"}}]}\n')
+          })
+          .mockResolvedValueOnce({
+            done: true,
+            value: undefined
+          })
+      }
+      
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        body: {
+          getReader: () => mockReader
+        }
+      })
+      
+      const onChunk = vi.fn()
+      await apiModule.sendChatMessage(messages, model, onChunk)
+      
+      // Calling abort after successful completion should be safe
+      expect(() => apiModule.abortChatMessage()).not.toThrow()
+    })
+
+    it('should clean up abort controller after error', async () => {
+      const messages = [{ role: 'user', content: 'Test' }]
+      const model = 'test-model'
+      
+      global.fetch = vi.fn().mockRejectedValue(new Error('Network error'))
+      
+      const onChunk = vi.fn()
+      
+      try {
+        await apiModule.sendChatMessage(messages, model, onChunk)
+      } catch (error) {
+        // Expected error
+      }
+      
+      // Calling abort after error should be safe
+      expect(() => apiModule.abortChatMessage()).not.toThrow()
     })
   })
 

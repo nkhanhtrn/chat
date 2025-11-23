@@ -47,7 +47,7 @@ describe('ChatInput', () => {
       })
 
       expect(wrapper.find('.compress-btn').exists()).toBe(true)
-      expect(wrapper.find('.compress-btn').text()).toBe('🗜️')
+      expect(wrapper.find('.compress-btn').text()).toBe('Compress')
     })
 
     it('should not show compress button when showCompress is false', () => {
@@ -109,7 +109,7 @@ describe('ChatInput', () => {
         }
       })
 
-      expect(wrapper.find('.send-btn').text()).toBe('Sending...')
+      expect(wrapper.find('.send-btn').text()).toBe('Send')
     })
 
     it('should disable compress button when loading', () => {
@@ -408,6 +408,113 @@ describe('ChatInput', () => {
       expect(textarea).toBeDefined()
 
       wrapper.unmount()
+    })
+  })
+
+  describe('Stop Streaming Functionality', () => {
+    it('should show stop button when isStreaming is true', () => {
+      wrapper = mount(ChatInput, {
+        props: {
+          selectedModel: 'test-model',
+          isLoading: false,
+          isStreaming: true
+        }
+      })
+
+      expect(wrapper.find('.stop-btn').exists()).toBe(true)
+      expect(wrapper.find('.stop-btn').text()).toBe('Stop')
+      expect(wrapper.find('.send-btn').exists()).toBe(false)
+    })
+
+    it('should show send button when isStreaming is false', () => {
+      wrapper = mount(ChatInput, {
+        props: {
+          selectedModel: 'test-model',
+          isLoading: false,
+          isStreaming: false
+        }
+      })
+
+      expect(wrapper.find('.send-btn').exists()).toBe(true)
+      expect(wrapper.find('.send-btn').text()).toBe('Send')
+      expect(wrapper.find('.stop-btn').exists()).toBe(false)
+    })
+
+    it('should emit stop event when stop button is clicked', async () => {
+      wrapper = mount(ChatInput, {
+        props: {
+          selectedModel: 'test-model',
+          isLoading: false,
+          isStreaming: true
+        }
+      })
+
+      const stopBtn = wrapper.find('.stop-btn')
+      await stopBtn.trigger('click')
+
+      expect(wrapper.emitted('stop')).toBeTruthy()
+      expect(wrapper.emitted('stop')).toHaveLength(1)
+    })
+
+    it('should have title attribute on stop button', () => {
+      wrapper = mount(ChatInput, {
+        props: {
+          selectedModel: 'test-model',
+          isLoading: false,
+          isStreaming: true
+        }
+      })
+
+      const stopBtn = wrapper.find('.stop-btn')
+      expect(stopBtn.attributes('title')).toBe('Stop generating')
+    })
+
+    it('should replace send button with stop button during streaming', async () => {
+      wrapper = mount(ChatInput, {
+        props: {
+          selectedModel: 'test-model',
+          isLoading: false,
+          isStreaming: false
+        }
+      })
+
+      // Initially should show send button
+      expect(wrapper.find('.send-btn').exists()).toBe(true)
+      expect(wrapper.find('.stop-btn').exists()).toBe(false)
+
+      // Update to streaming state
+      await wrapper.setProps({ isStreaming: true })
+
+      // Should now show stop button instead
+      expect(wrapper.find('.stop-btn').exists()).toBe(true)
+      expect(wrapper.find('.send-btn').exists()).toBe(false)
+    })
+
+    it('should switch back to send button when streaming stops', async () => {
+      wrapper = mount(ChatInput, {
+        props: {
+          selectedModel: 'test-model',
+          isLoading: false,
+          isStreaming: true
+        }
+      })
+
+      // Initially should show stop button
+      expect(wrapper.find('.stop-btn').exists()).toBe(true)
+      expect(wrapper.find('.send-btn').exists()).toBe(false)
+
+      // Update to non-streaming state
+      await wrapper.setProps({ isStreaming: false })
+
+      // Should now show send button again
+      expect(wrapper.find('.send-btn').exists()).toBe(true)
+      expect(wrapper.find('.stop-btn').exists()).toBe(false)
+    })
+
+    it('should have isStreaming prop with default value false', () => {
+      const { isStreaming } = ChatInput.props
+      expect(isStreaming.type).toBe(Boolean)
+      expect(isStreaming.default).toBe(false)
     })
   })
 })

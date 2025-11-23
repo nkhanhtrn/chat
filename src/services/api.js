@@ -45,6 +45,20 @@ export const fetchModels = async () => {
   }
 }
 
+// Store the current abort controller for cancelling requests
+let currentAbortController = null
+
+/**
+ * Abort the current streaming request
+ */
+export const abortChatMessage = () => {
+  if (currentAbortController) {
+    console.log('Aborting current request')
+    currentAbortController.abort()
+    currentAbortController = null
+  }
+}
+
 /**
  * POST /v1/chat/completions - Send chat message with streaming support
  * @param {Array} messages - Array of message objects
@@ -77,6 +91,10 @@ export const sendChatMessage = async (messages, model, onChunk = null) => {
     
     // Streaming mode
     console.log('Using streaming mode with callback')
+    
+    // Create abort controller for this request
+    currentAbortController = new AbortController()
+    
     const response = await fetch(`${API_BASE_URL}/v1/chat/completions`, {
       method: 'POST',
       headers: {
@@ -88,7 +106,8 @@ export const sendChatMessage = async (messages, model, onChunk = null) => {
         temperature: 0.7,
         max_tokens: -1,
         stream: true
-      })
+      }),
+      signal: currentAbortController.signal
     })
     
     console.log('Fetch response received, status:', response.status)
@@ -145,9 +164,20 @@ export const sendChatMessage = async (messages, model, onChunk = null) => {
     }
     
     console.log('Streaming complete')
+    currentAbortController = null
     return fullContent
   } catch (error) {
     console.error('Error in chat completion:', error.message)
+    
+    // Clean up abort controller
+    currentAbortController = null
+    
+    // Handle abort error
+    if (error.name === 'AbortError') {
+      console.log('Request was aborted by user')
+      throw new Error('Request cancelled')
+    }
+    
     // If it's our own error message, rethrow it directly
     if (error.message === 'No response from model') {
       throw error

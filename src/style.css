@@ -842,11 +842,12 @@ body {
   margin: 0 auto;
   display: flex;
   gap: 10px;
+  align-items: flex-start;
 }
 
 .input-container textarea {
   flex: 1;
-  padding: 12px;
+  padding: 10px 12px;
   background-color: #40414f;
   color: #ececf1;
   border: 1px solid #565869;
@@ -854,8 +855,9 @@ body {
   font-size: 14px;
   font-family: inherit;
   resize: none;
-  min-height: 80px;
+  min-height: 40px;
   max-height: 200px;
+  line-height: 20px;
 }
 
 .input-container textarea:focus {
@@ -866,10 +868,12 @@ body {
 .input-container .button-group {
   display: flex;
   gap: 8px;
+  align-items: flex-start;
 }
 
 .input-container .send-btn {
-  padding: 12px 24px;
+  height: 40px;
+  padding: 0 16px;
   background-color: #10a37f;
   color: #fff;
   border: none;
@@ -878,6 +882,10 @@ body {
   cursor: pointer;
   transition: background-color 0.2s;
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
 }
 
 .input-container .send-btn:hover:not(:disabled) {
@@ -890,17 +898,19 @@ body {
 }
 
 .input-container .compress-btn {
-  padding: 12px 16px;
+  height: 40px;
+  padding: 0 16px;
   background-color: #565869;
   color: #fff;
   border: none;
   border-radius: 6px;
-  font-size: 16px;
+  font-size: 14px;
   cursor: pointer;
   transition: background-color 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
+  white-space: nowrap;
 }
 
 .input-container .compress-btn:hover:not(:disabled) {
@@ -910,6 +920,31 @@ body {
 .input-container .compress-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.input-container .stop-btn {
+  height: 40px;
+  padding: 0 16px;
+  background-color: #d9534f;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.input-container .stop-btn:hover {
+  background-color: #c9302c;
+}
+
+.input-container .stop-btn:active {
+  transform: scale(0.98);
 }
 
 /* Scrollbar styling */

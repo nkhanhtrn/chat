@@ -14,17 +14,19 @@
 
     <ChatInput 
       :is-loading="isLoading"
+      :is-streaming="isStreaming"
       :selected-model="selectedModel"
       :show-compress="chat.messages.length > 0"
       @send="handleSendMessage"
       @compress="compressConversation"
+      @stop="stopStreaming"
     />
   </div>
 </template>
 
 <script>
 import { ref, watch, nextTick, onMounted } from 'vue'
-import { sendChatMessage } from '../services/api.js'
+import { sendChatMessage, abortChatMessage } from '../services/api.js'
 import MessageItem from './MessageItem.vue'
 import ChatInput from './ChatInput.vue'
 
@@ -47,6 +49,7 @@ export default {
   emits: ['update-title'],
   setup(props, { emit }) {
     const isLoading = ref(false)
+    const isStreaming = ref(false)
     const messagesContainer = ref(null)
 
     const scrollToBottom = () => {
@@ -62,8 +65,15 @@ export default {
       scrollToBottom()
     })
 
+    const stopStreaming = () => {
+      abortChatMessage()
+      isStreaming.value = false
+      isLoading.value = false
+    }
+
     const sendMessageToAPI = async (chatMessage) => {
       isLoading.value = true
+      isStreaming.value = false
       
       try {
         // Prepare messages for API - use displayContent to exclude thinking tags
@@ -87,6 +97,11 @@ export default {
         
         // Callback to handle streaming chunks
         const handleChunk = (chunk) => {
+          // Set streaming state on first chunk
+          if (!isStreaming.value) {
+            isStreaming.value = true
+          }
+          
           // Remove waiting state on first chunk
           if (props.chat.messages[messageIndex].isWaiting) {
             props.chat.messages[messageIndex].isWaiting = false
@@ -162,12 +177,17 @@ export default {
         }
       } catch (error) {
         console.error('Error processing message:', error)
-        chatMessage.content = `Error: ${error.message || 'Failed to get response from the model'}`
-        chatMessage.displayContent = chatMessage.content
-        chatMessage.thinking = null
+        
+        // Don't show error for cancelled requests
+        if (error.message !== 'Request cancelled') {
+          chatMessage.content = `Error: ${error.message || 'Failed to get response from the model'}`
+          chatMessage.displayContent = chatMessage.content
+          chatMessage.thinking = null
+        }
         chatMessage.isWaiting = false
       } finally {
         isLoading.value = false
+        isStreaming.value = false
         scrollToBottom()
       }
     }
@@ -300,11 +320,13 @@ export default {
 
     return {
       isLoading,
+      isStreaming,
       messagesContainer,
       retryMessage,
       editMessage,
       handleSendMessage,
-      compressConversation
+      compressConversation,
+      stopStreaming
     }
   }
 }
