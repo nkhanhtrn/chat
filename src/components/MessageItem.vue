@@ -1,9 +1,12 @@
 <template>
   <div :class="['message', message.role]">
-    <div class="message-role">
-      {{ message.role === 'user' ? 'You' : 'Chat' }}
+    <div class="message-header" @click="toggleCollapse" style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+      <div class="message-role">
+        {{ message.role === 'user' ? 'You' : 'Chat' }}
+      </div>
+      <span v-if="isCollapsed" class="collapse-icon">▶</span>
     </div>
-    <div class="message-content">
+    <div v-show="!isCollapsed" class="message-content">
       <div v-if="isEditing" class="edit-section">
         <textarea 
           v-model="editedContent"
@@ -26,7 +29,7 @@
       </div>
       <MessageContent v-else-if="!message.compressed && message.displayContent" :content="message.displayContent" />
     </div>
-    <div v-if="message.role === 'user' && isLastUserMessage && !isEditing" class="message-actions">
+    <div v-if="message.role === 'user' && isLastUserMessage && !isEditing && !isCollapsed" class="message-actions">
       <button 
         @click="startEdit" 
         class="edit-btn"
@@ -75,6 +78,13 @@ export default {
     const isEditing = ref(false)
     const editedContent = ref('')
     const editTextarea = ref(null)
+    const isCollapsed = ref(false)
+
+    const toggleCollapse = () => {
+      if (!isEditing.value) {
+        isCollapsed.value = !isCollapsed.value
+      }
+    }
 
     const startEdit = async () => {
       editedContent.value = props.message.content
@@ -102,6 +112,8 @@ export default {
       isEditing,
       editedContent,
       editTextarea,
+      isCollapsed,
+      toggleCollapse,
       startEdit,
       saveEdit,
       cancelEdit

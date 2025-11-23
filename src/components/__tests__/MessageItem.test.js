@@ -974,8 +974,341 @@ describe('MessageItem', () => {
       })
 
       expect(wrapper.find('.message').exists()).toBe(true)
+      expect(wrapper.find('.message-header').exists()).toBe(true)
       expect(wrapper.find('.message-role').exists()).toBe(true)
       expect(wrapper.find('.message-content').exists()).toBe(true)
+    })
+  })
+
+  describe('Collapse Functionality', () => {
+    it('should show message content by default', () => {
+      const message = {
+        role: 'user',
+        displayContent: 'Hello world',
+        thinking: null
+      }
+
+      wrapper = mount(MessageItem, {
+        props: {
+          message,
+          isLoading: false
+        },
+        global: {
+          stubs: {
+            MessageContent: true
+          }
+        }
+      })
+
+      expect(wrapper.find('.message-content').isVisible()).toBe(true)
+    })
+
+    it('should collapse message when clicking on message header', async () => {
+      const message = {
+        role: 'user',
+        displayContent: 'Hello world',
+        thinking: null
+      }
+
+      wrapper = mount(MessageItem, {
+        props: {
+          message,
+          isLoading: false
+        },
+        global: {
+          stubs: {
+            MessageContent: true
+          }
+        }
+      })
+
+      const messageContent = wrapper.find('.message-content')
+      expect(messageContent.attributes('style')).toBeUndefined()
+
+      const header = wrapper.find('.message-header')
+      await header.trigger('click')
+
+      expect(wrapper.find('.message-content').attributes('style')).toContain('display: none')
+    })
+
+    it('should expand message when clicking on collapsed header', async () => {
+      const message = {
+        role: 'user',
+        displayContent: 'Hello world',
+        thinking: null
+      }
+
+      wrapper = mount(MessageItem, {
+        props: {
+          message,
+          isLoading: false
+        },
+        global: {
+          stubs: {
+            MessageContent: true
+          }
+        }
+      })
+
+      const header = wrapper.find('.message-header')
+      
+      // Collapse
+      await header.trigger('click')
+      expect(wrapper.find('.message-content').attributes('style')).toContain('display: none')
+
+      // Expand
+      await header.trigger('click')
+      expect(wrapper.find('.message-content').attributes('style')).toBeUndefined()
+    })
+
+    it('should toggle collapse state multiple times', async () => {
+      const message = {
+        role: 'assistant',
+        displayContent: 'Response',
+        thinking: null
+      }
+
+      wrapper = mount(MessageItem, {
+        props: {
+          message,
+          isLoading: false
+        },
+        global: {
+          stubs: {
+            MessageContent: true
+          }
+        }
+      })
+
+      const header = wrapper.find('.message-header')
+
+      expect(wrapper.find('.message-content').attributes('style')).toBeUndefined()
+      
+      await header.trigger('click')
+      expect(wrapper.find('.message-content').attributes('style')).toContain('display: none')
+      
+      await header.trigger('click')
+      expect(wrapper.find('.message-content').attributes('style')).toBeUndefined()
+      
+      await header.trigger('click')
+      expect(wrapper.find('.message-content').attributes('style')).toContain('display: none')
+    })
+
+    it('should hide message actions when collapsed', async () => {
+      const message = {
+        role: 'user',
+        displayContent: 'Hello',
+        thinking: null
+      }
+
+      wrapper = mount(MessageItem, {
+        props: {
+          message,
+          isLoading: false,
+          isLastUserMessage: true
+        },
+        global: {
+          stubs: {
+            MessageContent: true
+          }
+        }
+      })
+
+      expect(wrapper.find('.message-actions').exists()).toBe(true)
+
+      const header = wrapper.find('.message-header')
+      await header.trigger('click')
+
+      expect(wrapper.find('.message-actions').exists()).toBe(false)
+    })
+
+    it('should not collapse when in editing mode', async () => {
+      const message = {
+        role: 'user',
+        content: 'Hello',
+        displayContent: 'Hello',
+        thinking: null
+      }
+
+      wrapper = mount(MessageItem, {
+        props: {
+          message,
+          isLoading: false,
+          isLastUserMessage: true
+        },
+        global: {
+          stubs: {
+            MessageContent: true
+          }
+        }
+      })
+
+      // Enter edit mode
+      const editBtn = wrapper.find('.edit-btn')
+      await editBtn.trigger('click')
+
+      expect(wrapper.find('.edit-section').exists()).toBe(true)
+      expect(wrapper.find('.message-content').isVisible()).toBe(true)
+
+      // Try to collapse
+      const header = wrapper.find('.message-header')
+      await header.trigger('click')
+
+      // Should still be visible
+      expect(wrapper.find('.message-content').isVisible()).toBe(true)
+    })
+
+    it('should have cursor pointer on message header', () => {
+      const message = {
+        role: 'user',
+        displayContent: 'Hello',
+        thinking: null
+      }
+
+      wrapper = mount(MessageItem, {
+        props: {
+          message,
+          isLoading: false
+        },
+        global: {
+          stubs: {
+            MessageContent: true
+          }
+        }
+      })
+
+      const header = wrapper.find('.message-header')
+      expect(header.attributes('style')).toContain('cursor: pointer')
+    })
+
+    it('should work for both user and assistant messages', async () => {
+      const userMessage = {
+        role: 'user',
+        displayContent: 'User message',
+        thinking: null
+      }
+
+      const assistantMessage = {
+        role: 'assistant',
+        displayContent: 'Assistant message',
+        thinking: null
+      }
+
+      // Test user message
+      wrapper = mount(MessageItem, {
+        props: {
+          message: userMessage,
+          isLoading: false
+        },
+        global: {
+          stubs: {
+            MessageContent: true
+          }
+        }
+      })
+
+      let header = wrapper.find('.message-header')
+      await header.trigger('click')
+      expect(wrapper.find('.message-content').attributes('style')).toContain('display: none')
+
+      wrapper.unmount()
+
+      // Test assistant message
+      wrapper = mount(MessageItem, {
+        props: {
+          message: assistantMessage,
+          isLoading: false
+        },
+        global: {
+          stubs: {
+            MessageContent: true
+          }
+        }
+      })
+
+      header = wrapper.find('.message-header')
+      await header.trigger('click')
+      expect(wrapper.find('.message-content').attributes('style')).toContain('display: none')
+    })
+
+    it('should not show arrow icon when expanded', () => {
+      const message = {
+        role: 'user',
+        displayContent: 'Hello',
+        thinking: null
+      }
+
+      wrapper = mount(MessageItem, {
+        props: {
+          message,
+          isLoading: false
+        },
+        global: {
+          stubs: {
+            MessageContent: true
+          }
+        }
+      })
+
+      expect(wrapper.find('.collapse-icon').exists()).toBe(false)
+    })
+
+    it('should show arrow icon when collapsed', async () => {
+      const message = {
+        role: 'user',
+        displayContent: 'Hello',
+        thinking: null
+      }
+
+      wrapper = mount(MessageItem, {
+        props: {
+          message,
+          isLoading: false
+        },
+        global: {
+          stubs: {
+            MessageContent: true
+          }
+        }
+      })
+
+      expect(wrapper.find('.collapse-icon').exists()).toBe(false)
+
+      const header = wrapper.find('.message-header')
+      await header.trigger('click')
+
+      expect(wrapper.find('.collapse-icon').exists()).toBe(true)
+      expect(wrapper.find('.collapse-icon').text()).toBe('▶')
+    })
+
+    it('should hide arrow icon when expanded again', async () => {
+      const message = {
+        role: 'assistant',
+        displayContent: 'Response',
+        thinking: null
+      }
+
+      wrapper = mount(MessageItem, {
+        props: {
+          message,
+          isLoading: false
+        },
+        global: {
+          stubs: {
+            MessageContent: true
+          }
+        }
+      })
+
+      const header = wrapper.find('.message-header')
+
+      // Collapse - arrow should appear
+      await header.trigger('click')
+      expect(wrapper.find('.collapse-icon').exists()).toBe(true)
+
+      // Expand - arrow should disappear
+      await header.trigger('click')
+      expect(wrapper.find('.collapse-icon').exists()).toBe(false)
     })
   })
 })
