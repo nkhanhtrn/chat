@@ -46,34 +46,113 @@ export const fetchModels = async () => {
 }
 
 /**
- * POST /v1/chat/completions - Send chat message
+ * POST /v1/chat/completions - Send chat message with streaming support
+ * @param {Array} messages - Array of message objects
+ * @param {string} model - Model name
+ * @param {Function} onChunk - Optional callback for streaming chunks (chunk) => void
+ * @returns {Promise<string>} - Complete response text (or empty if streaming)
  */
-export const sendChatMessage = async (messages, model) => {
+export const sendChatMessage = async (messages, model, onChunk = null) => {
   try {
     console.log('Sending chat request:', { model, messageCount: messages.length })
     
-    const response = await api.post('/v1/chat/completions', {
-      model: model,
-      messages: messages,
-      temperature: 0.7,
-      max_tokens: -1,
-      stream: false
+    // If no callback provided, use non-streaming mode
+    if (!onChunk) {
+      const response = await api.post('/v1/chat/completions', {
+        model: model,
+        messages: messages,
+        temperature: 0.7,
+        max_tokens: -1,
+        stream: false
+      })
+      
+      console.log('Chat response received')
+      
+      if (response.data.choices && response.data.choices.length > 0) {
+        return response.data.choices[0].message.content
+      } else {
+        throw new Error('No response from model')
+      }
+    }
+    
+    // Streaming mode
+    console.log('Using streaming mode with callback')
+    const response = await fetch(`${API_BASE_URL}/v1/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: messages,
+        temperature: 0.7,
+        max_tokens: -1,
+        stream: true
+      })
     })
     
-    console.log('Chat response received')
+    console.log('Fetch response received, status:', response.status)
     
-    if (response.data.choices && response.data.choices.length > 0) {
-      return response.data.choices[0].message.content
-    } else {
-      throw new Error('No response from model')
+    if (!response.ok) {
+      throw new Error('Failed to get chat response')
     }
+    
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let fullContent = ''
+    
+    console.log('Starting to read stream...')
+    
+    while (true) {
+      const { done, value } = await reader.read()
+      
+      if (done) {
+        console.log('Stream done')
+        break
+      }
+      
+      console.log('Received stream chunk, size:', value.length)
+      
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      
+      // Keep the last incomplete line in the buffer
+      buffer = lines.pop() || ''
+      
+      for (const line of lines) {
+        const trimmedLine = line.trim()
+        
+        if (trimmedLine === '' || trimmedLine === 'data: [DONE]') {
+          continue
+        }
+        
+        if (trimmedLine.startsWith('data: ')) {
+          try {
+            const jsonStr = trimmedLine.slice(6) // Remove 'data: ' prefix
+            const data = JSON.parse(jsonStr)
+            
+            if (data.choices && data.choices[0].delta && data.choices[0].delta.content) {
+              const chunk = data.choices[0].delta.content
+              fullContent += chunk
+              onChunk(chunk)
+            }
+          } catch (e) {
+            console.warn('Failed to parse SSE data:', trimmedLine, e)
+          }
+        }
+      }
+    }
+    
+    console.log('Streaming complete')
+    return fullContent
   } catch (error) {
     console.error('Error in chat completion:', error.message)
     // If it's our own error message, rethrow it directly
     if (error.message === 'No response from model') {
       throw error
     }
-    if (error.code === 'ERR_NETWORK') {
+    if (error.code === 'ERR_NETWORK' || error.name === 'TypeError') {
       throw new Error('Cannot connect to LM Studio server')
     }
     throw new Error(error.response?.data?.error?.message || 'Failed to get chat response')

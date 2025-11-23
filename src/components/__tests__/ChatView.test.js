@@ -206,7 +206,13 @@ describe('ChatView', () => {
     })
 
     it('should update assistant message with API response', async () => {
-      api.sendChatMessage.mockResolvedValue('AI response text')
+      // Mock streaming behavior
+      api.sendChatMessage.mockImplementation(async (messages, model, onChunk) => {
+        if (onChunk) {
+          onChunk('AI response text')
+        }
+        return 'AI response text'
+      })
 
       wrapper = mount(ChatView, {
         props: {
@@ -218,7 +224,7 @@ describe('ChatView', () => {
       const chatInput = wrapper.findComponent(ChatInput)
       await chatInput.vm.$emit('send', 'Test message')
       await nextTick()
-      await new Promise(resolve => setTimeout(resolve, 10))
+      await new Promise(resolve => setTimeout(resolve, 100))
 
       const assistantMsg = mockChat.messages[1]
       expect(assistantMsg.content).toBe('AI response text')
@@ -226,8 +232,18 @@ describe('ChatView', () => {
       expect(assistantMsg.loading).toBe(false)
     })
 
-    it('should parse thinking tags from response', async () => {
-      api.sendChatMessage.mockResolvedValue('<think>Let me analyze this</think>Here is my answer')
+    it('should stream chunks incrementally', async () => {
+      // Mock streaming with multiple chunks
+      api.sendChatMessage.mockImplementation(async (messages, model, onChunk) => {
+        if (onChunk) {
+          onChunk('Hello')
+          await new Promise(resolve => setTimeout(resolve, 20))
+          onChunk(' world')
+          await new Promise(resolve => setTimeout(resolve, 20))
+          onChunk('!')
+        }
+        return 'Hello world!'
+      })
 
       wrapper = mount(ChatView, {
         props: {
@@ -239,11 +255,72 @@ describe('ChatView', () => {
       const chatInput = wrapper.findComponent(ChatInput)
       await chatInput.vm.$emit('send', 'Test')
       await nextTick()
-      await new Promise(resolve => setTimeout(resolve, 10))
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      const assistantMsg = mockChat.messages[1]
+      expect(assistantMsg.displayContent).toBe('Hello world!')
+      expect(assistantMsg.content).toBe('Hello world!')
+      expect(assistantMsg.loading).toBe(false)
+    })
+
+    it('should parse thinking tags from response', async () => {
+      // Mock streaming behavior with think tags
+      api.sendChatMessage.mockImplementation(async (messages, model, onChunk) => {
+        const fullResponse = '<think>Let me analyze this</think>Here is my answer'
+        if (onChunk) {
+          onChunk(fullResponse)
+        }
+        return fullResponse
+      })
+
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'Test')
+      await nextTick()
+      await new Promise(resolve => setTimeout(resolve, 100))
 
       const assistantMsg = mockChat.messages[1]
       expect(assistantMsg.thinking).toBe('Let me analyze this')
       expect(assistantMsg.displayContent).toBe('Here is my answer')
+    })
+
+    it('should parse thinking tags incrementally during streaming', async () => {
+      // Mock streaming with think tags arriving in chunks
+      api.sendChatMessage.mockImplementation(async (messages, model, onChunk) => {
+        if (onChunk) {
+          onChunk('<think>')
+          await new Promise(resolve => setTimeout(resolve, 20))
+          onChunk('Analyzing')
+          await new Promise(resolve => setTimeout(resolve, 20))
+          onChunk('</think>')
+          await new Promise(resolve => setTimeout(resolve, 20))
+          onChunk('Response text')
+        }
+        return '<think>Analyzing</think>Response text'
+      })
+
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'Test')
+      await nextTick()
+      await new Promise(resolve => setTimeout(resolve, 150))
+
+      const assistantMsg = mockChat.messages[1]
+      expect(assistantMsg.thinking).toBe('Analyzing')
+      expect(assistantMsg.displayContent).toBe('Response text')
+      expect(assistantMsg.content).toBe('<think>Analyzing</think>Response text')
     })
 
     it('should handle API error gracefully', async () => {

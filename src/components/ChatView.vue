@@ -102,20 +102,80 @@ export default {
           messages.unshift(contextMessage)
         }
 
-        const response = await sendChatMessage(messages, props.selectedModel)
+        let accumulatedContent = ''
+        let accumulatedDisplayContent = ''
+        let currentThinking = ''
+        let insideThinkTag = false
+        let thinkTagBuffer = ''
+        let rafPending = false
         
-        // Parse thinking tags
-        const thinkingMatch = response.match(/<think>([\s\S]*?)<\/think>/i)
+        // Get the message index once at the start
+        const messageIndex = props.chat.messages.length - 1
+        
+        // Callback to handle streaming chunks
+        const handleChunk = (chunk) => {
+          accumulatedContent += chunk
+          
+          // Parse for <think> tags incrementally
+          let tempContent = accumulatedContent
+          const thinkStartMatch = tempContent.match(/<think>/i)
+          const thinkEndMatch = tempContent.match(/<\/think>/i)
+          
+          if (thinkStartMatch && thinkEndMatch) {
+            // Complete think tag found
+            const fullThinkMatch = tempContent.match(/<think>([\s\S]*?)<\/think>/i)
+            if (fullThinkMatch) {
+              currentThinking = fullThinkMatch[1].trim()
+              tempContent = tempContent.replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
+              insideThinkTag = false
+              thinkTagBuffer = ''
+            }
+          } else if (thinkStartMatch && !insideThinkTag) {
+            // Think tag started but not finished
+            insideThinkTag = true
+            const thinkStart = tempContent.indexOf('<think>')
+            thinkTagBuffer = tempContent.substring(thinkStart + 7) // After <think>
+            tempContent = tempContent.substring(0, thinkStart)
+          } else if (insideThinkTag) {
+            // Accumulating content inside think tag
+            thinkTagBuffer += chunk
+            tempContent = tempContent.substring(0, tempContent.indexOf('<think>'))
+          }
+          
+          accumulatedDisplayContent = tempContent.trim()
+          
+          // Use requestAnimationFrame to batch updates
+          if (!rafPending) {
+            rafPending = true
+            requestAnimationFrame(() => {
+              rafPending = false
+              
+              // Update the message directly by index
+              props.chat.messages[messageIndex].displayContent = accumulatedDisplayContent
+              if (currentThinking) {
+                props.chat.messages[messageIndex].thinking = currentThinking
+              }
+              
+              // Keep scrolling as content arrives
+              nextTick(() => scrollToBottom())
+            })
+          }
+        }
+        
+        const response = await sendChatMessage(messages, props.selectedModel, handleChunk)
+        
+        // Final parsing after streaming completes
+        const thinkingMatch = accumulatedContent.match(/<think>([\s\S]*?)<\/think>/i)
         let thinking = null
-        let displayContent = response
+        let displayContent = accumulatedContent
         
         if (thinkingMatch) {
           thinking = thinkingMatch[1].trim()
-          displayContent = response.replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
+          displayContent = accumulatedContent.replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
         }
         
-        // Update assistant message with response
-        assistantMessage.content = response
+        // Update assistant message with final response
+        assistantMessage.content = accumulatedContent
         assistantMessage.displayContent = displayContent
         assistantMessage.thinking = thinking
         assistantMessage.showThinking = false
