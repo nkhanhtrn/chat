@@ -327,6 +327,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
 }
 
 .empty-state {
@@ -344,11 +345,12 @@ body {
   flex-direction: column;
   height: 100%;
   align-items: center;
+  overflow-y: auto;
+  width: 100%;
 }
 
 .messages-container {
   flex: 1;
-  overflow-y: auto;
   padding: 20px;
   width: 100%;
   max-width: 900px;
@@ -789,6 +791,9 @@ body {
   width: 100%;
   max-width: 900px;
   align-self: center;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
 }
 
 .website-context-display {
