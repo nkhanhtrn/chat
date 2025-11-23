@@ -4,25 +4,13 @@
       {{ message.role === 'user' ? 'You' : 'Assistant' }}
     </div>
     <div class="message-content">
-      <div v-if="message.thinking" class="thinking-section">
-        <div 
-          class="thinking-header" 
-          @click="toggleThinking(message)"
-        >
-          <span class="thinking-icon">{{ message.showThinking ? '▼' : '▶' }}</span>
-          <span class="thinking-label">
-            <template v-if="message.compressed">
-              Compressed previous conversation ({{ message.compressedCount }} messages)
-            </template>
-            <template v-else>
-              Thinking<span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span>
-            </template>
-          </span>
-        </div>
-        <div v-if="message.showThinking" class="thinking-content">
-          {{ message.thinking }}
-        </div>
-      </div>
+      <ThinkingBlock
+        v-if="message.thinking && (typeof message.thinking === 'string' || (Array.isArray(message.thinking) && message.thinking.length > 0))"
+        :content="message.thinking"
+        :show-thinking="message.showThinking"
+        :compressed="message.compressed"
+        :compressed-count="message.compressedCount"
+      />
       <div v-if="isEditing" class="edit-section">
         <textarea 
           v-model="editedContent"
@@ -66,11 +54,13 @@
 <script>
 import { ref, nextTick } from 'vue'
 import MessageContent from './MessageContent.vue'
+import ThinkingBlock from './ThinkingBlock.vue'
 
 export default {
   name: 'MessageItem',
   components: {
-    MessageContent
+    MessageContent,
+    ThinkingBlock
   },
   props: {
     message: {
@@ -91,10 +81,6 @@ export default {
     const isEditing = ref(false)
     const editedContent = ref('')
     const editTextarea = ref(null)
-
-    const toggleThinking = (message) => {
-      message.showThinking = !message.showThinking
-    }
 
     const startEdit = async () => {
       editedContent.value = props.message.content
@@ -122,7 +108,6 @@ export default {
       isEditing,
       editedContent,
       editTextarea,
-      toggleThinking,
       startEdit,
       saveEdit,
       cancelEdit

@@ -345,6 +345,47 @@ describe('ChatView', () => {
       
       consoleErrorSpy.mockRestore()
     })
+
+    it('should not send thinking content back to server', async () => {
+      // Add a previous conversation with thinking tags
+      mockChat.messages = [
+        { role: 'user', content: 'First question', displayContent: 'First question' },
+        { 
+          role: 'assistant', 
+          content: '<think>Some thinking</think>First answer',
+          displayContent: 'First answer',
+          thinking: 'Some thinking'
+        }
+      ]
+
+      api.sendChatMessage.mockResolvedValue('Second answer')
+
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'Second question')
+      await nextTick()
+      await new Promise(resolve => setTimeout(resolve, 10))
+
+      // Verify API was called
+      expect(api.sendChatMessage).toHaveBeenCalled()
+      
+      // Get the messages sent to the API (first argument of the call)
+      const sentMessages = api.sendChatMessage.mock.calls[0][0]
+      
+      // Find the assistant message in sent messages
+      const sentAssistantMsg = sentMessages.find(m => m.role === 'assistant')
+      
+      // Verify it contains only displayContent, not the thinking tags
+      expect(sentAssistantMsg.content).toBe('First answer')
+      expect(sentAssistantMsg.content).not.toContain('<think>')
+      expect(sentAssistantMsg.content).not.toContain('Some thinking')
+    })
   })
 
   describe('Retry Functionality', () => {
@@ -775,9 +816,14 @@ describe('ChatView', () => {
       await chatInput.vm.$emit('send', 'https://example.com')
       await nextTick()
 
-      // Check that a loading message was added temporarily
-      const loadingMessage = mockChat.messages.find(m => m.thinking === 'Fetching content from URL...')
+      // Check that user message was added immediately
+      const userMessage = mockChat.messages.find(m => m.role === 'user' && m.content === 'https://example.com')
+      expect(userMessage).toBeTruthy()
+
+      // Check that a loading message with URL fetching thinking array was added
+      const loadingMessage = mockChat.messages.find(m => Array.isArray(m.thinking) && m.thinking.some(t => t.includes('Fetching content from')))
       expect(loadingMessage).toBeTruthy()
+      expect(loadingMessage.thinking[0]).toContain('https://example.com')
     })
 
     it('should handle URL fetch failure gracefully', async () => {

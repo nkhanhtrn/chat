@@ -99,13 +99,13 @@ describe('MessageItem', () => {
         },
         global: {
           stubs: {
-            MessageContent: true
+            MessageContent: true,
+            ThinkingBlock: true
           }
         }
       })
 
-      expect(wrapper.find('.thinking-section').exists()).toBe(true)
-      expect(wrapper.find('.thinking-header').exists()).toBe(true)
+      expect(wrapper.findComponent({ name: 'ThinkingBlock' }).exists()).toBe(true)
     })
 
     it('should not render thinking section when no thinking', () => {
@@ -122,12 +122,13 @@ describe('MessageItem', () => {
         },
         global: {
           stubs: {
-            MessageContent: true
+            MessageContent: true,
+            ThinkingBlock: true
           }
         }
       })
 
-      expect(wrapper.find('.thinking-section').exists()).toBe(false)
+      expect(wrapper.findComponent({ name: 'ThinkingBlock' }).exists()).toBe(false)
     })
 
     it('should show collapsed thinking by default', () => {
@@ -142,16 +143,13 @@ describe('MessageItem', () => {
         props: {
           message,
           isLoading: false
-        },
-        global: {
-          stubs: {
-            MessageContent: true
-          }
         }
       })
 
-      expect(wrapper.find('.thinking-content').exists()).toBe(false)
-      expect(wrapper.find('.thinking-icon').text()).toBe('▶')
+      const thinkingBlock = wrapper.findComponent({ name: 'ThinkingBlock' })
+      expect(thinkingBlock.exists()).toBe(true)
+      expect(thinkingBlock.props('showThinking')).toBe(false)
+      expect(thinkingBlock.props('content')).toBe('Thinking process')
     })
 
     it('should show thinking content when expanded', () => {
@@ -166,14 +164,13 @@ describe('MessageItem', () => {
         props: {
           message,
           isLoading: false
-        },
-        global: {
-          stubs: {
-            MessageContent: true
-          }
         }
       })
 
+      const thinkingBlock = wrapper.findComponent({ name: 'ThinkingBlock' })
+      expect(thinkingBlock.exists()).toBe(true)
+      expect(thinkingBlock.props('showThinking')).toBe(true)
+      expect(thinkingBlock.props('content')).toBe('Thinking process')
       expect(wrapper.find('.thinking-content').exists()).toBe(true)
       expect(wrapper.find('.thinking-content').text()).toBe('Thinking process')
       expect(wrapper.find('.thinking-icon').text()).toBe('▼')
@@ -191,23 +188,18 @@ describe('MessageItem', () => {
         props: {
           message,
           isLoading: false
-        },
-        global: {
-          stubs: {
-            MessageContent: true
-          }
         }
       })
 
       const header = wrapper.find('.thinking-header')
       await header.trigger('click')
 
-      expect(message.showThinking).toBe(true)
       await wrapper.vm.$nextTick()
       expect(wrapper.find('.thinking-content').exists()).toBe(true)
 
       await header.trigger('click')
-      expect(message.showThinking).toBe(false)
+      await wrapper.vm.$nextTick()
+      expect(wrapper.find('.thinking-content').exists()).toBe(false)
     })
 
     it('should show "Thinking..." label for normal messages', () => {
@@ -223,15 +215,10 @@ describe('MessageItem', () => {
         props: {
           message,
           isLoading: false
-        },
-        global: {
-          stubs: {
-            MessageContent: true
-          }
         }
       })
 
-      expect(wrapper.find('.thinking-label').text()).toBe('Thinking...')
+      expect(wrapper.find('.thinking-label').text()).toContain('Thinking')
     })
 
     it('should show compressed message label for compressed messages', () => {
@@ -248,14 +235,12 @@ describe('MessageItem', () => {
         props: {
           message,
           isLoading: false
-        },
-        global: {
-          stubs: {
-            MessageContent: true
-          }
         }
       })
 
+      const thinkingBlock = wrapper.findComponent({ name: 'ThinkingBlock' })
+      expect(thinkingBlock.props('compressed')).toBe(true)
+      expect(thinkingBlock.props('compressedCount')).toBe(5)
       expect(wrapper.find('.thinking-label').text()).toBe('Compressed previous conversation (5 messages)')
     })
   })
