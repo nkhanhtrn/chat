@@ -11,7 +11,12 @@
         >
           <span class="thinking-icon">{{ message.showThinking ? '▼' : '▶' }}</span>
           <span class="thinking-label">
-            {{ message.compressed ? `Compressed previous conversation (${message.compressedCount} messages)` : 'Thinking...' }}
+            <template v-if="message.compressed">
+              Compressed previous conversation ({{ message.compressedCount }} messages)
+            </template>
+            <template v-else>
+              Thinking<span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span>
+            </template>
           </span>
         </div>
         <div v-if="message.showThinking" class="thinking-content">
