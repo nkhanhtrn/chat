@@ -130,16 +130,19 @@ export function useMessageParser() {
           level: headerMatch[1].length,
           content: parseTextFormatting(headerMatch[2])
         })
+        // Add line break after headers if not last line
+        if (i < lines.length - 1) {
+          elements.push({ type: 'linebreak' })
+        }
       } else if (line.trim()) {
         elements.push({
           type: 'text',
           content: parseTextFormatting(line)
         })
-      }
-      
-      // Add line break if not last line
-      if (i < lines.length - 1) {
-        elements.push({ type: 'linebreak' })
+        // Add line break after text if not last line
+        if (i < lines.length - 1) {
+          elements.push({ type: 'linebreak' })
+        }
       }
       
       i++

@@ -281,6 +281,9 @@ export default {
 
         if (data.sidebarCollapsed !== undefined) {
           sidebarCollapsed.value = data.sidebarCollapsed
+        } else {
+          // If no saved state, collapse sidebar by default on small screens
+          sidebarCollapsed.value = window.innerWidth < 1024
         }
 
         // If no chats were loaded, create a new one

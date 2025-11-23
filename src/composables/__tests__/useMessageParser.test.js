@@ -352,12 +352,37 @@ describe('useMessageParser', () => {
   })
 
   describe('Line Breaks', () => {
-    it('should add line breaks between elements', () => {
+    it('should add line breaks between text and header elements', () => {
       const content = 'Line 1\nLine 2\nLine 3'
       const result = parseMessage(content)
       
       const lineBreaks = result.filter(r => r.type === 'linebreak')
-      expect(lineBreaks.length).toBeGreaterThan(0)
+      expect(lineBreaks.length).toBe(2) // 2 line breaks for 3 lines of text
+    })
+
+    it('should not add line breaks after tables', () => {
+      const content = `| Name | Age |
+| --- | --- |
+| Alice | 30 |
+Text after table`
+      const result = parseMessage(content)
+      
+      const table = result.find(r => r.type === 'table')
+      const tableIndex = result.indexOf(table)
+      
+      // Element after table should be text, not linebreak
+      expect(result[tableIndex + 1].type).toBe('text')
+    })
+
+    it('should not add line breaks after horizontal rules', () => {
+      const content = 'Before\n---\nAfter'
+      const result = parseMessage(content)
+      
+      const hr = result.find(r => r.type === 'hr')
+      const hrIndex = result.indexOf(hr)
+      
+      // Element after hr should be text, not linebreak
+      expect(result[hrIndex + 1].type).toBe('text')
     })
   })
 
