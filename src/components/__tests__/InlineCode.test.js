@@ -141,6 +141,94 @@ describe('InlineCode', () => {
       vi.unstubAllGlobals()
     })
 
+    it('should add flashing class to code element when copy button is clicked', async () => {
+      const mockWriteText = vi.fn().mockResolvedValue(undefined)
+      vi.stubGlobal('navigator', {
+        clipboard: {
+          writeText: mockWriteText
+        }
+      })
+
+      wrapper = mount(InlineCode, {
+        props: {
+          text: 'test'
+        }
+      })
+
+      const code = wrapper.find('.inline-code')
+      expect(code.classes()).not.toContain('flashing')
+
+      const copyBtn = wrapper.find('.copy-btn')
+      await copyBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(code.classes()).toContain('flashing')
+      
+      vi.unstubAllGlobals()
+    })
+
+    it('should remove flashing class from code element after animation duration', async () => {
+      vi.useFakeTimers()
+      const mockWriteText = vi.fn().mockResolvedValue(undefined)
+      vi.stubGlobal('navigator', {
+        clipboard: {
+          writeText: mockWriteText
+        }
+      })
+
+      wrapper = mount(InlineCode, {
+        props: {
+          text: 'test'
+        }
+      })
+
+      const copyBtn = wrapper.find('.copy-btn')
+      await copyBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      const code = wrapper.find('.inline-code')
+      expect(code.classes()).toContain('flashing')
+
+      vi.advanceTimersByTime(200)
+      await wrapper.vm.$nextTick()
+
+      expect(code.classes()).not.toContain('flashing')
+      
+      vi.unstubAllGlobals()
+      vi.useRealTimers()
+    })
+
+    it('should not add flashing class on copy failure', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const mockError = new Error('Clipboard access denied')
+      const mockWriteText = vi.fn().mockRejectedValue(mockError)
+      
+      vi.stubGlobal('navigator', {
+        clipboard: {
+          writeText: mockWriteText
+        }
+      })
+
+      wrapper = mount(InlineCode, {
+        props: {
+          text: 'test'
+        }
+      })
+
+      const copyBtn = wrapper.find('.copy-btn')
+      await copyBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      // Wait for async error handling
+      await new Promise(resolve => setTimeout(resolve, 0))
+
+      const code = wrapper.find('.inline-code')
+      expect(code.classes()).not.toContain('flashing')
+      
+      consoleErrorSpy.mockRestore()
+      vi.unstubAllGlobals()
+    })
+
     it('should handle copy failure gracefully', async () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       const mockError = new Error('Clipboard access denied')

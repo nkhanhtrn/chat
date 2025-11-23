@@ -135,6 +135,94 @@ describe('CodeBlock', () => {
       vi.unstubAllGlobals()
     })
 
+    it('should add flashing class to pre element when copy button is clicked', async () => {
+      const mockWriteText = vi.fn().mockResolvedValue(undefined)
+      vi.stubGlobal('navigator', {
+        clipboard: {
+          writeText: mockWriteText
+        }
+      })
+
+      wrapper = mount(CodeBlock, {
+        props: {
+          code: 'test'
+        }
+      })
+
+      const pre = wrapper.find('pre')
+      expect(pre.classes()).not.toContain('flashing')
+
+      const copyBtn = wrapper.find('.copy-btn')
+      await copyBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(pre.classes()).toContain('flashing')
+      
+      vi.unstubAllGlobals()
+    })
+
+    it('should remove flashing class from pre element after animation duration', async () => {
+      vi.useFakeTimers()
+      const mockWriteText = vi.fn().mockResolvedValue(undefined)
+      vi.stubGlobal('navigator', {
+        clipboard: {
+          writeText: mockWriteText
+        }
+      })
+
+      wrapper = mount(CodeBlock, {
+        props: {
+          code: 'test'
+        }
+      })
+
+      const copyBtn = wrapper.find('.copy-btn')
+      await copyBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      const pre = wrapper.find('pre')
+      expect(pre.classes()).toContain('flashing')
+
+      vi.advanceTimersByTime(200)
+      await wrapper.vm.$nextTick()
+
+      expect(pre.classes()).not.toContain('flashing')
+      
+      vi.unstubAllGlobals()
+      vi.useRealTimers()
+    })
+
+    it('should not add flashing class on copy failure', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const mockError = new Error('Clipboard access denied')
+      const mockWriteText = vi.fn().mockRejectedValue(mockError)
+      
+      vi.stubGlobal('navigator', {
+        clipboard: {
+          writeText: mockWriteText
+        }
+      })
+
+      wrapper = mount(CodeBlock, {
+        props: {
+          code: 'test'
+        }
+      })
+
+      const copyBtn = wrapper.find('.copy-btn')
+      await copyBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      // Wait for async error handling
+      await new Promise(resolve => setTimeout(resolve, 0))
+
+      const pre = wrapper.find('pre')
+      expect(pre.classes()).not.toContain('flashing')
+      
+      consoleErrorSpy.mockRestore()
+      vi.unstubAllGlobals()
+    })
+
     it('should handle copy failure gracefully', async () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       const mockError = new Error('Clipboard access denied')

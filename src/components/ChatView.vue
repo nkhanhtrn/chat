@@ -8,6 +8,7 @@
         :is-loading="isLoading"
         :is-last-user-message="message.role === 'user' && index === chat.messages.map(m => m.role).lastIndexOf('user')"
         @retry="retryMessage(index)"
+        @edit="editMessage(index, $event)"
       />
     </div>
 
@@ -117,6 +118,33 @@ export default {
       await sendMessageToAPI(assistantMessage)
     }
 
+    const editMessage = async (messageIndex, newContent) => {
+      if (isLoading.value || !props.selectedModel) {
+        return
+      }
+
+      // Update the message content
+      props.chat.messages[messageIndex].content = newContent
+      props.chat.messages[messageIndex].displayContent = newContent
+
+      // Remove messages after this point and retry
+      props.chat.messages.splice(messageIndex + 1)
+
+      // Add loading assistant message
+      const assistantMessage = {
+        role: 'assistant',
+        content: '',
+        displayContent: '',
+        thinking: 'Analyzing your question and generating a response...',
+        showThinking: true,
+        loading: true
+      }
+      props.chat.messages.push(assistantMessage)
+      scrollToBottom()
+
+      await sendMessageToAPI(assistantMessage)
+    }
+
     const compressConversation = async () => {
       if (isLoading.value || !props.selectedModel || props.chat.messages.length === 0) {
         return
@@ -203,6 +231,7 @@ export default {
       isLoading,
       messagesContainer,
       retryMessage,
+      editMessage,
       handleSendMessage,
       compressConversation
     }

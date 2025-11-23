@@ -9,7 +9,7 @@
         </svg>
       </button>
     </div>
-    <pre><code>{{ code }}</code></pre>
+    <pre :class="{ flashing: isFlashing }"><code>{{ code }}</code></pre>
   </div>
 </template>
 
@@ -26,10 +26,19 @@ export default {
       required: true
     }
   },
+  data() {
+    return {
+      isFlashing: false
+    }
+  },
   methods: {
     async copyCode() {
       try {
         await navigator.clipboard.writeText(this.code)
+        this.isFlashing = true
+        setTimeout(() => {
+          this.isFlashing = false
+        }, 200)
       } catch (error) {
         console.error('Failed to copy code:', error)
       }
@@ -65,5 +74,18 @@ export default {
 
 .copy-btn:active {
   transform: scale(0.95);
+}
+
+pre.flashing {
+  animation: flash 0.2s ease-out;
+}
+
+@keyframes flash {
+  0% {
+    background-color: rgba(212, 212, 212, 0.2);
+  }
+  100% {
+    background-color: transparent;
+  }
 }
 </style>

@@ -1,6 +1,6 @@
 <template>
   <span class="inline-code-wrapper">
-    <code class="inline-code">{{ text }}</code>
+    <code :class="['inline-code', { flashing: isFlashing }]">{{ text }}</code>
     <button @click="copyCode" class="copy-btn" title="Copy code">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -19,10 +19,19 @@ export default {
       required: true
     }
   },
+  data() {
+    return {
+      isFlashing: false
+    }
+  },
   methods: {
     async copyCode() {
       try {
         await navigator.clipboard.writeText(this.text)
+        this.isFlashing = true
+        setTimeout(() => {
+          this.isFlashing = false
+        }, 200)
       } catch (error) {
         console.error('Failed to copy code:', error)
       }
@@ -59,5 +68,20 @@ export default {
 
 .copy-btn:active {
   transform: scale(0.95);
+}
+
+.inline-code.flashing {
+  animation: flash 0.2s ease-out;
+}
+
+@keyframes flash {
+  0% {
+    background-color: rgba(233, 105, 0, 0.3);
+    color: #e96900;
+  }
+  100% {
+    background-color: #2d2d2d;
+    color: #e96900;
+  }
 }
 </style>

@@ -169,19 +169,24 @@ body {
 
 .edit-btn {
   background: none;
-  border: none;
+  border: 1px solid #565869;
   color: #ececf1;
   font-size: 16px;
   cursor: pointer;
-  padding: 0 4px;
-  opacity: 0.6;
-  transition: opacity 0.2s;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
   line-height: 1;
 }
 
-.edit-btn:hover {
-  opacity: 1;
-  color: #10a37f;
+.edit-btn:hover:not(:disabled) {
+  background-color: #5436da;
+  border-color: #5436da;
+}
+
+.edit-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 .delete-btn {
@@ -522,6 +527,69 @@ body {
 .message.loading .message-content {
   opacity: 0.7;
   font-style: italic;
+}
+
+.edit-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.edit-textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 12px;
+  background-color: #40414f;
+  color: #ececf1;
+  border: 1px solid #565869;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.edit-textarea:focus {
+  outline: none;
+  border-color: #8e8ea0;
+}
+
+.edit-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.save-btn {
+  padding: 8px 16px;
+  background-color: #10a37f;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-weight: 500;
+}
+
+.save-btn:hover {
+  background-color: #0d8c6a;
+}
+
+.cancel-btn {
+  padding: 8px 16px;
+  background-color: #565869;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.cancel-btn:hover {
+  background-color: #676879;
 }
 
 /* Input Area */
