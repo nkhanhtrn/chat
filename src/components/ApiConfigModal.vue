@@ -3,7 +3,7 @@
     <div class="modal" @click.stop>
       <button @click="handleClose" class="modal-close-btn">×</button>
       <h2>LM Studio Server Configuration</h2>
-      <p>This app connects to LM Studio running locally on your machine. LM Studio provides an OpenAI-compatible API server for running local language models.</p>
+      <p>This app connects to a live LM Studio Server. LM Studio provides an OpenAI-compatible API server for running local language models.</p>
       <p><strong>Setup:</strong> Start LM Studio → Load a model → Enable the local server</p>
       <p>Enter your LM Studio server details:</p>
       <div class="modal-form">
