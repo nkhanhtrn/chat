@@ -11,7 +11,11 @@ import {
   saveApiConfig,
   loadApiConfig,
   saveAllData,
-  loadAllData
+  loadAllData,
+  saveWebsiteContext,
+  loadWebsiteContext,
+  deleteWebsiteContext,
+  loadAllWebsiteContexts
 } from '../storage.js'
 
 describe('Storage Service', () => {
@@ -209,6 +213,127 @@ describe('Storage Service', () => {
       saveAllData({ activeChat: 3 })
       expect(localStorage.getItem('chat-active')).toBe('3')
       expect(localStorage.getItem('chat-chats')).toBe(null)
+    })
+  })
+
+  describe('Website Context Functions', () => {
+    describe('saveWebsiteContext and loadWebsiteContext', () => {
+      it('should save and load website context for a chat', () => {
+        const chatId = 1
+        const websiteData = {
+          url: 'https://example.com',
+          title: 'Example Site',
+          content: 'This is the website content'
+        }
+
+        saveWebsiteContext(chatId, websiteData)
+        const loaded = loadWebsiteContext(chatId)
+
+        expect(loaded).toEqual(websiteData)
+      })
+
+      it('should return null when no context exists for chat', () => {
+        const loaded = loadWebsiteContext(999)
+        expect(loaded).toBe(null)
+      })
+
+      it('should handle multiple chat contexts', () => {
+        const websiteData1 = {
+          url: 'https://example1.com',
+          title: 'Site 1',
+          content: 'Content 1'
+        }
+        const websiteData2 = {
+          url: 'https://example2.com',
+          title: 'Site 2',
+          content: 'Content 2'
+        }
+
+        saveWebsiteContext(1, websiteData1)
+        saveWebsiteContext(2, websiteData2)
+
+        expect(loadWebsiteContext(1)).toEqual(websiteData1)
+        expect(loadWebsiteContext(2)).toEqual(websiteData2)
+      })
+
+      it('should overwrite existing context for same chat', () => {
+        const chatId = 1
+        const oldData = { url: 'https://old.com', title: 'Old', content: 'Old content' }
+        const newData = { url: 'https://new.com', title: 'New', content: 'New content' }
+
+        saveWebsiteContext(chatId, oldData)
+        saveWebsiteContext(chatId, newData)
+
+        const loaded = loadWebsiteContext(chatId)
+        expect(loaded).toEqual(newData)
+      })
+    })
+
+    describe('loadAllWebsiteContexts', () => {
+      it('should load all website contexts', () => {
+        const websiteData1 = { url: 'https://example1.com', title: 'Site 1', content: 'Content 1' }
+        const websiteData2 = { url: 'https://example2.com', title: 'Site 2', content: 'Content 2' }
+
+        saveWebsiteContext(1, websiteData1)
+        saveWebsiteContext(2, websiteData2)
+
+        const allContexts = loadAllWebsiteContexts()
+
+        expect(allContexts).toEqual({
+          '1': websiteData1,
+          '2': websiteData2
+        })
+      })
+
+      it('should return empty object when no contexts exist', () => {
+        const allContexts = loadAllWebsiteContexts()
+        expect(allContexts).toEqual({})
+      })
+
+      it('should handle malformed JSON gracefully', () => {
+        localStorage.setItem('chat-website-context', 'invalid json')
+        const allContexts = loadAllWebsiteContexts()
+        expect(allContexts).toEqual({})
+      })
+    })
+
+    describe('deleteWebsiteContext', () => {
+      it('should delete website context for specific chat', () => {
+        const websiteData1 = { url: 'https://example1.com', title: 'Site 1', content: 'Content 1' }
+        const websiteData2 = { url: 'https://example2.com', title: 'Site 2', content: 'Content 2' }
+
+        saveWebsiteContext(1, websiteData1)
+        saveWebsiteContext(2, websiteData2)
+
+        deleteWebsiteContext(1)
+
+        expect(loadWebsiteContext(1)).toBe(null)
+        expect(loadWebsiteContext(2)).toEqual(websiteData2)
+      })
+
+      it('should handle deleting non-existent context', () => {
+        deleteWebsiteContext(999)
+        // Should not throw error
+        expect(loadWebsiteContext(999)).toBe(null)
+      })
+
+      it('should preserve other contexts when deleting', () => {
+        const websiteData1 = { url: 'https://example1.com', title: 'Site 1', content: 'Content 1' }
+        const websiteData2 = { url: 'https://example2.com', title: 'Site 2', content: 'Content 2' }
+        const websiteData3 = { url: 'https://example3.com', title: 'Site 3', content: 'Content 3' }
+
+        saveWebsiteContext(1, websiteData1)
+        saveWebsiteContext(2, websiteData2)
+        saveWebsiteContext(3, websiteData3)
+
+        deleteWebsiteContext(2)
+
+        const allContexts = loadAllWebsiteContexts()
+        expect(allContexts).toEqual({
+          '1': websiteData1,
+          '3': websiteData3
+        })
+      })
     })
   })
 })

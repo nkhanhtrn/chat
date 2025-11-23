@@ -165,6 +165,72 @@ describe('useMessageParser', () => {
       expect(italicElement.text).toBe('italic')
     })
 
+    it('should parse URLs as links', () => {
+      const content = 'Check out https://example.com for more info'
+      const result = parseMessage(content)
+      
+      const textElement = result.find(r => r.type === 'text')
+      const linkElement = textElement.content.find(c => c.type === 'link')
+      
+      expect(linkElement).toBeDefined()
+      expect(linkElement.text).toBe('https://example.com')
+    })
+
+    it('should parse http URLs as links', () => {
+      const content = 'Visit http://example.com'
+      const result = parseMessage(content)
+      
+      const textElement = result.find(r => r.type === 'text')
+      const linkElement = textElement.content.find(c => c.type === 'link')
+      
+      expect(linkElement).toBeDefined()
+      expect(linkElement.text).toBe('http://example.com')
+    })
+
+    it('should parse multiple URLs in same text', () => {
+      const content = 'See https://example.com and https://test.org'
+      const result = parseMessage(content)
+      
+      const textElement = result.find(r => r.type === 'text')
+      const linkElements = textElement.content.filter(c => c.type === 'link')
+      
+      expect(linkElements).toHaveLength(2)
+      expect(linkElements[0].text).toBe('https://example.com')
+      expect(linkElements[1].text).toBe('https://test.org')
+    })
+
+    it('should parse URL with path and query params', () => {
+      const content = 'API: https://api.example.com/v1/users?id=123&name=test'
+      const result = parseMessage(content)
+      
+      const textElement = result.find(r => r.type === 'text')
+      const linkElement = textElement.content.find(c => c.type === 'link')
+      
+      expect(linkElement).toBeDefined()
+      expect(linkElement.text).toBe('https://api.example.com/v1/users?id=123&name=test')
+    })
+
+    it('should parse URL with hash fragment', () => {
+      const content = 'Docs: https://docs.example.com/guide#installation'
+      const result = parseMessage(content)
+      
+      const textElement = result.find(r => r.type === 'text')
+      const linkElement = textElement.content.find(c => c.type === 'link')
+      
+      expect(linkElement).toBeDefined()
+      expect(linkElement.text).toBe('https://docs.example.com/guide#installation')
+    })
+
+    it('should not parse non-http URLs', () => {
+      const content = 'Email: mailto:test@example.com'
+      const result = parseMessage(content)
+      
+      const textElement = result.find(r => r.type === 'text')
+      const linkElement = textElement.content.find(c => c.type === 'link')
+      
+      expect(linkElement).toBeUndefined()
+    })
+
     it('should handle overlapping formatting correctly', () => {
       const content = 'Text with **bold** and *italic* separately'
       const result = parseMessage(content)
@@ -190,6 +256,34 @@ describe('useMessageParser', () => {
       expect(textElement.content.some(c => c.type === 'code')).toBe(true)
       // Note: italic parsing might not work if it conflicts with asterisks in bold
       // Just check that we got bold and code
+    })
+
+    it('should parse URL alongside other formatting', () => {
+      const content = 'Visit https://example.com for **bold** info'
+      const result = parseMessage(content)
+      
+      const textElement = result.find(r => r.type === 'text')
+      
+      // URL should be parsed
+      const linkElement = textElement.content.find(c => c.type === 'link')
+      expect(linkElement).toBeDefined()
+      expect(linkElement.text).toBe('https://example.com')
+      
+      // Bold should also be parsed
+      const boldElement = textElement.content.find(c => c.type === 'bold')
+      expect(boldElement).toBeDefined()
+    })
+
+    it('should parse URL in code block header correctly', () => {
+      const content = 'Check `https://example.com` in code'
+      const result = parseMessage(content)
+      
+      const textElement = result.find(r => r.type === 'text')
+      
+      // Code takes priority, so URL should be in code element
+      const codeElement = textElement.content.find(c => c.type === 'code')
+      expect(codeElement).toBeDefined()
+      expect(codeElement.text).toBe('https://example.com')
     })
   })
 

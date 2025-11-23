@@ -22,7 +22,10 @@ vi.mock('../services/storage.js', () => ({
   saveSelectedModel: vi.fn(),
   saveChatCounter: vi.fn(),
   loadApiConfig: vi.fn(),
-  saveApiConfig: vi.fn()
+  saveApiConfig: vi.fn(),
+  loadWebsiteContext: vi.fn(() => null),
+  saveWebsiteContext: vi.fn(),
+  deleteWebsiteContext: vi.fn()
 }))
 
 describe('App', () => {

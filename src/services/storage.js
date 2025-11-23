@@ -5,6 +5,7 @@ const STORAGE_KEY_ACTIVE = 'chat-active'
 const STORAGE_KEY_MODEL = 'chat-model'
 const STORAGE_KEY_COUNTER = 'chat-counter'
 const STORAGE_KEY_API_CONFIG = 'chat-api-config'
+const STORAGE_KEY_WEBSITE_CONTEXT = 'chat-website-context'
 
 /**
  * Save chat data to localStorage
@@ -153,6 +154,58 @@ export const saveAllData = (data) => {
   } catch (error) {
     console.error('Failed to save data to localStorage:', error)
     throw error
+  }
+}
+
+/**
+ * Save website context to localStorage
+ */
+export const saveWebsiteContext = (chatId, websiteData) => {
+  try {
+    const allContexts = loadAllWebsiteContexts() || {}
+    allContexts[chatId] = websiteData
+    localStorage.setItem(STORAGE_KEY_WEBSITE_CONTEXT, JSON.stringify(allContexts))
+  } catch (error) {
+    console.error('Failed to save website context to localStorage:', error)
+  }
+}
+
+/**
+ * Load website context for a specific chat from localStorage
+ */
+export const loadWebsiteContext = (chatId) => {
+  try {
+    const allContexts = loadAllWebsiteContexts()
+    return allContexts?.[chatId] || null
+  } catch (error) {
+    console.error('Failed to load website context from localStorage:', error)
+    return null
+  }
+}
+
+/**
+ * Load all website contexts from localStorage
+ */
+export const loadAllWebsiteContexts = () => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_WEBSITE_CONTEXT)
+    return saved ? JSON.parse(saved) : {}
+  } catch (error) {
+    console.error('Failed to load website contexts from localStorage:', error)
+    return {}
+  }
+}
+
+/**
+ * Delete website context for a specific chat
+ */
+export const deleteWebsiteContext = (chatId) => {
+  try {
+    const allContexts = loadAllWebsiteContexts()
+    delete allContexts[chatId]
+    localStorage.setItem(STORAGE_KEY_WEBSITE_CONTEXT, JSON.stringify(allContexts))
+  } catch (error) {
+    console.error('Failed to delete website context from localStorage:', error)
   }
 }
 

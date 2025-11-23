@@ -2,6 +2,7 @@
   <component :is="elementTag" :class="elementClass">
     <template v-for="(part, index) in content" :key="index">
       <InlineCode v-if="part.type === 'code'" :text="part.text" />
+      <a v-else-if="part.type === 'link'" :href="part.text" target="_blank" rel="noopener noreferrer" class="markdown-link">{{ part.text }}</a>
       <strong v-else-if="part.type === 'bold'">{{ part.text }}</strong>
       <em v-else-if="part.type === 'italic'">{{ part.text }}</em>
       <span v-else>{{ part.text }}</span>

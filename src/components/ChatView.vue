@@ -16,15 +16,19 @@
       :is-loading="isLoading"
       :selected-model="selectedModel"
       :show-compress="chat.messages.length > 0"
+      :website-context="websiteContext"
       @send="handleSendMessage"
       @compress="compressConversation"
+      @website-removed="handleWebsiteRemoved"
     />
   </div>
 </template>
 
 <script>
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, onMounted } from 'vue'
 import { sendChatMessage } from '../services/api.js'
+import { fetchWebsiteContent } from '../services/websiteContent.js'
+import { loadWebsiteContext, saveWebsiteContext, deleteWebsiteContext } from '../services/storage.js'
 import MessageItem from './MessageItem.vue'
 import ChatInput from './ChatInput.vue'
 
@@ -48,6 +52,7 @@ export default {
   setup(props, { emit }) {
     const isLoading = ref(false)
     const messagesContainer = ref(null)
+    const websiteContext = ref(null)
 
     const scrollToBottom = () => {
       nextTick(() => {
@@ -57,13 +62,45 @@ export default {
       })
     }
 
+    // Function to extract URLs from text
+    const extractUrls = (text) => {
+      const urlRegex = /(https?:\/\/[^\s]+)/gi
+      return text.match(urlRegex) || []
+    }
+
+    // Function to fetch content from URLs in message
+    const fetchUrlsContent = async (text) => {
+      const urls = extractUrls(text)
+      if (urls.length === 0) return null
+
+      try {
+        // Fetch content from the first URL found
+        const url = urls[0]
+        const websiteData = await fetchWebsiteContent(url)
+        return websiteData
+      } catch (error) {
+        console.error('Error fetching URL content:', error)
+        return null
+      }
+    }
+
     const sendMessageToAPI = async (assistantMessage) => {
       isLoading.value = true
       
       try {
+        // Prepare messages for API
         const messages = props.chat.messages
           .filter(m => !m.loading)
           .map(m => ({ role: m.role, content: m.content }))
+
+        // Prepend website context if available
+        if (websiteContext.value) {
+          const contextMessage = {
+            role: 'system',
+            content: `The user has provided the following website content for context:\n\nTitle: ${websiteContext.value.title}\nURL: ${websiteContext.value.url}\n\nThe website content is:\n${websiteContext.value.content}\n\nPlease use this information to answer the user's questions when relevant.`
+          }
+          messages.unshift(contextMessage)
+        }
 
         const response = await sendChatMessage(messages, props.selectedModel)
         
@@ -190,6 +227,36 @@ export default {
     }
 
     const handleSendMessage = async (messageText) => {
+      // Check for URLs in the message and fetch content
+      const urls = extractUrls(messageText)
+      if (urls.length > 0) {
+        // Update the loading message to indicate URL fetching
+        const assistantMessage = {
+          role: 'assistant',
+          content: '',
+          displayContent: '',
+          thinking: 'Fetching content from URL...',
+          showThinking: true,
+          loading: true
+        }
+        
+        // Add temporary loading message
+        props.chat.messages.push(assistantMessage)
+        scrollToBottom()
+        
+        // Fetch URL content
+        const urlContent = await fetchUrlsContent(messageText)
+        
+        // Remove the temporary loading message
+        props.chat.messages.pop()
+        
+        if (urlContent) {
+          // Save the website context
+          websiteContext.value = urlContent
+          saveWebsiteContext(props.chat.id, urlContent)
+        }
+      }
+
       // Add user message
       const userMessage = {
         role: 'user',
@@ -199,7 +266,7 @@ export default {
       props.chat.messages.push(userMessage)
 
       // Update chat title with first message
-      if (props.chat.messages.length === 1) {
+      if (props.chat.messages.filter(m => m.role === 'user').length === 1) {
         const title = messageText.length > 30 
           ? messageText.substring(0, 30) + '...' 
           : messageText
@@ -223,6 +290,25 @@ export default {
       await sendMessageToAPI(assistantMessage)
     }
 
+    const handleWebsiteRemoved = () => {
+      websiteContext.value = null
+      deleteWebsiteContext(props.chat.id)
+    }
+
+    // Load website context when chat is mounted
+    onMounted(() => {
+      const savedContext = loadWebsiteContext(props.chat.id)
+      if (savedContext) {
+        websiteContext.value = savedContext
+      }
+    })
+
+    // Watch for chat changes and load context
+    watch(() => props.chat.id, (newChatId) => {
+      const savedContext = loadWebsiteContext(newChatId)
+      websiteContext.value = savedContext
+    })
+
     watch(() => props.chat.messages.length, () => {
       scrollToBottom()
     })
@@ -230,10 +316,12 @@ export default {
     return {
       isLoading,
       messagesContainer,
+      websiteContext,
       retryMessage,
       editMessage,
       handleSendMessage,
-      compressConversation
+      compressConversation,
+      handleWebsiteRemoved
     }
   }
 }

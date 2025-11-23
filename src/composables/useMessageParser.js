@@ -36,21 +36,49 @@ export function useMessageParser() {
   }
   
   const escapeHtmlExceptCode = (text) => {
-    // Extract inline code blocks to preserve them
+    // Extract inline code blocks and URLs to preserve them
     const parts = []
     let currentPos = 0
     const codeRegex = /`([^`]+)`/g
+    const urlRegex = /(https?:\/\/[^\s]+)/g
+    
+    // Combine both patterns to find all matches
+    const allMatches = []
     let match
     
+    // Find code matches
     while ((match = codeRegex.exec(text)) !== null) {
-      // Add escaped text before code
-      if (match.index > currentPos) {
-        parts.push(escapeHtml(text.slice(currentPos, match.index)))
-      }
-      // Add code with backticks (unescaped)
-      parts.push('`' + match[1] + '`')
-      currentPos = match.index + match[0].length
+      allMatches.push({
+        type: 'code',
+        start: match.index,
+        end: match.index + match[0].length,
+        text: match[0]
+      })
     }
+    
+    // Find URL matches
+    while ((match = urlRegex.exec(text)) !== null) {
+      allMatches.push({
+        type: 'url',
+        start: match.index,
+        end: match.index + match[0].length,
+        text: match[0]
+      })
+    }
+    
+    // Sort by position
+    allMatches.sort((a, b) => a.start - b.start)
+    
+    // Build result by escaping only the text between matches
+    allMatches.forEach(item => {
+      // Add escaped text before this match
+      if (item.start > currentPos) {
+        parts.push(escapeHtml(text.slice(currentPos, item.start)))
+      }
+      // Add the match itself unescaped
+      parts.push(item.text)
+      currentPos = item.end
+    })
     
     // Add remaining escaped text
     if (currentPos < text.length) {
@@ -176,6 +204,7 @@ export function useMessageParser() {
     // Regular expressions for inline formatting
     const patterns = [
       { type: 'code', regex: /`([^`]+)`/g },
+      { type: 'link', regex: /(https?:\/\/[^\s]+)/g },
       { type: 'bold', regex: /\*\*([^*]+)\*\*/g },
       { type: 'italic', regex: /\*([^*]+)\*/g }
     ]

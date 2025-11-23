@@ -5,10 +5,24 @@ import ChatView from '../ChatView.vue'
 import MessageItem from '../MessageItem.vue'
 import ChatInput from '../ChatInput.vue'
 import * as api from '../../services/api.js'
+import * as websiteContent from '../../services/websiteContent.js'
+import * as storage from '../../services/storage.js'
 
 // Mock the API module
 vi.mock('../../services/api.js', () => ({
   sendChatMessage: vi.fn()
+}))
+
+// Mock the websiteContent module
+vi.mock('../../services/websiteContent.js', () => ({
+  fetchWebsiteContent: vi.fn()
+}))
+
+// Mock the storage module
+vi.mock('../../services/storage.js', () => ({
+  loadWebsiteContext: vi.fn(),
+  saveWebsiteContext: vi.fn(),
+  deleteWebsiteContext: vi.fn()
 }))
 
 describe('ChatView', () => {
@@ -573,6 +587,262 @@ describe('ChatView', () => {
       expect(wrapper.vm.isLoading).toBe(false)
       
       consoleErrorSpy.mockRestore()
+    })
+  })
+
+  describe('Website Context', () => {
+    it('should include website context in API call with custom label', async () => {
+      const websiteData = {
+        url: 'https://example.com',
+        title: 'Example Site',
+        content: 'This is website content'
+      }
+      
+      storage.loadWebsiteContext.mockReturnValue(websiteData)
+      api.sendChatMessage.mockResolvedValue('Response based on website')
+
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+
+      await nextTick()
+
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'Tell me about this website')
+      await nextTick()
+      await new Promise(resolve => setTimeout(resolve, 10))
+
+      expect(api.sendChatMessage).toHaveBeenCalled()
+      const callArgs = api.sendChatMessage.mock.calls[0][0]
+      const systemMessage = callArgs.find(msg => msg.role === 'system')
+      
+      expect(systemMessage).toBeTruthy()
+      expect(systemMessage.content).toContain('The website content is:')
+      expect(systemMessage.content).toContain(websiteData.title)
+      expect(systemMessage.content).toContain(websiteData.url)
+      expect(systemMessage.content).toContain(websiteData.content)
+    })
+
+    it('should not include website context when none exists', async () => {
+      storage.loadWebsiteContext.mockReturnValue(null)
+      api.sendChatMessage.mockResolvedValue('Normal response')
+
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+
+      await nextTick()
+
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'Hello')
+      await nextTick()
+      await new Promise(resolve => setTimeout(resolve, 10))
+
+      expect(api.sendChatMessage).toHaveBeenCalled()
+      const callArgs = api.sendChatMessage.mock.calls[0][0]
+      const systemMessage = callArgs.find(msg => msg.role === 'system')
+      
+      expect(systemMessage).toBeUndefined()
+    })
+
+    it('should detect and fetch URL from message', async () => {
+      storage.loadWebsiteContext.mockReturnValue(null)
+      websiteContent.fetchWebsiteContent.mockResolvedValue({
+        url: 'https://example.com',
+        title: 'Example Page',
+        content: 'Page content here'
+      })
+      api.sendChatMessage.mockResolvedValue('Response')
+
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'Check this out https://example.com')
+      await nextTick()
+      await new Promise(resolve => setTimeout(resolve, 10))
+
+      expect(websiteContent.fetchWebsiteContent).toHaveBeenCalledWith('https://example.com')
+      expect(storage.saveWebsiteContext).toHaveBeenCalled()
+    })
+
+    it('should show loading indicator while fetching URL', async () => {
+      storage.loadWebsiteContext.mockReturnValue(null)
+      websiteContent.fetchWebsiteContent.mockImplementation(() => new Promise(resolve => {
+        setTimeout(() => resolve({
+          url: 'https://example.com',
+          title: 'Example',
+          content: 'Content'
+        }), 50)
+      }))
+      api.sendChatMessage.mockResolvedValue('Response')
+
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'https://example.com')
+      await nextTick()
+
+      // Check that a loading message was added temporarily
+      const loadingMessage = mockChat.messages.find(m => m.thinking === 'Fetching content from URL...')
+      expect(loadingMessage).toBeTruthy()
+    })
+
+    it('should handle URL fetch failure gracefully', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      storage.loadWebsiteContext.mockReturnValue(null)
+      websiteContent.fetchWebsiteContent.mockRejectedValue(new Error('Failed to fetch'))
+      api.sendChatMessage.mockResolvedValue('Response')
+
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'https://example.com')
+      await nextTick()
+      await new Promise(resolve => setTimeout(resolve, 10))
+
+      // Should continue without website context
+      expect(storage.saveWebsiteContext).not.toHaveBeenCalled()
+      expect(api.sendChatMessage).toHaveBeenCalled()
+      
+      consoleErrorSpy.mockRestore()
+    })
+
+    it('should load website context on mount', async () => {
+      const savedContext = {
+        url: 'https://saved.com',
+        title: 'Saved Site',
+        content: 'Saved content'
+      }
+      storage.loadWebsiteContext.mockReturnValue(savedContext)
+
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+
+      await nextTick()
+
+      expect(storage.loadWebsiteContext).toHaveBeenCalledWith(mockChat.id)
+      expect(wrapper.vm.websiteContext).toEqual(savedContext)
+    })
+
+    it('should update website context when chat changes', async () => {
+      const context1 = { url: 'https://chat1.com', title: 'Chat 1', content: 'Content 1' }
+      const context2 = { url: 'https://chat2.com', title: 'Chat 2', content: 'Content 2' }
+      
+      storage.loadWebsiteContext.mockReturnValueOnce(context1).mockReturnValueOnce(context2)
+
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+
+      await nextTick()
+      expect(wrapper.vm.websiteContext).toEqual(context1)
+
+      // Change chat
+      const newChat = { id: 2, title: 'Chat 2', messages: [] }
+      await wrapper.setProps({ chat: newChat })
+      await nextTick()
+
+      expect(storage.loadWebsiteContext).toHaveBeenCalledWith(2)
+      expect(wrapper.vm.websiteContext).toEqual(context2)
+    })
+
+    it('should handle website-removed event', async () => {
+      const websiteData = {
+        url: 'https://example.com',
+        title: 'Example',
+        content: 'Content'
+      }
+      storage.loadWebsiteContext.mockReturnValue(websiteData)
+
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+
+      await nextTick()
+      expect(wrapper.vm.websiteContext).toEqual(websiteData)
+
+      // Emit website-removed event
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('website-removed')
+      await nextTick()
+
+      expect(wrapper.vm.websiteContext).toBeNull()
+      expect(storage.deleteWebsiteContext).toHaveBeenCalledWith(mockChat.id)
+    })
+
+    it('should extract multiple URLs but fetch only first one', async () => {
+      storage.loadWebsiteContext.mockReturnValue(null)
+      websiteContent.fetchWebsiteContent.mockResolvedValue({
+        url: 'https://first.com',
+        title: 'First',
+        content: 'Content'
+      })
+      api.sendChatMessage.mockResolvedValue('Response')
+
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'Check https://first.com and https://second.com')
+      await nextTick()
+      await new Promise(resolve => setTimeout(resolve, 10))
+
+      expect(websiteContent.fetchWebsiteContent).toHaveBeenCalledTimes(1)
+      expect(websiteContent.fetchWebsiteContent).toHaveBeenCalledWith('https://first.com')
+    })
+
+    it('should not fetch URL if message has no URLs', async () => {
+      storage.loadWebsiteContext.mockReturnValue(null)
+      api.sendChatMessage.mockResolvedValue('Response')
+
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'Regular message without URL')
+      await nextTick()
+      await new Promise(resolve => setTimeout(resolve, 10))
+
+      expect(websiteContent.fetchWebsiteContent).not.toHaveBeenCalled()
     })
   })
 

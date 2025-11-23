@@ -132,6 +132,9 @@ export default {
       if (index !== -1) {
         chats.value.splice(index, 1)
         
+        // Delete associated website context
+        storage.deleteWebsiteContext(chatId)
+        
         if (activeChat.value === chatId) {
           if (chats.value.length > 0) {
             activeChat.value = chats.value[0].id

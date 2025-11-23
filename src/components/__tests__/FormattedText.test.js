@@ -65,6 +65,52 @@ describe('FormattedText', () => {
       expect(inlineCode.props('text')).toBe('const x = 10')
     })
 
+    it('should render links', () => {
+      const content = [
+        { type: 'link', text: 'https://example.com' }
+      ]
+
+      wrapper = mount(FormattedText, {
+        props: { content }
+      })
+
+      const link = wrapper.find('a')
+      expect(link.exists()).toBe(true)
+      expect(link.text()).toBe('https://example.com')
+      expect(link.attributes('href')).toBe('https://example.com')
+      expect(link.attributes('target')).toBe('_blank')
+      expect(link.attributes('rel')).toBe('noopener noreferrer')
+      expect(link.classes()).toContain('markdown-link')
+    })
+
+    it('should render http links', () => {
+      const content = [
+        { type: 'link', text: 'http://example.com' }
+      ]
+
+      wrapper = mount(FormattedText, {
+        props: { content }
+      })
+
+      const link = wrapper.find('a')
+      expect(link.exists()).toBe(true)
+      expect(link.attributes('href')).toBe('http://example.com')
+    })
+
+    it('should render links with paths and query params', () => {
+      const content = [
+        { type: 'link', text: 'https://api.example.com/v1/users?id=123' }
+      ]
+
+      wrapper = mount(FormattedText, {
+        props: { content }
+      })
+
+      const link = wrapper.find('a')
+      expect(link.exists()).toBe(true)
+      expect(link.attributes('href')).toBe('https://api.example.com/v1/users?id=123')
+    })
+
     it('should render mixed content', () => {
       const content = [
         { type: 'text', text: 'This is ' },
@@ -82,6 +128,42 @@ describe('FormattedText', () => {
       expect(wrapper.find('strong').exists()).toBe(true)
       expect(wrapper.find('em').exists()).toBe(true)
       expect(wrapper.findComponent(InlineCode).exists()).toBe(true)
+    })
+
+    it('should render text with links and other formatting', () => {
+      const content = [
+        { type: 'text', text: 'Visit ' },
+        { type: 'link', text: 'https://example.com' },
+        { type: 'text', text: ' for ' },
+        { type: 'bold', text: 'more info' }
+      ]
+
+      wrapper = mount(FormattedText, {
+        props: { content }
+      })
+
+      expect(wrapper.find('a').exists()).toBe(true)
+      expect(wrapper.find('strong').exists()).toBe(true)
+      expect(wrapper.text()).toContain('Visit')
+      expect(wrapper.text()).toContain('https://example.com')
+      expect(wrapper.text()).toContain('more info')
+    })
+
+    it('should render multiple links in same content', () => {
+      const content = [
+        { type: 'link', text: 'https://example.com' },
+        { type: 'text', text: ' and ' },
+        { type: 'link', text: 'https://test.org' }
+      ]
+
+      wrapper = mount(FormattedText, {
+        props: { content }
+      })
+
+      const links = wrapper.findAll('a')
+      expect(links).toHaveLength(2)
+      expect(links[0].attributes('href')).toBe('https://example.com')
+      expect(links[1].attributes('href')).toBe('https://test.org')
     })
   })
 
