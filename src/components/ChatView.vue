@@ -13,7 +13,7 @@
     </div>
 
     <ChatInput 
-      :is-loading="isLoading"
+      :is-loading="globalLoading"
       :is-streaming="isStreaming"
       :selected-model="selectedModel"
       :show-compress="chat.messages.length > 0"
@@ -44,9 +44,13 @@ export default {
     selectedModel: {
       type: String,
       required: true
+    },
+    globalLoading: {
+      type: Boolean,
+      default: false
     }
   },
-  emits: ['update-title'],
+  emits: ['update-title', 'loading-change'],
   setup(props, { emit }) {
     const isLoading = ref(false)
     const isStreaming = ref(false)
@@ -69,10 +73,12 @@ export default {
       abortChatMessage()
       isStreaming.value = false
       isLoading.value = false
+      emit('loading-change', false)
     }
 
     const sendMessageToAPI = async (chatMessage) => {
       isLoading.value = true
+      emit('loading-change', true)
       isStreaming.value = false
       
       try {
@@ -187,6 +193,7 @@ export default {
         chatMessage.isWaiting = false
       } finally {
         isLoading.value = false
+        emit('loading-change', false)
         isStreaming.value = false
         scrollToBottom()
       }

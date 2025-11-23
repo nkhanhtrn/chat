@@ -92,7 +92,9 @@
         v-if="currentChat"
         :chat="currentChat"
         :selectedModel="selectedModel"
+        :global-loading="isAnyLoading"
         @update-title="updateChatTitle"
+        @loading-change="isAnyLoading = $event"
       />
       <div v-else class="empty-state">
         <p>Create a new chat to get started</p>
@@ -128,6 +130,7 @@ export default {
     const sidebarCollapsed = ref(false)
     const draggedChatIndex = ref(null)
     const dragOverChatIndex = ref(null)
+    const isAnyLoading = ref(false)
     let chatIdCounter = 1
 
     const currentChat = computed(() => {
@@ -394,6 +397,7 @@ export default {
       sidebarCollapsed,
       draggedChatIndex,
       dragOverChatIndex,
+      isAnyLoading,
       saveApiConfig,
       openApiModal,
       createNewChat,

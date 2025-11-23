@@ -949,6 +949,7 @@ describe('App', () => {
       expect(chatView.exists()).toBe(true)
       expect(chatView.props('chat')).toBeDefined()
       expect(chatView.props('selectedModel')).toBe('test-model')
+      expect(chatView.props('globalLoading')).toBe(false)
     })
 
     it('should handle update-title event from ChatView', async () => {
@@ -969,6 +970,66 @@ describe('App', () => {
       await nextTick()
 
       expect(wrapper.vm.chats[0].title).toBe('New Title From Chat')
+    })
+
+    it('should update global loading state when ChatView emits loading-change', async () => {
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      await nextTick()
+      const chatView = wrapper.findComponent(ChatView)
+      
+      expect(wrapper.vm.isAnyLoading).toBe(false)
+      
+      // Emit loading-change true
+      await chatView.vm.$emit('loading-change', true)
+      await nextTick()
+      expect(wrapper.vm.isAnyLoading).toBe(true)
+      
+      // Emit loading-change false
+      await chatView.vm.$emit('loading-change', false)
+      await nextTick()
+      expect(wrapper.vm.isAnyLoading).toBe(false)
+    })
+
+    it('should keep global loading state when switching chats', async () => {
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      // Create a second chat
+      wrapper.vm.createNewChat()
+      await nextTick()
+
+      const firstChatId = wrapper.vm.chats[0].id
+      const secondChatId = wrapper.vm.chats[1].id
+
+      // Set loading state
+      wrapper.vm.isAnyLoading = true
+      await nextTick()
+
+      // Switch to first chat
+      wrapper.vm.switchChat(firstChatId)
+      await nextTick()
+      
+      let chatView = wrapper.findComponent(ChatView)
+      expect(chatView.props('globalLoading')).toBe(true)
+
+      // Switch to second chat - loading state should persist
+      wrapper.vm.switchChat(secondChatId)
+      await nextTick()
+      
+      chatView = wrapper.findComponent(ChatView)
+      expect(chatView.props('globalLoading')).toBe(true)
     })
   })
 
