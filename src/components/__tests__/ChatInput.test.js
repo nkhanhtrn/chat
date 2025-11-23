@@ -298,6 +298,21 @@ describe('ChatInput', () => {
 
       expect(wrapper.emitted('send')).toBeFalsy()
     })
+
+    it('should not emit send event when Enter is pressed with whitespace only', async () => {
+      wrapper = mount(ChatInput, {
+        props: {
+          selectedModel: 'test-model',
+          isLoading: false
+        }
+      })
+
+      const textarea = wrapper.find('textarea')
+      await textarea.setValue('   ')
+      await textarea.trigger('keydown.enter', { exact: true })
+
+      expect(wrapper.emitted('send')).toBeFalsy()
+    })
   })
 
   describe('Compress Functionality', () => {
