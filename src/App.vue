@@ -49,8 +49,14 @@
         <div 
           v-for="(chat, index) in chats" 
           :key="chat.id"
-          :class="['chat-tab', { active: activeChat === chat.id }]"
+          :class="['chat-tab', { active: activeChat === chat.id, 'drag-over': dragOverChatIndex === index }]"
+          draggable="true"
           @click="switchChat(chat.id)"
+          @dragstart="handleDragStart($event, index)"
+          @dragend="handleDragEnd"
+          @dragover="handleDragOver($event, index)"
+          @dragleave="handleDragLeave"
+          @drop="handleDrop($event, index)"
         >
           <input
             v-if="chat.editing"
@@ -120,6 +126,8 @@ export default {
       port: ''
     })
     const sidebarCollapsed = ref(false)
+    const draggedChatIndex = ref(null)
+    const dragOverChatIndex = ref(null)
     let chatIdCounter = 1
 
     const currentChat = computed(() => {
@@ -144,20 +152,26 @@ export default {
     const deleteChat = (chatId) => {
       const index = chats.value.findIndex(chat => chat.id === chatId)
       if (index !== -1) {
+        // Determine which chat to switch to before removing
+        let newActiveChatId = null
+        if (activeChat.value === chatId && chats.value.length > 1) {
+          // Select the chat above, or the one below if deleting the first chat
+          const newIndex = index > 0 ? index - 1 : 1
+          newActiveChatId = chats.value[newIndex].id
+        }
+        
+        // Remove the chat
         chats.value.splice(index, 1)
         
         // Delete associated website context
         storage.deleteWebsiteContext(chatId)
         
         if (activeChat.value === chatId) {
-          if (chats.value.length > 0) {
-            // Select the chat above, or the one below if deleting the first chat
-            const newIndex = index > 0 ? index - 1 : 0
-            activeChat.value = chats.value[newIndex].id
-          } else {
+          if (newActiveChatId) {
+            activeChat.value = newActiveChatId
+          } else if (chats.value.length === 0) {
             // Create a new empty chat when the last one is deleted
             createNewChat()
-            return
           }
         }
       }
@@ -192,6 +206,52 @@ export default {
     const toggleSidebar = () => {
       sidebarCollapsed.value = !sidebarCollapsed.value
       storage.saveSidebarState(sidebarCollapsed.value)
+    }
+
+    const handleDragStart = (event, index) => {
+      draggedChatIndex.value = index
+      event.dataTransfer.effectAllowed = 'move'
+      event.dataTransfer.setData('text/html', event.target.innerHTML)
+      event.target.classList.add('dragging')
+    }
+
+    const handleDragEnd = (event) => {
+      event.target.classList.remove('dragging')
+      draggedChatIndex.value = null
+      dragOverChatIndex.value = null
+    }
+
+    const handleDragOver = (event, index) => {
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'move'
+      dragOverChatIndex.value = index
+    }
+
+    const handleDragLeave = () => {
+      dragOverChatIndex.value = null
+    }
+
+    const handleDrop = (event, dropIndex) => {
+      event.preventDefault()
+      
+      if (draggedChatIndex.value === null || draggedChatIndex.value === dropIndex) {
+        dragOverChatIndex.value = null
+        return
+      }
+
+      const draggedChat = chats.value[draggedChatIndex.value]
+      const newChats = [...chats.value]
+      
+      // Remove the dragged chat
+      newChats.splice(draggedChatIndex.value, 1)
+      
+      // Insert at new position
+      // Adjust drop index if dragging from above
+      const insertIndex = draggedChatIndex.value < dropIndex ? dropIndex - 1 : dropIndex
+      newChats.splice(insertIndex, 0, draggedChat)
+      
+      chats.value = newChats
+      dragOverChatIndex.value = null
     }
 
     const saveApiConfig = (config) => {
@@ -332,6 +392,8 @@ export default {
       showApiModal,
       apiConfig,
       sidebarCollapsed,
+      draggedChatIndex,
+      dragOverChatIndex,
       saveApiConfig,
       openApiModal,
       createNewChat,
@@ -340,7 +402,12 @@ export default {
       updateChatTitle,
       startEditingTitle,
       finishEditingTitle,
-      toggleSidebar
+      toggleSidebar,
+      handleDragStart,
+      handleDragEnd,
+      handleDragOver,
+      handleDragLeave,
+      handleDrop
     }
   }
 }

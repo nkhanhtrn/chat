@@ -987,6 +987,346 @@ describe('App', () => {
     })
   })
 
+  describe('Chat Reordering (Drag and Drop)', () => {
+    it('should set draggedChatIndex on drag start', async () => {
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ChatView: true,
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      // Create multiple chats
+      wrapper.vm.createNewChat()
+      wrapper.vm.createNewChat()
+      await nextTick()
+
+      const mockEvent = {
+        dataTransfer: {
+          effectAllowed: null,
+          setData: vi.fn()
+        },
+        target: {
+          classList: {
+            add: vi.fn()
+          }
+        }
+      }
+
+      wrapper.vm.handleDragStart(mockEvent, 1)
+      
+      expect(wrapper.vm.draggedChatIndex).toBe(1)
+      expect(mockEvent.dataTransfer.effectAllowed).toBe('move')
+      expect(mockEvent.target.classList.add).toHaveBeenCalledWith('dragging')
+    })
+
+    it('should clear drag state on drag end', async () => {
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ChatView: true,
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      wrapper.vm.draggedChatIndex = 1
+      wrapper.vm.dragOverChatIndex = 2
+
+      const mockEvent = {
+        target: {
+          classList: {
+            remove: vi.fn()
+          }
+        }
+      }
+
+      wrapper.vm.handleDragEnd(mockEvent)
+
+      expect(wrapper.vm.draggedChatIndex).toBeNull()
+      expect(wrapper.vm.dragOverChatIndex).toBeNull()
+      expect(mockEvent.target.classList.remove).toHaveBeenCalledWith('dragging')
+    })
+
+    it('should set dragOverChatIndex on drag over', async () => {
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ChatView: true,
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      const mockEvent = {
+        preventDefault: vi.fn(),
+        dataTransfer: {
+          dropEffect: null
+        }
+      }
+
+      wrapper.vm.handleDragOver(mockEvent, 2)
+
+      expect(mockEvent.preventDefault).toHaveBeenCalled()
+      expect(mockEvent.dataTransfer.dropEffect).toBe('move')
+      expect(wrapper.vm.dragOverChatIndex).toBe(2)
+    })
+
+    it('should clear dragOverChatIndex on drag leave', async () => {
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ChatView: true,
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      wrapper.vm.dragOverChatIndex = 2
+      wrapper.vm.handleDragLeave()
+
+      expect(wrapper.vm.dragOverChatIndex).toBeNull()
+    })
+
+    it('should reorder chats when dropped (moving down)', async () => {
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ChatView: true,
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      // Create 3 chats
+      wrapper.vm.createNewChat()
+      wrapper.vm.createNewChat()
+      await nextTick()
+
+      const firstChatId = wrapper.vm.chats[0].id
+      const secondChatId = wrapper.vm.chats[1].id
+      const thirdChatId = wrapper.vm.chats[2].id
+
+      // Drag first chat (index 0) to third position (index 2)
+      wrapper.vm.draggedChatIndex = 0
+
+      const mockEvent = {
+        preventDefault: vi.fn()
+      }
+
+      wrapper.vm.handleDrop(mockEvent, 2)
+
+      // The logic inserts at insertIndex = draggedChatIndex < dropIndex ? dropIndex - 1 : dropIndex
+      // So dragging index 0 to drop index 2: insertIndex = 0 < 2 ? 2 - 1 = 1
+      // After removing index 0: [second, third]
+      // After inserting at index 1: [second, first, third]
+      expect(wrapper.vm.chats[0].id).toBe(secondChatId)
+      expect(wrapper.vm.chats[1].id).toBe(firstChatId)
+      expect(wrapper.vm.chats[2].id).toBe(thirdChatId)
+      expect(wrapper.vm.dragOverChatIndex).toBeNull()
+    })
+
+    it('should reorder chats when dropped (moving up)', async () => {
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ChatView: true,
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      // Create 3 chats
+      wrapper.vm.createNewChat()
+      wrapper.vm.createNewChat()
+      await nextTick()
+
+      const firstChatId = wrapper.vm.chats[0].id
+      const secondChatId = wrapper.vm.chats[1].id
+      const thirdChatId = wrapper.vm.chats[2].id
+
+      // Drag third chat (index 2) to first position (index 0)
+      wrapper.vm.draggedChatIndex = 2
+
+      const mockEvent = {
+        preventDefault: vi.fn()
+      }
+
+      wrapper.vm.handleDrop(mockEvent, 0)
+
+      // Order should now be: third, first, second
+      expect(wrapper.vm.chats[0].id).toBe(thirdChatId)
+      expect(wrapper.vm.chats[1].id).toBe(firstChatId)
+      expect(wrapper.vm.chats[2].id).toBe(secondChatId)
+    })
+
+    it('should not reorder when dropped on same position', async () => {
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ChatView: true,
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      // Create 2 chats
+      wrapper.vm.createNewChat()
+      await nextTick()
+
+      const firstChatId = wrapper.vm.chats[0].id
+      const secondChatId = wrapper.vm.chats[1].id
+
+      // Drag first chat to same position
+      wrapper.vm.draggedChatIndex = 0
+
+      const mockEvent = {
+        preventDefault: vi.fn()
+      }
+
+      wrapper.vm.handleDrop(mockEvent, 0)
+
+      // Order should remain the same
+      expect(wrapper.vm.chats[0].id).toBe(firstChatId)
+      expect(wrapper.vm.chats[1].id).toBe(secondChatId)
+    })
+
+    it('should not reorder when draggedChatIndex is null', async () => {
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ChatView: true,
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      // Create 2 chats
+      wrapper.vm.createNewChat()
+      await nextTick()
+
+      const firstChatId = wrapper.vm.chats[0].id
+      const secondChatId = wrapper.vm.chats[1].id
+
+      // Don't set draggedChatIndex
+      wrapper.vm.draggedChatIndex = null
+
+      const mockEvent = {
+        preventDefault: vi.fn()
+      }
+
+      wrapper.vm.handleDrop(mockEvent, 1)
+
+      // Order should remain the same
+      expect(wrapper.vm.chats[0].id).toBe(firstChatId)
+      expect(wrapper.vm.chats[1].id).toBe(secondChatId)
+      expect(wrapper.vm.dragOverChatIndex).toBeNull()
+    })
+
+    it('should persist reordered chats to localStorage', async () => {
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ChatView: true,
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      // Create 2 chats
+      wrapper.vm.createNewChat()
+      await nextTick()
+
+      wrapper.vm.draggedChatIndex = 0
+
+      const mockEvent = {
+        preventDefault: vi.fn()
+      }
+
+      wrapper.vm.handleDrop(mockEvent, 1)
+      await nextTick()
+
+      // Should save reordered chats to localStorage
+      expect(storage.saveChats).toHaveBeenCalled()
+    })
+
+    it('should have draggable attribute on chat tabs', async () => {
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ChatView: true,
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      await nextTick()
+      const chatTab = wrapper.find('.chat-tab')
+      
+      expect(chatTab.attributes('draggable')).toBe('true')
+    })
+
+    it('should apply drag-over class when dragging over a chat', async () => {
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ChatView: true,
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      wrapper.vm.createNewChat()
+      await nextTick()
+
+      wrapper.vm.dragOverChatIndex = 1
+
+      await nextTick()
+
+      const chatTabs = wrapper.findAll('.chat-tab')
+      expect(chatTabs[1].classes()).toContain('drag-over')
+    })
+
+    it('should handle complex reordering scenario', async () => {
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ChatView: true,
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      // Create 5 chats
+      wrapper.vm.createNewChat()
+      wrapper.vm.createNewChat()
+      wrapper.vm.createNewChat()
+      wrapper.vm.createNewChat()
+      await nextTick()
+
+      const chatIds = wrapper.vm.chats.map(c => c.id)
+
+      // Drag chat at index 1 to index 3
+      wrapper.vm.draggedChatIndex = 1
+
+      const mockEvent = {
+        preventDefault: vi.fn()
+      }
+
+      wrapper.vm.handleDrop(mockEvent, 3)
+
+      // Original: [0, 1, 2, 3, 4]
+      // After drag index 1 to 3: [0, 2, 3, 1, 4]
+      expect(wrapper.vm.chats[0].id).toBe(chatIds[0])
+      expect(wrapper.vm.chats[1].id).toBe(chatIds[2])
+      expect(wrapper.vm.chats[2].id).toBe(chatIds[1])
+      expect(wrapper.vm.chats[3].id).toBe(chatIds[3])
+      expect(wrapper.vm.chats[4].id).toBe(chatIds[4])
+    })
+  })
+
   describe('Sidebar Collapse/Expand', () => {
     it('should render sidebar toggle button', () => {
       const wrapper = mount(App, {

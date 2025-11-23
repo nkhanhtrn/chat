@@ -204,10 +204,19 @@ body {
   background-color: transparent;
   color: #ececf1;
   border-radius: 6px;
-  cursor: pointer;
+  cursor: move;
   transition: all 0.3s;
   gap: 8px;
   position: relative;
+}
+
+.chat-tab.dragging {
+  opacity: 0.5;
+}
+
+.chat-tab.drag-over {
+  border-top: 2px solid #10a37f;
+  margin-top: 2px;
 }
 
 .sidebar.collapsed .chat-tab {
