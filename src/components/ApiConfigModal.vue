@@ -30,7 +30,7 @@
         <button @click="handleSave" class="modal-btn">Save</button>
       </div>
       <div class="modal-footer">
-        Made by <a href="https://github.com/nkhanhtrn" target="_blank" rel="noopener noreferrer">@nkhanhtrn</a> with <span class="heart">❤</span>
+        Made by <a href="https://github.com/nkhanhtrn" target="_blank" rel="noopener noreferrer">@nkhanhtrn</a> with <span class="heart">💔</span>
       </div>
     </div>
   </div>
