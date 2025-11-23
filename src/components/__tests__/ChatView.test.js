@@ -408,6 +408,67 @@ describe('ChatView', () => {
       expect(sentAssistantMsg.content).not.toContain('<think>')
       expect(sentAssistantMsg.content).not.toContain('Some thinking')
     })
+
+    it('should update correct chat when switching chats during streaming', async () => {
+      // Create two separate chat objects
+      const chat1 = {
+        id: 1,
+        title: 'Chat 1',
+        messages: []
+      }
+      const chat2 = {
+        id: 2,
+        title: 'Chat 2',
+        messages: []
+      }
+
+      // Mock streaming with delay
+      let streamCallback
+      api.sendChatMessage.mockImplementation(async (messages, model, onChunk) => {
+        streamCallback = onChunk
+        if (onChunk) {
+          // Simulate slow streaming
+          await new Promise(resolve => setTimeout(resolve, 50))
+          onChunk('Response ')
+          await new Promise(resolve => setTimeout(resolve, 50))
+          onChunk('from ')
+          await new Promise(resolve => setTimeout(resolve, 50))
+          onChunk('chat 1')
+        }
+        return 'Response from chat 1'
+      })
+
+      // Mount with chat1
+      wrapper = mount(ChatView, {
+        props: {
+          chat: chat1,
+          selectedModel: 'test-model'
+        }
+      })
+
+      // Send message in chat1
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'Hello')
+      await nextTick()
+
+      // Verify message was added to chat1
+      expect(chat1.messages).toHaveLength(2)
+      expect(chat1.messages[0].role).toBe('user')
+      expect(chat1.messages[1].role).toBe('assistant')
+      expect(chat1.messages[1].isWaiting).toBe(true)
+
+      // Simulate switching to chat2 before response completes
+      await wrapper.setProps({ chat: chat2 })
+      await nextTick()
+
+      // Wait for streaming to complete
+      await new Promise(resolve => setTimeout(resolve, 200))
+
+      // Response should still be in chat1, not chat2
+      expect(chat1.messages[1].displayContent).toBe('Response from chat 1')
+      expect(chat1.messages[1].content).toBe('Response from chat 1')
+      expect(chat2.messages).toHaveLength(0)
+    })
   })
 
   describe('Retry Functionality', () => {

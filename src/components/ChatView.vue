@@ -76,14 +76,14 @@ export default {
       emit('loading-change', false)
     }
 
-    const sendMessageToAPI = async (chatMessage) => {
+    const sendMessageToAPI = async (chatMessage, targetChat) => {
       isLoading.value = true
       emit('loading-change', true)
       isStreaming.value = false
       
       try {
         // Prepare messages for API - use displayContent to exclude thinking tags
-        const messages = props.chat.messages
+        const messages = targetChat.messages
           .map(m => ({ 
             role: m.role, 
             // Use displayContent for assistant messages to exclude thinking,
@@ -99,7 +99,7 @@ export default {
         let rafPending = false
         
         // Get the message index once at the start
-        const messageIndex = props.chat.messages.length - 1
+        const messageIndex = targetChat.messages.length - 1
         
         // Callback to handle streaming chunks
         const handleChunk = (chunk) => {
@@ -109,8 +109,8 @@ export default {
           }
           
           // Remove waiting state on first chunk
-          if (props.chat.messages[messageIndex].isWaiting) {
-            props.chat.messages[messageIndex].isWaiting = false
+          if (targetChat.messages[messageIndex] && targetChat.messages[messageIndex].isWaiting) {
+            targetChat.messages[messageIndex].isWaiting = false
           }
           
           accumulatedContent += chunk
@@ -149,14 +149,18 @@ export default {
             requestAnimationFrame(() => {
               rafPending = false
               
-              // Update the message directly by index
-              props.chat.messages[messageIndex].displayContent = accumulatedDisplayContent
-              if (currentThinking) {
-                props.chat.messages[messageIndex].thinking = currentThinking
+              // Update the message directly by index in the target chat
+              if (targetChat.messages[messageIndex]) {
+                targetChat.messages[messageIndex].displayContent = accumulatedDisplayContent
+                if (currentThinking) {
+                  targetChat.messages[messageIndex].thinking = currentThinking
+                }
               }
               
-              // Keep scrolling as content arrives
-              nextTick(() => scrollToBottom())
+              // Only scroll if we're viewing this chat
+              if (props.chat.id === targetChat.id) {
+                nextTick(() => scrollToBottom())
+              }
             })
           }
         }
@@ -217,7 +221,7 @@ export default {
       props.chat.messages.push(chatMessage)
       scrollToBottom()
 
-      await sendMessageToAPI(chatMessage)
+      await sendMessageToAPI(chatMessage, props.chat)
     }
 
     const editMessage = async (messageIndex, newContent) => {
@@ -242,7 +246,7 @@ export default {
       props.chat.messages.push(chatMessage)
       scrollToBottom()
 
-      await sendMessageToAPI(chatMessage)
+      await sendMessageToAPI(chatMessage, props.chat)
     }
 
     const compressConversation = async () => {
@@ -318,7 +322,7 @@ export default {
       props.chat.messages.push(chatMessage)
       scrollToBottom()
 
-      await sendMessageToAPI(chatMessage)
+      await sendMessageToAPI(chatMessage, props.chat)
     }
 
     watch(() => props.chat.messages.length, () => {
