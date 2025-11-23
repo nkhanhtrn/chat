@@ -10,10 +10,10 @@ export function useMessageParser() {
     let match
     
     while ((match = codeBlockRegex.exec(content)) !== null) {
-      // Add text before code block (with selective HTML escaping)
+      // Add text before code block (parse inline elements WITHOUT HTML escaping yet)
       if (match.index > currentPosition) {
         const textBefore = content.slice(currentPosition, match.index)
-        elements.push(...parseInlineElements(escapeHtmlExceptCode(textBefore)))
+        elements.push(...parseInlineElementsWithoutEscaping(textBefore))
       }
       
       // Add code block (WITHOUT HTML escaping)
@@ -26,10 +26,10 @@ export function useMessageParser() {
       currentPosition = match.index + match[0].length
     }
     
-    // Add remaining text (with selective HTML escaping)
+    // Add remaining text (parse inline elements WITHOUT HTML escaping yet)
     if (currentPosition < content.length) {
       const remainingText = content.slice(currentPosition)
-      elements.push(...parseInlineElements(escapeHtmlExceptCode(remainingText)))
+      elements.push(...parseInlineElementsWithoutEscaping(remainingText))
     }
     
     return elements
@@ -95,6 +95,74 @@ export function useMessageParser() {
       .replace(/>/g, '&gt;')
   }
   
+  const parseInlineElementsWithoutEscaping = (text) => {
+    const elements = []
+    const lines = text.split('\n')
+    let i = 0
+    
+    while (i < lines.length) {
+      const line = lines[i]
+      
+      // Check for blockquote (lines starting with >)
+      if (/^>\s?/.test(line)) {
+        const blockquoteResult = parseBlockquote(lines, i)
+        elements.push(blockquoteResult.element)
+        i = blockquoteResult.nextIndex
+        // Add line break after blockquote if not last element
+        if (i < lines.length) {
+          elements.push({ type: 'linebreak' })
+        }
+        continue
+      }
+      
+      // Check for horizontal rule (---, ***, or ___) 
+      if (/^(\s*[-*_]\s*){3,}$/.test(line)) {
+        elements.push({
+          type: 'hr'
+        })
+        i++
+        continue
+      }
+      
+      // Check if this line starts a table
+      if (i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
+        const tableResult = parseTable(lines, i)
+        if (tableResult) {
+          elements.push(tableResult.element)
+          i = tableResult.nextIndex
+          continue
+        }
+      }
+      
+      // Check for headers
+      const headerMatch = line.match(/^(#{1,6})\s+(.+)$/)
+      if (headerMatch) {
+        elements.push({
+          type: 'header',
+          level: headerMatch[1].length,
+          content: parseTextFormattingWithEscaping(headerMatch[2])
+        })
+        // Add line break after headers if not last line
+        if (i < lines.length - 1) {
+          elements.push({ type: 'linebreak' })
+        }
+      } else if (line.trim()) {
+        elements.push({
+          type: 'text',
+          content: parseTextFormattingWithEscaping(line)
+        })
+        // Add line break after text if not last line
+        if (i < lines.length - 1) {
+          elements.push({ type: 'linebreak' })
+        }
+      }
+      
+      i++
+    }
+    
+    return elements
+  }
+  
   const parseInlineElements = (text) => {
     const elements = []
     const lines = text.split('\n')
@@ -102,6 +170,18 @@ export function useMessageParser() {
     
     while (i < lines.length) {
       const line = lines[i]
+      
+      // Check for blockquote (lines starting with >, with or without space)
+      if (/^>\s?/.test(line)) {
+        const blockquoteResult = parseBlockquote(lines, i)
+        elements.push(blockquoteResult.element)
+        i = blockquoteResult.nextIndex
+        // Add line break after blockquote if not last element
+        if (i < lines.length) {
+          elements.push({ type: 'linebreak' })
+        }
+        continue
+      }
       
       // Check for horizontal rule (---, ***, or ___)
       if (/^(\s*[-*_]\s*){3,}$/.test(line)) {
@@ -156,6 +236,32 @@ export function useMessageParser() {
     return /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$/.test(line)
   }
   
+  const parseBlockquote = (lines, startIndex) => {
+    const blockquoteLines = []
+    let i = startIndex
+    
+    // Collect all consecutive lines that start with >
+    while (i < lines.length && /^>/.test(lines[i])) {
+      // Remove the > prefix and any following space
+      const content = lines[i].replace(/^>\s?/, '')
+      if (content.trim()) {
+        blockquoteLines.push(content)
+      }
+      i++
+    }
+    
+    // Join lines and parse formatting with HTML escaping
+    const blockquoteText = blockquoteLines.join(' ')
+    
+    return {
+      element: {
+        type: 'blockquote',
+        content: parseTextFormattingWithEscaping(blockquoteText)
+      },
+      nextIndex: i
+    }
+  }
+  
   const parseTable = (lines, startIndex) => {
     const headerLine = lines[startIndex]
     const separatorLine = lines[startIndex + 1]
@@ -164,7 +270,7 @@ export function useMessageParser() {
     const headers = headerLine.split('|')
       .map(h => h.trim())
       .filter(h => h.length > 0)
-      .map(h => parseTextFormatting(h))
+      .map(h => parseTextFormattingWithEscaping(h))
     
     if (headers.length === 0) return null
     
@@ -190,7 +296,7 @@ export function useMessageParser() {
       const cells = line.split('|')
         .map(c => c.trim())
         .filter(c => c.length > 0)
-        .map(c => parseTextFormatting(c))
+        .map(c => parseTextFormattingWithEscaping(c))
       
       if (cells.length > 0) {
         rows.push(cells)
@@ -277,7 +383,92 @@ export function useMessageParser() {
     return parts.length > 0 ? parts : [{ type: 'plain', text }]
   }
   
+  const parseTextFormattingWithEscaping = (text) => {
+    const parts = []
+    let currentPosition = 0
+    
+    // Regular expressions for inline formatting
+    const patterns = [
+      { type: 'code', regex: /`([^`]+)`/g },
+      { type: 'link', regex: /(https?:\/\/[^\s]+)/g },
+      { type: 'bold', regex: /\*\*([^*]+)\*\*/g },
+      { type: 'italic', regex: /\*([^*]+)\*/g }
+    ]
+    
+    // Find all matches
+    const allMatches = []
+    patterns.forEach(pattern => {
+      let match
+      while ((match = pattern.regex.exec(text)) !== null) {
+        allMatches.push({
+          type: pattern.type,
+          start: match.index,
+          end: match.index + match[0].length,
+          content: match[1]
+        })
+      }
+    })
+    
+    // Sort matches by position and filter overlapping
+    allMatches.sort((a, b) => a.start - b.start)
+    const validMatches = []
+    let lastEnd = 0
+    
+    allMatches.forEach(match => {
+      if (match.start >= lastEnd) {
+        validMatches.push(match)
+        lastEnd = match.end
+      }
+    })
+    
+    // Build formatted parts with HTML escaping for plain text
+    validMatches.forEach(match => {
+      // Add text before match (escaped)
+      if (match.start > currentPosition) {
+        parts.push({
+          type: 'plain',
+          text: escapeHtml(text.slice(currentPosition, match.start))
+        })
+      }
+      
+      // Add formatted part - escape HTML in code/link content too for safety
+      // but DON'T escape URLs themselves
+      if (match.type === 'link') {
+        parts.push({
+          type: match.type,
+          text: match.content // URLs are not escaped
+        })
+      } else {
+        parts.push({
+          type: match.type,
+          text: match.type === 'code' ? match.content : escapeHtml(match.content)
+        })
+      }
+      
+      currentPosition = match.end
+    })
+    
+    // Add remaining text (escaped)
+    if (currentPosition < text.length) {
+      parts.push({
+        type: 'plain',
+        text: escapeHtml(text.slice(currentPosition))
+      })
+    }
+    
+    return parts.length > 0 ? parts : [{ type: 'plain', text: escapeHtml(text) }]
+  }
+  
   return {
-    parseMessage
+    parseMessage,
+    parseTextFormattingWithEscaping,
+    escapeHtml,
+    escapeHtmlExceptCode,
+    parseInlineElementsWithoutEscaping,
+    parseInlineElements,
+    isTableSeparator,
+    parseBlockquote,
+    parseTable,
+    parseTextFormatting
   }
 }

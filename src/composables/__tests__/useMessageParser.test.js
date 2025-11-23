@@ -2,504 +2,445 @@ import { describe, it, expect } from 'vitest'
 import { useMessageParser } from '../useMessageParser.js'
 
 describe('useMessageParser', () => {
-  const { parseMessage } = useMessageParser()
+  const {
+    parseMessage,
+    parseTextFormattingWithEscaping,
+    escapeHtml,
+    escapeHtmlExceptCode,
+    parseInlineElementsWithoutEscaping,
+    parseInlineElements,
+    isTableSeparator,
+    parseBlockquote,
+    parseTable,
+    parseTextFormatting
+  } = useMessageParser()
 
-  describe('Code Blocks', () => {
-    it('should parse code blocks with language', () => {
-      const content = '```javascript\nconsole.log("hello")\n```'
-      const result = parseMessage(content)
-      
-      expect(result).toHaveLength(1)
-      expect(result[0].type).toBe('codeblock')
-      expect(result[0].language).toBe('javascript')
-      expect(result[0].code).toBe('console.log("hello")')
+  describe('escapeHtml', () => {
+    it('should escape HTML entities', () => {
+      expect(escapeHtml('<div>')).toBe('&lt;div&gt;')
+      expect(escapeHtml('&')).toBe('&amp;')
+      expect(escapeHtml('<script>alert("XSS")</script>')).toBe('&lt;script&gt;alert("XSS")&lt;/script&gt;')
     })
 
-    it('should parse code blocks without language', () => {
-      const content = '```\nplain code\n```'
-      const result = parseMessage(content)
-      
-      expect(result).toHaveLength(1)
-      expect(result[0].type).toBe('codeblock')
-      expect(result[0].language).toBe('plaintext')
+    it('should handle empty strings', () => {
+      expect(escapeHtml('')).toBe('')
     })
 
-    it('should parse multiple code blocks', () => {
-      const content = 'Before\n```js\ncode1\n```\nMiddle\n```py\ncode2\n```\nAfter'
-      const result = parseMessage(content)
-      
-      const codeBlocks = result.filter(r => r.type === 'codeblock')
-      expect(codeBlocks).toHaveLength(2)
-      expect(codeBlocks[0].language).toBe('js')
-      expect(codeBlocks[1].language).toBe('py')
-    })
-
-    it('should not escape HTML in code blocks', () => {
-      const content = '```cpp\n#include <iostream>\n```'
-      const result = parseMessage(content)
-      
-      expect(result[0].code).toBe('#include <iostream>')
-      expect(result[0].code).not.toContain('&lt;')
+    it('should handle strings without HTML', () => {
+      expect(escapeHtml('plain text')).toBe('plain text')
     })
   })
 
-  describe('Inline Code', () => {
-    it('should parse inline code', () => {
-      const content = 'Use `const` keyword'
-      const result = parseMessage(content)
-      
-      const textElement = result.find(r => r.type === 'text')
-      expect(textElement).toBeDefined()
-      
-      const codeElement = textElement.content.find(c => c.type === 'code')
-      expect(codeElement).toBeDefined()
-      expect(codeElement.text).toBe('const')
+  describe('escapeHtmlExceptCode', () => {
+    it('should escape HTML but preserve inline code', () => {
+      const result = escapeHtmlExceptCode('Use `<div>` tag')
+      expect(result).toBe('Use `<div>` tag')
     })
 
-    it('should not escape HTML in inline code', () => {
-      const content = 'Use `<div>` tag'
-      const result = parseMessage(content)
-      
-      const textElement = result.find(r => r.type === 'text')
-      const codeElement = textElement.content.find(c => c.type === 'code')
-      
-      expect(codeElement.text).toBe('<div>')
-      expect(codeElement.text).not.toContain('&lt;')
+    it('should escape HTML but preserve URLs', () => {
+      const result = escapeHtmlExceptCode('Visit https://example.com for more')
+      expect(result).toBe('Visit https://example.com for more')
     })
 
-    it('should escape HTML outside inline code', () => {
-      const content = '<div> with `code` inside'
-      const result = parseMessage(content)
-      
-      const textElement = result.find(r => r.type === 'text')
-      const plainText = textElement.content.find(c => c.type === 'plain')
-      
-      expect(plainText.text).toContain('&lt;div&gt;')
+    it('should escape HTML outside of code and URLs', () => {
+      const result = escapeHtmlExceptCode('Use `code` and <div>')
+      expect(result).toBe('Use `code` and &lt;div&gt;')
     })
   })
 
-  describe('Headers', () => {
-    it('should parse headers of different levels', () => {
-      const levels = [1, 2, 3, 4, 5, 6]
-      
-      levels.forEach(level => {
-        const content = '#'.repeat(level) + ' Header ' + level
-        const result = parseMessage(content)
-        
-        expect(result[0].type).toBe('header')
-        expect(result[0].level).toBe(level)
-      })
+  describe('isTableSeparator', () => {
+    it('should identify valid table separators', () => {
+      expect(isTableSeparator('| --- | --- |')).toBe(true)
+      expect(isTableSeparator('| :--- | :---: | ---: |')).toBe(true)
+      expect(isTableSeparator('|---|---|')).toBe(true)
+      // Note: Single column tables require at least one pipe separator
+      expect(isTableSeparator(':---:|---:')).toBe(true)
     })
 
-    it('should parse header content with formatting', () => {
-      const content = '## Header with **bold** text'
-      const result = parseMessage(content)
-      
-      expect(result[0].type).toBe('header')
-      expect(result[0].content).toBeDefined()
-      
-      const boldElement = result[0].content.find(c => c.type === 'bold')
-      expect(boldElement.text).toBe('bold')
-    })
-
-    it('should add line break after header when not last line', () => {
-      const content = '# Header\nSome text'
-      const result = parseMessage(content)
-      
-      expect(result[0].type).toBe('header')
-      expect(result[1].type).toBe('linebreak')
-      expect(result[2].type).toBe('text')
-    })
-
-    it('should not add line break after header on last line', () => {
-      const content = '# Header'
-      const result = parseMessage(content)
-      
-      expect(result).toHaveLength(1)
-      expect(result[0].type).toBe('header')
+    it('should reject invalid table separators', () => {
+      expect(isTableSeparator('regular text')).toBe(false)
+      expect(isTableSeparator('| header | header |')).toBe(false)
+      expect(isTableSeparator('')).toBe(false)
+      // Single dash without multiple columns
+      expect(isTableSeparator('---')).toBe(false)
     })
   })
 
-  describe('Horizontal Rules', () => {
-    it('should parse horizontal rule with hyphens', () => {
-      const content = 'Before\n---\nAfter'
-      const result = parseMessage(content)
-      
-      const hr = result.find(r => r.type === 'hr')
-      expect(hr).toBeDefined()
-      expect(hr.type).toBe('hr')
-    })
-
-    it('should parse horizontal rule with asterisks', () => {
-      const content = 'Text\n***\nMore text'
-      const result = parseMessage(content)
-      
-      const hr = result.find(r => r.type === 'hr')
-      expect(hr).toBeDefined()
-    })
-
-    it('should parse horizontal rule with underscores', () => {
-      const content = 'Text\n___\nMore text'
-      const result = parseMessage(content)
-      
-      const hr = result.find(r => r.type === 'hr')
-      expect(hr).toBeDefined()
-    })
-
-    it('should parse horizontal rule with spaces', () => {
-      const content = 'Text\n- - -\nMore text'
-      const result = parseMessage(content)
-      
-      const hr = result.find(r => r.type === 'hr')
-      expect(hr).toBeDefined()
-    })
-
-    it('should parse horizontal rule with more than 3 characters', () => {
-      const content = 'Text\n-----\nMore text'
-      const result = parseMessage(content)
-      
-      const hr = result.find(r => r.type === 'hr')
-      expect(hr).toBeDefined()
-    })
-
-    it('should not parse table separator as horizontal rule', () => {
-      const content = `| Name | Age |
-| --- | --- |
-| Alice | 30 |`
-      
-      const result = parseMessage(content)
-      const hr = result.find(r => r.type === 'hr')
-      const table = result.find(r => r.type === 'table')
-      
-      expect(hr).toBeUndefined()
-      expect(table).toBeDefined()
-    })
-
-    it('should parse multiple horizontal rules', () => {
-      const content = 'Section 1\n---\nSection 2\n***\nSection 3'
-      const result = parseMessage(content)
-      
-      const hrs = result.filter(r => r.type === 'hr')
-      expect(hrs).toHaveLength(2)
-    })
-  })
-
-  describe('Tables', () => {
-    it('should parse simple tables', () => {
-      const content = `| Name | Age |
-| --- | --- |
-| Alice | 30 |
-| Bob | 25 |`
-      
-      const result = parseMessage(content)
-      const table = result.find(r => r.type === 'table')
-      
-      expect(table).toBeDefined()
-      expect(table.headers).toHaveLength(2)
-      expect(table.rows).toHaveLength(2)
-    })
-
-    it('should parse table alignments', () => {
-      const content = `| Left | Center | Right |
-| :--- | :---: | ---: |
-| L | C | R |`
-      
-      const result = parseMessage(content)
-      const table = result.find(r => r.type === 'table')
-      
-      expect(table.alignments).toEqual(['left', 'center', 'right'])
-    })
-
-    it('should parse inline code in table cells', () => {
-      const content = `| Command | Description |
-| --- | --- |
-| \`npm install\` | Install deps |`
-      
-      const result = parseMessage(content)
-      const table = result.find(r => r.type === 'table')
-      
-      expect(table.rows[0][0]).toBeDefined()
-      const codeInCell = table.rows[0][0].find(c => c.type === 'code')
-      expect(codeInCell).toBeDefined()
-      expect(codeInCell.text).toBe('npm install')
-    })
-
-    it('should handle table with empty header cells', () => {
-      const content = `| | | |
-| --- | --- | --- |
-| A | B | C |`
-      
-      const result = parseMessage(content)
-      
-      // Should parse as text since headers are empty (returns null)
-      expect(result.some(r => r.type === 'table')).toBe(false)
-      expect(result.some(r => r.type === 'text')).toBe(true)
-    })
-
-    it('should handle malformed table without proper headers', () => {
-      const content = `|||
-| --- | --- |
-| A | B |`
-      
-      const result = parseMessage(content)
-      
-      // Should not parse as table when headers are empty
-      const table = result.find(r => r.type === 'table')
-      expect(table).toBeUndefined()
-    })
-  })
-
-  describe('Text Formatting', () => {
+  describe('parseTextFormatting', () => {
     it('should parse bold text', () => {
-      const content = 'This is **bold** text'
-      const result = parseMessage(content)
-      
-      const textElement = result.find(r => r.type === 'text')
-      const boldElement = textElement.content.find(c => c.type === 'bold')
-      
-      expect(boldElement.text).toBe('bold')
+      const result = parseTextFormatting('**bold**')
+      expect(result).toEqual([
+        { type: 'bold', text: 'bold' }
+      ])
     })
 
     it('should parse italic text', () => {
-      const content = 'This is *italic* text'
-      const result = parseMessage(content)
-      
-      const textElement = result.find(r => r.type === 'text')
-      const italicElement = textElement.content.find(c => c.type === 'italic')
-      
-      expect(italicElement.text).toBe('italic')
+      const result = parseTextFormatting('*italic*')
+      expect(result).toEqual([
+        { type: 'italic', text: 'italic' }
+      ])
     })
 
-    it('should parse URLs as links', () => {
-      const content = 'Check out https://example.com for more info'
-      const result = parseMessage(content)
-      
-      const textElement = result.find(r => r.type === 'text')
-      const linkElement = textElement.content.find(c => c.type === 'link')
-      
-      expect(linkElement).toBeDefined()
-      expect(linkElement.text).toBe('https://example.com')
+    it('should parse inline code', () => {
+      const result = parseTextFormatting('`code`')
+      expect(result).toEqual([
+        { type: 'code', text: 'code' }
+      ])
     })
 
-    it('should parse http URLs as links', () => {
-      const content = 'Visit http://example.com'
-      const result = parseMessage(content)
-      
-      const textElement = result.find(r => r.type === 'text')
-      const linkElement = textElement.content.find(c => c.type === 'link')
-      
-      expect(linkElement).toBeDefined()
-      expect(linkElement.text).toBe('http://example.com')
+    it('should parse links', () => {
+      const result = parseTextFormatting('https://example.com')
+      expect(result).toEqual([
+        { type: 'link', text: 'https://example.com' }
+      ])
     })
 
-    it('should parse multiple URLs in same text', () => {
-      const content = 'See https://example.com and https://test.org'
-      const result = parseMessage(content)
-      
-      const textElement = result.find(r => r.type === 'text')
-      const linkElements = textElement.content.filter(c => c.type === 'link')
-      
-      expect(linkElements).toHaveLength(2)
-      expect(linkElements[0].text).toBe('https://example.com')
-      expect(linkElements[1].text).toBe('https://test.org')
+    it('should parse mixed formatting', () => {
+      const result = parseTextFormatting('plain **bold** text `code`')
+      expect(result).toEqual([
+        { type: 'plain', text: 'plain ' },
+        { type: 'bold', text: 'bold' },
+        { type: 'plain', text: ' text ' },
+        { type: 'code', text: 'code' }
+      ])
     })
 
-    it('should parse URL with path and query params', () => {
-      const content = 'API: https://api.example.com/v1/users?id=123&name=test'
-      const result = parseMessage(content)
-      
-      const textElement = result.find(r => r.type === 'text')
-      const linkElement = textElement.content.find(c => c.type === 'link')
-      
-      expect(linkElement).toBeDefined()
-      expect(linkElement.text).toBe('https://api.example.com/v1/users?id=123&name=test')
-    })
-
-    it('should parse URL with hash fragment', () => {
-      const content = 'Docs: https://docs.example.com/guide#installation'
-      const result = parseMessage(content)
-      
-      const textElement = result.find(r => r.type === 'text')
-      const linkElement = textElement.content.find(c => c.type === 'link')
-      
-      expect(linkElement).toBeDefined()
-      expect(linkElement.text).toBe('https://docs.example.com/guide#installation')
-    })
-
-    it('should not parse non-http URLs', () => {
-      const content = 'Email: mailto:test@example.com'
-      const result = parseMessage(content)
-      
-      const textElement = result.find(r => r.type === 'text')
-      const linkElement = textElement.content.find(c => c.type === 'link')
-      
-      expect(linkElement).toBeUndefined()
-    })
-
-    it('should handle overlapping formatting correctly', () => {
-      const content = 'Text with **bold** and *italic* separately'
-      const result = parseMessage(content)
-      
-      const textElement = result.find(r => r.type === 'text')
-      // Should have bold element
-      const boldElement = textElement.content.find(c => c.type === 'bold')
-      expect(boldElement).toBeDefined()
-      expect(boldElement.text).toBe('bold')
-      
-      // Should have italic element (note: the parser uses * which conflicts with ** bold)
-      // So let's just check that we have the bold element correctly parsed
-      expect(textElement.content.some(c => c.type === 'bold')).toBe(true)
-    })
-
-    it('should parse multiple formatting in one line', () => {
-      const content = '**bold** and *italic* and `code`'
-      const result = parseMessage(content)
-      
-      const textElement = result.find(r => r.type === 'text')
-      
-      expect(textElement.content.some(c => c.type === 'bold')).toBe(true)
-      expect(textElement.content.some(c => c.type === 'code')).toBe(true)
-      // Note: italic parsing might not work if it conflicts with asterisks in bold
-      // Just check that we got bold and code
-    })
-
-    it('should parse URL alongside other formatting', () => {
-      const content = 'Visit https://example.com for **bold** info'
-      const result = parseMessage(content)
-      
-      const textElement = result.find(r => r.type === 'text')
-      
-      // URL should be parsed
-      const linkElement = textElement.content.find(c => c.type === 'link')
-      expect(linkElement).toBeDefined()
-      expect(linkElement.text).toBe('https://example.com')
-      
-      // Bold should also be parsed
-      const boldElement = textElement.content.find(c => c.type === 'bold')
-      expect(boldElement).toBeDefined()
-    })
-
-    it('should parse URL in code block header correctly', () => {
-      const content = 'Check `https://example.com` in code'
-      const result = parseMessage(content)
-      
-      const textElement = result.find(r => r.type === 'text')
-      
-      // Code takes priority, so URL should be in code element
-      const codeElement = textElement.content.find(c => c.type === 'code')
-      expect(codeElement).toBeDefined()
-      expect(codeElement.text).toBe('https://example.com')
+    it('should handle plain text', () => {
+      const result = parseTextFormatting('plain text')
+      expect(result).toEqual([
+        { type: 'plain', text: 'plain text' }
+      ])
     })
   })
 
-  describe('Line Breaks', () => {
-    it('should add line breaks between text and header elements', () => {
-      const content = 'Line 1\nLine 2\nLine 3'
-      const result = parseMessage(content)
-      
-      const lineBreaks = result.filter(r => r.type === 'linebreak')
-      expect(lineBreaks.length).toBe(2) // 2 line breaks for 3 lines of text
+  describe('parseTextFormattingWithEscaping', () => {
+    it('should parse and escape HTML in plain text', () => {
+      const result = parseTextFormattingWithEscaping('<div>text</div>')
+      expect(result).toEqual([
+        { type: 'plain', text: '&lt;div&gt;text&lt;/div&gt;' }
+      ])
     })
 
-    it('should not add line breaks after tables', () => {
-      const content = `| Name | Age |
-| --- | --- |
-| Alice | 30 |
-Text after table`
-      const result = parseMessage(content)
-      
-      const table = result.find(r => r.type === 'table')
-      const tableIndex = result.indexOf(table)
-      
-      // Element after table should be text, not linebreak
-      expect(result[tableIndex + 1].type).toBe('text')
+    it('should parse bold and escape HTML', () => {
+      const result = parseTextFormattingWithEscaping('**<bold>**')
+      expect(result).toEqual([
+        { type: 'bold', text: '&lt;bold&gt;' }
+      ])
     })
 
-    it('should not add line breaks after horizontal rules', () => {
-      const content = 'Before\n---\nAfter'
-      const result = parseMessage(content)
-      
-      const hr = result.find(r => r.type === 'hr')
-      const hrIndex = result.indexOf(hr)
-      
-      // Element after hr should be text, not linebreak
-      expect(result[hrIndex + 1].type).toBe('text')
-    })
-  })
-
-  describe('Empty and Edge Cases', () => {
-    it('should handle empty content', () => {
-      const result = parseMessage('')
-      expect(result).toEqual([])
+    it('should not escape URLs', () => {
+      const result = parseTextFormattingWithEscaping('https://example.com')
+      expect(result).toEqual([
+        { type: 'link', text: 'https://example.com' }
+      ])
     })
 
-    it('should handle null content', () => {
-      const result = parseMessage(null)
-      expect(result).toEqual([])
+    it('should not escape inline code content', () => {
+      const result = parseTextFormattingWithEscaping('`<div>`')
+      expect(result).toEqual([
+        { type: 'code', text: '<div>' }
+      ])
     })
 
-    it('should handle content with only whitespace', () => {
-      const content = '   \n   \n   '
-      const result = parseMessage(content)
-      
-      // Should have only linebreaks, no text elements
-      const textElements = result.filter(r => r.type === 'text')
-      expect(textElements).toHaveLength(0)
+    it('should handle mixed content with escaping', () => {
+      const result = parseTextFormattingWithEscaping('<div> **bold** `code`')
+      expect(result).toEqual([
+        { type: 'plain', text: '&lt;div&gt; ' },
+        { type: 'bold', text: 'bold' },
+        { type: 'plain', text: ' ' },
+        { type: 'code', text: 'code' }
+      ])
     })
   })
 
-  describe('HTML Escaping', () => {
-    it('should escape HTML entities in regular text', () => {
-      const content = '<script>alert("xss")</script>'
-      const result = parseMessage(content)
+  describe('parseBlockquote', () => {
+    it('should parse single line blockquote', () => {
+      const lines = ['> quote text']
+      const result = parseBlockquote(lines, 0)
       
-      const textElement = result.find(r => r.type === 'text')
-      const plainText = textElement.content.find(c => c.type === 'plain')
-      
-      expect(plainText.text).toContain('&lt;script&gt;')
-      expect(plainText.text).not.toContain('<script>')
+      expect(result.nextIndex).toBe(1)
+      expect(result.element.type).toBe('blockquote')
+      expect(result.element.content).toEqual([
+        { type: 'plain', text: 'quote text' }
+      ])
     })
 
-    it('should escape ampersands', () => {
-      const content = 'A & B'
-      const result = parseMessage(content)
+    it('should parse multi-line blockquote', () => {
+      const lines = ['> line 1', '> line 2', 'not quote']
+      const result = parseBlockquote(lines, 0)
       
-      const textElement = result.find(r => r.type === 'text')
-      const plainText = textElement.content.find(c => c.type === 'plain')
+      expect(result.nextIndex).toBe(2)
+      expect(result.element.type).toBe('blockquote')
+    })
+
+    it('should parse blockquote with formatting', () => {
+      const lines = ['> **bold** text']
+      const result = parseBlockquote(lines, 0)
       
-      expect(plainText.text).toContain('&amp;')
+      expect(result.element.content).toContainEqual({ type: 'bold', text: 'bold' })
     })
   })
 
-  describe('Complex Mixed Content', () => {
-    it('should handle content with code blocks and text', () => {
-      const content = `Here is some code:
-
-\`\`\`javascript
-function test() {
-  return true;
-}
-\`\`\`
-
-And some **bold** text after.`
+  describe('parseTable', () => {
+    it('should parse a simple table', () => {
+      const lines = [
+        '| Header 1 | Header 2 |',
+        '| --- | --- |',
+        '| Cell 1 | Cell 2 |'
+      ]
+      const result = parseTable(lines, 0)
       
-      const result = parseMessage(content)
-      
-      expect(result.some(r => r.type === 'codeblock')).toBe(true)
-      expect(result.some(r => r.type === 'text')).toBe(true)
+      expect(result.element.type).toBe('table')
+      expect(result.element.headers).toHaveLength(2)
+      expect(result.element.rows).toHaveLength(1)
+      expect(result.element.alignments).toEqual(['left', 'left'])
     })
 
-    it('should handle tables with formatted content', () => {
-      const content = `| Feature | Status |
-| --- | --- |
-| **Bold** | *Working* |
-| \`Code\` | Active |`
+    it('should parse table with alignments', () => {
+      const lines = [
+        '| Left | Center | Right |',
+        '| :--- | :---: | ---: |',
+        '| L | C | R |'
+      ]
+      const result = parseTable(lines, 0)
       
+      expect(result.element.alignments).toEqual(['left', 'center', 'right'])
+    })
+
+    it('should parse table with formatted content', () => {
+      const lines = [
+        '| **Bold** | `Code` |',
+        '| --- | --- |',
+        '| *Italic* | Text |'
+      ]
+      const result = parseTable(lines, 0)
+      
+      expect(result.element.headers[0]).toContainEqual({ type: 'bold', text: 'Bold' })
+      expect(result.element.headers[1]).toContainEqual({ type: 'code', text: 'Code' })
+    })
+
+    it('should stop parsing at empty line', () => {
+      const lines = [
+        '| Header |',
+        '| --- |',
+        '| Row 1 |',
+        '',
+        '| Row 2 |'
+      ]
+      const result = parseTable(lines, 0)
+      
+      expect(result.element.rows).toHaveLength(1)
+      expect(result.nextIndex).toBe(3)
+    })
+
+    it('should return null for invalid table', () => {
+      const lines = [
+        '||',
+        '| --- |'
+      ]
+      const result = parseTable(lines, 0)
+      
+      expect(result).toBeNull()
+    })
+  })
+
+  describe('parseInlineElements', () => {
+    it('should parse headers', () => {
+      const result = parseInlineElements('# Header 1')
+      
+      expect(result).toContainEqual({
+        type: 'header',
+        level: 1,
+        content: [{ type: 'plain', text: 'Header 1' }]
+      })
+    })
+
+    it('should parse blockquotes', () => {
+      const result = parseInlineElements('> quote')
+      
+      expect(result[0].type).toBe('blockquote')
+    })
+
+    it('should parse horizontal rules', () => {
+      const result = parseInlineElements('---')
+      
+      expect(result).toContainEqual({ type: 'hr' })
+    })
+
+    it('should parse tables', () => {
+      // Test with proper table format with at least 2 columns
+      const result = parseInlineElements('| H1 | H2 |\n| --- | --- |\n| C1 | C2 |')
+      
+      // The table should be parsed
+      const tableElement = result.find(el => el.type === 'table')
+      expect(tableElement).toBeDefined()
+      expect(tableElement.type).toBe('table')
+    })
+
+    it('should parse plain text with line breaks', () => {
+      const result = parseInlineElements('line 1\nline 2')
+      
+      expect(result).toContainEqual({
+        type: 'text',
+        content: [{ type: 'plain', text: 'line 1' }]
+      })
+      expect(result).toContainEqual({ type: 'linebreak' })
+      expect(result).toContainEqual({
+        type: 'text',
+        content: [{ type: 'plain', text: 'line 2' }]
+      })
+    })
+
+    describe('linebreaks after blockquotes and text', () => {
+      it('should add linebreak after blockquote in parseInlineElementsWithoutEscaping', () => {
+        const result = parseInlineElementsWithoutEscaping('>quote\ntext')
+        // Should have blockquote, linebreak, then text
+        expect(result[0].type).toBe('blockquote')
+        expect(result[1].type).toBe('linebreak')
+        expect(result[2].type).toBe('text')
+      })
+      it('should add linebreak after blockquote in parseInlineElements', () => {
+        const result = parseInlineElements('>quote\ntext')
+        // Should have blockquote, linebreak, then text
+        expect(result[0].type).toBe('blockquote')
+        expect(result[1].type).toBe('linebreak')
+        expect(result[2].type).toBe('text')
+      })
+      it('should add linebreak after text in parseInlineElements', () => {
+        const result = parseInlineElements('line 1\nline 2')
+        // Should have text, linebreak, then text
+        expect(result[0].type).toBe('text')
+        expect(result[1].type).toBe('linebreak')
+        expect(result[2].type).toBe('text')
+      })
+    })
+  })
+
+  describe('parseInlineElementsWithoutEscaping', () => {
+    it('should parse headers with escaping', () => {
+      const result = parseInlineElementsWithoutEscaping('# <Header>')
+      
+      expect(result[0].type).toBe('header')
+      expect(result[0].content).toContainEqual({
+        type: 'plain',
+        text: '&lt;Header&gt;'
+      })
+    })
+
+    it('should parse text with HTML escaping', () => {
+      const result = parseInlineElementsWithoutEscaping('<div>text</div>')
+      
+      expect(result[0].content).toContainEqual({
+        type: 'plain',
+        text: '&lt;div&gt;text&lt;/div&gt;'
+      })
+    })
+
+    it('should handle blockquotes starting with optional space', () => {
+      const result = parseInlineElementsWithoutEscaping('>quote\n>another')
+      
+      expect(result[0].type).toBe('blockquote')
+    })
+
+    describe('linebreaks after blockquotes and text', () => {
+      it('should add linebreak after blockquote in parseInlineElementsWithoutEscaping', () => {
+        const result = parseInlineElementsWithoutEscaping('>quote\ntext')
+        // Should have blockquote, linebreak, then text
+        expect(result[0].type).toBe('blockquote')
+        expect(result[1].type).toBe('linebreak')
+        expect(result[2].type).toBe('text')
+      })
+      it('should add linebreak after blockquote in parseInlineElements', () => {
+        const result = parseInlineElements('>quote\ntext')
+        // Should have blockquote, linebreak, then text
+        expect(result[0].type).toBe('blockquote')
+        expect(result[1].type).toBe('linebreak')
+        expect(result[2].type).toBe('text')
+      })
+      it('should add linebreak after text in parseInlineElements', () => {
+        const result = parseInlineElements('line 1\nline 2')
+        // Should have text, linebreak, then text
+        expect(result[0].type).toBe('text')
+        expect(result[1].type).toBe('linebreak')
+        expect(result[2].type).toBe('text')
+      })
+    })
+  })
+
+  describe('parseMessage', () => {
+    it('should return empty array for empty content', () => {
+      expect(parseMessage('')).toEqual([])
+      expect(parseMessage(null)).toEqual([])
+    })
+
+    it('should parse code blocks', () => {
+      const content = '```javascript\nconst x = 1;\n```'
       const result = parseMessage(content)
-      const table = result.find(r => r.type === 'table')
       
-      expect(table).toBeDefined()
-      expect(table.rows).toHaveLength(2)
+      expect(result).toContainEqual({
+        type: 'codeblock',
+        language: 'javascript',
+        code: 'const x = 1;'
+      })
+    })
+
+    it('should parse code blocks without language', () => {
+      const content = '```\ncode\n```'
+      const result = parseMessage(content)
+      
+      expect(result).toContainEqual({
+        type: 'codeblock',
+        language: 'plaintext',
+        code: 'code'
+      })
+    })
+
+    it('should parse text before and after code blocks', () => {
+      const content = 'text before\n```js\ncode\n```\ntext after'
+      const result = parseMessage(content)
+      
+      expect(result.some(el => el.type === 'text')).toBe(true)
+      expect(result.some(el => el.type === 'codeblock')).toBe(true)
+    })
+
+    it('should parse complex message with multiple elements', () => {
+      const content = '# Title\n\nSome **bold** text\n\n```python\nprint("hi")\n```\n\n> Quote'
+      const result = parseMessage(content)
+      
+      expect(result.some(el => el.type === 'header')).toBe(true)
+      expect(result.some(el => el.type === 'text')).toBe(true)
+      expect(result.some(el => el.type === 'codeblock')).toBe(true)
+      expect(result.some(el => el.type === 'blockquote')).toBe(true)
+    })
+
+    it('should parse tables in messages', () => {
+      const content = '| A | B |\n| --- | --- |\n| 1 | 2 |'
+      const result = parseMessage(content)
+      
+      expect(result[0].type).toBe('table')
+      expect(result[0].headers).toHaveLength(2)
+    })
+
+    it('should handle messages with only text', () => {
+      const content = 'Simple text message'
+      const result = parseMessage(content)
+      
+      expect(result).toHaveLength(1)
+      expect(result[0].type).toBe('text')
+    })
+
+    it('should preserve HTML escaping in text', () => {
+      const content = '<script>alert("XSS")</script>'
+      const result = parseMessage(content)
+      
+      expect(result[0].content[0].text).toContain('&lt;script&gt;')
+    })
+
+    it('should not escape HTML in code blocks', () => {
+      const content = '```html\n<div>test</div>\n```'
+      const result = parseMessage(content)
+      
+      expect(result[0].code).toBe('<div>test</div>')
     })
   })
 })

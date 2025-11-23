@@ -581,6 +581,16 @@ body {
   font-style: italic;
 }
 
+.markdown-blockquote {
+  display: block;
+  border-left: 4px solid #565869;
+  padding: 8px 12px;
+  margin: 8px 0;
+  background-color: rgba(86, 88, 105, 0.2);
+  color: #d4d4d4;
+  font-style: italic;
+}
+
 .markdown-ul {
   margin: 8px 0;
   padding-left: 24px;

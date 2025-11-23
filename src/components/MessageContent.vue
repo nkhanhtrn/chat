@@ -18,6 +18,15 @@
         type="header"
         :level="element.level"
       />
+      <div 
+        v-else-if="element.type === 'blockquote'"
+        class="markdown-blockquote"
+      >
+        <FormattedText
+          :content="element.content"
+          type="text"
+        />
+      </div>
       <FormattedText
         v-else-if="element.type === 'text'"
         :content="element.content"
