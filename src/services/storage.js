@@ -6,6 +6,7 @@ const STORAGE_KEY_MODEL = 'chat-model'
 const STORAGE_KEY_COUNTER = 'chat-counter'
 const STORAGE_KEY_API_CONFIG = 'chat-api-config'
 const STORAGE_KEY_WEBSITE_CONTEXT = 'chat-website-context'
+const STORAGE_KEY_SIDEBAR = 'chat-sidebar-collapsed'
 
 /**
  * Save chat data to localStorage
@@ -210,6 +211,30 @@ export const deleteWebsiteContext = (chatId) => {
 }
 
 /**
+ * Save sidebar collapsed state to localStorage
+ */
+export const saveSidebarState = (collapsed) => {
+  try {
+    localStorage.setItem(STORAGE_KEY_SIDEBAR, JSON.stringify(collapsed))
+  } catch (error) {
+    console.error('Failed to save sidebar state to localStorage:', error)
+  }
+}
+
+/**
+ * Load sidebar collapsed state from localStorage
+ */
+export const loadSidebarState = () => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_SIDEBAR)
+    return saved ? JSON.parse(saved) : false
+  } catch (error) {
+    console.error('Failed to load sidebar state from localStorage:', error)
+    return false
+  }
+}
+
+/**
  * Load all data at once
  */
 export const loadAllData = () => {
@@ -218,6 +243,7 @@ export const loadAllData = () => {
     activeChat: loadActiveChat(),
     selectedModel: loadSelectedModel(),
     chatCounter: loadChatCounter(),
-    apiConfig: loadApiConfig()
+    apiConfig: loadApiConfig(),
+    sidebarCollapsed: loadSidebarState()
   }
 }

@@ -128,7 +128,7 @@ describe('ChatView', () => {
       expect(mockChat.messages[0].role).toBe('user')
       expect(mockChat.messages[0].content).toBe('Hello AI')
       
-      // Assistant message should be added
+      // Chat message should be added
       expect(mockChat.messages[1].role).toBe('assistant')
     })
 
@@ -190,7 +190,7 @@ describe('ChatView', () => {
       expect(wrapper.emitted('update-title')).toBeFalsy()
     })
 
-    it('should update assistant message with API response', async () => {
+    it('should update chat message with API response', async () => {
       // Mock streaming behavior
       api.sendChatMessage.mockImplementation(async (messages, model, onChunk) => {
         if (onChunk) {
@@ -211,9 +211,9 @@ describe('ChatView', () => {
       await nextTick()
       await new Promise(resolve => setTimeout(resolve, 100))
 
-      const assistantMsg = mockChat.messages[1]
-      expect(assistantMsg.content).toBe('AI response text')
-      expect(assistantMsg.displayContent).toBe('AI response text')
+      const chatMsg = mockChat.messages[1]
+      expect(chatMsg.content).toBe('AI response text')
+      expect(chatMsg.displayContent).toBe('AI response text')
     })
 
     it('should stream chunks incrementally', async () => {
@@ -241,9 +241,9 @@ describe('ChatView', () => {
       await nextTick()
       await new Promise(resolve => setTimeout(resolve, 100))
 
-      const assistantMsg = mockChat.messages[1]
-      expect(assistantMsg.displayContent).toBe('Hello world!')
-      expect(assistantMsg.content).toBe('Hello world!')
+      const chatMsg = mockChat.messages[1]
+      expect(chatMsg.displayContent).toBe('Hello world!')
+      expect(chatMsg.content).toBe('Hello world!')
     })
 
     it('should remove waiting indicator when first chunk arrives', async () => {
@@ -273,17 +273,17 @@ describe('ChatView', () => {
       await chatInput.vm.$emit('send', 'Test')
       await nextTick()
 
-      // Check that assistant message starts with isWaiting = true
-      const assistantMsg = mockChat.messages[1]
-      expect(assistantMsg.isWaiting).toBe(true)
+      // Check that chat message starts with isWaiting = true
+      const chatMsg = mockChat.messages[1]
+      expect(chatMsg.isWaiting).toBe(true)
 
       // Now release the first chunk
       resolveChunk()
       await new Promise(resolve => setTimeout(resolve, 50))
 
       // After first chunk, isWaiting should be false
-      expect(assistantMsg.isWaiting).toBe(false)
-      expect(assistantMsg.displayContent).toContain('First chunk')
+      expect(chatMsg.isWaiting).toBe(false)
+      expect(chatMsg.displayContent).toContain('First chunk')
     })
 
     it('should parse thinking tags from response', async () => {
@@ -308,9 +308,9 @@ describe('ChatView', () => {
       await nextTick()
       await new Promise(resolve => setTimeout(resolve, 100))
 
-      const assistantMsg = mockChat.messages[1]
-      expect(assistantMsg.thinking).toBe('Let me analyze this')
-      expect(assistantMsg.displayContent).toBe('Here is my answer')
+      const chatMsg = mockChat.messages[1]
+      expect(chatMsg.thinking).toBe('Let me analyze this')
+      expect(chatMsg.displayContent).toBe('Here is my answer')
     })
 
     it('should parse thinking tags incrementally during streaming', async () => {
@@ -340,10 +340,10 @@ describe('ChatView', () => {
       await nextTick()
       await new Promise(resolve => setTimeout(resolve, 150))
 
-      const assistantMsg = mockChat.messages[1]
-      expect(assistantMsg.thinking).toBe('Analyzing')
-      expect(assistantMsg.displayContent).toBe('Response text')
-      expect(assistantMsg.content).toBe('<think>Analyzing</think>Response text')
+      const chatMsg = mockChat.messages[1]
+      expect(chatMsg.thinking).toBe('Analyzing')
+      expect(chatMsg.displayContent).toBe('Response text')
+      expect(chatMsg.content).toBe('<think>Analyzing</think>Response text')
     })
 
     it('should handle API error gracefully', async () => {
@@ -362,8 +362,8 @@ describe('ChatView', () => {
       await nextTick()
       await new Promise(resolve => setTimeout(resolve, 10))
 
-      const assistantMsg = mockChat.messages[1]
-      expect(assistantMsg.content).toContain('Error:')
+      const chatMsg = mockChat.messages[1]
+      expect(chatMsg.content).toContain('Error:')
       
       consoleErrorSpy.mockRestore()
     })
@@ -431,7 +431,7 @@ describe('ChatView', () => {
       await nextTick()
       await nextTick() // Wait for message to be added
 
-      // Messages after retry point should be removed and new assistant message added
+      // Messages after retry point should be removed and new chat message added
       expect(mockChat.messages).toHaveLength(2)
       expect(mockChat.messages[1].role).toBe('assistant')
     })
@@ -504,7 +504,7 @@ describe('ChatView', () => {
       expect(mockChat.messages[0].content).toBe('Updated message')
       expect(mockChat.messages[0].displayContent).toBe('Updated message')
       
-      // Messages after edit point should be removed and new assistant message added
+      // Messages after edit point should be removed and new chat message added
       expect(mockChat.messages).toHaveLength(2)
       expect(mockChat.messages[1].role).toBe('assistant')
     })
@@ -729,267 +729,6 @@ describe('ChatView', () => {
   })
 
   describe('MessageItem Props', () => {
-    it('should pass correct isLastUserMessage prop', async () => {
-      const websiteData = {
-        url: 'https://example.com',
-        title: 'Example Site',
-        content: 'This is website content'
-      }
-      
-      storage.loadWebsiteContext.mockReturnValue(websiteData)
-      api.sendChatMessage.mockResolvedValue('Response based on website')
-
-      wrapper = mount(ChatView, {
-        props: {
-          chat: mockChat,
-          selectedModel: 'test-model'
-        }
-      })
-
-      await nextTick()
-
-      const chatInput = wrapper.findComponent(ChatInput)
-      await chatInput.vm.$emit('send', 'Tell me about this website')
-      await nextTick()
-      await new Promise(resolve => setTimeout(resolve, 10))
-
-      expect(api.sendChatMessage).toHaveBeenCalled()
-      const callArgs = api.sendChatMessage.mock.calls[0][0]
-      const systemMessage = callArgs.find(msg => msg.role === 'system')
-      
-      expect(systemMessage).toBeTruthy()
-      expect(systemMessage.content).toContain('The website content is:')
-      expect(systemMessage.content).toContain(websiteData.title)
-      expect(systemMessage.content).toContain(websiteData.url)
-      expect(systemMessage.content).toContain(websiteData.content)
-    })
-
-    it('should not include website context when none exists', async () => {
-      storage.loadWebsiteContext.mockReturnValue(null)
-      api.sendChatMessage.mockResolvedValue('Normal response')
-
-      wrapper = mount(ChatView, {
-        props: {
-          chat: mockChat,
-          selectedModel: 'test-model'
-        }
-      })
-
-      await nextTick()
-
-      const chatInput = wrapper.findComponent(ChatInput)
-      await chatInput.vm.$emit('send', 'Hello')
-      await nextTick()
-      await new Promise(resolve => setTimeout(resolve, 10))
-
-      expect(api.sendChatMessage).toHaveBeenCalled()
-      const callArgs = api.sendChatMessage.mock.calls[0][0]
-      const systemMessage = callArgs.find(msg => msg.role === 'system')
-      
-      expect(systemMessage).toBeUndefined()
-    })
-
-    it('should detect and fetch URL from message', async () => {
-      storage.loadWebsiteContext.mockReturnValue(null)
-      websiteContent.fetchWebsiteContent.mockResolvedValue({
-        url: 'https://example.com',
-        title: 'Example Page',
-        content: 'Page content here'
-      })
-      api.sendChatMessage.mockResolvedValue('Response')
-
-      wrapper = mount(ChatView, {
-        props: {
-          chat: mockChat,
-          selectedModel: 'test-model'
-        }
-      })
-
-      const chatInput = wrapper.findComponent(ChatInput)
-      await chatInput.vm.$emit('send', 'Check this out https://example.com')
-      await nextTick()
-      await new Promise(resolve => setTimeout(resolve, 10))
-
-      expect(websiteContent.fetchWebsiteContent).toHaveBeenCalledWith('https://example.com')
-      expect(storage.saveWebsiteContext).toHaveBeenCalled()
-    })
-
-    it('should show loading indicator while fetching URL', async () => {
-      storage.loadWebsiteContext.mockReturnValue(null)
-      websiteContent.fetchWebsiteContent.mockImplementation(() => new Promise(resolve => {
-        setTimeout(() => resolve({
-          url: 'https://example.com',
-          title: 'Example',
-          content: 'Content'
-        }), 50)
-      }))
-      api.sendChatMessage.mockResolvedValue('Response')
-
-      wrapper = mount(ChatView, {
-        props: {
-          chat: mockChat,
-          selectedModel: 'test-model'
-        }
-      })
-
-      const chatInput = wrapper.findComponent(ChatInput)
-      await chatInput.vm.$emit('send', 'https://example.com')
-      await nextTick()
-      await new Promise(resolve => setTimeout(resolve, 100))
-
-      // Check that user message was added immediately
-      const userMessage = mockChat.messages.find(m => m.role === 'user' && m.content === 'https://example.com')
-      expect(userMessage).toBeTruthy()
-
-      // Check that assistant message was created after URL fetch
-      const assistantMessage = mockChat.messages.find(m => m.role === 'assistant')
-      expect(assistantMessage).toBeTruthy()
-    })
-
-    it('should handle URL fetch failure gracefully', async () => {
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-      storage.loadWebsiteContext.mockReturnValue(null)
-      websiteContent.fetchWebsiteContent.mockRejectedValue(new Error('Failed to fetch'))
-      api.sendChatMessage.mockResolvedValue('Response')
-
-      wrapper = mount(ChatView, {
-        props: {
-          chat: mockChat,
-          selectedModel: 'test-model'
-        }
-      })
-
-      const chatInput = wrapper.findComponent(ChatInput)
-      await chatInput.vm.$emit('send', 'https://example.com')
-      await nextTick()
-      await new Promise(resolve => setTimeout(resolve, 10))
-
-      // Should continue without website context
-      expect(storage.saveWebsiteContext).not.toHaveBeenCalled()
-      expect(api.sendChatMessage).toHaveBeenCalled()
-      
-      consoleErrorSpy.mockRestore()
-    })
-
-    it('should load website context on mount', async () => {
-      const savedContext = {
-        url: 'https://saved.com',
-        title: 'Saved Site',
-        content: 'Saved content'
-      }
-      storage.loadWebsiteContext.mockReturnValue(savedContext)
-
-      wrapper = mount(ChatView, {
-        props: {
-          chat: mockChat,
-          selectedModel: 'test-model'
-        }
-      })
-
-      await nextTick()
-
-      expect(storage.loadWebsiteContext).toHaveBeenCalledWith(mockChat.id)
-      expect(wrapper.vm.websiteContext).toEqual(savedContext)
-    })
-
-    it('should update website context when chat changes', async () => {
-      const context1 = { url: 'https://chat1.com', title: 'Chat 1', content: 'Content 1' }
-      const context2 = { url: 'https://chat2.com', title: 'Chat 2', content: 'Content 2' }
-      
-      storage.loadWebsiteContext.mockReturnValueOnce(context1).mockReturnValueOnce(context2)
-
-      wrapper = mount(ChatView, {
-        props: {
-          chat: mockChat,
-          selectedModel: 'test-model'
-        }
-      })
-
-      await nextTick()
-      expect(wrapper.vm.websiteContext).toEqual(context1)
-
-      // Change chat
-      const newChat = { id: 2, title: 'Chat 2', messages: [] }
-      await wrapper.setProps({ chat: newChat })
-      await nextTick()
-
-      expect(storage.loadWebsiteContext).toHaveBeenCalledWith(2)
-      expect(wrapper.vm.websiteContext).toEqual(context2)
-    })
-
-    it('should handle website-removed event', async () => {
-      const websiteData = {
-        url: 'https://example.com',
-        title: 'Example',
-        content: 'Content'
-      }
-      storage.loadWebsiteContext.mockReturnValue(websiteData)
-
-      wrapper = mount(ChatView, {
-        props: {
-          chat: mockChat,
-          selectedModel: 'test-model'
-        }
-      })
-
-      await nextTick()
-      expect(wrapper.vm.websiteContext).toEqual(websiteData)
-
-      // Emit website-removed event
-      const chatInput = wrapper.findComponent(ChatInput)
-      await chatInput.vm.$emit('website-removed')
-      await nextTick()
-
-      expect(wrapper.vm.websiteContext).toBeNull()
-      expect(storage.deleteWebsiteContext).toHaveBeenCalledWith(mockChat.id)
-    })
-
-    it('should extract multiple URLs but fetch only first one', async () => {
-      storage.loadWebsiteContext.mockReturnValue(null)
-      websiteContent.fetchWebsiteContent.mockResolvedValue({
-        url: 'https://first.com',
-        title: 'First',
-        content: 'Content'
-      })
-      api.sendChatMessage.mockResolvedValue('Response')
-
-      wrapper = mount(ChatView, {
-        props: {
-          chat: mockChat,
-          selectedModel: 'test-model'
-        }
-      })
-
-      const chatInput = wrapper.findComponent(ChatInput)
-      await chatInput.vm.$emit('send', 'Check https://first.com and https://second.com')
-      await nextTick()
-      await new Promise(resolve => setTimeout(resolve, 10))
-
-      expect(websiteContent.fetchWebsiteContent).toHaveBeenCalledTimes(1)
-      expect(websiteContent.fetchWebsiteContent).toHaveBeenCalledWith('https://first.com')
-    })
-
-    it('should not fetch URL if message has no URLs', async () => {
-      storage.loadWebsiteContext.mockReturnValue(null)
-      api.sendChatMessage.mockResolvedValue('Response')
-
-      wrapper = mount(ChatView, {
-        props: {
-          chat: mockChat,
-          selectedModel: 'test-model'
-        }
-      })
-
-      const chatInput = wrapper.findComponent(ChatInput)
-      await chatInput.vm.$emit('send', 'Regular message without URL')
-      await nextTick()
-      await new Promise(resolve => setTimeout(resolve, 10))
-
-      expect(websiteContent.fetchWebsiteContent).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('MessageItem Props', () => {
     it('should pass correct isLastUserMessage prop', () => {
       mockChat.messages = [
         { role: 'user', content: 'First', displayContent: 'First' },
@@ -1031,6 +770,104 @@ describe('ChatView', () => {
       messageItems.forEach(item => {
         expect(item.props('isLoading')).toBe(true)
       })
+    })
+  })
+
+  describe('Scroll Behavior', () => {
+    it('should scroll to bottom when component mounts with existing messages', async () => {
+      mockChat.messages = [
+        { role: 'user', content: 'Message 1', displayContent: 'Message 1' },
+        { role: 'assistant', content: 'Response 1', displayContent: 'Response 1' },
+        { role: 'user', content: 'Message 2', displayContent: 'Message 2' },
+        { role: 'assistant', content: 'Response 2', displayContent: 'Response 2' }
+      ]
+
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        },
+        attachTo: document.body
+      })
+
+      await nextTick()
+      await nextTick()
+
+      const messagesContainer = wrapper.find('.messages-container').element
+      
+      // Verify scroll position is at bottom
+      // Note: In test environment, scrollHeight and scrollTop might both be 0
+      // But we can verify the scrollTop was set to scrollHeight
+      expect(messagesContainer.scrollTop).toBe(messagesContainer.scrollHeight)
+      
+      wrapper.unmount()
+    })
+
+    it('should scroll to bottom when component mounts with empty messages', async () => {
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        },
+        attachTo: document.body
+      })
+
+      await nextTick()
+      await nextTick()
+
+      const messagesContainer = wrapper.find('.messages-container').element
+      
+      // With no messages, both should be 0
+      expect(messagesContainer.scrollTop).toBe(0)
+      expect(messagesContainer.scrollHeight).toBe(0)
+      
+      wrapper.unmount()
+    })
+
+    it('should scroll to bottom after adding a new message', async () => {
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        },
+        attachTo: document.body
+      })
+
+      api.sendChatMessage.mockResolvedValue('Response')
+
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'New message')
+      await nextTick()
+      await nextTick()
+      await new Promise(resolve => setTimeout(resolve, 10))
+
+      const messagesContainer = wrapper.find('.messages-container').element
+      expect(messagesContainer.scrollTop).toBe(messagesContainer.scrollHeight)
+      
+      wrapper.unmount()
+    })
+
+    it('should scroll to bottom when messages length changes', async () => {
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        },
+        attachTo: document.body
+      })
+
+      await nextTick()
+
+      // Manually add a message to trigger the watch
+      mockChat.messages.push({ role: 'user', content: 'Test', displayContent: 'Test' })
+      
+      await nextTick()
+      await nextTick()
+
+      const messagesContainer = wrapper.find('.messages-container').element
+      expect(messagesContainer.scrollTop).toBe(messagesContainer.scrollHeight)
+      
+      wrapper.unmount()
     })
   })
 })

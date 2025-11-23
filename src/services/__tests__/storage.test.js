@@ -15,7 +15,9 @@ import {
   saveWebsiteContext,
   loadWebsiteContext,
   deleteWebsiteContext,
-  loadAllWebsiteContexts
+  loadAllWebsiteContexts,
+  saveSidebarState,
+  loadSidebarState
 } from '../storage.js'
 
 describe('Storage Service', () => {
@@ -334,6 +336,35 @@ describe('Storage Service', () => {
           '3': websiteData3
         })
       })
+    })
+  })
+
+  describe('Sidebar State Functions', () => {
+    describe('saveSidebarState and loadSidebarState', () => {
+      it('should save and load sidebar collapsed state', () => {
+        saveSidebarState(true)
+        expect(loadSidebarState()).toBe(true)
+
+        saveSidebarState(false)
+        expect(loadSidebarState()).toBe(false)
+      })
+
+      it('should return false when no sidebar state exists', () => {
+        localStorage.clear()
+        expect(loadSidebarState()).toBe(false)
+      })
+
+      it('should handle malformed JSON gracefully', () => {
+        localStorage.setItem('chat-sidebar-collapsed', 'invalid-json')
+        const result = loadSidebarState()
+        expect(result).toBe(false)
+      })
+    })
+
+    it('should include sidebar state in loadAllData', () => {
+      saveSidebarState(true)
+      const data = loadAllData()
+      expect(data.sidebarCollapsed).toBe(true)
     })
   })
 })

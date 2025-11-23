@@ -25,7 +25,9 @@ vi.mock('../services/storage.js', () => ({
   saveApiConfig: vi.fn(),
   loadWebsiteContext: vi.fn(() => null),
   saveWebsiteContext: vi.fn(),
-  deleteWebsiteContext: vi.fn()
+  deleteWebsiteContext: vi.fn(),
+  saveSidebarState: vi.fn(),
+  loadSidebarState: vi.fn(() => false)
 }))
 
 describe('App', () => {
@@ -165,7 +167,36 @@ describe('App', () => {
       expect(wrapper.vm.chats.length).toBe(initialChatCount - 1)
     })
 
-    it('should switch to first chat when deleting active chat', async () => {
+    it('should select chat above when deleting active chat', async () => {
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ChatView: true,
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      // Create multiple chats (total of 3)
+      wrapper.vm.createNewChat()
+      wrapper.vm.createNewChat()
+      await nextTick()
+
+      const firstChatId = wrapper.vm.chats[0].id
+      const secondChatId = wrapper.vm.chats[1].id
+      const thirdChatId = wrapper.vm.chats[2].id
+
+      // Set active to third chat and delete it
+      wrapper.vm.activeChat = thirdChatId
+      wrapper.vm.deleteChat(thirdChatId)
+      await nextTick()
+
+      // Should now be on second chat (the one above)
+      expect(wrapper.vm.activeChat).toBe(secondChatId)
+      expect(wrapper.vm.chats.length).toBe(2)
+    })
+
+    it('should select first chat when deleting the first chat (no chat above)', async () => {
       const wrapper = mount(App, {
         global: {
           stubs: {
@@ -180,13 +211,77 @@ describe('App', () => {
       wrapper.vm.createNewChat()
       await nextTick()
 
+      const firstChatId = wrapper.vm.chats[0].id
       const secondChatId = wrapper.vm.chats[1].id
-      wrapper.vm.activeChat = secondChatId
 
+      // Set active to first chat and delete it
+      wrapper.vm.activeChat = firstChatId
+      wrapper.vm.deleteChat(firstChatId)
+      await nextTick()
+
+      // Should now be on what became the first chat (originally second)
+      expect(wrapper.vm.activeChat).toBe(secondChatId)
+      expect(wrapper.vm.chats.length).toBe(2)
+    })
+
+    it('should select chat above when deleting middle chat', async () => {
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ChatView: true,
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      // Create 4 chats total
+      wrapper.vm.createNewChat()
+      wrapper.vm.createNewChat()
+      wrapper.vm.createNewChat()
+      await nextTick()
+
+      const secondChatId = wrapper.vm.chats[1].id
+      const firstChatId = wrapper.vm.chats[0].id
+
+      // Set active to second chat (middle position) and delete it
+      wrapper.vm.activeChat = secondChatId
       wrapper.vm.deleteChat(secondChatId)
       await nextTick()
 
-      expect(wrapper.vm.activeChat).toBe(wrapper.vm.chats[0].id)
+      // Should now be on first chat (the one above the deleted middle chat)
+      expect(wrapper.vm.activeChat).toBe(firstChatId)
+      expect(wrapper.vm.chats.length).toBe(3)
+    })
+
+    it('should not change active chat when deleting a non-active chat', async () => {
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ChatView: true,
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      // Create multiple chats
+      wrapper.vm.createNewChat()
+      wrapper.vm.createNewChat()
+      await nextTick()
+
+      const firstChatId = wrapper.vm.chats[0].id
+      const secondChatId = wrapper.vm.chats[1].id
+      const thirdChatId = wrapper.vm.chats[2].id
+
+      // Set active to third chat
+      wrapper.vm.activeChat = thirdChatId
+
+      // Delete first chat (not active)
+      wrapper.vm.deleteChat(firstChatId)
+      await nextTick()
+
+      // Should still be on third chat
+      expect(wrapper.vm.activeChat).toBe(thirdChatId)
+      expect(wrapper.vm.chats.length).toBe(2)
     })
 
     it('should create new chat when deleting the last chat', async () => {
@@ -889,6 +984,185 @@ describe('App', () => {
       })
 
       expect(wrapper.vm.$options.name).toBe('App')
+    })
+  })
+
+  describe('Sidebar Collapse/Expand', () => {
+    it('should render sidebar toggle button', () => {
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ChatView: true,
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      expect(wrapper.find('.sidebar-toggle-btn').exists()).toBe(true)
+    })
+
+    it('should start with sidebar expanded by default', () => {
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ChatView: true,
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      expect(wrapper.vm.sidebarCollapsed).toBe(false)
+      expect(wrapper.find('.sidebar.collapsed').exists()).toBe(false)
+    })
+
+    it('should toggle sidebar when toggle button is clicked', async () => {
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ChatView: true,
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      const toggleBtn = wrapper.find('.sidebar-toggle-btn')
+      expect(wrapper.vm.sidebarCollapsed).toBe(false)
+
+      await toggleBtn.trigger('click')
+      await nextTick()
+
+      expect(wrapper.vm.sidebarCollapsed).toBe(true)
+      expect(wrapper.find('.sidebar.collapsed').exists()).toBe(true)
+      expect(storage.saveSidebarState).toHaveBeenCalledWith(true)
+
+      await toggleBtn.trigger('click')
+      await nextTick()
+
+      expect(wrapper.vm.sidebarCollapsed).toBe(false)
+      expect(wrapper.find('.sidebar.collapsed').exists()).toBe(false)
+      expect(storage.saveSidebarState).toHaveBeenCalledWith(false)
+    })
+
+    it('should show left arrow when expanded and right arrow when collapsed', async () => {
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ChatView: true,
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      const toggleBtn = wrapper.find('.sidebar-toggle-btn')
+      expect(toggleBtn.text()).toBe('←')
+
+      await toggleBtn.trigger('click')
+      await nextTick()
+
+      expect(toggleBtn.text()).toBe('→')
+    })
+
+    it('should update button title attribute based on state', async () => {
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ChatView: true,
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      const toggleBtn = wrapper.find('.sidebar-toggle-btn')
+      expect(toggleBtn.attributes('title')).toBe('Hide chat list')
+
+      await toggleBtn.trigger('click')
+      await nextTick()
+
+      expect(toggleBtn.attributes('title')).toBe('Show chat list')
+    })
+
+    it('should show icon-only buttons when collapsed', async () => {
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ChatView: true,
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      const configBtn = wrapper.find('.config-server-btn')
+      const newChatBtn = wrapper.find('.new-chat-btn')
+
+      // Initially expanded - shows full text
+      expect(configBtn.text()).toContain('Configure Server')
+      expect(newChatBtn.text()).toContain('New Chat')
+
+      // Collapse sidebar
+      await wrapper.find('.sidebar-toggle-btn').trigger('click')
+      await nextTick()
+
+      // Should show only icons
+      expect(configBtn.text()).toBe('⚙')
+      expect(newChatBtn.text()).toBe('+')
+    })
+
+    it('should load sidebar state from localStorage on mount', async () => {
+      storage.loadAllData.mockReturnValue({
+        sidebarCollapsed: true
+      })
+
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ChatView: true,
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      await nextTick()
+
+      expect(wrapper.vm.sidebarCollapsed).toBe(true)
+      expect(wrapper.find('.sidebar.collapsed').exists()).toBe(true)
+    })
+
+    it('should default to expanded if no saved state', async () => {
+      storage.loadAllData.mockReturnValue({})
+
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ChatView: true,
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      await nextTick()
+
+      expect(wrapper.vm.sidebarCollapsed).toBe(false)
+    })
+
+    it('should persist sidebar state when toggled', async () => {
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ChatView: true,
+            ApiConfigModal: true
+          }
+        }
+      })
+
+      const toggleBtn = wrapper.find('.sidebar-toggle-btn')
+
+      // Toggle to collapsed
+      await toggleBtn.trigger('click')
+      expect(storage.saveSidebarState).toHaveBeenCalledWith(true)
+
+      // Toggle back to expanded
+      await toggleBtn.trigger('click')
+      expect(storage.saveSidebarState).toHaveBeenCalledWith(false)
     })
   })
 })

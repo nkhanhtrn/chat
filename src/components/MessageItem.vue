@@ -1,7 +1,7 @@
 <template>
   <div :class="['message', message.role]">
     <div class="message-role">
-      {{ message.role === 'user' ? 'You' : 'Assistant' }}
+      {{ message.role === 'user' ? 'You' : 'Chat' }}
     </div>
     <div class="message-content">
       <div v-if="isEditing" class="edit-section">

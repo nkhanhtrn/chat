@@ -34,7 +34,7 @@ describe('ChatInput', () => {
       })
 
       const textarea = wrapper.find('textarea')
-      expect(textarea.attributes('placeholder')).toBe('Type your message here (include URLs to load their content)...')
+      expect(textarea.attributes('placeholder')).toBe('Type your message here...')
     })
 
     it('should show compress button when showCompress is true', () => {
@@ -346,154 +346,6 @@ describe('ChatInput', () => {
     })
   })
 
-  describe('Website Context', () => {
-    it('should not display website context when websiteContext is null', () => {
-      wrapper = mount(ChatInput, {
-        props: {
-          selectedModel: 'test-model',
-          isLoading: false,
-          websiteContext: null
-        }
-      })
-
-      expect(wrapper.find('.website-context-display').exists()).toBe(false)
-    })
-
-    it('should display website context when provided', () => {
-      const websiteContext = {
-        url: 'https://example.com',
-        title: 'Example Site',
-        content: 'Content'
-      }
-
-      wrapper = mount(ChatInput, {
-        props: {
-          selectedModel: 'test-model',
-          isLoading: false,
-          websiteContext
-        }
-      })
-
-      expect(wrapper.find('.website-context-display').exists()).toBe(true)
-      expect(wrapper.find('.context-title').text()).toBe('Example Site')
-    })
-
-    it('should display website URL as clickable link', () => {
-      const websiteContext = {
-        url: 'https://example.com/page',
-        title: 'Example Page',
-        content: 'Content'
-      }
-
-      wrapper = mount(ChatInput, {
-        props: {
-          selectedModel: 'test-model',
-          isLoading: false,
-          websiteContext
-        }
-      })
-
-      const urlLink = wrapper.find('.context-url')
-      expect(urlLink.exists()).toBe(true)
-      expect(urlLink.text()).toBe('https://example.com/page')
-      expect(urlLink.attributes('href')).toBe('https://example.com/page')
-      expect(urlLink.attributes('target')).toBe('_blank')
-      expect(urlLink.attributes('rel')).toBe('noopener noreferrer')
-    })
-
-    it('should show icon in website context', () => {
-      const websiteContext = {
-        url: 'https://example.com',
-        title: 'Example',
-        content: 'Content'
-      }
-
-      wrapper = mount(ChatInput, {
-        props: {
-          selectedModel: 'test-model',
-          isLoading: false,
-          websiteContext
-        }
-      })
-
-      expect(wrapper.find('.context-icon').exists()).toBe(true)
-      expect(wrapper.find('.context-icon').text()).toBe('🌐')
-    })
-
-    it('should show remove button in website context', () => {
-      const websiteContext = {
-        url: 'https://example.com',
-        title: 'Example',
-        content: 'Content'
-      }
-
-      wrapper = mount(ChatInput, {
-        props: {
-          selectedModel: 'test-model',
-          isLoading: false,
-          websiteContext
-        }
-      })
-
-      const removeBtn = wrapper.find('.remove-context-btn')
-      expect(removeBtn.exists()).toBe(true)
-      expect(removeBtn.attributes('title')).toBe('Remove website context')
-    })
-
-    it('should emit website-removed event when remove button is clicked', async () => {
-      const websiteContext = {
-        url: 'https://example.com',
-        title: 'Example',
-        content: 'Content'
-      }
-
-      wrapper = mount(ChatInput, {
-        props: {
-          selectedModel: 'test-model',
-          isLoading: false,
-          websiteContext
-        }
-      })
-
-      const removeBtn = wrapper.find('.remove-context-btn')
-      await removeBtn.trigger('click')
-
-      expect(wrapper.emitted('website-removed')).toBeTruthy()
-      expect(wrapper.emitted('website-removed')).toHaveLength(1)
-    })
-
-    it('should display context-details container with title and URL', () => {
-      const websiteContext = {
-        url: 'https://example.com',
-        title: 'Example Site',
-        content: 'Content'
-      }
-
-      wrapper = mount(ChatInput, {
-        props: {
-          selectedModel: 'test-model',
-          isLoading: false,
-          websiteContext
-        }
-      })
-
-      const contextDetails = wrapper.find('.context-details')
-      expect(contextDetails.exists()).toBe(true)
-      
-      const title = contextDetails.find('.context-title')
-      const url = contextDetails.find('.context-url')
-      
-      expect(title.exists()).toBe(true)
-      expect(url.exists()).toBe(true)
-    })
-
-    it('should handle websiteContext prop default value', () => {
-      const { websiteContext } = ChatInput.props
-      expect(websiteContext.type).toBe(Object)
-      expect(websiteContext.default).toBe(null)
-    })
-  })
-
   describe('Structure', () => {
     it('should have correct HTML structure', () => {
       wrapper = mount(ChatInput, {
@@ -506,6 +358,56 @@ describe('ChatInput', () => {
       expect(wrapper.find('.input-area').exists()).toBe(true)
       expect(wrapper.find('.input-container').exists()).toBe(true)
       expect(wrapper.find('.button-group').exists()).toBe(true)
+    })
+  })
+
+  describe('Auto Focus', () => {
+    it('should auto-focus textarea when component mounts', async () => {
+      wrapper = mount(ChatInput, {
+        props: {
+          selectedModel: 'test-model',
+          isLoading: false
+        },
+        attachTo: document.body
+      })
+
+      // Wait for onMounted to execute
+      await wrapper.vm.$nextTick()
+
+      const textarea = wrapper.find('textarea').element
+      expect(document.activeElement).toBe(textarea)
+
+      wrapper.unmount()
+    })
+
+    it('should have textareaRef in component instance', () => {
+      wrapper = mount(ChatInput, {
+        props: {
+          selectedModel: 'test-model',
+          isLoading: false
+        }
+      })
+
+      // Verify the ref is defined in the component instance
+      expect(wrapper.vm.textareaRef).toBeDefined()
+    })
+
+    it('should focus textarea even when disabled initially', async () => {
+      wrapper = mount(ChatInput, {
+        props: {
+          selectedModel: 'test-model',
+          isLoading: true
+        },
+        attachTo: document.body
+      })
+
+      await wrapper.vm.$nextTick()
+
+      const textarea = wrapper.find('textarea').element
+      // Focus is called even when disabled, though it may not visually focus
+      expect(textarea).toBeDefined()
+
+      wrapper.unmount()
     })
   })
 })

@@ -37,7 +37,7 @@ describe('MessageItem', () => {
       expect(wrapper.find('.message-role').text()).toBe('You')
     })
 
-    it('should render assistant message', () => {
+    it('should render chat message', () => {
       const message = {
         role: 'assistant',
         displayContent: 'Hi there!',
@@ -57,7 +57,7 @@ describe('MessageItem', () => {
       })
 
       expect(wrapper.find('.message').classes()).toContain('assistant')
-      expect(wrapper.find('.message-role').text()).toBe('Assistant')
+      expect(wrapper.find('.message-role').text()).toBe('Chat')
     })
 
     it('should show loading class when message is loading', () => {

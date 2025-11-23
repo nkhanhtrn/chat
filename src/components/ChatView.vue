@@ -23,7 +23,7 @@
 </template>
 
 <script>
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, onMounted } from 'vue'
 import { sendChatMessage } from '../services/api.js'
 import MessageItem from './MessageItem.vue'
 import ChatInput from './ChatInput.vue'
@@ -57,7 +57,12 @@ export default {
       })
     }
 
-    const sendMessageToAPI = async (assistantMessage) => {
+    // Scroll to bottom when component is mounted (after page refresh)
+    onMounted(() => {
+      scrollToBottom()
+    })
+
+    const sendMessageToAPI = async (chatMessage) => {
       isLoading.value = true
       
       try {
@@ -147,20 +152,20 @@ export default {
           displayContent = accumulatedContent.replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
         }
         
-        // Update assistant message with final response
-        assistantMessage.content = accumulatedContent
-        assistantMessage.displayContent = displayContent
+        // Update chat message with final response
+        chatMessage.content = accumulatedContent
+        chatMessage.displayContent = displayContent
         
         // Store server thinking if present
         if (serverThinking) {
-          assistantMessage.thinking = serverThinking
+          chatMessage.thinking = serverThinking
         }
       } catch (error) {
         console.error('Error processing message:', error)
-        assistantMessage.content = `Error: ${error.message || 'Failed to get response from the model'}`
-        assistantMessage.displayContent = assistantMessage.content
-        assistantMessage.thinking = null
-        assistantMessage.isWaiting = false
+        chatMessage.content = `Error: ${error.message || 'Failed to get response from the model'}`
+        chatMessage.displayContent = chatMessage.content
+        chatMessage.thinking = null
+        chatMessage.isWaiting = false
       } finally {
         isLoading.value = false
         scrollToBottom()
@@ -176,16 +181,16 @@ export default {
       props.chat.messages.splice(messageIndex + 1)
 
       // Add loading message
-      const assistantMessage = {
+      const chatMessage = {
         role: 'assistant',
         content: '',
         displayContent: '',
         isWaiting: true
       }
-      props.chat.messages.push(assistantMessage)
+      props.chat.messages.push(chatMessage)
       scrollToBottom()
 
-      await sendMessageToAPI(assistantMessage)
+      await sendMessageToAPI(chatMessage)
     }
 
     const editMessage = async (messageIndex, newContent) => {
@@ -200,17 +205,17 @@ export default {
       // Remove messages after this point and retry
       props.chat.messages.splice(messageIndex + 1)
 
-      // Add loading assistant message
-      const assistantMessage = {
+      // Add loading chat message
+      const chatMessage = {
         role: 'assistant',
         content: '',
         displayContent: '',
         isWaiting: true
       }
-      props.chat.messages.push(assistantMessage)
+      props.chat.messages.push(chatMessage)
       scrollToBottom()
 
-      await sendMessageToAPI(assistantMessage)
+      await sendMessageToAPI(chatMessage)
     }
 
     const compressConversation = async () => {
@@ -226,7 +231,7 @@ export default {
         // Create a summary request
         const conversationText = props.chat.messages
           .filter(m => m.role !== 'system')
-          .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+          .map(m => `${m.role === 'user' ? 'User' : 'Chat'}: ${m.content}`)
           .join('\n\n')
 
         const compressionPrompt = `Please provide a concise summary of the following conversation, capturing the key points and context:\n\n${conversationText}\n\nSummary:`
@@ -276,17 +281,17 @@ export default {
 
       scrollToBottom()
 
-      // Add loading assistant message
-      const assistantMessage = {
+      // Add loading chat message
+      const chatMessage = {
         role: 'assistant',
         content: '',
         displayContent: '',
         isWaiting: true
       }
-      props.chat.messages.push(assistantMessage)
+      props.chat.messages.push(chatMessage)
       scrollToBottom()
 
-      await sendMessageToAPI(assistantMessage)
+      await sendMessageToAPI(chatMessage)
     }
 
     watch(() => props.chat.messages.length, () => {

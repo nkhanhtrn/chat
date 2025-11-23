@@ -2,6 +2,7 @@
   <div class="input-area">
     <div class="input-container">
       <textarea
+        ref="textareaRef"
         v-model="inputValue"
         @keydown.enter.exact.prevent="handleSend"
         placeholder="Type your message here..."
@@ -30,7 +31,7 @@
 </template>
 
 <script>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 
 export default {
   name: 'ChatInput',
@@ -51,6 +52,7 @@ export default {
   emits: ['send', 'compress'],
   setup(props, { emit }) {
     const inputValue = ref('')
+    const textareaRef = ref(null)
 
     const handleSend = () => {
       if (!inputValue.value.trim() || props.isLoading || !props.selectedModel) {
@@ -62,8 +64,15 @@ export default {
       emit('send', message)
     }
 
+    onMounted(() => {
+      if (textareaRef.value) {
+        textareaRef.value.focus()
+      }
+    })
+
     return {
       inputValue,
+      textareaRef,
       handleSend
     }
   }

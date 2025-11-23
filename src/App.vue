@@ -9,11 +9,24 @@
       @close="showApiModal = false"
     />
 
-    <div class="sidebar">
+    <div :class="['sidebar', { collapsed: sidebarCollapsed }]">
+      <button 
+        @click="toggleSidebar" 
+        class="sidebar-toggle-btn"
+        :title="sidebarCollapsed ? 'Show chat list' : 'Hide chat list'"
+      >
+        {{ sidebarCollapsed ? '→' : '←' }}
+      </button>
       <div class="sidebar-header">
         <h2>Chat</h2>
-        <button @click="openApiModal" class="config-server-btn">⚙ Configure Server</button>
-        <button @click="createNewChat" class="new-chat-btn">+ New Chat</button>
+        <button @click="openApiModal" class="config-server-btn">
+          <span v-if="!sidebarCollapsed">⚙ Configure Server</span>
+          <span v-else>⚙</span>
+        </button>
+        <button @click="createNewChat" class="new-chat-btn">
+          <span v-if="!sidebarCollapsed">+ New Chat</span>
+          <span v-else>+</span>
+        </button>
       </div>
       
       <div class="model-selector">
@@ -106,6 +119,7 @@ export default {
       hostname: '',
       port: ''
     })
+    const sidebarCollapsed = ref(false)
     let chatIdCounter = 1
 
     const currentChat = computed(() => {
@@ -137,7 +151,9 @@ export default {
         
         if (activeChat.value === chatId) {
           if (chats.value.length > 0) {
-            activeChat.value = chats.value[0].id
+            // Select the chat above, or the one below if deleting the first chat
+            const newIndex = index > 0 ? index - 1 : 0
+            activeChat.value = chats.value[newIndex].id
           } else {
             // Create a new empty chat when the last one is deleted
             createNewChat()
@@ -171,6 +187,11 @@ export default {
       if (!chat.title.trim()) {
         chat.title = 'New Chat'
       }
+    }
+
+    const toggleSidebar = () => {
+      sidebarCollapsed.value = !sidebarCollapsed.value
+      storage.saveSidebarState(sidebarCollapsed.value)
     }
 
     const saveApiConfig = (config) => {
@@ -258,6 +279,10 @@ export default {
           console.log('Chat counter:', chatIdCounter)
         }
 
+        if (data.sidebarCollapsed !== undefined) {
+          sidebarCollapsed.value = data.sidebarCollapsed
+        }
+
         // If no chats were loaded, create a new one
         if (chats.value.length === 0) {
           console.log('No saved chats, creating new one')
@@ -303,6 +328,7 @@ export default {
       loadingModels,
       showApiModal,
       apiConfig,
+      sidebarCollapsed,
       saveApiConfig,
       openApiModal,
       createNewChat,
@@ -310,7 +336,8 @@ export default {
       deleteChat,
       updateChatTitle,
       startEditingTitle,
-      finishEditingTitle
+      finishEditingTitle,
+      toggleSidebar
     }
   }
 }
