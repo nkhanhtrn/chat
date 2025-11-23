@@ -103,6 +103,70 @@ describe('useMessageParser', () => {
     })
   })
 
+  describe('Horizontal Rules', () => {
+    it('should parse horizontal rule with hyphens', () => {
+      const content = 'Before\n---\nAfter'
+      const result = parseMessage(content)
+      
+      const hr = result.find(r => r.type === 'hr')
+      expect(hr).toBeDefined()
+      expect(hr.type).toBe('hr')
+    })
+
+    it('should parse horizontal rule with asterisks', () => {
+      const content = 'Text\n***\nMore text'
+      const result = parseMessage(content)
+      
+      const hr = result.find(r => r.type === 'hr')
+      expect(hr).toBeDefined()
+    })
+
+    it('should parse horizontal rule with underscores', () => {
+      const content = 'Text\n___\nMore text'
+      const result = parseMessage(content)
+      
+      const hr = result.find(r => r.type === 'hr')
+      expect(hr).toBeDefined()
+    })
+
+    it('should parse horizontal rule with spaces', () => {
+      const content = 'Text\n- - -\nMore text'
+      const result = parseMessage(content)
+      
+      const hr = result.find(r => r.type === 'hr')
+      expect(hr).toBeDefined()
+    })
+
+    it('should parse horizontal rule with more than 3 characters', () => {
+      const content = 'Text\n-----\nMore text'
+      const result = parseMessage(content)
+      
+      const hr = result.find(r => r.type === 'hr')
+      expect(hr).toBeDefined()
+    })
+
+    it('should not parse table separator as horizontal rule', () => {
+      const content = `| Name | Age |
+| --- | --- |
+| Alice | 30 |`
+      
+      const result = parseMessage(content)
+      const hr = result.find(r => r.type === 'hr')
+      const table = result.find(r => r.type === 'table')
+      
+      expect(hr).toBeUndefined()
+      expect(table).toBeDefined()
+    })
+
+    it('should parse multiple horizontal rules', () => {
+      const content = 'Section 1\n---\nSection 2\n***\nSection 3'
+      const result = parseMessage(content)
+      
+      const hrs = result.filter(r => r.type === 'hr')
+      expect(hrs).toHaveLength(2)
+    })
+  })
+
   describe('Tables', () => {
     it('should parse simple tables', () => {
       const content = `| Name | Age |

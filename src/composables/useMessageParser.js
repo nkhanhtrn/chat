@@ -103,6 +103,15 @@ export function useMessageParser() {
     while (i < lines.length) {
       const line = lines[i]
       
+      // Check for horizontal rule (---, ***, or ___)
+      if (/^(\s*[-*_]\s*){3,}$/.test(line)) {
+        elements.push({
+          type: 'hr'
+        })
+        i++
+        continue
+      }
+      
       // Check if this line starts a table
       if (i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
         const tableResult = parseTable(lines, i)

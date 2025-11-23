@@ -23,6 +23,7 @@
         :content="element.content"
         type="text"
       />
+      <hr v-else-if="element.type === 'hr'" class="markdown-hr" />
       <br v-else-if="element.type === 'linebreak'" />
     </template>
   </div>
