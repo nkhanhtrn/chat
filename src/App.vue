@@ -1,13 +1,17 @@
 <template>
   <div class="app">
     <!-- API Configuration Modal -->
-    <ApiConfigModal 
+    <SettingModal 
       :show="showApiModal"
       :hostname="apiConfig.hostname"
       :port="apiConfig.port"
       @save="saveApiConfig"
       @close="showApiModal = false"
+      @restore="handleRestoreChats"
+      @download-chats="downloadChats"
     />
+    <!-- Hidden download link for chat export -->
+    <DownloadLink ref="downloadLink" :href="downloadUrl" :filename="downloadFilename" />
 
     <div :class="['sidebar', { collapsed: sidebarCollapsed }]">
       <button 
@@ -27,6 +31,7 @@
           <span v-if="!sidebarCollapsed">+ New Chat</span>
           <span v-else>+</span>
         </button>
+        <!-- Download Chats button moved to settings modal -->
       </div>
       
       <div class="model-selector">
@@ -86,17 +91,21 @@
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useChatStore } from './composables/useChatStore'
 import ChatView from './components/ChatView.vue'
-import ApiConfigModal from './components/ApiConfigModal.vue'
+import SettingModal from './components/SettingModal.vue'
 import ChatThread from './components/ChatThread.vue'
+import DownloadLink from './components/DownloadLink.vue'
 import { fetchModels, setApiBaseUrl } from './services/api.js'
 import * as storage from './services/storage.js'
+import { backupChats, restoreChats, createChatBackup } from './services/backupRestore.js'
+// import { getChatBackupFilename } from './components/utils.js'
 
 export default {
   name: 'App',
   components: {
     ChatView,
-    ApiConfigModal,
+    SettingModal,
     ChatThread,
+    DownloadLink,
   },
   setup() {
     const { chats, activeChatId, activeChat, setChats, setActiveChat, addChat, updateChat, selectedModel } = useChatStore()
@@ -356,6 +365,51 @@ export default {
       updateChat(chatId, chat => { chat.title = newTitle })
     }
 
+
+    // Download all chats as JSON using a hidden <a> element
+    const downloadLink = ref(null)
+    const downloadUrl = ref('')
+    const downloadFilename = ref('')
+    const downloadChats = () => {
+      // Clean up previous URL if any
+      if (downloadUrl.value) URL.revokeObjectURL(downloadUrl.value)
+      const { url, filename } = createChatBackup({
+        chats: chats.value,
+        activeChatId: activeChatId.value,
+        selectedModel: selectedModel.value,
+        chatIdCounter
+      })
+      downloadUrl.value = url
+      downloadFilename.value = filename
+      // Wait for DOM update, then trigger download
+      nextTick(() => {
+        if (downloadLink.value && downloadLink.value.triggerDownload) {
+          downloadLink.value.triggerDownload()
+        }
+      })
+    }
+
+    // Restore chats from uploaded JSON
+    const handleRestoreChats = (data) => {
+      try {
+        const restored = restoreChats(data)
+        chats.value = restored.chats
+        activeChatId.value = restored.activeChat
+        selectedModel.value = restored.selectedModel
+        chatIdCounter = restored.chatCounter
+        // Persist to storage
+        storage.saveAllData({
+          chats: chats.value,
+          activeChat: activeChatId.value,
+          selectedModel: selectedModel.value,
+          chatCounter: chatIdCounter
+        })
+        alert('Chats restored successfully!')
+      } catch (err) {
+        alert('Failed to restore chats: ' + (err.message || err))
+      }
+    }
+
     return {
       chats,
       activeChat,
@@ -375,7 +429,6 @@ export default {
       createNewChat,
       switchChat,
       deleteChat,
-      // ...existing code...
       toggleSidebar,
       handleDragStart,
       handleDragEnd,
@@ -385,7 +438,13 @@ export default {
       updateChatTitle,
       questionToScroll,
       handleQuestionClick,
-      clearQuestionToScroll
+      clearQuestionToScroll,
+      downloadChats,
+      downloadLink,
+      downloadUrl,
+      downloadFilename,
+      handleRestoreChats,
+      createChatBackup // for testing
     }
   }
 }

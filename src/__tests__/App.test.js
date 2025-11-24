@@ -1,10 +1,86 @@
-  describe('Scroll-to-Question Event Chain', () => {
-    it('sets questionToScroll on ChatView when ChatThread emits question-click, and clears after scrolled-to-question', async () => {
-      // Mount with real ChatView and ChatThread, but stub ApiConfigModal
+    describe('handleRestoreChats', () => {
+      it('should restore chats, activeChatId, selectedModel, and chatCounter from valid data', async () => {
+        const wrapper = mount(App, {
+          global: {
+            stubs: {
+              ChatView: true,
+              SettingModal: true
+            }
+          }
+        })
+        const data = {
+          chats: [
+            { id: 1, title: 'Restored Chat', messages: [] }
+          ],
+          activeChat: 1,
+          selectedModel: 'restored-model',
+          chatCounter: 2
+        }
+        window.alert = vi.fn()
+        wrapper.vm.handleRestoreChats(data)
+        expect(wrapper.vm.chats).toEqual(data.chats)
+        expect(wrapper.vm.activeChatId).toBe(1)
+        expect(wrapper.vm.selectedModel).toBe('restored-model')
+        expect(wrapper.vm.createChatBackup).toBeDefined()
+        expect(window.alert).toHaveBeenCalledWith('Chats restored successfully!')
+      })
+
+      it('should show error alert on invalid JSON', async () => {
+        const wrapper = mount(App, {
+          global: {
+            stubs: {
+              ChatView: true,
+              SettingModal: true
+            }
+          }
+        })
+        window.alert = vi.fn()
+        // Pass a string that is not valid JSON
+        wrapper.vm.handleRestoreChats('{invalid json}')
+        expect(window.alert).toHaveBeenCalledWith(expect.stringContaining('Failed to restore chats: Invalid JSON format'))
+      })
+
+      it('should show error alert if chats array is missing', async () => {
+        const wrapper = mount(App, {
+          global: {
+            stubs: {
+              ChatView: true,
+              SettingModal: true
+            }
+          }
+        })
+        window.alert = vi.fn()
+        // Pass an object missing chats
+        wrapper.vm.handleRestoreChats({})
+        expect(window.alert).toHaveBeenCalledWith(expect.stringContaining('Failed to restore chats: Invalid chat data'))
+      })
+    })
+  describe('Download/Backup', () => {
+    it('should set correct href and download attributes on <a> after downloadChats is called', async () => {
       const wrapper = mount(App, {
         global: {
           stubs: {
-            ApiConfigModal: true
+            ChatView: true,
+            SettingModal: true
+          }
+        },
+        attachTo: document.body
+      })
+      await wrapper.vm.downloadChats()
+      await wrapper.vm.$nextTick()
+      const downloadLink = wrapper.findComponent({ name: 'DownloadLink' })
+      const a = downloadLink.find('a')
+      expect(a.attributes('href')).toBe(wrapper.vm.downloadUrl)
+      expect(a.attributes('download')).toBe(wrapper.vm.downloadFilename)
+    })
+  })
+  describe('Scroll-to-Question Event Chain', () => {
+    it('sets questionToScroll on ChatView when ChatThread emits question-click, and clears after scrolled-to-question', async () => {
+      // Mount with real ChatView and ChatThread, but stub SettingModal
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            SettingModal: true
           }
         },
         attachTo: document.body
@@ -44,7 +120,7 @@ import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import App from '../App.vue'
 import ChatView from '../components/ChatView.vue'
-import ApiConfigModal from '../components/ApiConfigModal.vue'
+import SettingModal from '../components/SettingModal.vue'
 import * as api from '../services/api.js'
 import * as storage from '../services/storage.js'
 
@@ -68,7 +144,8 @@ vi.mock('../services/storage.js', () => ({
   saveWebsiteContext: vi.fn(),
   deleteWebsiteContext: vi.fn(),
   saveSidebarState: vi.fn(),
-  loadSidebarState: vi.fn(() => false)
+  loadSidebarState: vi.fn(() => false),
+  saveAllData: vi.fn()
 }))
 
 
@@ -89,7 +166,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -111,7 +188,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -124,7 +201,7 @@ describe('App', () => {
       const wrapper = mount(App, {
         global: {
           stubs: {
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -138,7 +215,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -158,7 +235,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -176,7 +253,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -197,7 +274,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -218,7 +295,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -247,7 +324,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -275,7 +352,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -304,7 +381,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -335,7 +412,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -355,7 +432,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -378,7 +455,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -401,7 +478,7 @@ describe('App', () => {
       wrapper.vm.showApiModal = true
       await nextTick()
 
-      const modal = wrapper.findComponent(ApiConfigModal)
+      const modal = wrapper.findComponent(SettingModal)
       await modal.vm.$emit('close')
 
       expect(wrapper.vm.showApiModal).toBe(false)
@@ -419,7 +496,7 @@ describe('App', () => {
       wrapper.vm.showApiModal = true
       await nextTick()
 
-      const modal = wrapper.findComponent(ApiConfigModal)
+      const modal = wrapper.findComponent(SettingModal)
       await modal.vm.$emit('save', { hostname: 'testhost', port: '8080' })
 
       expect(api.setApiBaseUrl).toHaveBeenCalledWith('http://testhost:8080')
@@ -439,7 +516,7 @@ describe('App', () => {
       wrapper.vm.showApiModal = true
       await nextTick()
 
-      const modal = wrapper.findComponent(ApiConfigModal)
+      const modal = wrapper.findComponent(SettingModal)
       await modal.vm.$emit('save', { hostname: '', port: '' })
 
       expect(api.setApiBaseUrl).toHaveBeenCalledWith('http://localhost:1234')
@@ -453,7 +530,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -469,7 +546,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -493,7 +570,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -514,7 +591,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -531,7 +608,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -555,7 +632,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -574,7 +651,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -591,7 +668,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -615,7 +692,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -637,7 +714,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -662,7 +739,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -685,7 +762,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -707,7 +784,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -732,7 +809,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -754,7 +831,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -770,7 +847,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -788,7 +865,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -806,7 +883,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -821,7 +898,7 @@ describe('App', () => {
       const wrapper = mount(App, {
         global: {
           stubs: {
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -846,7 +923,7 @@ describe('App', () => {
       const wrapper = mount(App, {
         global: {
           stubs: {
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -866,7 +943,7 @@ describe('App', () => {
       const wrapper = mount(App, {
         global: {
           stubs: {
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -891,7 +968,7 @@ describe('App', () => {
       const wrapper = mount(App, {
         global: {
           stubs: {
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -929,7 +1006,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -944,7 +1021,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -978,7 +1055,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -1006,7 +1083,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -1030,7 +1107,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -1046,7 +1123,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -1084,7 +1161,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -1118,7 +1195,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -1149,7 +1226,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -1181,7 +1258,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -1208,7 +1285,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -1224,7 +1301,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -1245,7 +1322,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -1284,7 +1361,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -1297,7 +1374,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -1311,7 +1388,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -1339,7 +1416,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -1358,7 +1435,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -1377,7 +1454,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -1407,7 +1484,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -1425,7 +1502,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })
@@ -1440,7 +1517,7 @@ describe('App', () => {
         global: {
           stubs: {
             ChatView: true,
-            ApiConfigModal: true
+            SettingModal: true
           }
         }
       })

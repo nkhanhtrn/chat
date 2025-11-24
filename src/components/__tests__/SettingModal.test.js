@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
-import ApiConfigModal from '../ApiConfigModal.vue'
+import SettingModal from '../SettingModal.vue'
 
-describe('ApiConfigModal', () => {
+describe('SettingModal', () => {
   let wrapper
 
   beforeEach(() => {
@@ -14,7 +14,7 @@ describe('ApiConfigModal', () => {
 
   describe('Rendering', () => {
     it('should not render when show is false', () => {
-      wrapper = mount(ApiConfigModal, {
+      wrapper = mount(SettingModal, {
         props: {
           show: false,
           hostname: '',
@@ -26,7 +26,7 @@ describe('ApiConfigModal', () => {
     })
 
     it('should render when show is true', () => {
-      wrapper = mount(ApiConfigModal, {
+      wrapper = mount(SettingModal, {
         props: {
           show: true,
           hostname: '',
@@ -40,7 +40,7 @@ describe('ApiConfigModal', () => {
     })
 
     it('should render input fields with labels', () => {
-      wrapper = mount(ApiConfigModal, {
+      wrapper = mount(SettingModal, {
         props: {
           show: true,
           hostname: '',
@@ -60,7 +60,7 @@ describe('ApiConfigModal', () => {
     })
 
     it('should display correct placeholders', () => {
-      wrapper = mount(ApiConfigModal, {
+      wrapper = mount(SettingModal, {
         props: {
           show: true,
           hostname: '',
@@ -78,7 +78,7 @@ describe('ApiConfigModal', () => {
 
   describe('Props', () => {
     it('should display hostname prop value', () => {
-      wrapper = mount(ApiConfigModal, {
+      wrapper = mount(SettingModal, {
         props: {
           show: true,
           hostname: 'example.com',
@@ -91,7 +91,7 @@ describe('ApiConfigModal', () => {
     })
 
     it('should display port prop value', () => {
-      wrapper = mount(ApiConfigModal, {
+      wrapper = mount(SettingModal, {
         props: {
           show: true,
           hostname: '',
@@ -104,7 +104,7 @@ describe('ApiConfigModal', () => {
     })
 
     it('should update input values when props change', async () => {
-      wrapper = mount(ApiConfigModal, {
+      wrapper = mount(SettingModal, {
         props: {
           show: true,
           hostname: 'localhost',
@@ -127,7 +127,7 @@ describe('ApiConfigModal', () => {
 
   describe('User Interactions', () => {
     it('should update local values when typing', async () => {
-      wrapper = mount(ApiConfigModal, {
+      wrapper = mount(SettingModal, {
         props: {
           show: true,
           hostname: '',
@@ -146,7 +146,7 @@ describe('ApiConfigModal', () => {
     })
 
     it('should emit save event when save button is clicked', async () => {
-      wrapper = mount(ApiConfigModal, {
+      wrapper = mount(SettingModal, {
         props: {
           show: true,
           hostname: 'localhost',
@@ -173,7 +173,7 @@ describe('ApiConfigModal', () => {
     })
 
     it('should emit save event when Enter is pressed in hostname input', async () => {
-      wrapper = mount(ApiConfigModal, {
+      wrapper = mount(SettingModal, {
         props: {
           show: true,
           hostname: 'localhost',
@@ -195,7 +195,7 @@ describe('ApiConfigModal', () => {
     })
 
     it('should emit save event when Enter is pressed in port input', async () => {
-      wrapper = mount(ApiConfigModal, {
+      wrapper = mount(SettingModal, {
         props: {
           show: true,
           hostname: 'localhost',
@@ -217,7 +217,7 @@ describe('ApiConfigModal', () => {
     })
 
     it('should emit close event when close button is clicked', async () => {
-      wrapper = mount(ApiConfigModal, {
+      wrapper = mount(SettingModal, {
         props: {
           show: true,
           hostname: '',
@@ -233,7 +233,7 @@ describe('ApiConfigModal', () => {
     })
 
     it('should emit close event when clicking outside the modal', async () => {
-      wrapper = mount(ApiConfigModal, {
+      wrapper = mount(SettingModal, {
         props: {
           show: true,
           hostname: '',
@@ -249,7 +249,7 @@ describe('ApiConfigModal', () => {
     })
 
     it('should not emit close when clicking inside the modal', async () => {
-      wrapper = mount(ApiConfigModal, {
+      wrapper = mount(SettingModal, {
         props: {
           show: true,
           hostname: '',
@@ -266,7 +266,7 @@ describe('ApiConfigModal', () => {
 
   describe('Keyboard Events', () => {
     it('should emit close event when Escape key is pressed', async () => {
-      wrapper = mount(ApiConfigModal, {
+      wrapper = mount(SettingModal, {
         props: {
           show: true,
           hostname: '',
@@ -288,7 +288,7 @@ describe('ApiConfigModal', () => {
     })
 
     it('should not emit close when Escape is pressed and show is false', async () => {
-      wrapper = mount(ApiConfigModal, {
+      wrapper = mount(SettingModal, {
         props: {
           show: false,
           hostname: '',
@@ -309,7 +309,7 @@ describe('ApiConfigModal', () => {
     })
 
     it('should not emit close when other keys are pressed', async () => {
-      wrapper = mount(ApiConfigModal, {
+      wrapper = mount(SettingModal, {
         props: {
           show: true,
           hostname: '',
@@ -337,7 +337,7 @@ describe('ApiConfigModal', () => {
     it('should remove keydown listener when component is unmounted', async () => {
       const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener')
 
-      wrapper = mount(ApiConfigModal, {
+      wrapper = mount(SettingModal, {
         props: {
           show: true,
           hostname: '',
@@ -355,7 +355,7 @@ describe('ApiConfigModal', () => {
 
   describe('Edge Cases', () => {
     it('should handle empty values', async () => {
-      wrapper = mount(ApiConfigModal, {
+      wrapper = mount(SettingModal, {
         props: {
           show: true,
           hostname: '',
@@ -376,7 +376,7 @@ describe('ApiConfigModal', () => {
     })
 
     it('should preserve input values when modal is hidden and shown again', async () => {
-      wrapper = mount(ApiConfigModal, {
+      wrapper = mount(SettingModal, {
         props: {
           show: true,
           hostname: 'localhost',
@@ -394,4 +394,51 @@ describe('ApiConfigModal', () => {
       expect(newHostnameInput.element.value).toBe('test.com')
     })
   })
+
+    describe('Settings Actions', () => {
+      it('should emit download-chats event when download button is clicked', async () => {
+        wrapper = mount(SettingModal, {
+          props: { show: true, hostname: '', port: '' }
+        })
+        const buttons = wrapper.findAll('.modal-btn.short')
+        // Download is the first button
+        await buttons[0].trigger('click')
+        expect(wrapper.emitted('download-chats')).toBeTruthy()
+        expect(wrapper.emitted('download-chats')).toHaveLength(1)
+      })
+
+      it('should emit restore event when restore button is clicked', async () => {
+        wrapper = mount(SettingModal, {
+          props: { show: true, hostname: '', port: '' }
+        })
+        const buttons = wrapper.findAll('.modal-btn.short')
+        // Restore is the second button
+        const restoreInput = wrapper.find('input[type="file"]')
+        // Mock FileReader and file event
+        const file = new Blob([JSON.stringify({ chats: [] })], { type: 'application/json' })
+        const readAsText = vi.fn(function() {
+          this.onload({ target: { result: JSON.stringify({ chats: [] }) } })
+        })
+        window.FileReader = vi.fn(function () {
+          this.readAsText = readAsText
+        })
+        await buttons[1].trigger('click')
+        Object.defineProperty(restoreInput.element, 'files', {
+          value: [file],
+          writable: false,
+        })
+        await restoreInput.element.dispatchEvent(new Event('change'))
+        expect(wrapper.emitted('restore')).toBeTruthy()
+        expect(wrapper.emitted('restore')[0][0]).toEqual({ chats: [] })
+      })
+
+      it('should render action buttons with correct labels', () => {
+        wrapper = mount(SettingModal, {
+          props: { show: true, hostname: '', port: '' }
+        })
+        const buttons = wrapper.findAll('.modal-btn.short')
+        expect(buttons[0].text().toLowerCase()).toContain('download')
+        expect(buttons[1].text().toLowerCase()).toContain('restore')
+      })
+    })
 })

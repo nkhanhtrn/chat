@@ -30,6 +30,12 @@
         <button @click="handleSave" class="modal-btn">Save</button>
       </div>
       <div class="modal-footer">
+        <input type="file" accept="application/json" style="display:none" ref="restoreInput" @change="handleRestoreFile" />
+        <div class="modal-footer-btns">
+          <button @click="$emit('download-chats')" class="modal-btn short">Download</button>
+          <button @click="triggerRestore" class="modal-btn short">Restore</button>
+        </div>
+        <br />
         Made by <a href="https://github.com/nkhanhtrn" target="_blank" rel="noopener noreferrer">@nkhanhtrn</a> with <span class="heart">💔</span>
       </div>
     </div>
@@ -40,7 +46,7 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 
 export default {
-  name: 'ApiConfigModal',
+  name: 'SettingModal',
   props: {
     show: {
       type: Boolean,
@@ -97,12 +103,38 @@ export default {
       window.removeEventListener('keydown', handleKeydown)
     })
 
+    // Restore logic
+    const restoreInput = ref(null)
+    const triggerRestore = () => {
+      if (restoreInput.value) restoreInput.value.value = '';
+      restoreInput.value?.click()
+    }
+    const handleRestoreFile = (e) => {
+      const file = e.target.files && e.target.files[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = (evt) => {
+        try {
+          const data = JSON.parse(evt.target.result)
+          // Validate structure
+          if (!data.chats || !Array.isArray(data.chats)) throw new Error('Invalid chat data')
+          // Emit restore event with data
+          emit('restore', data)
+        } catch (err) {
+          alert('Failed to restore chats: ' + (err.message || err))
+        }
+      }
+      reader.readAsText(file)
+    }
     return {
       localHostname,
       localPort,
       handleSave,
       handleClose,
-      handleOverlayClick
+      handleOverlayClick,
+      restoreInput,
+      triggerRestore,
+      handleRestoreFile
     }
   }
 }
@@ -116,6 +148,22 @@ export default {
   text-align: center;
   font-size: 13px;
   color: #6c757d;
+}
+
+.modal-footer-btns {
+  display: flex;
+  justify-content: center;
+  gap: 48px;
+  margin-bottom: 8px;
+}
+
+.modal-btn.short {
+  padding: 10px 40px;
+  font-size: 15px;
+  min-width: 150px;
+  margin-bottom: 0;
+  font-weight: 600;
+  border-radius: 6px;
 }
 
 .modal-footer a {
