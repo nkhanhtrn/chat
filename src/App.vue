@@ -49,11 +49,9 @@
         <ChatThread
           v-for="(chat, index) in chats"
           :key="chat.id"
-          :chat="chat"
+          :id="chat.id"
           :active="activeChatId === chat.id"
           :dragOver="dragOverChatIndex === index"
-          :finishEditingTitle="finishEditingTitle"
-          :startEditingTitle="startEditingTitle"
           :deleteChat="deleteChat"
           :onClick="() => switchChat(chat.id)"
           :onDragStart="(e) => handleDragStart(e, index)"
@@ -149,28 +147,7 @@ export default {
       }
     }
 
-    const updateChatTitle = (chatId, newTitle) => {
-      updateChat(chatId, chat => { chat.title = newTitle })
-    }
-
-    const startEditingTitle = (chat) => {
-      chat.editing = true
-      nextTick(() => {
-        const inputs = document.querySelectorAll('.chat-title-input')
-        const input = inputs[inputs.length - 1]
-        if (input) {
-          input.focus()
-          input.select()
-        }
-      })
-    }
-
-    const finishEditingTitle = (chat) => {
-      chat.editing = false
-      if (!chat.title.trim()) {
-        chat.title = 'New Chat'
-      }
-    }
+    // ...existing code...
 
     const toggleSidebar = () => {
       sidebarCollapsed.value = !sidebarCollapsed.value
@@ -342,7 +319,6 @@ export default {
 
     onMounted(() => {
       loadFromLocalStorage()
-      
       // Check if API config exists, otherwise show modal
       if (loadApiConfig()) {
         loadModels()
@@ -350,6 +326,12 @@ export default {
         showApiModal.value = true
       }
     })
+
+    // Add updateChatTitle handler for ChatView
+    // Accept chatId and newTitle to match event signature
+    const updateChatTitle = (chatId, newTitle) => {
+      updateChat(chatId, chat => { chat.title = newTitle })
+    }
 
     return {
       chats,
@@ -370,15 +352,14 @@ export default {
       createNewChat,
       switchChat,
       deleteChat,
-      updateChatTitle,
-      startEditingTitle,
-      finishEditingTitle,
+      // ...existing code...
       toggleSidebar,
       handleDragStart,
       handleDragEnd,
       handleDragOver,
       handleDragLeave,
-      handleDrop
+      handleDrop,
+      updateChatTitle
     }
   }
 }

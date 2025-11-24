@@ -308,21 +308,7 @@ describe('App', () => {
       expect(wrapper.vm.chats[0].title).toBe('New Chat')
     })
 
-    it('should update chat title', () => {
-      const wrapper = mount(App, {
-        global: {
-          stubs: {
-            ChatView: true,
-            ApiConfigModal: true
-          }
-        }
-      })
-
-      const chatId = wrapper.vm.chats[0].id
-      wrapper.vm.updateChatTitle(chatId, 'Updated Title')
-
-      expect(wrapper.vm.chats[0].title).toBe('Updated Title')
-    })
+    // Removed: chat title editing tests
 
     it('should show active class on active chat tab', async () => {
       const wrapper = mount(App, {
@@ -344,154 +330,7 @@ describe('App', () => {
     })
   })
 
-  describe('Chat Title Editing', () => {
-    it('should start editing title when edit button is clicked', async () => {
-      const wrapper = mount(App, {
-        global: {
-          stubs: {
-            ChatView: true,
-            ApiConfigModal: true
-          }
-        }
-      })
-
-      await nextTick()
-      const chat = wrapper.vm.chats[0]
-      
-      // Check if edit button exists before trying to click it
-      const editBtn = wrapper.find('.edit-btn')
-      if (editBtn.exists()) {
-        await editBtn.trigger('click')
-        await nextTick()
-
-        expect(chat.editing).toBe(true)
-        expect(wrapper.find('.chat-title-input').exists()).toBe(true)
-      } else {
-        // Manually trigger the startEditingTitle function
-        wrapper.vm.startEditingTitle(chat)
-        await nextTick()
-        
-        expect(chat.editing).toBe(true)
-      }
-    })
-
-    it('should focus and select input text when editing starts', async () => {
-      const wrapper = mount(App, {
-        global: {
-          stubs: {
-            ChatView: true,
-            ApiConfigModal: true
-          }
-        }
-      })
-
-      await nextTick()
-      const chat = wrapper.vm.chats[0]
-      
-      // Create a mock for focus and select
-      const focusSpy = vi.fn()
-      const selectSpy = vi.fn()
-      
-      // Override querySelector to return a mock element
-      const originalQuerySelectorAll = document.querySelectorAll
-      document.querySelectorAll = vi.fn(() => [{
-        focus: focusSpy,
-        select: selectSpy
-      }])
-
-      wrapper.vm.startEditingTitle(chat)
-      await nextTick()
-      await nextTick()
-
-      expect(focusSpy).toHaveBeenCalled()
-      expect(selectSpy).toHaveBeenCalled()
-      
-      // Restore original function
-      document.querySelectorAll = originalQuerySelectorAll
-    })
-
-    it('should finish editing title on blur', async () => {
-      const wrapper = mount(App, {
-        global: {
-          stubs: {
-            ChatView: true,
-            ApiConfigModal: true
-          }
-        }
-      })
-
-      const chat = wrapper.vm.chats[0]
-      chat.editing = true
-      await nextTick()
-
-      const input = wrapper.find('.chat-title-input')
-      await input.setValue('Custom Title')
-      await input.trigger('blur')
-
-      expect(chat.editing).toBe(false)
-      expect(chat.title).toBe('Custom Title')
-    })
-
-    it('should finish editing title on Enter key', async () => {
-      const wrapper = mount(App, {
-        global: {
-          stubs: {
-            ChatView: true,
-            ApiConfigModal: true
-          }
-        }
-      })
-
-      const chat = wrapper.vm.chats[0]
-      chat.editing = true
-      await nextTick()
-
-      const input = wrapper.find('.chat-title-input')
-      await input.setValue('New Title')
-      await input.trigger('keydown.enter')
-
-      expect(chat.editing).toBe(false)
-      expect(chat.title).toBe('New Title')
-    })
-
-    it('should revert to "New Chat" if title is empty after editing', async () => {
-      const wrapper = mount(App, {
-        global: {
-          stubs: {
-            ChatView: true,
-            ApiConfigModal: true
-          }
-        }
-      })
-
-      const chat = wrapper.vm.chats[0]
-      chat.editing = true
-      await nextTick()
-
-      const input = wrapper.find('.chat-title-input')
-      await input.setValue('   ')
-      await input.trigger('blur')
-
-      expect(chat.title).toBe('New Chat')
-    })
-
-    it('should not show edit button when editing', async () => {
-      const wrapper = mount(App, {
-        global: {
-          stubs: {
-            ChatView: true,
-            ApiConfigModal: true
-          }
-        }
-      })
-
-      const chat = wrapper.vm.chats[0]
-      chat.editing = true
-      await nextTick()
-
-      expect(wrapper.find('.edit-btn').exists()).toBe(false)
-    })
-  })
+  // Removed: Chat Title Editing tests
 
   describe('API Configuration', () => {
     it('should open API modal when config server button is clicked', async () => {
@@ -977,10 +816,10 @@ describe('App', () => {
       const chatView = wrapper.findComponent(ChatView)
       
       expect(chatView.exists()).toBe(true)
-      await chatView.vm.$emit('update-title', chatId, 'New Title From Chat')
+      await chatView.vm.$emit('update-title', chatId, 'New Chat')
       await nextTick()
 
-      expect(wrapper.vm.chats[0].title).toBe('New Title From Chat')
+      expect(wrapper.vm.chats[0].title).toBe('New Chat')
     })
 
     it('should update global loading state when ChatView emits loading-change', async () => {

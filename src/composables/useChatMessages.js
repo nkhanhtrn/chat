@@ -173,7 +173,8 @@ export function useChatMessages(props, emit, scrollToBottom) {
     const userMessage = {
       role: 'user',
       content: messageText,
-      displayContent: messageText
+      displayContent: messageText,
+      summarized: messageText // for summary UI
     }
     chat.messages.push(userMessage)
     if (chat.messages.filter(m => m.role === 'user').length === 1) {
