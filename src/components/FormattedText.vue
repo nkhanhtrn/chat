@@ -5,18 +5,21 @@
       <a v-else-if="part.type === 'link'" :href="part.text" target="_blank" rel="noopener noreferrer" class="markdown-link">{{ part.text }}</a>
       <strong v-else-if="part.type === 'bold'">{{ part.text }}</strong>
       <em v-else-if="part.type === 'italic'">{{ part.text }}</em>
-      <span v-else>{{ part.text }}</span>
+      <MathInline v-else-if="part.type === 'mathinline'" :content="part.content" />
+      <span v-else v-html="part.text"></span>
     </template>
   </component>
 </template>
 
 <script>
 import InlineCode from './InlineCode.vue'
+import MathInline from './MathInline.vue'
 
 export default {
   name: 'FormattedText',
   components: {
-    InlineCode
+    InlineCode,
+    MathInline
   },
   props: {
     content: {

@@ -32,6 +32,7 @@
         :content="element.content"
         type="text"
       />
+      <MathBlock v-else-if="element.type === 'mathblock'" :content="element.content" />
       <hr v-else-if="element.type === 'hr'" class="markdown-hr" />
       <br v-else-if="element.type === 'linebreak'" />
     </template>
@@ -44,13 +45,15 @@ import { useMessageParser } from '../composables/useMessageParser.js'
 import CodeBlock from './CodeBlock.vue'
 import MarkdownTable from './MarkdownTable.vue'
 import FormattedText from './FormattedText.vue'
+import MathBlock from './MathBlock.vue'
 
 export default {
   name: 'MessageContent',
   components: {
     CodeBlock,
     MarkdownTable,
-    FormattedText
+    FormattedText,
+    MathBlock
   },
   props: {
     content: {

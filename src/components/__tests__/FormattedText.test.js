@@ -165,6 +165,40 @@ describe('FormattedText', () => {
       expect(links[0].attributes('href')).toBe('https://example.com')
       expect(links[1].attributes('href')).toBe('https://test.org')
     })
+
+    it('renders HTML entities as characters', () => {
+      const content = [
+        { type: 'plain', text: 'Strengths &amp; Weaknesses' }
+      ]
+      wrapper = mount(FormattedText, { props: { content } })
+      expect(wrapper.text()).toContain('Strengths & Weaknesses')
+      expect(wrapper.text()).toBe('Strengths & Weaknesses')
+    })
+
+    it('renders mixed inline content with HTML entities', () => {
+      const content = [
+        { type: 'plain', text: 'A &amp; B ' },
+        { type: 'bold', text: 'Bold' },
+        { type: 'plain', text: ' and ' },
+        { type: 'italic', text: 'Italic' }
+      ]
+      wrapper = mount(FormattedText, { props: { content } })
+      expect(wrapper.text()).toContain('A & B')
+      expect(wrapper.find('strong').text()).toBe('Bold')
+      expect(wrapper.find('em').text()).toBe('Italic')
+    })
+
+    it('sanitizes user input and does not render HTML or scripts', () => {
+      const content = [
+        { type: 'plain', text: '&lt;script&gt;alert(1)&lt;/script&gt; &lt;b&gt;bold&lt;/b&gt;' }
+      ]
+      wrapper = mount(FormattedText, { props: { content } })
+      // Should display the tags as text, not render them
+      expect(wrapper.text()).toContain('<script>alert(1)</script> <b>bold</b>')
+      // Should not have any <script> or <b> tags in the HTML
+      expect(wrapper.html()).not.toContain('<script>')
+      expect(wrapper.html()).not.toContain('<b>')
+    })
   })
 
   describe('Props', () => {

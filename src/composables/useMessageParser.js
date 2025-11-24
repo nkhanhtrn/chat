@@ -1,38 +1,69 @@
 export function useMessageParser() {
   const parseMessage = (content) => {
     if (!content) return []
-    
+
     const elements = []
     let currentPosition = 0
-    
-    // Parse code blocks FIRST (before escaping HTML)
+
+    // Parse code and math blocks FIRST (before escaping HTML)
     const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g
-    let match
-    
+    const mathBlockRegex = /\\\[([\s\S]*?)\\\]/g
+    let match, mathMatches = [];
+
+    // Find all code blocks
+    let codeMatches = [];
     while ((match = codeBlockRegex.exec(content)) !== null) {
-      // Add text before code block (parse inline elements WITHOUT HTML escaping yet)
-      if (match.index > currentPosition) {
-        const textBefore = content.slice(currentPosition, match.index)
-        elements.push(...parseInlineElementsWithoutEscaping(textBefore))
-      }
-      
-      // Add code block (WITHOUT HTML escaping)
-      elements.push({
+      codeMatches.push({
         type: 'codeblock',
+        start: match.index,
+        end: match.index + match[0].length,
         language: match[1] || 'plaintext',
         code: match[2].trim()
-      })
-      
-      currentPosition = match.index + match[0].length
+      });
     }
-    
+
+    // Find all math blocks
+    while ((match = mathBlockRegex.exec(content)) !== null) {
+      mathMatches.push({
+        type: 'mathblock',
+        start: match.index,
+        end: match.index + match[0].length,
+        content: match[1].trim()
+      });
+    }
+
+    // Merge and sort all blocks by start index
+    let allBlocks = [...codeMatches, ...mathMatches].sort((a, b) => a.start - b.start);
+
+    for (let i = 0; i < allBlocks.length; i++) {
+      const block = allBlocks[i];
+      // Add text before block
+      if (block.start > currentPosition) {
+        const textBefore = content.slice(currentPosition, block.start);
+        elements.push(...parseInlineElementsWithoutEscaping(textBefore));
+      }
+      if (block.type === 'codeblock') {
+        elements.push({
+          type: 'codeblock',
+          language: block.language,
+          code: block.code
+        });
+      } else if (block.type === 'mathblock') {
+        elements.push({
+          type: 'mathblock',
+          content: block.content
+        });
+      }
+      currentPosition = block.end;
+    }
+
     // Add remaining text (parse inline elements WITHOUT HTML escaping yet)
     if (currentPosition < content.length) {
-      const remainingText = content.slice(currentPosition)
-      elements.push(...parseInlineElementsWithoutEscaping(remainingText))
+      const remainingText = content.slice(currentPosition);
+      elements.push(...parseInlineElementsWithoutEscaping(remainingText));
     }
-    
-    return elements
+
+    return elements;
   }
   
   const escapeHtmlExceptCode = (text) => {
@@ -318,15 +349,16 @@ export function useMessageParser() {
   const parseTextFormatting = (text) => {
     const parts = []
     let currentPosition = 0
-    
-    // Regular expressions for inline formatting
+
+    // Regular expressions for inline formatting, including inline math
     const patterns = [
+      { type: 'mathinline', regex: /\\\((.+?)\\\)/g },
       { type: 'code', regex: /`([^`]+)`/g },
       { type: 'link', regex: /(https?:\/\/[^\s]+)/g },
       { type: 'bold', regex: /\*\*([^*]+)\*\*/g },
       { type: 'italic', regex: /\*([^*]+)\*/g }
     ]
-    
+
     // Find all matches
     const allMatches = []
     patterns.forEach(pattern => {
@@ -364,10 +396,17 @@ export function useMessageParser() {
       }
       
       // Add formatted part
-      parts.push({
-        type: match.type,
-        text: match.content
-      })
+      if (match.type === 'mathinline') {
+        parts.push({
+          type: 'mathinline',
+          content: match.content
+        })
+      } else {
+        parts.push({
+          type: match.type,
+          text: match.content
+        })
+      }
       
       currentPosition = match.end
     })
@@ -386,9 +425,10 @@ export function useMessageParser() {
   const parseTextFormattingWithEscaping = (text) => {
     const parts = []
     let currentPosition = 0
-    
-    // Regular expressions for inline formatting
+
+    // Regular expressions for inline formatting, including inline math
     const patterns = [
+      { type: 'mathinline', regex: /\\\((.+?)\\\)/g },
       { type: 'code', regex: /`([^`]+)`/g },
       { type: 'link', regex: /(https?:\/\/[^\s]+)/g },
       { type: 'bold', regex: /\*\*([^*]+)\*\*/g },
@@ -430,10 +470,15 @@ export function useMessageParser() {
           text: escapeHtml(text.slice(currentPosition, match.start))
         })
       }
-      
+
       // Add formatted part - escape HTML in code/link content too for safety
       // but DON'T escape URLs themselves
-      if (match.type === 'link') {
+      if (match.type === 'mathinline') {
+        parts.push({
+          type: 'mathinline',
+          content: match.content
+        })
+      } else if (match.type === 'link') {
         parts.push({
           type: match.type,
           text: match.content // URLs are not escaped
@@ -444,7 +489,7 @@ export function useMessageParser() {
           text: match.type === 'code' ? match.content : escapeHtml(match.content)
         })
       }
-      
+
       currentPosition = match.end
     })
     
