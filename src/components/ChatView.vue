@@ -7,26 +7,29 @@
       </button>
     </div>
     <div class="messages-container" ref="messagesContainer">
-      <template v-if="activeChat && activeChat.messages" v-for="(message, index) in activeChat.messages" :key="index">
-        <MessageItem
-          v-if="message.role === 'user'"
-          :message="message"
-          :is-loading="isLoading"
-          :is-last-user-message="index === activeChat.messages.map(m => m.role).lastIndexOf('user')"
-          :force-collapsed="getCollapsed(index)"
-          @retry="retryMessage(index)"
-          @edit="editMessage(index, $event)"
-          @delete="deleteMessage(index)"
-          @collapse="onUserCollapse(index, $event)"
-        />
-        <MessageItem
-          v-else
-          :message="message"
-          :is-loading="isLoading"
-          :is-last-user-message="false"
-          :force-collapsed="getCollapsed(index)"
-          @expand-associated-user="expandAssociatedUser(index)"
-        />
+      <template v-if="activeChat && activeChat.messages">
+        <template v-for="(message, index) in activeChat.messages" :key="index">
+          <MessageItem
+            v-if="message.role === 'user'"
+            :ref="el => { if (el) userMessageRefs[indexToUserMessage(message, index)] = el.$el }"
+            :message="message"
+            :is-loading="isLoading"
+            :is-last-user-message="index === activeChat.messages.map(m => m.role).lastIndexOf('user')"
+            :force-collapsed="getCollapsed(index)"
+            @retry="retryMessage(index)"
+            @edit="editMessage(index, $event)"
+            @delete="deleteMessage(index)"
+            @collapse="onUserCollapse(index, $event)"
+          />
+          <MessageItem
+            v-else
+            :message="message"
+            :is-loading="isLoading"
+            :is-last-user-message="false"
+            :force-collapsed="getCollapsed(index)"
+            @expand-associated-user="expandAssociatedUser(index)"
+          />
+        </template>
       </template>
     </div>
 
@@ -110,11 +113,17 @@ export default {
     globalLoading: {
       type: Boolean,
       default: false
+    },
+    questionToScroll: {
+      type: [Number, null],
+      default: null
     }
   },
   setup(props, { emit }) {
     const { activeChat } = useChatStore()
     const messagesContainer = ref(null)
+    // Refs for user messages
+    const userMessageRefs = ref([])
 
     // Use composable for collapse logic
     const chatRef = ref(activeChat)
@@ -159,6 +168,32 @@ export default {
       scrollToBottom()
     })
 
+    // Helper to map message index to user message index
+    function indexToUserMessage(message, index) {
+      if (message.role !== 'user') return undefined
+      let count = 0
+      for (let i = 0; i <= index; i++) {
+        if (activeChat.value && activeChat.value.messages[i] && activeChat.value.messages[i].role === 'user') {
+          if (i === index) return count
+          count++
+        }
+      }
+      return undefined
+    }
+
+    // Watch for questionToScroll prop and scroll to the corresponding user message
+    watch(() => props.questionToScroll, (newIdx) => {
+      if (typeof newIdx === 'number' && newIdx >= 0) {
+        nextTick(() => {
+          const el = userMessageRefs.value[newIdx]
+          if (el && typeof el.scrollIntoView === 'function') {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            emit('scrolled-to-question')
+          }
+        })
+      }
+    })
+
     return {
       isLoading,
       isStreaming,
@@ -175,6 +210,8 @@ export default {
       onUserCollapse,
       expandAssociatedUser,
       activeChat,
+      userMessageRefs,
+      indexToUserMessage,
       // Use the prop value for selectedModel so ChatInput receives the correct prop
       selectedModel: props.selectedModel ?? globalSelectedModel.value
     }

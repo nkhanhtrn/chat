@@ -138,6 +138,8 @@ export default {
     onQuestionClick(idx) {
       // Set global active chat id
       setActiveChat(this.id)
+      // Emit event to parent with question index
+      this.$emit('question-click', { chatId: this.id, questionIndex: idx })
     },
     async summarizeQuestions() {
       if (this.userMessages.length === 0) return;

@@ -60,6 +60,7 @@
           :onDragLeave="handleDragLeave"
           :onDrop="(e) => handleDrop(e, index)"
           :sidebarCollapsed="sidebarCollapsed"
+          @question-click="handleQuestionClick"
         />
       </div>
     </div>
@@ -69,8 +70,10 @@
         v-if="activeChat"
         :selectedModel="selectedModel"
         :global-loading="isAnyLoading"
+        :questionToScroll="questionToScroll"
         @update-title="updateChatTitle"
         @loading-change="isAnyLoading = $event"
+        @scrolled-to-question="clearQuestionToScroll"
       />
       <div v-else class="empty-state">
         <p>Create a new chat to get started</p>
@@ -109,6 +112,26 @@ export default {
     const dragOverChatIndex = ref(null)
     const isAnyLoading = ref(false)
     let chatIdCounter = 1
+    // For scrolling to a question
+    const questionToScroll = ref(null)
+    // Handle question click from ChatThread
+    const handleQuestionClick = ({ chatId, questionIndex }) => {
+      // Only scroll if the chat is active
+      if (activeChatId.value === chatId) {
+        questionToScroll.value = questionIndex
+      } else {
+        setActiveChat(chatId)
+        // Wait for ChatView to mount
+        nextTick(() => {
+          questionToScroll.value = questionIndex
+        })
+      }
+    }
+
+    // Clear after scroll
+    const clearQuestionToScroll = () => {
+      questionToScroll.value = null
+    }
 
     const currentChat = activeChat
 
@@ -359,7 +382,10 @@ export default {
       handleDragOver,
       handleDragLeave,
       handleDrop,
-      updateChatTitle
+      updateChatTitle,
+      questionToScroll,
+      handleQuestionClick,
+      clearQuestionToScroll
     }
   }
 }

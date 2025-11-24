@@ -1,3 +1,43 @@
+  describe('Scroll-to-Question Event Chain', () => {
+    it('sets questionToScroll on ChatView when ChatThread emits question-click, and clears after scrolled-to-question', async () => {
+      // Mount with real ChatView and ChatThread, but stub ApiConfigModal
+      const wrapper = mount(App, {
+        global: {
+          stubs: {
+            ApiConfigModal: true
+          }
+        },
+        attachTo: document.body
+      })
+
+      // Ensure at least one chat and active
+      if (wrapper.vm.chats.length === 0) {
+        wrapper.vm.createNewChat()
+        await nextTick()
+      }
+      // Add user messages to active chat
+      wrapper.vm.chats[0].messages = [
+        { role: 'user', content: 'Q1' },
+        { role: 'assistant', content: 'A1' },
+        { role: 'user', content: 'Q2' }
+      ]
+      await nextTick()
+
+      // Find ChatThread and emit question-click
+      const chatThread = wrapper.findComponent({ name: 'ChatThread' })
+      chatThread.vm.$emit('question-click', { chatId: wrapper.vm.chats[0].id, questionIndex: 1 })
+      await nextTick()
+
+      // ChatView should receive questionToScroll prop
+      const chatView = wrapper.findComponent(ChatView)
+      expect(chatView.props('questionToScroll')).toBe(1)
+
+      // Simulate ChatView emitting scrolled-to-question
+      chatView.vm.$emit('scrolled-to-question')
+      await nextTick()
+      expect(wrapper.vm.questionToScroll).toBeNull()
+    })
+  })
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useChatStore } from '../composables/useChatStore'
 import { mount } from '@vue/test-utils'

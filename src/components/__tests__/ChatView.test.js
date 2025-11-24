@@ -1194,6 +1194,44 @@ describe('ChatView', () => {
       // Should complete without error
       expect(wrapper.vm.messagesContainer).toBeNull()
     })
+
+    it('should scroll to the correct user message when questionToScroll is set', async () => {
+      mockChat.messages = [
+        { role: 'user', content: 'Q1', displayContent: 'Q1' },
+        { role: 'assistant', content: 'A1', displayContent: 'A1' },
+        { role: 'user', content: 'Q2', displayContent: 'Q2' },
+        { role: 'assistant', content: 'A2', displayContent: 'A2' },
+        { role: 'user', content: 'Q3', displayContent: 'Q3' }
+      ]
+
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model',
+          questionToScroll: null
+        },
+        attachTo: document.body
+      })
+
+      await nextTick()
+      await nextTick()
+
+      // Mock scrollIntoView for all user message elements
+      const userMessageEls = wrapper.vm.userMessageRefs
+      userMessageEls.forEach((el, idx) => {
+        if (el) {
+          el.scrollIntoView = vi.fn()
+        }
+      })
+
+      // Set questionToScroll to 1 (should scroll to Q2)
+      await wrapper.setProps({ questionToScroll: 1 })
+      await nextTick()
+      await nextTick()
+
+      // Q2 is the second user message (index 1)
+      expect(userMessageEls[1].scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' })
+    })
   })
 
   describe('Collapse/Expand Button', () => {

@@ -58,6 +58,34 @@ describe('ChatThread', () => {
     expect(store.activeChatId.value).toBe(chat.id)
   })
 
+  it('emits question-click event with correct payload when a question is clicked', async () => {
+    const wrapper = mount(ChatThread, {
+      props: {
+        id: chat.id,
+        active: false,
+        dragOver: false,
+        deleteChat: vi.fn(),
+        onClick: vi.fn(),
+        onDragStart: vi.fn(),
+        onDragEnd: vi.fn(),
+        onDragOver: vi.fn(),
+        onDragLeave: vi.fn(),
+        onDrop: vi.fn(),
+        sidebarCollapsed: false
+      }
+    })
+    // Expand questions
+    await wrapper.vm.toggleQuestions()
+    await wrapper.vm.$nextTick()
+    const items = wrapper.findAll('.chat-question-item')
+    // Click the second question (index 1)
+    await items[1].trigger('click')
+    // Should emit question-click with chatId and questionIndex
+    expect(wrapper.emitted('question-click')).toBeTruthy()
+    const eventPayload = wrapper.emitted('question-click')[0][0]
+    expect(eventPayload).toEqual({ chatId: chat.id, questionIndex: 1 })
+  })
+
   it('allows editing the chat title and updates global store', async () => {
     const wrapper = mount(ChatThread, {
       props: {
