@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { useChatStore } from '../composables/useChatStore'
 import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import App from '../App.vue'
@@ -30,11 +31,16 @@ vi.mock('../services/storage.js', () => ({
   loadSidebarState: vi.fn(() => false)
 }))
 
+
 describe('App', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     // Reset window.alert mock
     window.alert = vi.fn()
+    // Reset chat store state
+    const store = useChatStore()
+    store.chats.value = []
+    store.activeChatId.value = null
   })
 
   describe('Rendering', () => {
@@ -143,7 +149,7 @@ describe('App', () => {
       const chatTabs = wrapper.findAll('.chat-tab')
       
       await chatTabs[0].trigger('click')
-      expect(wrapper.vm.activeChat).toBe(firstChatId)
+      expect(wrapper.vm.activeChatId).toBe(firstChatId)
     })
 
     it('should delete a chat when delete button is clicked', async () => {
@@ -187,12 +193,12 @@ describe('App', () => {
       const thirdChatId = wrapper.vm.chats[2].id
 
       // Set active to third chat and delete it
-      wrapper.vm.activeChat = thirdChatId
+      wrapper.vm.activeChatId = thirdChatId
       wrapper.vm.deleteChat(thirdChatId)
       await nextTick()
 
       // Should now be on second chat (the one above)
-      expect(wrapper.vm.activeChat).toBe(secondChatId)
+      expect(wrapper.vm.activeChatId).toBe(secondChatId)
       expect(wrapper.vm.chats.length).toBe(2)
     })
 
@@ -215,12 +221,12 @@ describe('App', () => {
       const secondChatId = wrapper.vm.chats[1].id
 
       // Set active to first chat and delete it
-      wrapper.vm.activeChat = firstChatId
+      wrapper.vm.activeChatId = firstChatId
       wrapper.vm.deleteChat(firstChatId)
       await nextTick()
 
       // Should now be on what became the first chat (originally second)
-      expect(wrapper.vm.activeChat).toBe(secondChatId)
+      expect(wrapper.vm.activeChatId).toBe(secondChatId)
       expect(wrapper.vm.chats.length).toBe(2)
     })
 
@@ -244,12 +250,12 @@ describe('App', () => {
       const firstChatId = wrapper.vm.chats[0].id
 
       // Set active to second chat (middle position) and delete it
-      wrapper.vm.activeChat = secondChatId
+      wrapper.vm.activeChatId = secondChatId
       wrapper.vm.deleteChat(secondChatId)
       await nextTick()
 
       // Should now be on first chat (the one above the deleted middle chat)
-      expect(wrapper.vm.activeChat).toBe(firstChatId)
+      expect(wrapper.vm.activeChatId).toBe(firstChatId)
       expect(wrapper.vm.chats.length).toBe(3)
     })
 
@@ -273,14 +279,14 @@ describe('App', () => {
       const thirdChatId = wrapper.vm.chats[2].id
 
       // Set active to third chat
-      wrapper.vm.activeChat = thirdChatId
+      wrapper.vm.activeChatId = thirdChatId
 
       // Delete first chat (not active)
       wrapper.vm.deleteChat(firstChatId)
       await nextTick()
 
       // Should still be on third chat
-      expect(wrapper.vm.activeChat).toBe(thirdChatId)
+      expect(wrapper.vm.activeChatId).toBe(thirdChatId)
       expect(wrapper.vm.chats.length).toBe(2)
     })
 
@@ -806,7 +812,7 @@ describe('App', () => {
       })
 
       await nextTick()
-      expect(wrapper.vm.activeChat).toBe(2)
+      expect(wrapper.vm.activeChatId).toBe(2)
     })
 
     it('should load chat counter from localStorage on mount', async () => {
@@ -941,6 +947,11 @@ describe('App', () => {
         }
       })
 
+      // Ensure there is a chat and it is active
+      if (wrapper.vm.chats.length === 0) {
+        wrapper.vm.createNewChat()
+        await nextTick()
+      }
       wrapper.vm.selectedModel = 'test-model'
       await nextTick()
       

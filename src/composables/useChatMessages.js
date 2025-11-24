@@ -9,6 +9,11 @@ export function useChatMessages(props, emit, scrollToBottom) {
   const isLoading = ref(false)
   const isStreaming = ref(false)
 
+  // Always get the chat snapshot at the time of message send
+  function getTargetChat() {
+    return typeof props.getChat === 'function' ? props.getChat() : props.chat
+  }
+
   // Send a message to the API
   const sendMessageToAPI = async (chatMessage, targetChat) => {
     isLoading.value = true
@@ -63,9 +68,7 @@ export function useChatMessages(props, emit, scrollToBottom) {
                 targetChat.messages[messageIndex].thinking = currentThinking
               }
             }
-            if (props.chat.id === targetChat.id) {
-              scrollToBottom()
-            }
+            scrollToBottom()
           })
         }
       }
@@ -100,43 +103,46 @@ export function useChatMessages(props, emit, scrollToBottom) {
   // Retry a message
   const retryMessage = async (messageIndex) => {
     if (isLoading.value || !props.selectedModel) return
-    props.chat.messages.splice(messageIndex + 1)
+    const chat = getTargetChat()
+    chat.messages.splice(messageIndex + 1)
     const chatMessage = {
       role: 'assistant',
       content: '',
       displayContent: '',
       isWaiting: true
     }
-    props.chat.messages.push(chatMessage)
+    chat.messages.push(chatMessage)
     scrollToBottom()
-    await sendMessageToAPI(chatMessage, props.chat)
+    await sendMessageToAPI(chatMessage, chat)
   }
 
   // Edit a message
   const editMessage = async (messageIndex, newContent) => {
     if (isLoading.value || !props.selectedModel) return
-    if (!props.chat.messages[messageIndex]) return
-    props.chat.messages[messageIndex].content = newContent
-    props.chat.messages[messageIndex].displayContent = newContent
-    props.chat.messages.splice(messageIndex + 1)
+    const chat = getTargetChat()
+    if (!chat.messages[messageIndex]) return
+    chat.messages[messageIndex].content = newContent
+    chat.messages[messageIndex].displayContent = newContent
+    chat.messages.splice(messageIndex + 1)
     const chatMessage = {
       role: 'assistant',
       content: '',
       displayContent: '',
       isWaiting: true
     }
-    props.chat.messages.push(chatMessage)
+    chat.messages.push(chatMessage)
     scrollToBottom()
-    await sendMessageToAPI(chatMessage, props.chat)
+    await sendMessageToAPI(chatMessage, chat)
   }
 
   // Compress conversation
   const compressConversation = async () => {
-    if (isLoading.value || !props.selectedModel || props.chat.messages.length === 0) return
-    const messageCount = props.chat.messages.filter(m => m.role !== 'system').length
+    const chat = getTargetChat()
+    if (isLoading.value || !props.selectedModel || !chat || chat.messages.length === 0) return
+    const messageCount = chat.messages.filter(m => m.role !== 'system').length
     isLoading.value = true
     try {
-      const conversationText = props.chat.messages
+      const conversationText = chat.messages
         .filter(m => m.role !== 'system')
         .map(m => `${m.role === 'user' ? 'User' : 'Chat'}: ${m.content}`)
         .join('\n\n')
@@ -152,7 +158,7 @@ export function useChatMessages(props, emit, scrollToBottom) {
         thinking: response,
         showThinking: false
       }
-      props.chat.messages.push(compressedMessage)
+      chat.messages.push(compressedMessage)
       scrollToBottom()
     } catch (error) {
       alert('Failed to compress conversation: ' + error.message)
@@ -163,15 +169,16 @@ export function useChatMessages(props, emit, scrollToBottom) {
 
   // Handle sending a new user message
   const handleSendMessage = async (messageText) => {
+    const chat = getTargetChat()
     const userMessage = {
       role: 'user',
       content: messageText,
       displayContent: messageText
     }
-    props.chat.messages.push(userMessage)
-    if (props.chat.messages.filter(m => m.role === 'user').length === 1) {
+    chat.messages.push(userMessage)
+    if (chat.messages.filter(m => m.role === 'user').length === 1) {
       const title = messageText.length > 30 ? messageText.substring(0, 30) + '...' : messageText
-      emit('update-title', props.chat.id, title)
+      emit('update-title', chat.id, title)
     }
     scrollToBottom()
     const chatMessage = {
@@ -180,9 +187,9 @@ export function useChatMessages(props, emit, scrollToBottom) {
       displayContent: '',
       isWaiting: true
     }
-    props.chat.messages.push(chatMessage)
+    chat.messages.push(chatMessage)
     scrollToBottom()
-    await sendMessageToAPI(chatMessage, props.chat)
+    await sendMessageToAPI(chatMessage, chat)
   }
 
   // Stop streaming
@@ -195,16 +202,17 @@ export function useChatMessages(props, emit, scrollToBottom) {
 
   // Delete a user message and its reply, then update localStorage
   const deleteMessage = (userMsgIndex) => {
-    if (props.chat.messages[userMsgIndex]?.role !== 'user') return
-    props.chat.messages.splice(userMsgIndex, 2)
-    if (props.chat.chats) {
-      const chatIdx = props.chat.chats.findIndex(c => c.id === props.chat.id)
+    const chat = getTargetChat()
+    if (!chat || !chat.messages || chat.messages[userMsgIndex]?.role !== 'user') return
+    chat.messages.splice(userMsgIndex, 2)
+    if (chat.chats) {
+      const chatIdx = chat.chats.findIndex(c => c.id === chat.id)
       if (chatIdx !== -1) {
-        props.chat.chats[chatIdx].messages = props.chat.messages
-        saveChats(props.chat.chats)
+        chat.chats[chatIdx].messages = chat.messages
+        saveChats(chat.chats)
       }
     } else {
-      saveChats([props.chat])
+      saveChats([chat])
     }
   }
 

@@ -7,12 +7,12 @@
       </button>
     </div>
     <div class="messages-container" ref="messagesContainer">
-      <template v-for="(message, index) in chat.messages" :key="index">
+      <template v-if="activeChat && activeChat.messages" v-for="(message, index) in activeChat.messages" :key="index">
         <MessageItem
           v-if="message.role === 'user'"
           :message="message"
           :is-loading="isLoading"
-          :is-last-user-message="index === chat.messages.map(m => m.role).lastIndexOf('user')"
+          :is-last-user-message="index === activeChat.messages.map(m => m.role).lastIndexOf('user')"
           :force-collapsed="getCollapsed(index)"
           @retry="retryMessage(index)"
           @edit="editMessage(index, $event)"
@@ -34,7 +34,7 @@
       :is-loading="globalLoading"
       :is-streaming="isStreaming"
       :selected-model="selectedModel"
-      :show-compress="chat.messages.length > 0"
+      :show-compress="activeChat && activeChat.messages && activeChat.messages.length > 0"
       @send="handleSendMessage"
       @compress="compressConversation"
       @stop="stopStreaming"
@@ -88,6 +88,7 @@
 
 
 import { ref, watch, nextTick, onMounted } from 'vue'
+import { useChatStore } from '../composables/useChatStore'
 
 import MessageItem from './MessageItem.vue'
 import ChatInput from './ChatInput.vue'
@@ -104,7 +105,7 @@ export default {
   props: {
     chat: {
       type: Object,
-      required: true
+      required: false
     },
     selectedModel: {
       type: String,
@@ -115,12 +116,12 @@ export default {
       default: false
     }
   },
-  emits: ['update-title', 'loading-change'],
   setup(props, { emit }) {
+    const { activeChat } = useChatStore()
     const messagesContainer = ref(null)
 
     // Use composable for collapse logic
-    const chatRef = ref(props.chat)
+    const chatRef = ref(activeChat)
     const {
       allCollapsed,
       collapsedMap,
@@ -138,14 +139,14 @@ export default {
       })
     }
 
-    // Scroll to bottom when component is mounted (after page refresh)
     onMounted(() => {
       scrollToBottom()
     })
 
-
     // Use composable for chat message logic
-    const chatMessages = useChatMessages(props, emit, scrollToBottom)
+    // Always pass a snapshot of the current chat, not a reactive reference
+    const getChatSnapshot = () => props.chat || activeChat.value
+    const chatMessages = useChatMessages({ getChat: getChatSnapshot, selectedModel: props.selectedModel }, emit, scrollToBottom)
     const {
       isLoading,
       isStreaming,
@@ -158,7 +159,7 @@ export default {
       deleteMessage
     } = chatMessages
 
-    watch(() => props.chat.messages.length, () => {
+    watch(() => activeChat.value?.messages?.length, () => {
       scrollToBottom()
     })
 
@@ -176,7 +177,8 @@ export default {
       deleteMessage,
       getCollapsed,
       onUserCollapse,
-      expandAssociatedUser
+      expandAssociatedUser,
+      activeChat
     }
   }
 }

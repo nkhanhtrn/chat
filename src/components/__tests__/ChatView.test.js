@@ -5,6 +5,7 @@ import ChatView from '../ChatView.vue'
 import MessageItem from '../MessageItem.vue'
 import ChatInput from '../ChatInput.vue'
 import * as api from '../../services/api.js'
+import { useChatStore } from '../../composables/useChatStore.js'
 
 // Mock the API module
 vi.mock('../../services/api.js', () => ({
@@ -21,23 +22,29 @@ describe('ChatView', () => {
     if (wrapper) {
       wrapper.unmount()
     }
-    
+
     // Reset mocks
     vi.clearAllMocks()
-    
+
+    // Set up store state
+    const store = useChatStore()
+    store.chats.value = []
+    store.activeChatId.value = null
+
     // Create a fresh chat object for each test
     mockChat = {
       id: 1,
       title: 'Test Chat',
       messages: []
     }
+    store.chats.value.push(mockChat)
+    store.activeChatId.value = mockChat.id
   })
 
   describe('Rendering', () => {
     it('should render chat view with messages container and input', () => {
       wrapper = mount(ChatView, {
         props: {
-          chat: mockChat,
           selectedModel: 'test-model'
         }
       })
@@ -48,14 +55,14 @@ describe('ChatView', () => {
     })
 
     it('should render MessageItem for each message in chat', () => {
-      mockChat.messages = [
+      const store = useChatStore()
+      store.chats.value[0].messages = [
         { role: 'user', content: 'Hello', displayContent: 'Hello' },
         { role: 'assistant', content: 'Hi there', displayContent: 'Hi there' }
       ]
 
       wrapper = mount(ChatView, {
         props: {
-          chat: mockChat,
           selectedModel: 'test-model'
         }
       })
@@ -65,13 +72,13 @@ describe('ChatView', () => {
     })
 
     it('should pass correct props to ChatInput', () => {
-      mockChat.messages = [
+      const store = useChatStore()
+      store.chats.value[0].messages = [
         { role: 'user', content: 'Test', displayContent: 'Test' }
       ]
 
       wrapper = mount(ChatView, {
         props: {
-          chat: mockChat,
           selectedModel: 'gpt-4'
         }
       })
@@ -85,7 +92,6 @@ describe('ChatView', () => {
     it('should not show compress button when no messages', () => {
       wrapper = mount(ChatView, {
         props: {
-          chat: mockChat,
           selectedModel: 'test-model'
         }
       })
@@ -96,12 +102,6 @@ describe('ChatView', () => {
   })
 
   describe('Props', () => {
-    it('should require chat prop', () => {
-      const { chat } = ChatView.props
-      expect(chat.required).toBe(true)
-      expect(chat.type).toBe(Object)
-    })
-
     it('should require selectedModel prop', () => {
       const { selectedModel } = ChatView.props
       expect(selectedModel.required).toBe(true)

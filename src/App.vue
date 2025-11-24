@@ -46,44 +46,22 @@
       </div>
 
       <div class="chat-tabs">
-        <div 
-          v-for="(chat, index) in chats" 
+        <ChatThread
+          v-for="(chat, index) in chats"
           :key="chat.id"
-          :class="['chat-tab', { active: activeChat === chat.id, 'drag-over': dragOverChatIndex === index }]"
-          draggable="true"
-          @click="switchChat(chat.id)"
-          @dragstart="handleDragStart($event, index)"
-          @dragend="handleDragEnd"
-          @dragover="handleDragOver($event, index)"
-          @dragleave="handleDragLeave"
-          @drop="handleDrop($event, index)"
-        >
-          <input
-            v-if="chat.editing"
-            v-model="chat.title"
-            @click.stop
-            @keydown.enter="finishEditingTitle(chat)"
-            @blur="finishEditingTitle(chat)"
-            class="chat-title-input"
-            ref="titleInput"
-          />
-          <span v-else class="chat-title">{{ chat.title }}</span>
-          <div class="chat-actions">
-            <button 
-              v-if="!chat.editing"
-              @click.stop="startEditingTitle(chat)" 
-              class="edit-btn"
-            >
-              ✎
-            </button>
-            <button 
-              @click.stop="deleteChat(chat.id)" 
-              class="delete-btn"
-            >
-              ×
-            </button>
-          </div>
-        </div>
+          :chat="chat"
+          :active="activeChatId === chat.id"
+          :dragOver="dragOverChatIndex === index"
+          :finishEditingTitle="finishEditingTitle"
+          :startEditingTitle="startEditingTitle"
+          :deleteChat="deleteChat"
+          :onClick="() => switchChat(chat.id)"
+          :onDragStart="(e) => handleDragStart(e, index)"
+          :onDragEnd="handleDragEnd"
+          :onDragOver="(e) => handleDragOver(e, index)"
+          :onDragLeave="handleDragLeave"
+          :onDrop="(e) => handleDrop(e, index)"
+        />
       </div>
     </div>
 
@@ -105,8 +83,10 @@
 
 <script>
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { useChatStore } from './composables/useChatStore'
 import ChatView from './components/ChatView.vue'
 import ApiConfigModal from './components/ApiConfigModal.vue'
+import ChatThread from './components/ChatThread.vue'
 import { fetchModels, setApiBaseUrl } from './services/api.js'
 import * as storage from './services/storage.js'
 
@@ -114,11 +94,11 @@ export default {
   name: 'App',
   components: {
     ChatView,
-    ApiConfigModal
+    ApiConfigModal,
+    ChatThread,
   },
   setup() {
-    const chats = ref([])
-    const activeChat = ref(null)
+    const { chats, activeChatId, activeChat, setChats, setActiveChat, addChat, updateChat } = useChatStore()
     const models = ref([])
     const selectedModel = ref('')
     const loadingModels = ref(false)
@@ -133,9 +113,7 @@ export default {
     const isAnyLoading = ref(false)
     let chatIdCounter = 1
 
-    const currentChat = computed(() => {
-      return chats.value.find(chat => chat.id === activeChat.value)
-    })
+    const currentChat = activeChat
 
     const createNewChat = () => {
       const newChat = {
@@ -143,37 +121,29 @@ export default {
         title: `New Chat`,
         messages: []
       }
-      chats.value.push(newChat)
-      activeChat.value = newChat.id
+      addChat(newChat)
+      setActiveChat(newChat.id)
       storage.saveChatCounter(chatIdCounter)
     }
 
     const switchChat = (chatId) => {
-      activeChat.value = chatId
+      setActiveChat(chatId)
     }
 
     const deleteChat = (chatId) => {
       const index = chats.value.findIndex(chat => chat.id === chatId)
       if (index !== -1) {
-        // Determine which chat to switch to before removing
         let newActiveChatId = null
-        if (activeChat.value === chatId && chats.value.length > 1) {
-          // Select the chat above, or the one below if deleting the first chat
+        if (activeChatId.value === chatId && chats.value.length > 1) {
           const newIndex = index > 0 ? index - 1 : 1
           newActiveChatId = chats.value[newIndex].id
         }
-        
-        // Remove the chat
         chats.value.splice(index, 1)
-        
-        // Delete associated website context
         storage.deleteWebsiteContext(chatId)
-        
-        if (activeChat.value === chatId) {
+        if (activeChatId.value === chatId) {
           if (newActiveChatId) {
-            activeChat.value = newActiveChatId
+            setActiveChat(newActiveChatId)
           } else if (chats.value.length === 0) {
-            // Create a new empty chat when the last one is deleted
             createNewChat()
           }
         }
@@ -181,10 +151,7 @@ export default {
     }
 
     const updateChatTitle = (chatId, newTitle) => {
-      const chat = chats.value.find(c => c.id === chatId)
-      if (chat) {
-        chat.title = newTitle
-      }
+      updateChat(chatId, chat => { chat.title = newTitle })
     }
 
     const startEditingTitle = (chat) => {
@@ -328,8 +295,8 @@ export default {
         }
         
         if (data.activeChat) {
-          activeChat.value = data.activeChat
-          console.log('Active chat:', activeChat.value)
+          activeChatId.value = data.activeChat
+          console.log('Active chat ID:', activeChatId.value)
         }
         
         if (data.selectedModel) {
@@ -365,8 +332,8 @@ export default {
       storage.saveChats(chats.value)
     }, { deep: true })
 
-    watch(activeChat, () => {
-      storage.saveActiveChat(activeChat.value)
+    watch(activeChatId, (newId) => {
+      storage.saveActiveChat(newId)
     })
 
     watch(selectedModel, (newModel) => {
@@ -388,6 +355,7 @@ export default {
     return {
       chats,
       activeChat,
+      activeChatId,
       currentChat,
       models,
       selectedModel,
