@@ -29,13 +29,8 @@ export function useCollapseMessages(chat) {
     const shouldCollapse = !allCollapsed.value
     const map = {}
     const len = chat.value.messages.length
-    // Leave last 2 messages always expanded
     for (let i = 0; i < len; i++) {
-      if (i >= len - 2) {
-        map[i] = false
-      } else {
-        map[i] = shouldCollapse
-      }
+      map[i] = shouldCollapse
     }
     collapsedMap.value = map
     allCollapsed.value = shouldCollapse

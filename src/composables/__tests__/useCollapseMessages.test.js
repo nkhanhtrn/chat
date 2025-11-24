@@ -23,8 +23,8 @@ describe('useCollapseMessages', () => {
     expect(allCollapsed.value).toBe(false)
     toggleCollapseAll()
     expect(allCollapsed.value).toBe(true)
-    // Only first two collapsed, last two always expanded
-    expect(collapsedMap.value).toEqual({ 0: true, 1: true, 2: false, 3: false })
+    // All should be collapsed
+    expect(collapsedMap.value).toEqual({ 0: true, 1: true, 2: true, 3: true })
     toggleCollapseAll()
     expect(allCollapsed.value).toBe(false)
     expect(collapsedMap.value).toEqual({ 0: false, 1: false, 2: false, 3: false })
@@ -37,8 +37,7 @@ describe('useCollapseMessages', () => {
     // Collapse all
     toggleCollapseAll()
     expect(getCollapsed(0)).toBe(true)
-    // Last two should never be collapsed by toggleCollapseAll
-    expect(getCollapsed(3)).toBe(false)
+    expect(getCollapsed(3)).toBe(true)
     // Expand all
     toggleCollapseAll()
     expect(getCollapsed(0)).toBe(false)

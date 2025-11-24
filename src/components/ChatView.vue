@@ -2,8 +2,8 @@
   <div class="chat-view">
     <div class="collapse-all-btn-wrapper">
       <button class="collapse-all-btn" @click="toggleCollapseAll">
-        <span v-if="!allCollapsed">▼ Collapse All</span>
-        <span v-else>▲ Expand All</span>
+        <span v-if="!allCollapsed">▲ Collapse All</span>
+        <span v-else>▼ Expand All</span>
       </button>
     </div>
     <div class="messages-container" ref="messagesContainer">
@@ -184,6 +184,26 @@ export default {
     // Watch for questionToScroll prop and scroll to the corresponding user message
     watch(() => props.questionToScroll, (newIdx) => {
       if (typeof newIdx === 'number' && newIdx >= 0) {
+        // Find the user message index in the messages array
+        const userMsgIdx = activeChat.value.messages.findIndex((msg, idx) => {
+          let count = 0;
+          for (let i = 0; i <= idx; i++) {
+            if (activeChat.value.messages[i].role === 'user') {
+              if (count === newIdx) return true;
+              count++;
+            }
+          }
+          return false;
+        });
+        // Also expand the assistant reply if present
+        const updates = { ...collapsedMap.value };
+        if (userMsgIdx !== -1) {
+          updates[userMsgIdx] = false;
+          if (activeChat.value.messages[userMsgIdx + 1]?.role === 'assistant') {
+            updates[userMsgIdx + 1] = false;
+          }
+        }
+        collapsedMap.value = updates;
         nextTick(() => {
           const el = userMessageRefs.value[newIdx]
           if (el && typeof el.scrollIntoView === 'function') {
