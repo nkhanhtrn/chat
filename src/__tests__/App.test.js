@@ -958,7 +958,7 @@ describe('App', () => {
       const chatView = wrapper.findComponent(ChatView)
 
       expect(chatView.exists()).toBe(true)
-      expect(chatView.props('chat')).toBeDefined()
+      // ChatView now uses global state for chat, so no 'chat' prop is passed
       expect(chatView.props('selectedModel')).toBe('test-model')
       expect(chatView.props('globalLoading')).toBe(false)
     })

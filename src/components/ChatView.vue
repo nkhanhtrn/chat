@@ -103,10 +103,6 @@ export default {
     ChatInput
   },
   props: {
-    chat: {
-      type: Object,
-      required: false
-    },
     selectedModel: {
       type: String,
       required: true
@@ -143,13 +139,10 @@ export default {
       scrollToBottom()
     })
 
-    // Use composable for chat message logic
-    // Always pass a snapshot of the current chat, not a reactive reference
+    // Use composable for chat message logic, always use global activeChat
     const { selectedModel: globalSelectedModel } = useChatStore()
-    const getChatSnapshot = () => props.chat || activeChat.value
-    // Use the prop if provided, otherwise fallback to global state
     const selectedModelValue = props.selectedModel ?? globalSelectedModel.value
-    const chatMessages = useChatMessages({ getChat: getChatSnapshot, selectedModel: selectedModelValue }, emit, scrollToBottom)
+    const chatMessages = useChatMessages({ getChat: () => activeChat.value, selectedModel: selectedModelValue }, emit, scrollToBottom)
     const {
       isLoading,
       isStreaming,

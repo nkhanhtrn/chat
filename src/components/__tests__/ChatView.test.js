@@ -519,9 +519,11 @@ describe('ChatView', () => {
       })
 
       // Mount with chat1
+      const store = useChatStore()
+      store.chats.value = [chat1, chat2]
+      store.activeChatId.value = chat1.id
       wrapper = mount(ChatView, {
         props: {
-          chat: chat1,
           selectedModel: 'test-model'
         }
       })
@@ -538,7 +540,7 @@ describe('ChatView', () => {
       expect(chat1.messages[1].isWaiting).toBe(true)
 
       // Simulate switching to chat2 before response completes
-      await wrapper.setProps({ chat: chat2 })
+      store.activeChatId.value = chat2.id
       await nextTick()
 
       // Wait for streaming to complete
@@ -922,6 +924,7 @@ describe('ChatView', () => {
 
   describe('Chat Switching During Streaming', () => {
     it('should update correct chat when switching chats during streaming', async () => {
+      const store = useChatStore()
       const chat1 = {
         id: 1,
         title: 'Chat 1',
@@ -932,11 +935,11 @@ describe('ChatView', () => {
         title: 'Chat 2',
         messages: []
       }
+      store.chats.value = [chat1, chat2]
+      store.activeChatId.value = 1
 
       // Mock streaming behavior
-      let streamingCallback
       api.sendChatMessage.mockImplementation(async (messages, model, onChunk) => {
-        streamingCallback = onChunk
         if (onChunk) {
           // Simulate delayed streaming
           await new Promise(resolve => setTimeout(resolve, 50))
@@ -945,10 +948,8 @@ describe('ChatView', () => {
         return 'Response for chat 1'
       })
 
-      // Start with chat1
       wrapper = mount(ChatView, {
         props: {
-          chat: chat1,
           selectedModel: 'test-model'
         }
       })
@@ -965,7 +966,7 @@ describe('ChatView', () => {
       expect(chat1.messages[1].isWaiting).toBe(true)
 
       // Switch to chat2 before streaming completes
-      await wrapper.setProps({ chat: chat2 })
+      store.activeChatId.value = 2
       await nextTick()
 
       // Wait for streaming to complete
@@ -999,9 +1000,11 @@ describe('ChatView', () => {
         return 'Chunk 1 Chunk 2'
       })
 
+      const store = useChatStore()
+      store.chats.value = [chat1, chat2]
+      store.activeChatId.value = chat1.id
       wrapper = mount(ChatView, {
         props: {
-          chat: chat1,
           selectedModel: 'test-model'
         },
         attachTo: document.body
@@ -1012,7 +1015,7 @@ describe('ChatView', () => {
       await nextTick()
 
       // Switch to chat2
-      await wrapper.setProps({ chat: chat2 })
+      store.activeChatId.value = chat2.id
       await nextTick()
 
       // Get scroll position - should not change for chat2's container

@@ -61,14 +61,14 @@
           :onDragOver="(e) => handleDragOver(e, index)"
           :onDragLeave="handleDragLeave"
           :onDrop="(e) => handleDrop(e, index)"
+          :sidebarCollapsed="sidebarCollapsed"
         />
       </div>
     </div>
 
     <div class="main-content">
       <ChatView 
-        v-if="currentChat"
-        :chat="currentChat"
+        v-if="activeChat"
         :selectedModel="selectedModel"
         :global-loading="isAnyLoading"
         @update-title="updateChatTitle"
