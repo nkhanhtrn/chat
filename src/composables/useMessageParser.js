@@ -2,6 +2,55 @@ export function useMessageParser() {
   const parseMessage = (content) => {
     if (!content) return []
 
+    // Only use tag parsing if the message starts with <| (to avoid breaking code block parsing)
+    if (content.trim().startsWith('<|')) {
+      const tagPattern = /<\|([a-zA-Z]+)\|>([^<]*)/g
+      let tagMatch
+      let tagElements = []
+      let lastIndex = 0
+      while ((tagMatch = tagPattern.exec(content)) !== null) {
+        // Add any text before the tag as normal parsed content
+        if (tagMatch.index > lastIndex) {
+          const before = content.slice(lastIndex, tagMatch.index)
+          if (before.trim()) {
+            tagElements.push(...parseInlineElementsWithoutEscaping(before))
+          }
+        }
+        const tag = tagMatch[1]
+        let value = tagMatch[2].trim()
+        // For channel, check for 'to=final' or similar
+        if (tag === 'channel') {
+          // e.g. 'commentary to=final'
+          const channelMatch = value.match(/^(\w+)(?:\s+to=(\w+))?/)
+          tagElements.push({
+            type: 'channel',
+            value: channelMatch ? channelMatch[1] : value,
+            to: channelMatch && channelMatch[2] ? channelMatch[2] : undefined
+          })
+        } else if (tag === 'constrain') {
+          tagElements.push({ type: 'constrain', value })
+        } else if (tag === 'message') {
+          tagElements.push({ type: 'message', value })
+        } else if (tag === 'commentary') {
+          tagElements.push({ type: 'commentary', value })
+        } else {
+          // Unknown tag, just add as plain
+          tagElements.push({ type: 'tag', tag, value })
+        }
+        lastIndex = tagPattern.lastIndex
+      }
+      // Add any trailing text after the last tag
+      if (lastIndex < content.length) {
+        const after = content.slice(lastIndex)
+        if (after.trim()) {
+          tagElements.push(...parseInlineElementsWithoutEscaping(after))
+        }
+      }
+      // If we found any tag elements, return them directly
+      if (tagElements.length > 0) return tagElements
+    }
+
+    // Fallback to original logic if no tags found or message doesn't start with <|
     const elements = []
     let currentPosition = 0
 

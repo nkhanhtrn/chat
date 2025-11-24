@@ -368,6 +368,15 @@ describe('useMessageParser', () => {
   })
 
   describe('parseMessage', () => {
+        it('should parse special tags for reply message', () => {
+          const content = '<|channel|>commentary to=final <|constrain|>response<|message|>5'
+          const result = parseMessage(content)
+          expect(result).toEqual([
+            { type: 'channel', value: 'commentary', to: 'final' },
+            { type: 'constrain', value: 'response' },
+            { type: 'message', value: '5' }
+          ])
+        })
     it('should return empty array for empty content', () => {
       expect(parseMessage('')).toEqual([])
       expect(parseMessage(null)).toEqual([])

@@ -5,6 +5,297 @@ import ChatThread from '../ChatThread.vue'
 import { useChatStore } from '../../composables/useChatStore.js'
 
 describe('ChatThread', () => {
+      it('messageUnits covers assistant=null branch', () => {
+        chat.messages = [
+          { role: 'user', content: 'Q1' },
+          { role: 'user', content: 'Q2' },
+          { role: 'assistant', content: 'A2' }
+        ]
+        const wrapper = mount(ChatThread, {
+          props: {
+            id: chat.id,
+            active: false,
+            dragOver: false,
+            deleteChat: vi.fn(),
+            onClick: vi.fn(),
+            onDragStart: vi.fn(),
+            onDragEnd: vi.fn(),
+            onDragOver: vi.fn(),
+            onDragLeave: vi.fn(),
+            onDrop: vi.fn(),
+            sidebarCollapsed: false
+          }
+        })
+        const units = wrapper.vm.messageUnits
+        expect(units.length).toBe(2)
+        expect(units[0].assistant).toBe(null)
+        expect(units[1].assistant.content).toBe('A2')
+        wrapper.unmount()
+      })
+
+      it('localTitle setter sets globalChat title', () => {
+        const wrapper = mount(ChatThread, {
+          props: {
+            id: chat.id,
+            active: false,
+            dragOver: false,
+            deleteChat: vi.fn(),
+            onClick: vi.fn(),
+            onDragStart: vi.fn(),
+            onDragEnd: vi.fn(),
+            onDragOver: vi.fn(),
+            onDragLeave: vi.fn(),
+            onDrop: vi.fn(),
+            sidebarCollapsed: false
+          }
+        })
+        wrapper.vm.localTitle = 'Setter Title'
+        expect(wrapper.vm.globalChat.title).toBe('Setter Title')
+        wrapper.unmount()
+      })
+
+      it('capitalizeWords method is covered', () => {
+        const wrapper = mount(ChatThread, {
+          props: {
+            id: chat.id,
+            active: false,
+            dragOver: false,
+            deleteChat: vi.fn(),
+            onClick: vi.fn(),
+            onDragStart: vi.fn(),
+            onDragEnd: vi.fn(),
+            onDragOver: vi.fn(),
+            onDragLeave: vi.fn(),
+            onDrop: vi.fn(),
+            sidebarCollapsed: false
+          }
+        })
+        expect(wrapper.vm.capitalizeWords('foo bar')).toBe('Foo Bar')
+        wrapper.unmount()
+      })
+
+      it('onQuestionDragOver covers branch', () => {
+        const wrapper = mount(ChatThread, {
+          props: {
+            id: chat.id,
+            active: false,
+            dragOver: false,
+            deleteChat: vi.fn(),
+            onClick: vi.fn(),
+            onDragStart: vi.fn(),
+            onDragEnd: vi.fn(),
+            onDragOver: vi.fn(),
+            onDragLeave: vi.fn(),
+            onDrop: vi.fn(),
+            sidebarCollapsed: false
+          }
+        })
+        wrapper.vm.draggingIdx = 0
+        wrapper.vm.onQuestionDragOver(1)
+        expect(wrapper.vm.dragOverIdx).toBe(1)
+        wrapper.unmount()
+      })
+
+      it('onQuestionDragEnd sets draggingIdx and dragOverIdx to null', () => {
+        const wrapper = mount(ChatThread, {
+          props: {
+            id: chat.id,
+            active: false,
+            dragOver: false,
+            deleteChat: vi.fn(),
+            onClick: vi.fn(),
+            onDragStart: vi.fn(),
+            onDragEnd: vi.fn(),
+            onDragOver: vi.fn(),
+            onDragLeave: vi.fn(),
+            onDrop: vi.fn(),
+            sidebarCollapsed: false
+          }
+        })
+        wrapper.vm.draggingIdx = 2
+        wrapper.vm.dragOverIdx = 3
+        wrapper.vm.onQuestionDragEnd()
+        expect(wrapper.vm.draggingIdx).toBe(null)
+        expect(wrapper.vm.dragOverIdx).toBe(null)
+        wrapper.unmount()
+      })
+    it('does nothing onQuestionDrop if draggingIdx is null or same as idx', async () => {
+      const wrapper = mount(ChatThread, {
+        props: {
+          id: chat.id,
+          active: false,
+          dragOver: false,
+          deleteChat: vi.fn(),
+          onClick: vi.fn(),
+          onDragStart: vi.fn(),
+          onDragEnd: vi.fn(),
+          onDragOver: vi.fn(),
+          onDragLeave: vi.fn(),
+          onDrop: vi.fn(),
+          sidebarCollapsed: false
+        }
+      })
+      wrapper.vm.draggingIdx = null
+      wrapper.vm.onQuestionDrop(0)
+      expect(wrapper.vm.draggingIdx).toBe(null)
+      wrapper.vm.draggingIdx = 1
+      wrapper.vm.onQuestionDrop(1)
+      expect(wrapper.vm.draggingIdx).toBe(null)
+      wrapper.unmount()
+    })
+
+    it('does nothing onQuestionDrop if no globalChat or messages', async () => {
+      store.chats.value = [{ id: 999, messages: null }]
+      const wrapper = mount(ChatThread, {
+        props: {
+          id: 999,
+          active: false,
+          dragOver: false,
+          deleteChat: vi.fn(),
+          onClick: vi.fn(),
+          onDragStart: vi.fn(),
+          onDragEnd: vi.fn(),
+          onDragOver: vi.fn(),
+          onDragLeave: vi.fn(),
+          onDrop: vi.fn(),
+          sidebarCollapsed: false
+        }
+      })
+      wrapper.vm.draggingIdx = 0
+      wrapper.vm.onQuestionDrop(0)
+      expect(wrapper.vm.draggingIdx).toBe(null)
+      wrapper.unmount()
+    })
+
+    it('does nothing onQuestionDrop if fromUnit or toUnit is missing', async () => {
+      chat.messages = [{ role: 'user', content: 'Q1' }]
+      const wrapper = mount(ChatThread, {
+        props: {
+          id: chat.id,
+          active: false,
+          dragOver: false,
+          deleteChat: vi.fn(),
+          onClick: vi.fn(),
+          onDragStart: vi.fn(),
+          onDragEnd: vi.fn(),
+          onDragOver: vi.fn(),
+          onDragLeave: vi.fn(),
+          onDrop: vi.fn(),
+          sidebarCollapsed: false
+        }
+      })
+      wrapper.vm.draggingIdx = 1
+      wrapper.vm.onQuestionDrop(0)
+      expect(wrapper.vm.draggingIdx).toBe(null)
+      wrapper.unmount()
+    })
+
+    it('saveTitleEdit does nothing if title unchanged or empty', async () => {
+      const wrapper = mount(ChatThread, {
+        props: {
+          id: chat.id,
+          active: false,
+          dragOver: false,
+          deleteChat: vi.fn(),
+          onClick: vi.fn(),
+          onDragStart: vi.fn(),
+          onDragEnd: vi.fn(),
+          onDragOver: vi.fn(),
+          onDragLeave: vi.fn(),
+          onDrop: vi.fn(),
+          sidebarCollapsed: false
+        }
+      })
+      wrapper.vm.editingTitle = true
+      wrapper.vm.editTitleValue = ''
+      wrapper.vm.saveTitleEdit()
+      expect(wrapper.vm.editingTitle).toBe(false)
+      wrapper.vm.editTitleValue = wrapper.vm.localTitle
+      wrapper.vm.editingTitle = true
+      wrapper.vm.saveTitleEdit()
+      expect(wrapper.vm.editingTitle).toBe(false)
+      wrapper.unmount()
+    })
+
+    it('onQuestionClick emits and sets active even if no globalChat', async () => {
+      store.chats.value = []
+      const wrapper = mount(ChatThread, {
+        props: {
+          id: 999,
+          active: false,
+          dragOver: false,
+          deleteChat: vi.fn(),
+          onClick: vi.fn(),
+          onDragStart: vi.fn(),
+          onDragEnd: vi.fn(),
+          onDragOver: vi.fn(),
+          onDragLeave: vi.fn(),
+          onDrop: vi.fn(),
+          sidebarCollapsed: false
+        }
+      })
+      wrapper.vm.onQuestionClick(0)
+      expect(wrapper.emitted('question-click')).toBeTruthy()
+      wrapper.unmount()
+    })
+
+    it('summarizeQuestions handles empty/invalid API response', async () => {
+      const sendChatMessage = vi.spyOn(api, 'sendChatMessage').mockResolvedValue('')
+      store.selectedModel.value = 'test-model'
+      const wrapper = mount(ChatThread, {
+        props: {
+          id: chat.id,
+          active: false,
+          dragOver: false,
+          deleteChat: vi.fn(),
+          onClick: vi.fn(),
+          onDragStart: vi.fn(),
+          onDragEnd: vi.fn(),
+          onDragOver: vi.fn(),
+          onDragLeave: vi.fn(),
+          onDrop: vi.fn(),
+          sidebarCollapsed: false
+        }
+      })
+      window.alert = vi.fn()
+      await wrapper.find('.summarize-btn').trigger('click')
+      expect(window.alert).toHaveBeenCalled()
+      sendChatMessage.mockResolvedValue('a,b,c,d')
+      await wrapper.find('.summarize-btn').trigger('click')
+      expect(window.alert).toHaveBeenCalled()
+      wrapper.unmount()
+    })
+
+    it('keyboard events on title input: Enter saves, Escape cancels', async () => {
+      const wrapper = mount(ChatThread, {
+        props: {
+          id: chat.id,
+          active: false,
+          dragOver: false,
+          deleteChat: vi.fn(),
+          onClick: vi.fn(),
+          onDragStart: vi.fn(),
+          onDragEnd: vi.fn(),
+          onDragOver: vi.fn(),
+          onDragLeave: vi.fn(),
+          onDrop: vi.fn(),
+          sidebarCollapsed: false
+        },
+        attachTo: document.body
+      })
+      await wrapper.find('.chat-title').trigger('click')
+      await wrapper.vm.$nextTick()
+      const input = wrapper.find('input.chat-title-input')
+      await input.setValue('New Title 2')
+      await input.trigger('keyup.enter')
+      expect(wrapper.vm.editingTitle).toBe(false)
+      await wrapper.find('.chat-title').trigger('click')
+      await wrapper.vm.$nextTick()
+      await input.setValue('Another Title')
+      await input.trigger('keyup.esc')
+      expect(wrapper.vm.editingTitle).toBe(false)
+      wrapper.unmount()
+    })
   let store
   let chat
 
