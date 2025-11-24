@@ -117,7 +117,7 @@ export default {
       default: false
     }
   },
-  emits: ['retry', 'edit'],
+  emits: ['retry', 'edit', 'collapse', 'expand-associated-user', 'delete'],
 
   setup(props, { emit }) {
     const isEditing = ref(false)

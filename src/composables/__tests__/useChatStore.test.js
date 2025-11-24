@@ -46,4 +46,46 @@ describe('useChatStore', () => {
     store.setActiveChat(999)
     expect(store.activeChat.value).toBeUndefined()
   })
+
+  it('should have an empty string as the default selectedModel', () => {
+    expect(typeof store.selectedModel.value).toBe('string')
+    expect(store.selectedModel.value).toBe('')
+  })
+
+  it('should update selectedModel and be reactive', () => {
+    const testValue1 = 'model-a'
+    const testValue2 = 'model-b'
+    store.selectedModel.value = testValue1
+    expect(store.selectedModel.value).toBe(testValue1)
+    store.selectedModel.value = testValue2
+    expect(store.selectedModel.value).toBe(testValue2)
+  })
+
+  it('should have an empty string as the default hostname', () => {
+    expect(typeof store.hostname.value).toBe('string')
+    expect(store.hostname.value).toBe('')
+  })
+
+  it('should update hostname and be reactive', () => {
+    const testHost1 = 'localhost'
+    const testHost2 = '192.168.1.1'
+    store.hostname.value = testHost1
+    expect(store.hostname.value).toBe(testHost1)
+    store.hostname.value = testHost2
+    expect(store.hostname.value).toBe(testHost2)
+  })
+
+  it('should have an empty string as the default port', () => {
+    expect(typeof store.port.value).toBe('string')
+    expect(store.port.value).toBe('')
+  })
+
+  it('should update port and be reactive', () => {
+    const testPort1 = '1234'
+    const testPort2 = '8080'
+    store.port.value = testPort1
+    expect(store.port.value).toBe(testPort1)
+    store.port.value = testPort2
+    expect(store.port.value).toBe(testPort2)
+  })
 })

@@ -98,9 +98,8 @@ export default {
     ChatThread,
   },
   setup() {
-    const { chats, activeChatId, activeChat, setChats, setActiveChat, addChat, updateChat } = useChatStore()
+    const { chats, activeChatId, activeChat, setChats, setActiveChat, addChat, updateChat, selectedModel } = useChatStore()
     const models = ref([])
-    const selectedModel = ref('')
     const loadingModels = ref(false)
     const showApiModal = ref(false)
     const apiConfig = ref({

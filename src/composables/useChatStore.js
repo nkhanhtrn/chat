@@ -1,8 +1,12 @@
 import { ref, computed } from 'vue'
 
 // Global chat state store (simple version, can be replaced with Pinia)
+
 const chats = ref([])
 const activeChatId = ref(null)
+const selectedModel = ref('')
+const hostname = ref('')
+const port = ref('')
 
 const activeChat = computed(() => chats.value.find(c => c.id === activeChatId.value))
 
@@ -30,6 +34,9 @@ export function useChatStore() {
     chats,
     activeChatId,
     activeChat,
+    selectedModel,
+    hostname,
+    port,
     setChats,
     setActiveChat,
     addChat,
