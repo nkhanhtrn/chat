@@ -2,7 +2,7 @@
   <div class="chat-view">
     <div class="collapse-all-btn-wrapper">
       <button class="collapse-all-btn" @click="toggleCollapseAll">
-        <span v-if="!collapseAllMessages">▼ Collapse All</span>
+        <span v-if="!allCollapsed">▼ Collapse All</span>
         <span v-else>▲ Expand All</span>
       </button>
     </div>
@@ -122,7 +122,7 @@ export default {
     // Use composable for collapse logic
     const chatRef = ref(props.chat)
     const {
-      collapseAllMessages,
+      allCollapsed,
       collapsedMap,
       toggleCollapseAll,
       getCollapsed,
@@ -171,7 +171,7 @@ export default {
       handleSendMessage,
       compressConversation,
       stopStreaming,
-      collapseAllMessages,
+      allCollapsed,
       toggleCollapseAll,
       deleteMessage,
       getCollapsed,

@@ -16,17 +16,18 @@ describe('useCollapseMessages', () => {
 
   it('toggles collapse all and expands all', () => {
     const {
-      collapseAllMessages,
+      allCollapsed,
       collapsedMap,
       toggleCollapseAll
     } = useCollapseMessages(chat)
-    expect(collapseAllMessages.value).toBe(false)
+    expect(allCollapsed.value).toBe(false)
     toggleCollapseAll()
-    expect(collapseAllMessages.value).toBe(true)
-    expect(collapsedMap.value).toEqual({ 0: true, 1: true, 2: true })
+    expect(allCollapsed.value).toBe(true)
+    // Only first two collapsed, last two always expanded
+    expect(collapsedMap.value).toEqual({ 0: true, 1: true, 2: false, 3: false })
     toggleCollapseAll()
-    expect(collapseAllMessages.value).toBe(false)
-    expect(collapsedMap.value).toEqual({})
+    expect(allCollapsed.value).toBe(false)
+    expect(collapsedMap.value).toEqual({ 0: false, 1: false, 2: false, 3: false })
   })
 
   it('getCollapsed returns correct state', () => {
@@ -36,14 +37,18 @@ describe('useCollapseMessages', () => {
     // Collapse all
     toggleCollapseAll()
     expect(getCollapsed(0)).toBe(true)
-    // Last message should not be collapsed
+    // Last two should never be collapsed by toggleCollapseAll
+    expect(getCollapsed(3)).toBe(false)
+    // Expand all
+    toggleCollapseAll()
+    expect(getCollapsed(0)).toBe(false)
     expect(getCollapsed(3)).toBe(false)
   })
 
   it('onUserCollapse updates user and assistant', () => {
     const { onUserCollapse, collapsedMap } = useCollapseMessages(chat)
     onUserCollapse(0, true)
-    expect(collapsedMap.value).toEqual({ 0: true, 1: true })
+    expect(collapsedMap.value).toEqual({ 0: true, 1: true, 2: false, 3: false })
     onUserCollapse(2, false)
     expect(collapsedMap.value).toEqual({ 0: true, 1: true, 2: false, 3: false })
   })

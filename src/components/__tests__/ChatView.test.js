@@ -1194,7 +1194,7 @@ describe('ChatView', () => {
   })
 
   describe('Collapse/Expand Button', () => {
-    it('should toggle collapseAllMessages when button is clicked', async () => {
+    it('should toggle allCollapsed when button is clicked', async () => {
       wrapper = mount(ChatView, {
         props: {
           chat: mockChat,
@@ -1202,11 +1202,11 @@ describe('ChatView', () => {
         }
       })
       const btn = wrapper.find('.collapse-all-btn')
-      expect(wrapper.vm.collapseAllMessages).toBe(false)
+      expect(wrapper.vm.allCollapsed).toBe(false)
       await btn.trigger('click')
-      expect(wrapper.vm.collapseAllMessages).toBe(true)
+      expect(wrapper.vm.allCollapsed).toBe(true)
       await btn.trigger('click')
-      expect(wrapper.vm.collapseAllMessages).toBe(false)
+      expect(wrapper.vm.allCollapsed).toBe(false)
     })
   })
 
