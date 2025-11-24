@@ -420,7 +420,7 @@ describe('ChatThread', () => {
     wrapper.unmount()
   })
 
-  it('userMessages computed returns [] if no chat', () => {
+  it('messageUnits computed returns [] if no chat', () => {
     store.chats.value = []
     const wrapper = mount(ChatThread, {
       props: {
@@ -437,7 +437,69 @@ describe('ChatThread', () => {
         sidebarCollapsed: false
       }
     })
-    expect(wrapper.vm.userMessages).toEqual([])
+    expect(wrapper.vm.messageUnits).toEqual([])
+    wrapper.unmount()
+  })
+
+  it('renders only questions (not answers) in the list', async () => {
+    const wrapper = mount(ChatThread, {
+      props: {
+        id: chat.id,
+        active: false,
+        dragOver: false,
+        deleteChat: vi.fn(),
+        onClick: vi.fn(),
+        onDragStart: vi.fn(),
+        onDragEnd: vi.fn(),
+        onDragOver: vi.fn(),
+        onDragLeave: vi.fn(),
+        onDrop: vi.fn(),
+        sidebarCollapsed: false
+      }
+    })
+    await wrapper.vm.toggleQuestions()
+    await wrapper.vm.$nextTick()
+    const items = wrapper.findAll('.chat-question-item')
+    expect(items.length).toBe(2)
+    expect(items[0].text()).toContain('Question 1')
+    expect(items[0].text()).not.toContain('Answer 1')
+    expect(items[1].text()).toContain('Question 2')
+    wrapper.unmount()
+  })
+
+  it('reorders both question and answer in data when a question is moved', async () => {
+    // Add a second answer for the second question
+    chat.messages = [
+      { role: 'user', content: 'Q1' },
+      { role: 'assistant', content: 'A1' },
+      { role: 'user', content: 'Q2' },
+      { role: 'assistant', content: 'A2' }
+    ]
+    const wrapper = mount(ChatThread, {
+      props: {
+        id: chat.id,
+        active: false,
+        dragOver: false,
+        deleteChat: vi.fn(),
+        onClick: vi.fn(),
+        onDragStart: vi.fn(),
+        onDragEnd: vi.fn(),
+        onDragOver: vi.fn(),
+        onDragLeave: vi.fn(),
+        onDrop: vi.fn(),
+        sidebarCollapsed: false
+      }
+    })
+    await wrapper.vm.toggleQuestions()
+    await wrapper.vm.$nextTick()
+    // Simulate drag Q2 (idx 1) to idx 0
+    wrapper.vm.onQuestionDragStart(1)
+    wrapper.vm.onQuestionDrop(0)
+    // Now Q2/A2 should be first, Q1/A1 second
+    expect(chat.messages[0].content).toBe('Q2')
+    expect(chat.messages[1].content).toBe('A2')
+    expect(chat.messages[2].content).toBe('Q1')
+    expect(chat.messages[3].content).toBe('A1')
     wrapper.unmount()
   })
 })

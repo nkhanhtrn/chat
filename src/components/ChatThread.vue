@@ -57,9 +57,21 @@
         </button>
       </div>
     </div>
-    <ul v-if="userMessages && userMessages.length && !questionsCollapsed" class="chat-questions-list chat-questions-list-separated">
-      <li v-for="(msg, idx) in userMessages" :key="idx" class="chat-question-item" @click="onQuestionClick(idx)" :title="capitalizeWords(msg.summarized)">
-        {{ capitalizeWords(msg.summarized) }}
+    <ul v-if="messageUnits.length && !questionsCollapsed" class="chat-questions-list chat-questions-list-separated">
+      <li
+        v-for="(unit, idx) in messageUnits"
+        :key="idx"
+        class="chat-question-item"
+        @click="onQuestionClick(idx)"
+        :title="capitalizeWords(unit.user.summarized || unit.user.content)"
+        draggable="true"
+        @dragstart="onQuestionDragStart(idx)"
+        @dragover.prevent="onQuestionDragOver(idx)"
+        @drop.prevent="onQuestionDrop(idx)"
+        @dragend="onQuestionDragEnd"
+        :class="['chat-question-item', { 'dragging': draggingIdx === idx, 'drag-over': dragOverIdx === idx }]"
+      >
+        <div><strong>{{ capitalizeWords(unit.user.summarized || unit.user.content) }}</strong></div>
       </li>
     </ul>
   </div>
@@ -90,10 +102,23 @@ export default {
     onDrop: { type: Function, required: true }
   },
   computed: {
-    userMessages() {
+    // Group user+assistant as units
+    messageUnits() {
       const globalChat = chats.value.find(c => c.id === this.id)
       if (!globalChat || !Array.isArray(globalChat.messages)) return []
-      return globalChat.messages.filter(msg => msg && msg.role === 'user' && msg.content)
+      const units = []
+      const msgs = globalChat.messages
+      for (let i = 0; i < msgs.length; i++) {
+        if (msgs[i].role === 'user') {
+          const user = msgs[i]
+          let assistant = null
+          if (msgs[i+1] && msgs[i+1].role === 'assistant') {
+            assistant = msgs[i+1]
+          }
+          units.push({ user, assistant })
+        }
+      }
+      return units
     },
     globalChat() {
       return chats.value.find(c => c.id === this.id)
@@ -112,11 +137,69 @@ export default {
       questionsCollapsed: true,
       editingTitle: false,
       editTitleValue: '',
-      syncing: false
+      syncing: false,
+      draggingIdx: null,
+      dragOverIdx: null
     }
   },
   methods: {
     capitalizeWords,
+
+      // Drag-and-drop reorder logic for questions
+      onQuestionDragStart(idx) {
+        this.draggingIdx = idx;
+      },
+      onQuestionDragOver(idx) {
+        if (this.draggingIdx !== null && this.draggingIdx !== idx) {
+          this.dragOverIdx = idx;
+        }
+      },
+      onQuestionDrop(idx) {
+        if (this.draggingIdx === null || this.draggingIdx === idx) {
+          this.draggingIdx = null;
+          this.dragOverIdx = null;
+          return;
+        }
+        const globalChat = chats.value.find(c => c.id === this.id);
+        if (!globalChat || !Array.isArray(globalChat.messages)) {
+          this.draggingIdx = null;
+          this.dragOverIdx = null;
+          return;
+        }
+        // Build units for index mapping
+        const units = []
+        const msgs = globalChat.messages
+        for (let i = 0; i < msgs.length; i++) {
+          if (msgs[i].role === 'user') {
+            const userIdx = i
+            let assistantIdx = null
+            if (msgs[i+1] && msgs[i+1].role === 'assistant') {
+              assistantIdx = i+1
+            }
+            units.push({ userIdx, assistantIdx })
+          }
+        }
+        const fromUnit = units[this.draggingIdx]
+        const toUnit = units[idx]
+        if (!fromUnit || !toUnit) {
+          this.draggingIdx = null;
+          this.dragOverIdx = null;
+          return;
+        }
+        // Extract the user+assistant messages
+        const moveCount = fromUnit.assistantIdx !== null ? 2 : 1
+        const moved = msgs.splice(fromUnit.userIdx, moveCount)
+        // Adjust to index if moving down
+        let insertIdx = toUnit.userIdx
+        if (fromUnit.userIdx < toUnit.userIdx) insertIdx = toUnit.userIdx - moveCount + (toUnit.assistantIdx !== null ? 2 : 1)
+        msgs.splice(insertIdx, 0, ...moved)
+        this.draggingIdx = null;
+        this.dragOverIdx = null;
+      },
+      onQuestionDragEnd() {
+        this.draggingIdx = null;
+        this.dragOverIdx = null;
+      },
     toggleQuestions() {
       this.questionsCollapsed = !this.questionsCollapsed
     },
@@ -145,9 +228,10 @@ export default {
       this.$emit('question-click', { chatId: this.id, questionIndex: idx })
     },
     async summarizeQuestions() {
-      if (this.userMessages.length === 0) return;
+      const userMessages = this.messageUnits.map(u => u.user)
+      if (userMessages.length === 0) return;
       // Compose the prompt
-      const questions = this.userMessages.map((msg, i) => `- ${msg.content}`).join('\n')
+      const questions = userMessages.map((msg, i) => `- ${msg.content}`).join('\n')
       const prompt = `here's the list of my question so far:\n${questions}\n\nplease summary the question into 2-4 words max per questions, then return them in a list of word separated by comma. Just give me the list of summarized questions only and nothing else. For example : question 1,question 2,question 3`;
 
       // Use selectedModel from global state
@@ -165,7 +249,7 @@ export default {
         // Parse the response: should be a comma-separated list
         console.log('Summarized response:', response)
         const names = response.split(',').map(s => s.trim()).filter(Boolean)
-        if (names.length !== this.userMessages.length) {
+        if (names.length !== userMessages.length) {
           alert('The number of summarized questions does not match the original. Please try again.')
           return
         }
@@ -281,6 +365,13 @@ export default {
 .chat-question-item:hover {
   color: #7a97c7;
   text-decoration: underline;
+}
+.chat-question-item.dragging {
+  opacity: 0.5;
+}
+.chat-question-item.drag-over {
+  border-top: 2px solid #10a37f;
+  margin-top: 2px;
 }
 .sync-spinner {
   display: flex;
