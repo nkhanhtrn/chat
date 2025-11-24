@@ -9,7 +9,8 @@ import * as api from '../../services/api.js'
 // Mock the API module
 vi.mock('../../services/api.js', () => ({
   sendChatMessage: vi.fn(),
-  abortChatMessage: vi.fn()
+  abortChatMessage: vi.fn(),
+  saveChats: vi.fn()
 }))
 
 describe('ChatView', () => {

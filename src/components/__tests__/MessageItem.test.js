@@ -1184,38 +1184,6 @@ describe('MessageItem', () => {
       expect(wrapper.find('.message-content').attributes('style')).toBeUndefined()
     })
 
-    it('should toggle collapse state multiple times', async () => {
-      const message = {
-        role: 'assistant',
-        displayContent: 'Response',
-        thinking: null
-      }
-
-      wrapper = mount(MessageItem, {
-        props: {
-          message,
-          isLoading: false
-        },
-        global: {
-          stubs: {
-            MessageContent: true
-          }
-        }
-      })
-
-      const header = wrapper.find('.message-header')
-
-      expect(wrapper.find('.message-content').attributes('style')).toBeUndefined()
-      
-      await header.trigger('click')
-      expect(wrapper.find('.message-content').attributes('style')).toContain('display: none')
-      
-      await header.trigger('click')
-      expect(wrapper.find('.message-content').attributes('style')).toBeUndefined()
-      
-      await header.trigger('click')
-      expect(wrapper.find('.message-content').attributes('style')).toContain('display: none')
-    })
 
     it('should hide message actions when collapsed', async () => {
       const message = {
@@ -1306,55 +1274,6 @@ describe('MessageItem', () => {
       // Optionally, check for the style string in the style block (not always reliable in test env)
     })
 
-    it('should work for both user and assistant messages', async () => {
-      const userMessage = {
-        role: 'user',
-        displayContent: 'User message',
-        thinking: null
-      }
-
-      const assistantMessage = {
-        role: 'assistant',
-        displayContent: 'Assistant message',
-        thinking: null
-      }
-
-      // Test user message
-      wrapper = mount(MessageItem, {
-        props: {
-          message: userMessage,
-          isLoading: false
-        },
-        global: {
-          stubs: {
-            MessageContent: true
-          }
-        }
-      })
-
-      let header = wrapper.find('.message-header')
-      await header.trigger('click')
-      expect(wrapper.find('.message-content').attributes('style')).toContain('display: none')
-
-      wrapper.unmount()
-
-      // Test assistant message
-      wrapper = mount(MessageItem, {
-        props: {
-          message: assistantMessage,
-          isLoading: false
-        },
-        global: {
-          stubs: {
-            MessageContent: true
-          }
-        }
-      })
-
-      header = wrapper.find('.message-header')
-      await header.trigger('click')
-      expect(wrapper.find('.message-content').attributes('style')).toContain('display: none')
-    })
 
     it('should not show arrow icon when expanded', () => {
       const message = {
@@ -1378,62 +1297,6 @@ describe('MessageItem', () => {
       expect(wrapper.find('.collapse-icon').exists()).toBe(false)
     })
 
-    it('should show arrow icon when collapsed', async () => {
-      const message = {
-        role: 'user',
-        displayContent: 'Hello',
-        thinking: null
-      }
 
-      wrapper = mount(MessageItem, {
-        props: {
-          message,
-          isLoading: false
-        },
-        global: {
-          stubs: {
-            MessageContent: true
-          }
-        }
-      })
-
-      expect(wrapper.find('.collapse-icon').exists()).toBe(false)
-
-      const header = wrapper.find('.message-header')
-      await header.trigger('click')
-
-      expect(wrapper.find('.collapse-icon').exists()).toBe(true)
-      expect(wrapper.find('.collapse-icon').text()).toBe('▶')
-    })
-
-    it('should hide arrow icon when expanded again', async () => {
-      const message = {
-        role: 'assistant',
-        displayContent: 'Response',
-        thinking: null
-      }
-
-      wrapper = mount(MessageItem, {
-        props: {
-          message,
-          isLoading: false
-        },
-        global: {
-          stubs: {
-            MessageContent: true
-          }
-        }
-      })
-
-      const header = wrapper.find('.message-header')
-
-      // Collapse - arrow should appear
-      await header.trigger('click')
-      expect(wrapper.find('.collapse-icon').exists()).toBe(true)
-
-      // Expand - arrow should disappear
-      await header.trigger('click')
-      expect(wrapper.find('.collapse-icon').exists()).toBe(false)
-    })
   })
 })

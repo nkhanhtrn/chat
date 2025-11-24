@@ -1,9 +1,8 @@
 <template>
   <div :class="['message', message.role, { collapsed: isCollapsed }]">
-    <div class="message-header" @click="toggleCollapse">
+    <div class="message-header" @click="handleHeaderClick">
       <div class="message-role" style="position: relative; display: flex; align-items: center;">
         <span style="z-index:1;">{{ message.role === 'user' ? 'You' : 'Chat' }}</span>
-        <span v-if="isCollapsed" class="collapse-icon" style="position: absolute; left: 48px; top: 50%; transform: translateY(-50%); z-index:2;">▶</span>
       </div>
       <button
         v-if="message.role === 'user' && !isEditing"
@@ -119,6 +118,7 @@ export default {
     }
   },
   emits: ['retry', 'edit'],
+
   setup(props, { emit }) {
     const isEditing = ref(false)
     const editedContent = ref('')
@@ -130,9 +130,16 @@ export default {
       isCollapsed.value = val
     })
 
-    const toggleCollapse = () => {
-      if (!isEditing.value) {
-        isCollapsed.value = !isCollapsed.value
+    // Only allow collapse for user messages, but allow assistant to request expand
+    const handleHeaderClick = () => {
+      if (props.message.role === 'user') {
+        if (!isEditing.value) {
+          isCollapsed.value = !isCollapsed.value;
+          emit('collapse', isCollapsed.value);
+        }
+      } else if (props.message.role === 'assistant') {
+        // Ask parent to expand associated user message
+        emit('expand-associated-user');
       }
     }
 
@@ -163,7 +170,7 @@ export default {
       editedContent,
       editTextarea,
       isCollapsed,
-      toggleCollapse,
+      handleHeaderClick,
       startEdit,
       saveEdit,
       cancelEdit

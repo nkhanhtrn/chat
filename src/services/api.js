@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { saveChats } from './storage.js'
 
 // Configure your LM Studio API base URL
 // Default LM Studio local server runs on http://localhost:1234
@@ -247,5 +248,8 @@ export default {
   sendChatMessage,
   sendCompletion,
   generateEmbeddings,
-  sendResponse
-}
+  sendResponse,
+  saveChats
+};
+
+export { saveChats };
