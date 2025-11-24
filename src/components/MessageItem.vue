@@ -1,10 +1,19 @@
 <template>
-  <div :class="['message', message.role]">
-    <div class="message-header" @click="toggleCollapse" style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
-      <div class="message-role">
-        {{ message.role === 'user' ? 'You' : 'Chat' }}
+  <div :class="['message', message.role, { collapsed: isCollapsed }]">
+    <div class="message-header" @click="toggleCollapse">
+      <div class="message-role" style="position: relative; display: flex; align-items: center;">
+        <span style="z-index:1;">{{ message.role === 'user' ? 'You' : 'Chat' }}</span>
+        <span v-if="isCollapsed" class="collapse-icon" style="position: absolute; left: 48px; top: 50%; transform: translateY(-50%); z-index:2;">▶</span>
       </div>
-      <span v-if="isCollapsed" class="collapse-icon">▶</span>
+      <button
+        v-if="message.role === 'user' && !isEditing"
+        @click.stop="$emit('delete')"
+        class="delete-btn"
+        :disabled="isLoading"
+        title="Delete this message and reply"
+      >
+        ×
+      </button>
     </div>
     <div v-show="!isCollapsed" class="message-content">
       <div v-if="isEditing" class="edit-section">
@@ -29,6 +38,7 @@
       </div>
       <MessageContent v-else-if="!message.compressed && message.displayContent" :content="message.displayContent" />
     </div>
+
     <div v-if="message.role === 'user' && isLastUserMessage && !isEditing && !isCollapsed" class="message-actions">
       <button 
         @click="startEdit" 
@@ -50,8 +60,39 @@
   </div>
 </template>
 
+<style scoped>
+/* Place at the end of the style block for correct specificity */
+.message-header {
+  position: relative;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.delete-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  color: #e74c3c;
+  font-size: 18px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 2;
+  padding: 2px 6px;
+  line-height: 1;
+}
+
+.message:hover .delete-btn {
+  opacity: 1;
+}
+</style>
+
 <script>
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, watch } from 'vue'
 import MessageContent from './MessageContent.vue'
 
 export default {
@@ -71,6 +112,10 @@ export default {
     isLastUserMessage: {
       type: Boolean,
       default: false
+    },
+    forceCollapsed: {
+      type: Boolean,
+      default: false
     }
   },
   emits: ['retry', 'edit'],
@@ -78,7 +123,12 @@ export default {
     const isEditing = ref(false)
     const editedContent = ref('')
     const editTextarea = ref(null)
-    const isCollapsed = ref(false)
+    const isCollapsed = ref(props.forceCollapsed)
+
+    // Watch for forceCollapsed prop changes
+    watch(() => props.forceCollapsed, (val) => {
+      isCollapsed.value = val
+    })
 
     const toggleCollapse = () => {
       if (!isEditing.value) {

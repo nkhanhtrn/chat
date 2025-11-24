@@ -1191,4 +1191,99 @@ describe('ChatView', () => {
       expect(wrapper.vm.messagesContainer).toBeNull()
     })
   })
+
+  describe('Collapse/Expand Button', () => {
+    it('should toggle collapseAllMessages when button is clicked', async () => {
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+      const btn = wrapper.find('.collapse-all-btn')
+      expect(wrapper.vm.collapseAllMessages).toBe(false)
+      await btn.trigger('click')
+      expect(wrapper.vm.collapseAllMessages).toBe(true)
+      await btn.trigger('click')
+      expect(wrapper.vm.collapseAllMessages).toBe(false)
+    })
+  })
+
+  describe('Delete Functionality', () => {
+    it('should not delete if message is not user role', async () => {
+      mockChat.messages = [
+        { role: 'assistant', content: 'Hi', displayContent: 'Hi' },
+        { role: 'user', content: 'Hello', displayContent: 'Hello' }
+      ]
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+      // Try to delete assistant message
+      wrapper.vm.deleteMessage(0)
+      expect(mockChat.messages.length).toBe(2)
+    })
+
+    it('should handle delete when chat.chats is undefined', async () => {
+      mockChat.messages = [
+        { role: 'user', content: 'Hello', displayContent: 'Hello' },
+        { role: 'assistant', content: 'Hi', displayContent: 'Hi' }
+      ]
+      // Remove chats property
+      delete mockChat.chats
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+      // Should not throw
+      expect(() => wrapper.vm.deleteMessage(0)).not.toThrow()
+    })
+  })
+
+  describe('Edge Cases for editMessage and retryMessage', () => {
+    it('should not throw if editMessage called with invalid index', async () => {
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+      // Should not throw even if index is out of range
+      await expect(wrapper.vm.editMessage(99, 'test')).resolves.toBeUndefined()
+    })
+    it('should not throw if retryMessage called with invalid index', async () => {
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+      await expect(wrapper.vm.retryMessage(99)).resolves.toBeUndefined()
+    })
+  })
+
+  describe('Compress Functionality', () => {
+    it('should not call alert if no error in compressConversation', async () => {
+      mockChat.messages = [
+        { role: 'user', content: 'Hello', displayContent: 'Hello' }
+      ]
+      api.sendChatMessage.mockResolvedValue('Summary')
+      const alertMock = vi.fn()
+      window.alert = alertMock
+      wrapper = mount(ChatView, {
+        props: {
+          chat: mockChat,
+          selectedModel: 'test-model'
+        }
+      })
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('compress')
+      await nextTick()
+      expect(alertMock).not.toHaveBeenCalled()
+    })
+  })
 })

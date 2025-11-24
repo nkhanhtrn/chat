@@ -1,5 +1,11 @@
 <template>
   <div class="chat-view">
+    <div class="collapse-all-btn-wrapper">
+      <button class="collapse-all-btn" @click="collapseAllMessages = !collapseAllMessages">
+        <span v-if="!collapseAllMessages">▼ Collapse All</span>
+        <span v-else>▲ Expand All</span>
+      </button>
+    </div>
     <div class="messages-container" ref="messagesContainer">
       <MessageItem
         v-for="(message, index) in chat.messages" 
@@ -7,8 +13,10 @@
         :message="message"
         :is-loading="isLoading"
         :is-last-user-message="message.role === 'user' && index === chat.messages.map(m => m.role).lastIndexOf('user')"
+        :force-collapsed="collapseAllMessages && index !== chat.messages.length - 1"
         @retry="retryMessage(index)"
         @edit="editMessage(index, $event)"
+        @delete="deleteMessage(index)"
       />
     </div>
 
@@ -24,11 +32,55 @@
   </div>
 </template>
 
+<style scoped>
+.chat-view {
+  position: relative;
+}
+.collapse-all-btn-wrapper {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  pointer-events: none;
+  width: max-content;
+  margin-top: 16px;
+}
+.collapse-all-btn {
+  pointer-events: auto;
+}
+.collapse-all-btn {
+  background-color: rgba(52, 53, 65, 0.7);
+  color: #ececf1;
+  border: 1px solid #565869;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 7px 16px;
+  cursor: pointer;
+  box-shadow: none;
+  opacity: 1;
+  pointer-events: auto;
+  transition: background-color 0.2s, color 0.2s, border 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  backdrop-filter: blur(2px);
+}
+.collapse-all-btn:hover {
+  background-color: rgba(64, 65, 79, 0.95);
+  color: #fff;
+  border: 1px solid #676879;
+}
+</style>
+
 <script>
+
 import { ref, watch, nextTick, onMounted } from 'vue'
 import { sendChatMessage, abortChatMessage } from '../services/api.js'
 import MessageItem from './MessageItem.vue'
 import ChatInput from './ChatInput.vue'
+import { saveChats } from '../services/storage.js'
 
 export default {
   name: 'ChatView',
@@ -55,6 +107,7 @@ export default {
     const isLoading = ref(false)
     const isStreaming = ref(false)
     const messagesContainer = ref(null)
+    const collapseAllMessages = ref(false)
 
     const scrollToBottom = () => {
       nextTick(() => {
@@ -228,7 +281,10 @@ export default {
       if (isLoading.value || !props.selectedModel) {
         return
       }
-
+      // Guard: index must be valid
+      if (!props.chat.messages[messageIndex]) {
+        return
+      }
       // Update the message content
       props.chat.messages[messageIndex].content = newContent
       props.chat.messages[messageIndex].displayContent = newContent
@@ -329,6 +385,26 @@ export default {
       scrollToBottom()
     })
 
+    // Delete a user message and its reply, then update localStorage
+    const deleteMessage = (userMsgIndex) => {
+      // Only allow deleting user messages and their reply (assistant)
+      if (props.chat.messages[userMsgIndex]?.role !== 'user') return;
+      // Remove user message and the next assistant message if present
+      props.chat.messages.splice(userMsgIndex, 2);
+      // Save updated chats to localStorage
+      if (props.chat.chats) {
+        // If chat.chats exists (list of all chats), update the right chat and save
+        const chatIdx = props.chat.chats.findIndex(c => c.id === props.chat.id);
+        if (chatIdx !== -1) {
+          props.chat.chats[chatIdx].messages = props.chat.messages;
+          saveChats(props.chat.chats);
+        }
+      } else {
+        // If only single chat, save current chat
+        saveChats([props.chat]);
+      }
+    }
+
     return {
       isLoading,
       isStreaming,
@@ -337,7 +413,9 @@ export default {
       editMessage,
       handleSendMessage,
       compressConversation,
-      stopStreaming
+      stopStreaming,
+      collapseAllMessages,
+      deleteMessage
     }
   }
 }
