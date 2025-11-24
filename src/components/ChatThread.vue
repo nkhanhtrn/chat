@@ -1,3 +1,4 @@
+
 <template>
   <div>
     <div :class="['chat-tab', { active, 'drag-over': dragOver }]" draggable="true"
@@ -57,18 +58,19 @@
       </div>
     </div>
     <ul v-if="userMessages && userMessages.length && !questionsCollapsed" class="chat-questions-list chat-questions-list-separated">
-      <li v-for="(msg, idx) in userMessages" :key="idx" class="chat-question-item" @click="onQuestionClick(idx)">
-        {{ msg.summarized }}
+      <li v-for="(msg, idx) in userMessages" :key="idx" class="chat-question-item" @click="onQuestionClick(idx)" :title="capitalizeWords(msg.summarized)">
+        {{ capitalizeWords(msg.summarized) }}
       </li>
     </ul>
   </div>
 </template>
 
+
 <script>
-
-
 import { useChatStore } from '../composables/useChatStore'
 import { sendChatMessage } from '../services/api.js'
+import { capitalizeWords } from './utils.js'
+
 const chatStore = useChatStore()
 const { setActiveChat, selectedModel, chats } = chatStore
 
@@ -84,7 +86,7 @@ export default {
     onDragStart: { type: Function, required: true },
     onDragEnd: { type: Function, required: true },
     onDragOver: { type: Function, required: true },
-    onDragLeave: { type: Function, requiredor: true },
+    onDragLeave: { type: Function, required: true },
     onDrop: { type: Function, required: true }
   },
   computed: {
@@ -114,6 +116,7 @@ export default {
     }
   },
   methods: {
+    capitalizeWords,
     toggleQuestions() {
       this.questionsCollapsed = !this.questionsCollapsed
     },
@@ -183,12 +186,16 @@ export default {
         this.syncing = false
       }
     },
-    // ...existing code...
   }
 }
 </script>
 
+
 <style scoped>
+.chat-tab {
+  margin-bottom: 0 !important;
+  padding: 8px !important;
+}
 .chat-title-wrapper {
   display: flex;
   align-items: center;
@@ -256,7 +263,7 @@ export default {
 }
 .chat-question-item {
   margin-bottom: 8px;
-  margin-left: 18px;
+  margin-left: 32px;
   color: #4f6fa5;
   font-size: 15px;
   font-weight: 500;
@@ -265,6 +272,11 @@ export default {
   cursor: pointer;
   transition: color 0.15s;
   user-select: none;
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
 }
 .chat-question-item:hover {
   color: #7a97c7;
