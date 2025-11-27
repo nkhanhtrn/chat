@@ -4,6 +4,7 @@ import { createPinia } from 'pinia'
 import App from '../App.vue'
 import ChatMessage from '../components/ChatMessage.vue'
 import ChatInput from '../components/ChatInput.vue'
+import DevToolbar from '../components/DevToolbar.vue'
 
 // Mock the API module
 vi.mock('../services/api.js', () => ({
@@ -19,9 +20,15 @@ vi.mock('../services/storage.js', async (importOriginal) => {
   const actual = await importOriginal()
   return {
     ...actual,
-    loadChatState: () => null
+    loadChatState: () => null,
+    clearAllStorage: vi.fn()
   }
 })
+
+// Mock the environment composable with default dev mode
+vi.mock('../composables/useEnvironment.js')
+
+import { getIsDev, getDefaultQuestions } from '../composables/useEnvironment.js'
 
 describe('App', () => {
   let wrapper
@@ -50,6 +57,14 @@ describe('App', () => {
       }
       return Promise.resolve('Hello World')
     })
+
+    // Default environment mocks (dev mode)
+    getIsDev.mockReturnValue(true)
+    getDefaultQuestions.mockReturnValue([
+      'give me 20 random words',
+      'give me 50 random words',
+      'give me 100 random words',
+    ])
   })
 
   afterEach(() => {
@@ -439,6 +454,345 @@ describe('App', () => {
       resolveMessage('Response')
       await flushPromises()
       expect(chatInput.props('isLoading')).toBe(false)
+    })
+  })
+
+  describe('DevToolbar', () => {
+    it('should render DevToolbar in development mode', () => {
+      getIsDev.mockReturnValue(true)
+
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true,
+            DevToolbar: false
+          }
+        }
+      })
+
+      expect(wrapper.findComponent(DevToolbar).exists()).toBe(true)
+    })
+
+    it('should not render DevToolbar in production mode', () => {
+      getIsDev.mockReturnValue(false)
+
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true,
+            DevToolbar: false
+          }
+        }
+      })
+
+      expect(wrapper.findComponent(DevToolbar).exists()).toBe(false)
+    })
+  })
+
+  describe('Prepopulated Questions', () => {
+    it('should show development questions in dev mode', async () => {
+      getIsDev.mockReturnValue(true)
+      getDefaultQuestions.mockReturnValue([
+        'give me 20 random words',
+        'give me 50 random words',
+        'give me 100 random words',
+      ])
+
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      const examplePrompts = wrapper.findAll('.example-prompts li')
+      expect(examplePrompts.length).toBeGreaterThan(0)
+
+      // Check for dev-specific questions
+      const promptTexts = examplePrompts.map(li => li.text())
+      expect(promptTexts.some(text => text.includes('random words'))).toBe(true)
+    })
+
+    it('should show production questions in production mode', async () => {
+      getIsDev.mockReturnValue(false)
+      getDefaultQuestions.mockReturnValue([
+        'Explain quantum physics in simple terms',
+        'How does photosynthesis work?',
+        'Teach me about the French Revolution',
+      ])
+
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      const examplePrompts = wrapper.findAll('.example-prompts li')
+      expect(examplePrompts.length).toBeGreaterThan(0)
+
+      // Check for production-specific questions
+      const promptTexts = examplePrompts.map(li => li.text())
+      expect(promptTexts.some(text =>
+        text.includes('quantum physics') ||
+        text.includes('photosynthesis') ||
+        text.includes('French Revolution')
+      )).toBe(true)
+    })
+
+    it('should send message when example prompt is clicked', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()]
+        }
+      })
+
+      await flushPromises()
+
+      const examplePrompts = wrapper.findAll('.example-prompts li.clickable')
+      expect(examplePrompts.length).toBeGreaterThan(0)
+
+      // Click the first example
+      await examplePrompts[0].trigger('click')
+      await flushPromises()
+
+      // Should have called sendChatMessage
+      expect(sendChatMessage).toHaveBeenCalled()
+    })
+
+    it('should render all prepopulated questions', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      const examplePrompts = wrapper.findAll('.example-prompts li')
+
+      // Should have 3 questions (default behavior)
+      expect(examplePrompts.length).toBe(3)
+    })
+  })
+
+  describe('getDefaultQuestions', () => {
+    it('should return development questions when in dev mode', async () => {
+      getIsDev.mockReturnValue(true)
+      getDefaultQuestions.mockReturnValue([
+        'give me 20 random words',
+        'give me 50 random words',
+        'give me 100 random words',
+      ])
+
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      const questions = wrapper.vm.prepopulatedQuestions
+      expect(questions).toEqual([
+        'give me 20 random words',
+        'give me 50 random words',
+        'give me 100 random words',
+      ])
+    })
+
+    it('should return production questions when not in dev mode', async () => {
+      getIsDev.mockReturnValue(false)
+      getDefaultQuestions.mockReturnValue([
+        'Explain quantum physics in simple terms',
+        'How does photosynthesis work?',
+        'Teach me about the French Revolution',
+      ])
+
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      const questions = wrapper.vm.prepopulatedQuestions
+      expect(questions).toEqual([
+        'Explain quantum physics in simple terms',
+        'How does photosynthesis work?',
+        'Teach me about the French Revolution',
+      ])
+    })
+  })
+
+  describe('handleExampleClick', () => {
+    it('should trigger handleSendMessage with the clicked question', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()]
+        }
+      })
+
+      await flushPromises()
+
+      const examplePrompts = wrapper.findAll('.example-prompts li.clickable')
+      const firstPrompt = examplePrompts[0]
+
+      await firstPrompt.trigger('click')
+      await flushPromises()
+
+      // Verify sendChatMessage was called
+      expect(sendChatMessage).toHaveBeenCalled()
+    })
+  })
+
+  describe('handleSendMessage streaming behavior', () => {
+    it('should return false when already streaming', async () => {
+      let resolveMessage
+      sendChatMessage.mockImplementation(() => {
+        return new Promise((resolve) => {
+          resolveMessage = resolve
+        })
+      })
+
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()]
+        }
+      })
+
+      await flushPromises()
+
+      const chatInput = wrapper.findComponent(ChatInput)
+
+      // Send first message - should succeed
+      chatInput.vm.$emit('send', 'First message')
+      await wrapper.vm.$nextTick()
+
+      // Try to send second message while still streaming - should return false
+      chatInput.vm.$emit('send', 'Second message')
+      await wrapper.vm.$nextTick()
+
+      // Should have only called sendChatMessage once
+      expect(sendChatMessage).toHaveBeenCalledTimes(1)
+
+      resolveMessage('Response')
+      await flushPromises()
+    })
+
+    it('should return false when message is empty', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()]
+        }
+      })
+
+      await flushPromises()
+
+      const chatInput = wrapper.findComponent(ChatInput)
+
+      // Send empty message - should return false
+      chatInput.vm.$emit('send', '')
+      await wrapper.vm.$nextTick()
+
+      // Should not have called sendChatMessage
+      expect(sendChatMessage).not.toHaveBeenCalled()
+    })
+
+    it('should return false when message is only whitespace', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()]
+        }
+      })
+
+      await flushPromises()
+
+      const chatInput = wrapper.findComponent(ChatInput)
+
+      // Send whitespace-only message - should return false
+      chatInput.vm.$emit('send', '   ')
+      await wrapper.vm.$nextTick()
+
+      // Should not have called sendChatMessage
+      expect(sendChatMessage).not.toHaveBeenCalled()
+    })
+
+    it('should prevent multiple messages during streaming', async () => {
+      let resolveMessage
+      sendChatMessage.mockImplementation(() => {
+        return new Promise((resolve) => {
+          resolveMessage = resolve
+        })
+      })
+
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()]
+        }
+      })
+
+      await flushPromises()
+
+      const { useChatStore } = await import('../stores/chat.js')
+      const chatStore = useChatStore()
+
+      const chatInput = wrapper.findComponent(ChatInput)
+
+      // Send first message
+      chatInput.vm.$emit('send', 'First')
+      await wrapper.vm.$nextTick()
+
+      // Verify streaming is active
+      expect(chatStore.isStreaming).toBe(true)
+
+      // Try to send multiple messages while streaming
+      chatInput.vm.$emit('send', 'Second')
+      chatInput.vm.$emit('send', 'Third')
+      await wrapper.vm.$nextTick()
+
+      // Should still only have one call to sendChatMessage
+      expect(sendChatMessage).toHaveBeenCalledTimes(1)
+
+      resolveMessage('Response')
+      await flushPromises()
+
+      // Now streaming is complete
+      expect(chatStore.isStreaming).toBe(false)
+
+      // Now should be able to send another message
+      chatInput.vm.$emit('send', 'Fourth')
+      await flushPromises()
+
+      // Should have been called twice now
+      expect(sendChatMessage).toHaveBeenCalledTimes(2)
     })
   })
 })

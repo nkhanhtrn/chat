@@ -8,7 +8,8 @@ import * as api from '../../services/api.js'
 
 // Mock the API module
 vi.mock('../../services/api.js', () => ({
-  sendChatMessage: vi.fn()
+  sendChatMessage: vi.fn(),
+  getQuestionSummary: vi.fn().mockResolvedValue('summary')
 }))
 
 describe('ChatMessage - handleHighlight', () => {

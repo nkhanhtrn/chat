@@ -29,6 +29,7 @@
            :x="state.contextMenu.x"
            :y="state.contextMenu.y"
            :highlighted-text="state.contextMenu.selectedText"
+           :is-streaming="isStreaming"
            @close="closeContextMenu"
            @highlight="handleHighlight"
          />
@@ -186,32 +187,28 @@ async function handleHighlight(question) {
   state.isChildStreaming = true
   state.error = null
 
-  // Call getQuestionSummary and sendChatMessage independently (in parallel)
-  (async () => {
-    try {
-      const summary = await getQuestionSummary(question, chatStore.currentModel)
-      chatStore.setQuestionSummarized(childMsg.id, summary)
-    } catch (err) {
-      state.error = err.message
-    }
-  })();
+  // Call getQuestionSummary and sendChatMessage sequentially
+  try {
+    const summary = await getQuestionSummary(question, chatStore.currentModel)
+    chatStore.setQuestionSummarized(childMsg.id, summary)
+  } catch (err) {
+    state.error = err.message
+  }
 
-  (async () => {
-    try {
-      await sendChatMessage(
-        question,
-        chatStore.currentModel,
-        (chunk) => {
-          // Update via store
-          chatStore.appendToResponse(childMsg.id, chunk)
-        }
-      )
-    } catch (err) {
-      state.error = err.message
-    } finally {
-      state.isChildStreaming = false
-    }
-  })();
+  try {
+    await sendChatMessage(
+      question,
+      chatStore.currentModel,
+      (chunk) => {
+        // Update via store
+        chatStore.appendToResponse(childMsg.id, chunk)
+      }
+    )
+  } catch (err) {
+    state.error = err.message
+  } finally {
+    state.isChildStreaming = false
+  }
 }
 
 function navigateToChild(childIndex) {

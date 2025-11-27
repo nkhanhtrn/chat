@@ -9,9 +9,54 @@ const { mockAxiosInstance } = vi.hoisted(() => {
       baseURL: 'http://localhost:1234'
     }
   }
-  
   return { mockAxiosInstance }
 })
+
+import * as apiModule from '../api.js'
+
+describe('getQuestionSummary', () => {
+  const question = 'What is the capital of France?';
+  const model = 'test-model';
+
+  it('should return summary from valid response', async () => {
+    mockAxiosInstance.post.mockResolvedValue({
+      data: {
+        choices: [
+          { message: { content: 'Paris' } }
+        ]
+      }
+    });
+    const result = await apiModule.getQuestionSummary(question, model);
+    expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+      '/v1/chat/completions',
+      expect.objectContaining({
+        model,
+        messages: expect.any(Array),
+        temperature: 0.7,
+        max_tokens: 100,
+        stream: false
+      })
+    );
+    expect(result).toBe('Paris');
+  });
+
+  it('should throw error if no choices returned', async () => {
+    mockAxiosInstance.post.mockResolvedValue({ data: { choices: [] } });
+    await expect(apiModule.getQuestionSummary(question, model)).rejects.toThrow('Failed to get summary');
+  });
+
+  it('should throw error if API returns error message', async () => {
+    mockAxiosInstance.post.mockRejectedValue({
+      response: { data: { error: { message: 'API Error' } } }
+    });
+    await expect(apiModule.getQuestionSummary(question, model)).rejects.toThrow('API Error');
+  });
+
+  it('should throw generic error if no response', async () => {
+    mockAxiosInstance.post.mockRejectedValue({ message: 'Network Error' });
+    await expect(apiModule.getQuestionSummary(question, model)).rejects.toThrow('Failed to get summary');
+  });
+});
 
 // Mock axios module
 vi.mock('axios', () => ({

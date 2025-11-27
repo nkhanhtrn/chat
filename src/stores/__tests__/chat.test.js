@@ -1,3 +1,5 @@
+import * as storage from '../../services/storage.js'
+import { vi } from 'vitest'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useChatStore } from '../chat.js'
@@ -5,6 +7,38 @@ import Message from '../Message.js'
 
 describe('useChatStore', () => {
   let chatStore
+
+  describe('state restoration', () => {
+    const savedState = {
+      messagesById: {
+        msg1: { id: 'msg1', question: 'Q1', response: 'R1', parentId: null, childIds: [] },
+        msg2: { id: 'msg2', question: 'Q2', response: 'R2', parentId: 'msg1', childIds: [] }
+      },
+      rootMessageIds: ['msg1'],
+      currentMessageId: 'msg1',
+      currentModel: 'gpt-4'
+    }
+
+    let loadChatStateSpy
+    beforeEach(() => {
+      loadChatStateSpy = vi.spyOn(storage, 'loadChatState').mockReturnValue(savedState)
+      setActivePinia(createPinia())
+    })
+    afterEach(() => {
+      loadChatStateSpy.mockRestore()
+    })
+
+    it('restores state and reconstructs Message objects', () => {
+      const store = useChatStore()
+      expect(store.messagesById.msg1).toBeInstanceOf(Message)
+      expect(store.messagesById.msg2).toBeInstanceOf(Message)
+      expect(store.rootMessageIds).toEqual(['msg1'])
+      expect(store.currentMessageId).toBe('msg1')
+      expect(store.currentModel).toBe('gpt-4')
+      expect(store.messagesById.msg1.question).toBe('Q1')
+      expect(store.messagesById.msg2.parentId).toBe('msg1')
+    })
+  })
 
   beforeEach(() => {
     setActivePinia(createPinia())

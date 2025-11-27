@@ -1,8 +1,14 @@
 <template>
   <div class="chat-container">
+    <DevToolbar v-if="isDev" @reset="prepopulatedQuestions = $event" />
+
     <header class="chat-header">
-      <h1>Study Assistant</h1>
-      <p>Ask me anything you want to learn about</p>
+      <div class="header-content">
+        <div class="header-text">
+          <h1>Study Assistant</h1>
+          <p>Ask me anything you want to learn about</p>
+        </div>
+      </div>
     </header>
 
     <div class="messages-container" ref="messagesContainer">
@@ -12,9 +18,9 @@
         <div class="example-prompts">
           <p>Try asking:</p>
           <ul>
-            <li>"Explain quantum physics in simple terms"</li>
-            <li>"How does photosynthesis work?"</li>
-            <li>"Teach me about the French Revolution"</li>
+            <li v-for="q in prepopulatedQuestions" :key="q" @click="handleExampleClick(q)" class="clickable">
+              "{{ q }}"
+            </li>
           </ul>
         </div>
       </div>
@@ -45,10 +51,15 @@ import ChatMessage from './components/ChatMessage.vue'
 import ChatInput from './components/ChatInput.vue'
 import { sendChatMessage, fetchModels } from './services/api.js'
 import { useChatStore } from './stores/chat.js'
+import DevToolbar from './components/DevToolbar.vue'
+import { getIsDev, getDefaultQuestions } from './composables/useEnvironment.js'
 
 const error = ref(null)
 const messagesContainer = ref(null)
 const chatStore = useChatStore()
+
+const isDev = getIsDev()
+const prepopulatedQuestions = ref(getDefaultQuestions())
 
 onMounted(async () => {
   try {
@@ -73,7 +84,7 @@ const scrollToBottom = () => {
 }
 
 const handleSendMessage = async (userMessage) => {
-  if (!userMessage.trim() || chatStore.isStreaming) return
+  if (!userMessage.trim() || chatStore.isStreaming) return false
 
   error.value = null
 
@@ -107,6 +118,11 @@ const handleSendMessage = async (userMessage) => {
     scrollToBottom()
   }
 }
+
+const handleExampleClick = (question) => {
+  handleSendMessage(question)
+}
+
 </script>
 
 <style scoped>
@@ -123,20 +139,28 @@ const handleSendMessage = async (userMessage) => {
   padding: 1.5rem;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  text-align: center;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
-.chat-header h1 {
-  margin: 0;
-  font-size: 1.8rem;
-  font-weight: 600;
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 100%;
 }
 
-.chat-header p {
-  margin: 0.5rem 0 0 0;
-  font-size: 0.95rem;
-  opacity: 0.9;
+.header-text {
+  text-align: center;
+}
+
+.clear-cache-button:hover {
+  background: #e2e2e2;
+  border-color: #888;
+}
+
+.clear-cache-button:active {
+  background: #d1d1d1;
+  border-color: #666;
 }
 
 .messages-container {
@@ -183,6 +207,20 @@ const handleSendMessage = async (userMessage) => {
 .example-prompts li {
   padding: 0.5rem 0;
   color: #6c757d;
+}
+
+.example-prompts li.clickable {
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0.75rem;
+  margin: 0.25rem 0;
+  border-radius: 8px;
+}
+
+.example-prompts li.clickable:hover {
+  background-color: #f0f4ff;
+  color: #667eea;
+  transform: translateX(5px);
 }
 
 .example-prompts li::before {

@@ -113,4 +113,43 @@ describe('Message', () => {
     })
   })
 
+  describe('addNewChild setter', () => {
+    it('adds a new childId and updates lastVisitedChild', () => {
+      const msg = new Message({ id: '1', question: 'Q', response: 'A', childIds: [] })
+      msg.addNewChild = 'child-1'
+      expect(msg.childIds).toContain('child-1')
+      expect(msg.lastVisitedChild).toBe('child-1')
+    })
+
+    it('initializes childIds if undefined and adds child', () => {
+      const msg = new Message({ id: '1', question: 'Q', response: 'A' })
+      msg.childIds = undefined
+      msg.addNewChild = 'child-2'
+      expect(msg.childIds).toEqual(['child-2'])
+      expect(msg.lastVisitedChild).toBe('child-2')
+    })
+  })
+
+  describe('updateQuestionSummarized', () => {
+    it('sets questionSummarized to summary if provided', () => {
+      const msg = new Message({ id: '1', question: 'Q', response: 'A' })
+      msg.updateQuestionSummarized('summary')
+      expect(msg.questionSummarized).toBe('summary')
+    })
+
+    it('sets questionSummarized to first line of response and removes it from response if summary not provided', () => {
+      const msg = new Message({ id: '1', question: 'Q', response: 'First line\nSecond line\nThird line' })
+      msg.updateQuestionSummarized()
+      expect(msg.questionSummarized).toBe('First line')
+      expect(msg.response).toBe('Second line\nThird line')
+    })
+
+    it('does nothing if response is not a string', () => {
+      const msg = new Message({ id: '1', question: 'Q', response: null })
+      msg.updateQuestionSummarized()
+      expect(msg.questionSummarized).toBe('Q')
+      expect(msg.response).toBe(null)
+    })
+  })
+
 })

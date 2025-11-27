@@ -7,7 +7,7 @@
         :style="{ left: `${x}px`, top: `${y}px`, display: visible ? 'block' : 'none' }"
         @mousedown.stop
       >
-        <button class="context-menu-btn" @click="onClick">Show Highlight</button>
+        <button class="context-menu-btn" @click="onClick" :disabled="isStreaming">Show Highlight</button>
       </div>
     </template>
   </teleport>
@@ -20,7 +20,11 @@ const props = defineProps({
   visible: Boolean,
   x: Number,
   y: Number,
-  highlightedText: String
+  highlightedText: String,
+  isStreaming: {
+    type: Boolean,
+    default: false
+  }
 })
 const emit = defineEmits(['close', 'highlight'])
 
@@ -60,8 +64,14 @@ function onClickOutside() {
   font-size: 1rem;
   color: #222;
 }
-.context-menu-btn:hover {
+.context-menu-btn:hover:not(:disabled) {
   background: #f3f4f6;
+}
+
+.context-menu-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  color: #999;
 }
 
 .context-menu-backdrop {

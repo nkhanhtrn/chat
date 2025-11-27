@@ -84,6 +84,7 @@ export const useChatStore = defineStore('chat', {
       this.messagesById[message.id] = message
       this.rootMessageIds.push(message.id)
       this.currentMessageId = message.id
+      this._persistState()
       return message
     },
 
@@ -107,6 +108,7 @@ export const useChatStore = defineStore('chat', {
       // Set navigation to new child
       this.currentMessageId = childMessage.id
 
+      this._persistState()
       return childMessage
     },
 
@@ -115,6 +117,7 @@ export const useChatStore = defineStore('chat', {
       const message = this.messagesById[messageId]
       if (message) {
         message.response += chunk
+        this._persistState()
       }
     },
 
@@ -171,6 +174,8 @@ export const useChatStore = defineStore('chat', {
       if (this.currentMessageId === messageId) {
         this.currentMessageId = null
       }
+
+      this._persistState()
     },
 
     // Helper to recursively remove a message and all its children
@@ -200,6 +205,7 @@ export const useChatStore = defineStore('chat', {
 
     setCurrentModel(model) {
       this.currentModel = model
+      this._persistState()
     },
 
     // Save state to localStorage (called by $subscribe)
