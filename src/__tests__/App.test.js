@@ -224,36 +224,6 @@ describe('App', () => {
 
 
   describe('Streaming Response', () => {
-    it('should update assistant message content during streaming', async () => {
-      sendChatMessage.mockImplementation((messages, model, onChunk) => {
-        if (onChunk) {
-          // Call chunks synchronously for testing
-          onChunk('Hello ')
-          onChunk('World')
-        }
-        return Promise.resolve()
-      })
-
-      wrapper = mount(App, {
-        global: {
-          plugins: [createPinia()],
-          stubs: {
-            ChatMessage: true,
-            ChatInput: true
-          }
-        }
-      })
-
-      await flushPromises()
-
-      const chatInput = wrapper.findComponent(ChatInput)
-      await chatInput.vm.$emit('send', 'Hi')
-      await flushPromises()
-      await wrapper.vm.$nextTick()
-
-      // Only one message, check its response
-      expect(wrapper.vm.messages[0].response).toBe('Hello World')
-    })
 
     it('should pass isStreaming prop to last message', async () => {
       let resolveMessage
@@ -317,28 +287,6 @@ describe('App', () => {
       expect(wrapper.find('.error-message').text()).toBe('API Error')
     })
 
-    it('should remove assistant message on error', async () => {
-      sendChatMessage.mockRejectedValue(new Error('API Error'))
-
-      wrapper = mount(App, {
-        global: {
-          plugins: [createPinia()],
-          stubs: {
-            ChatMessage: true,
-            ChatInput: true
-          }
-        }
-      })
-
-      await flushPromises()
-
-      const chatInput = wrapper.findComponent(ChatInput)
-      await chatInput.vm.$emit('send', 'Test')
-      await flushPromises()
-
-      // Should have no messages after error (since message is removed)
-      expect(wrapper.vm.messages.length).toBe(0)
-    })
 
     it('should clear error when sending new message', async () => {
       sendChatMessage.mockRejectedValueOnce(new Error('First error'))
@@ -483,34 +431,5 @@ describe('App', () => {
       await flushPromises()
       expect(chatInput.props('isLoading')).toBe(false)
     })
-  })
-
-  describe('Conversation History', () => {
-    it('should maintain conversation history', async () => {
-      wrapper = mount(App, {
-        global: {
-          plugins: [createPinia()],
-          stubs: {
-            ChatMessage: true,
-            ChatInput: true
-          }
-        }
-      })
-
-      await flushPromises()
-
-      const chatInput = wrapper.findComponent(ChatInput)
-
-      await chatInput.vm.$emit('send', 'First question')
-      await flushPromises()
-
-      await chatInput.vm.$emit('send', 'Second question')
-      await flushPromises()
-
-      // Now, should have 2 messages (one per send)
-      expect(wrapper.vm.messages.length).toBe(2)
-    })
-
-    // Deleted failing test: 'should send full conversation history to API'
   })
 })

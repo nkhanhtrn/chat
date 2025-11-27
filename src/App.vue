@@ -6,7 +6,7 @@
     </header>
 
     <div class="messages-container" ref="messagesContainer">
-      <div v-if="messages.length === 0" class="welcome-message">
+      <div v-if="chatStore.rootMessages.length === 0" class="welcome-message">
         <h2>Welcome to your Study Assistant!</h2>
         <p>Start by asking a question about any topic you'd like to learn.</p>
         <div class="example-prompts">
@@ -20,10 +20,10 @@
       </div>
 
       <ChatMessage
-        v-for="(message, index) in messages"
+        v-for="(message, index) in chatStore.rootMessages"
         :key="message.id"
         :message="message"
-        :is-app-streaming="isStreaming && index === messages.length - 1"
+        :is-app-streaming="chatStore.isStreaming && index === chatStore.rootMessages.length - 1"
       />
 
       <div v-if="error" class="error-message">
@@ -33,24 +33,19 @@
 
     <ChatInput
       @send="handleSendMessage"
-      :disabled="isStreaming"
-      :is-loading="isStreaming"
+      :disabled="chatStore.isStreaming"
+      :is-loading="chatStore.isStreaming"
     />
   </div>
 </template>
 
 <script setup>
-
-
-import { ref, nextTick, onMounted, reactive } from 'vue'
+import { ref, nextTick, onMounted } from 'vue'
 import ChatMessage from './components/ChatMessage.vue'
 import ChatInput from './components/ChatInput.vue'
 import { sendChatMessage, fetchModels } from './services/api.js'
-import Message from './stores/Message.js'
 import { useChatStore } from './stores/chat.js'
 
-const messages = ref([])
-const isStreaming = ref(false)
 const error = ref(null)
 const messagesContainer = ref(null)
 const chatStore = useChatStore()
@@ -78,37 +73,37 @@ const scrollToBottom = () => {
 }
 
 const handleSendMessage = async (userMessage) => {
-  if (!userMessage.trim() || isStreaming.value) return
+  if (!userMessage.trim() || chatStore.isStreaming) return
 
   error.value = null
 
-  // Create a reactive message object
-  const msg = reactive(new Message({
+  // Create and add message to store
+  const msg = chatStore.addRootMessage({
     id: crypto.randomUUID(),
     question: userMessage,
     response: ''
-  }))
-  messages.value.push(msg)
+  })
+
   scrollToBottom()
 
-  isStreaming.value = true
+  chatStore.setIsStreaming(true)
 
   try {
     await sendChatMessage(
       userMessage,
       chatStore.currentModel,
       (chunk) => {
-        // Update the message response - now it's reactive!
-        msg.response += chunk
+        // Update the message response through the store
+        chatStore.appendToResponse(msg.id, chunk)
         scrollToBottom()
       }
     )
   } catch (err) {
     error.value = err.message
-    // Remove last message on error
-    messages.value.pop()
+    // Remove message from store on error
+    chatStore.removeRootMessage(msg.id)
   } finally {
-    isStreaming.value = false
+    chatStore.setIsStreaming(false)
     scrollToBottom()
   }
 }

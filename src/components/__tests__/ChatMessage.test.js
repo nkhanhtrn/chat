@@ -2,8 +2,13 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
+
 import ChatMessage from '../ChatMessage.vue'
 import MarkdownRenderer from '../MarkdownRenderer.vue'
+
+// Mock Message and sendChatMessage modules for handleHighlight tests
+import * as MessageModule from '../../stores/Message.js'
+import * as ApiModule from '../../services/api.js'
 
 describe('ChatMessage', () => {
   let wrapper
@@ -398,5 +403,141 @@ describe('ChatMessage', () => {
       })
       expect(wrapper.find('.user-message').text()).toBe(longContent)
     })
+    })
+
+    describe('Navigation and Highlight Methods', () => {
+      let chatStore, parentMsg, childMsg
+      beforeEach(() => {
+        // Setup store and messages
+        const pinia = createPinia()
+        wrapper = mount(ChatMessage, {
+          props: {
+            message: {
+              id: 'root',
+              question: 'Root?',
+              response: 'Root response',
+              childIds: [],
+              parentId: null
+            },
+            getSelectedTextAndPosition: undefined // default
+          },
+          global: {
+            plugins: [pinia]
+          }
+        })
+        chatStore = wrapper.vm.chatStore
+        parentMsg = chatStore.addRootMessage({
+          id: 'root',
+          question: 'Root?',
+          response: 'Root response',
+          childIds: [],
+          parentId: null
+        })
+        childMsg = chatStore.addChildMessage('root', {
+          id: 'child1',
+          question: 'Child?',
+          response: 'Child response',
+          childIds: [],
+          parentId: 'root',
+          highlightedText: 'Child'
+        })
+      })
+
+
+      it('should switch to parent/root/last child/child', async () => {
+        // switchToParent
+        wrapper.vm.switchToParent()
+        expect(chatStore.currentMessageId).toBe('root')
+        // switchToLastChild
+        wrapper.vm.switchToLastChild()
+        expect(chatStore.currentMessageId).toBe('child1')
+        // switchToRoot
+        wrapper.vm.switchToRoot()
+        expect(chatStore.currentMessageId).toBe('root')
+        // navigateToChild
+        wrapper.vm.switchToLastChild()
+        wrapper.vm.navigateToChild(0)
+        expect(chatStore.currentMessageId).toBe('child1')
+      })
+
+      it('should close context menu', () => {
+        wrapper.vm.state.contextMenu.visible = true
+        wrapper.vm.closeContextMenu()
+        expect(wrapper.vm.state.contextMenu.visible).toBe(false)
+      })
+
+      it('should show context menu with selected text', () => {
+        // Inject getSelectedTextAndPosition via prop
+        const pinia = createPinia()
+        const getSelectedTextAndPosition = () => ({ selectedText: 'abc', x: 1, y: 2, visible: true })
+        const localWrapper = mount(ChatMessage, {
+          props: {
+            message: {
+              id: 'root',
+              question: 'Root?',
+              response: 'Root response',
+              childIds: [],
+              parentId: null
+            },
+            getSelectedTextAndPosition
+          },
+          global: { plugins: [pinia] }
+        })
+        localWrapper.vm.showContextMenu()
+        expect(localWrapper.vm.state.contextMenu.selectedText).toBe('abc')
+        expect(localWrapper.vm.state.contextMenu.visible).toBe(true)
+      })
+
+      it('should handle highlight (no question or streaming)', async () => {
+        wrapper.vm.state.isChildStreaming = true
+        await wrapper.vm.handleHighlight('Q')
+        expect(wrapper.vm.state.isChildStreaming).toBe(true)
+        wrapper.vm.state.isChildStreaming = false
+        await wrapper.vm.handleHighlight(null)
+        expect(wrapper.vm.state.isChildStreaming).toBe(false)
+      })
+
+      it('should handleResponseClick for highlighted link', () => {
+        // Setup store and wrapper
+        const pinia = createPinia()
+        const rootMsg = {
+          id: 'root',
+          question: 'Root?',
+          response: 'Child',
+          childIds: ['child1'],
+          parentId: null
+        }
+        const childMsg = {
+          id: 'child1',
+          question: 'Child?',
+          response: 'Child response',
+          childIds: [],
+          parentId: 'root',
+          highlightedText: 'Child'
+        }
+        const localWrapper = mount(ChatMessage, {
+          props: { message: rootMsg },
+          global: { plugins: [pinia] }
+        })
+        const store = localWrapper.vm.chatStore
+        store.messagesById[rootMsg.id] = rootMsg
+        store.messagesById[childMsg.id] = childMsg
+        store.rootMessageIds = [rootMsg.id]
+        store.currentMessageId = rootMsg.id
+        rootMsg.childIds = [childMsg.id]
+        // Spy on the store's navigateToChild method
+        const spy = vi.spyOn(store, 'navigateToChild')
+        // Simulate click event for child index 0
+        const event = {
+          target: {
+            tagName: 'A',
+            classList: { contains: (cls) => cls === 'highlighted-link' },
+            getAttribute: (attr) => attr === 'data-child-index' ? '0' : null
+          },
+          preventDefault: vi.fn()
+        }
+        localWrapper.vm.handleResponseClick(event)
+        expect(spy).toHaveBeenCalledWith(rootMsg.id, 0)
+      })
   })
 })

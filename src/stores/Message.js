@@ -1,44 +1,27 @@
 // Message abstraction for LM API
 export default class Message {
-  static createChildMessage(parentMsg, question, highlightedText = null) {
+  static createChildMessage(parentId, question, highlightedText = null) {
     return new Message({
       id: crypto.randomUUID(),
       question,
       response: '',
-      parentId: parentMsg.id,
-      children: [],
-      parent: parentMsg,
+      parentId,
+      childIds: [],
       highlightedText
     });
   }
-  constructor({ id, question, response, parentId = null, children = [], parent = undefined, highlightedText = null }) {
+
+  constructor({ id, question, response, parentId = null, childIds = [], highlightedText = null }) {
     this.id = id
     this.question = question
     this.response = response
     this.parentId = parentId
-    this.children = children // array of Message objects
+    this.childIds = childIds // array of child message IDs (normalized structure)
     this.highlightedText = highlightedText // the text that was highlighted when creating this message
-    if (parent !== undefined) this.parent = parent;
-  }
-
-  addChild(child) {
-    if (!(child instanceof Message)) {
-      child = new Message(child)
-    }
-    this.children.push(child)
-    child.parentId = this.messageId
   }
 
   // Check if this message has any children
   get hasChildren() {
-    return this.children && this.children.length > 0
-  }
-
-  // Get the most recently accessed child (last child in the array)
-  get lastAccessedChild() {
-    if (this.hasChildren) {
-      return this.children[this.children.length - 1]
-    }
-    return null
+    return this.childIds && this.childIds.length > 0
   }
 }

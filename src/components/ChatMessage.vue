@@ -1,27 +1,28 @@
 <template>
   <div>
-    <!-- User question -->
+    <!-- Root question -->
     <div class="message message-user">
       <div class="message-header">
         <span class="role-badge">You</span>
       </div>
       <div class="message-content">
         <div class="user-message">
-          {{ state.currentMessage.question }}
+          {{ rootMessage.question }}
         </div>
       </div>
     </div>
+
      <!-- Assistant answer with streaming -->
      <div v-if="isStreaming || currentResponse" class="message message-assistant">
        <div class="message-header">
          <span class="role-badge">Study Assistant</span>
        </div>
        <div class="message-content" style="position: relative;">
-         <div v-if="state.currentMessage" class="nav-buttons">
+         <div v-if="currentMessage" class="nav-buttons">
            <button
              @click="switchToParent"
              class="nav-btn"
-             :disabled="!state.currentMessage.parent"
+             :disabled="!currentMessage.parentId"
              title="Go to parent message"
            >&lt;</button>
            <button
@@ -37,7 +38,7 @@
            <button
              @click="switchToLastChild"
              class="nav-btn"
-             :disabled="!state.currentMessage.hasChildren"
+             :disabled="!currentMessage.hasChildren"
              title="Go to child message"
            >&gt;</button>
          </div>
@@ -94,6 +95,8 @@ import MarkdownRenderer from './MarkdownRenderer.vue'
 import ContextMenu from './ContextMenu.vue'
 import { sendChatMessage } from '../services/api.js'
 import Message from '../stores/Message.js'
+import { getSelectedTextAndPosition as defaultGetSelectedTextAndPosition } from './ChatMessage.vue'
+
 
 const props = defineProps({
   message: {
@@ -103,6 +106,10 @@ const props = defineProps({
   isAppStreaming: {
     type: Boolean,
     default: false
+  },
+  getSelectedTextAndPosition: {
+    type: Function,
+    default: undefined
   }
 })
 
@@ -111,9 +118,6 @@ const chatStore = useChatStore()
 const state = reactive({
   isChildStreaming: false,
   error: null,
-  // State for current message and current response
-  currentMessage: null,
-  currentMessageResponse: null,
   contextMenu: {
     visible: false,
     x: 0,
@@ -122,33 +126,51 @@ const state = reactive({
   }
 })
 
-// Initialize currentMessage and currentMessageResponse with props.message by default
-state.currentMessage = props.message
-state.currentMessageResponse = props.message.response
+// Computed property to always get the root/original message (from props)
+const rootMessage = computed(() => props.message)
+
+// Get the currently viewed message from the store, or fall back to root message
+const currentMessage = computed(() => {
+  // If we have a current message in store and it's part of this tree, use it
+  if (chatStore.currentMessage) {
+    // Check if current message is this root or a descendant
+    let msg = chatStore.currentMessage
+    while (msg) {
+      if (msg.id === rootMessage.value.id) {
+        return chatStore.currentMessage
+      }
+      msg = msg.parentId ? chatStore.messagesById[msg.parentId] : null
+    }
+  }
+  // Default to root message
+  return rootMessage.value
+})
 
 // Computed property that directly tracks the response string for reactivity
 const currentResponse = computed(() => {
-  // Use the state's currentMessageResponse
-  return state.currentMessage.response
+  return currentMessage.value?.response || ''
 })
 
 // Computed property that processes the response and adds links for highlighted text
 const processedResponse = computed(() => {
-  let response = currentResponse.value;
+  let response = currentResponse.value
+
+  // Get children from store using the current message ID
+  const children = chatStore.getChildren(currentMessage.value?.id)
 
   // For each child message, replace its highlighted text with a clickable link
-  if (state.currentMessage && state.currentMessage.children) {
-    state.currentMessage.children.forEach((child, index) => {
+  if (children && children.length > 0) {
+    children.forEach((child, index) => {
       if (child.highlightedText) {
-        const escapedText = escapeRegex(child.highlightedText);
-        const regex = new RegExp(`(${escapedText})`, 'g');
-        const replacement = createHighlightedLink('$1', index);
-        response = response.replace(regex, replacement);
+        const escapedText = escapeRegex(child.highlightedText)
+        const regex = new RegExp(`(${escapedText})`, 'g')
+        const replacement = createHighlightedLink('$1', index)
+        response = response.replace(regex, replacement)
       }
-    });
+    })
   }
 
-  return response;
+  return response
 })
 
 // Computed property that combines both streaming states
@@ -157,7 +179,8 @@ const isStreaming = computed(() => {
 })
 
 function showContextMenu(e) {
-  const { selectedText, x, y, visible } = getSelectedTextAndPosition();
+  const getSel = props.getSelectedTextAndPosition || defaultGetSelectedTextAndPosition;
+  const { selectedText, x, y, visible } = getSel();
   state.contextMenu.selectedText = selectedText;
   state.contextMenu.x = x;
   state.contextMenu.y = y;
@@ -169,76 +192,52 @@ function closeContextMenu() {
 }
 
 async function handleHighlight(question) {
-  if (!question || state.isChildStreaming) return;
-  closeContextMenu(); // Close menu immediately to prevent retrigger
-  console.log('Highlight question:', question);
+  if (!question || state.isChildStreaming) return
+  closeContextMenu() // Close menu immediately to prevent retrigger
+  console.log('Highlight question:', question)
 
-  // Use currentMessage as the parent (not props.message)
-  const parentMsg = state.currentMessage;
+  // Use currentMessage as the parent
+  const parentId = currentMessage.value.id
 
-  // Create new child message with highlighted text (using Message static method)
-  const childMsg = reactive(Message.createChildMessage(parentMsg, question, state.contextMenu.selectedText));
+  // Create new child message with highlighted text
+  const childMsg = Message.createChildMessage(parentId, question, state.contextMenu.selectedText)
 
-  // Add child to parent's children array
-  parentMsg.children.push(childMsg);
+  // Add child to store
+  chatStore.addChildMessage(parentId, childMsg)
 
-  // Move currentMessage and currentMessageResponse to the new child
-  state.currentMessage = childMsg;
-  state.currentMessageResponse = childMsg.response;
-
-  state.isChildStreaming = true;
-  state.error = null;
+  state.isChildStreaming = true
+  state.error = null
 
   try {
     await sendChatMessage(
       question,
       chatStore.currentModel,
       (chunk) => {
-        childMsg.response += chunk;
-        // Update currentMessageResponse to reflect the streaming response
-        state.currentMessageResponse = childMsg.response;
+        // Update via store
+        chatStore.appendToResponse(childMsg.id, chunk)
       }
-    );
+    )
   } catch (err) {
-    state.error = err.message;
+    state.error = err.message
   } finally {
-    state.isChildStreaming = false;
+    state.isChildStreaming = false
   }
 }
 
 function switchToParent() {
-  if (state.currentMessage && state.currentMessage.parent) {
-    state.currentMessage = state.currentMessage.parent;
-    state.currentMessageResponse = state.currentMessage.response;
-  }
+  chatStore.navigateToParent(currentMessage.value?.id)
 }
 
 function switchToRoot() {
-  // Navigate to the root message by following parent chain
-  let current = state.currentMessage;
-  while (current && current.parent) {
-    current = current.parent;
-  }
-  if (current) {
-    state.currentMessage = current;
-    state.currentMessageResponse = current.response;
-  }
+  chatStore.navigateToRoot(currentMessage.value?.id)
 }
 
 function switchToLastChild() {
-  // Navigate to the last accessed child message
-  if (state.currentMessage && state.currentMessage.lastAccessedChild) {
-    const lastChild = state.currentMessage.lastAccessedChild;
-    state.currentMessage = lastChild;
-    state.currentMessageResponse = lastChild.response;
-  }
+  chatStore.navigateToLastChild(currentMessage.value?.id)
 }
 
 function navigateToChild(childIndex) {
-  if (state.currentMessage && state.currentMessage.children[childIndex]) {
-    state.currentMessage = state.currentMessage.children[childIndex];
-    state.currentMessageResponse = state.currentMessage.response;
-  }
+  chatStore.navigateToChild(currentMessage.value?.id, childIndex)
 }
 
 function handleResponseClick(event) {
