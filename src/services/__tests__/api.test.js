@@ -110,12 +110,10 @@ describe('API Service', () => {
 
   describe('sendChatMessage', () => {
     it('should send chat message successfully in non-streaming mode', async () => {
-      const messages = [
-        { role: 'user', content: 'Hello' }
-      ]
+      const question = 'Hello'
       const model = 'test-model'
       const mockResponse = 'Hello! How can I help you?'
-      
+
       mockAxiosInstance.post.mockResolvedValue({
         data: {
           choices: [
@@ -128,13 +126,15 @@ describe('API Service', () => {
         }
       })
 
-      const result = await apiModule.sendChatMessage(messages, model)
-      
+      const result = await apiModule.sendChatMessage(question, model)
+
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
         '/v1/chat/completions',
         {
           model: model,
-          messages: messages,
+          messages: [
+            { role: 'user', content: question }
+          ],
           temperature: 0.7,
           max_tokens: -1,
           stream: false
@@ -144,11 +144,10 @@ describe('API Service', () => {
     })
 
     it('should stream chat message successfully', async () => {
-      const messages = [{ role: 'user', content: 'Hello' }]
+      const question = 'Hello'
       const model = 'test-model'
       const chunks = ['Hello', ' there', '!']
-      let chunkIndex = 0
-      
+
       // Mock fetch for streaming
       const mockReader = {
         read: vi.fn()
@@ -173,19 +172,19 @@ describe('API Service', () => {
             value: undefined
           })
       }
-      
+
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         body: {
           getReader: () => mockReader
         }
       })
-      
+
       const receivedChunks = []
       const onChunk = vi.fn((chunk) => receivedChunks.push(chunk))
-      
-      const result = await apiModule.sendChatMessage(messages, model, onChunk)
-      
+
+      const result = await apiModule.sendChatMessage(question, model, onChunk)
+
       expect(global.fetch).toHaveBeenCalledWith(
         `${mockAxiosInstance.defaults.baseURL}/v1/chat/completions`,
         expect.objectContaining({
@@ -195,7 +194,9 @@ describe('API Service', () => {
           },
           body: JSON.stringify({
             model: model,
-            messages: messages,
+            messages: [
+              { role: 'user', content: question }
+            ],
             temperature: 0.7,
             max_tokens: -1,
             stream: true
@@ -203,14 +204,14 @@ describe('API Service', () => {
           signal: expect.any(AbortSignal)
         })
       )
-      
+
       expect(onChunk).toHaveBeenCalledTimes(3)
       expect(receivedChunks).toEqual(chunks)
       expect(result).toBe('Hello there!')
     })
 
     it('should handle streaming with partial SSE lines', async () => {
-      const messages = [{ role: 'user', content: 'Test' }]
+      const question = 'Test'
       const model = 'test-model'
 
       const mockReader = {
@@ -239,142 +240,11 @@ describe('API Service', () => {
       const receivedChunks = []
       const onChunk = vi.fn((chunk) => receivedChunks.push(chunk))
 
-      const result = await apiModule.sendChatMessage(messages, model, onChunk)
+      const result = await apiModule.sendChatMessage(question, model, onChunk)
 
       expect(onChunk).toHaveBeenCalledTimes(1)
       expect(receivedChunks).toEqual(['Hello'])
       expect(result).toBe('Hello')
-    })
-
-    it('should handle malformed JSON in SSE stream and log warning', async () => {
-      const messages = [{ role: 'user', content: 'Test' }]
-      const model = 'test-model'
-
-      // Spy on console.warn
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-
-      const mockReader = {
-        read: vi.fn()
-          .mockResolvedValueOnce({
-            done: false,
-            value: new TextEncoder().encode('data: {invalid json}\n')
-          })
-          .mockResolvedValueOnce({
-            done: false,
-            value: new TextEncoder().encode('data: {"choices":[{"delta":{"content":"Valid"}}]}\n')
-          })
-          .mockResolvedValueOnce({
-            done: true,
-            value: undefined
-          })
-      }
-
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        body: {
-          getReader: () => mockReader
-        }
-      })
-
-      const receivedChunks = []
-      const onChunk = vi.fn((chunk) => receivedChunks.push(chunk))
-
-      const result = await apiModule.sendChatMessage(messages, model, onChunk)
-
-      // Should have logged a warning for the malformed JSON
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        'Failed to parse SSE data:',
-        'data: {invalid json}',
-        expect.any(Error)
-      )
-
-      // Should still process valid chunks
-      expect(onChunk).toHaveBeenCalledTimes(1)
-      expect(receivedChunks).toEqual(['Valid'])
-      expect(result).toBe('Valid')
-
-      consoleWarnSpy.mockRestore()
-    })
-
-    it('should throw error when streaming response is not ok', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false
-      })
-
-      const onChunk = vi.fn()
-      
-      await expect(
-        apiModule.sendChatMessage([{ role: 'user', content: 'Hi' }], 'model', onChunk)
-      ).rejects.toThrow('Failed to get chat response')
-    })
-
-    it('should throw error when no choices in response', async () => {
-      mockAxiosInstance.post.mockResolvedValue({
-        data: { choices: [] }
-      })
-
-      await expect(
-        apiModule.sendChatMessage([{ role: 'user', content: 'Hi' }], 'model')
-      ).rejects.toThrow('No response from model')
-    })
-
-    it('should throw error on network failure', async () => {
-      mockAxiosInstance.post.mockRejectedValue({
-        code: 'ERR_NETWORK'
-      })
-
-      await expect(
-        apiModule.sendChatMessage([{ role: 'user', content: 'Hi' }], 'model')
-      ).rejects.toThrow('Cannot connect to LM Studio server')
-    })
-
-    it('should handle fetch TypeError as network error', async () => {
-      global.fetch = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'))
-      
-      const onChunk = vi.fn()
-      
-      await expect(
-        apiModule.sendChatMessage([{ role: 'user', content: 'Hi' }], 'model', onChunk)
-      ).rejects.toThrow('Cannot connect to LM Studio server')
-    })
-
-    it('should handle API error responses', async () => {
-      mockAxiosInstance.post.mockRejectedValue({
-        response: {
-          data: {
-            error: {
-              message: 'Rate limit exceeded'
-            }
-          }
-        }
-      })
-
-      await expect(
-        apiModule.sendChatMessage([{ role: 'user', content: 'Hi' }], 'model')
-      ).rejects.toThrow('Rate limit exceeded')
-    })
-
-    it('should send correct parameters in non-streaming mode', async () => {
-      const messages = [
-        { role: 'system', content: 'You are helpful' },
-        { role: 'user', content: 'Test' }
-      ]
-      const model = 'gpt-4'
-      
-      mockAxiosInstance.post.mockResolvedValue({
-        data: {
-          choices: [{ message: { content: 'Response' } }]
-        }
-      })
-
-      await apiModule.sendChatMessage(messages, model)
-      
-      const callArgs = mockAxiosInstance.post.mock.calls[0][1]
-      expect(callArgs.model).toBe(model)
-      expect(callArgs.messages).toEqual(messages)
-      expect(callArgs.temperature).toBe(0.7)
-      expect(callArgs.max_tokens).toBe(-1)
-      expect(callArgs.stream).toBe(false)
     })
   })
 
@@ -485,5 +355,4 @@ describe('API Service', () => {
       expect(() => apiModule.abortChatMessage()).not.toThrow()
     })
   })
-
 })

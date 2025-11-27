@@ -67,7 +67,11 @@ export const abortChatMessage = () => {
  * @param {Function} onChunk - Optional callback for streaming chunks (chunk) => void
  * @returns {Promise<string>} - Complete response text (or empty if streaming)
  */
-export const sendChatMessage = async (messages, model, onChunk = null) => {
+export const sendChatMessage = async (question, model, onChunk = null) => {
+  // Always wrap the question as the correct API message format
+  const messages = [
+    { role: 'user', content: question }
+  ]
   try {
     console.log('Sending chat request:', { model, messageCount: messages.length })
     

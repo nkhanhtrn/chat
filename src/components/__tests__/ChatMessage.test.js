@@ -68,119 +68,39 @@ describe('ChatMessage', () => {
     })
   })
 
+
   describe('User Messages', () => {
-    it('should display user role badge', () => {
+    it('should display user role badge (You) when response is empty', () => {
       wrapper = mount(ChatMessage, {
         props: {
           message: {
-            role: 'user',
-            content: 'Hello'
+            question: 'Hello',
+            response: ''
           }
         }
       })
-
       expect(wrapper.find('.role-badge').text()).toBe('You')
     })
 
-    it('should apply user message class', () => {
+    it('should apply user message class when response is empty', () => {
       wrapper = mount(ChatMessage, {
         props: {
           message: {
-            role: 'user',
-            content: 'Hello'
+            question: 'Hello',
+            response: ''
           }
         }
       })
-
       expect(wrapper.find('.message').classes()).toContain('message-user')
     })
 
-    it('should render user message content as plain text', () => {
-      wrapper = mount(ChatMessage, {
-        props: {
-          message: {
-            role: 'user',
-            content: 'Hello world'
-          }
-        }
-      })
-
-      expect(wrapper.find('.user-message').exists()).toBe(true)
-      expect(wrapper.find('.user-message').text()).toBe('Hello world')
-    })
-
-    it('should not render markdown for user messages', () => {
-      wrapper = mount(ChatMessage, {
-        props: {
-          message: {
-            role: 'user',
-            content: '**bold**'
-          }
-        }
-      })
-
-      expect(wrapper.find('.user-message').text()).toBe('**bold**')
-      expect(wrapper.findComponent(MarkdownRenderer).exists()).toBe(false)
-    })
-
-    it('should preserve whitespace in user messages', () => {
-      wrapper = mount(ChatMessage, {
-        props: {
-          message: {
-            role: 'user',
-            content: 'Line 1\nLine 2'
-          }
-        }
-      })
-
-      expect(wrapper.find('.user-message').text()).toContain('Line 1')
-      expect(wrapper.find('.user-message').text()).toContain('Line 2')
-    })
-  })
-
-  describe('Assistant Messages', () => {
-    it('should display assistant role badge', () => {
-      wrapper = mount(ChatMessage, {
-        props: {
-          message: {
-            role: 'assistant',
-            content: 'Response'
-          }
-        },
-        global: {
-          stubs: {
-            MarkdownRenderer: true
-          }
-        }
-      })
-
-      expect(wrapper.find('.role-badge').text()).toBe('Study Assistant')
-    })
-
-    it('should apply assistant message class', () => {
-      wrapper = mount(ChatMessage, {
-        props: {
-          message: {
-            role: 'assistant',
-            content: 'Response'
-          }
-        },
-        global: {
-          stubs: {
-            MarkdownRenderer: true
-          }
-        }
-      })
-
-      expect(wrapper.find('.message').classes()).toContain('message-assistant')
-    })
 
     it('should render assistant message with MarkdownRenderer', () => {
       wrapper = mount(ChatMessage, {
         props: {
           message: {
-            role: 'assistant',
-            content: 'Response'
+            question: 'Q',
+            response: 'Response'
           }
         },
         global: {
@@ -189,17 +109,16 @@ describe('ChatMessage', () => {
           }
         }
       })
-
       expect(wrapper.findComponent(MarkdownRenderer).exists()).toBe(true)
     })
 
-    it('should pass content to MarkdownRenderer', () => {
-      const content = '# Hello\n\nThis is **bold**'
+    it('should pass response to MarkdownRenderer', () => {
+      const response = '# Hello\n\nThis is **bold**'
       wrapper = mount(ChatMessage, {
         props: {
           message: {
-            role: 'assistant',
-            content: content
+            question: 'Q',
+            response
           }
         },
         global: {
@@ -208,17 +127,16 @@ describe('ChatMessage', () => {
           }
         }
       })
-
       const markdownRenderer = wrapper.findComponent(MarkdownRenderer)
-      expect(markdownRenderer.props('content')).toBe(content)
+      expect(markdownRenderer.props('content')).toBe(response)
     })
 
     it('should render assistant-message container', () => {
       wrapper = mount(ChatMessage, {
         props: {
           message: {
-            role: 'assistant',
-            content: 'Response'
+            question: 'Q',
+            response: 'Response'
           }
         },
         global: {
@@ -227,7 +145,6 @@ describe('ChatMessage', () => {
           }
         }
       })
-
       expect(wrapper.find('.assistant-message').exists()).toBe(true)
     })
   })
@@ -237,8 +154,8 @@ describe('ChatMessage', () => {
       wrapper = mount(ChatMessage, {
         props: {
           message: {
-            role: 'assistant',
-            content: 'Partial response'
+            question: 'Q',
+            response: 'Partial response'
           },
           isStreaming: true
         },
@@ -248,7 +165,6 @@ describe('ChatMessage', () => {
           }
         }
       })
-
       expect(wrapper.find('.cursor').exists()).toBe(true)
       expect(wrapper.find('.cursor').text()).toBe('▊')
     })
@@ -302,57 +218,6 @@ describe('ChatMessage', () => {
       expect(wrapper.find('.message').classes()).not.toContain('message-assistant')
     })
 
-    it('should compute correct class for assistant message', () => {
-      wrapper = mount(ChatMessage, {
-        props: {
-          message: {
-            role: 'assistant',
-            content: 'Test'
-          }
-        },
-        global: {
-          stubs: {
-            MarkdownRenderer: true
-          }
-        }
-      })
-
-      expect(wrapper.find('.message').classes()).toContain('message-assistant')
-      expect(wrapper.find('.message').classes()).not.toContain('message-user')
-    })
-  })
-
-  describe('Role Name Computation', () => {
-    it('should display "You" for user role', () => {
-      wrapper = mount(ChatMessage, {
-        props: {
-          message: {
-            role: 'user',
-            content: 'Test'
-          }
-        }
-      })
-
-      expect(wrapper.vm.roleName).toBe('You')
-    })
-
-    it('should display "Study Assistant" for assistant role', () => {
-      wrapper = mount(ChatMessage, {
-        props: {
-          message: {
-            role: 'assistant',
-            content: 'Test'
-          }
-        },
-        global: {
-          stubs: {
-            MarkdownRenderer: true
-          }
-        }
-      })
-
-      expect(wrapper.vm.roleName).toBe('Study Assistant')
-    })
   })
 
   describe('Structure', () => {
@@ -420,31 +285,29 @@ describe('ChatMessage', () => {
       expect(wrapper.find('.user-message').text()).toBe('')
     })
 
-    it('should render multiline user content', () => {
+    it('should render multiline user question', () => {
       const multiline = 'Line 1\nLine 2\nLine 3'
       wrapper = mount(ChatMessage, {
         props: {
           message: {
-            role: 'user',
-            content: multiline
+            question: multiline,
+            response: ''
           }
         }
       })
-
       expect(wrapper.find('.user-message').text()).toBe(multiline)
     })
 
-    it('should handle special characters in user content', () => {
+    it('should handle special characters in user question', () => {
       const special = '<div>Test & "quotes"</div>'
       wrapper = mount(ChatMessage, {
         props: {
           message: {
-            role: 'user',
-            content: special
+            question: special,
+            response: ''
           }
         }
       })
-
       expect(wrapper.find('.user-message').text()).toBe(special)
     })
 
@@ -452,8 +315,8 @@ describe('ChatMessage', () => {
       wrapper = mount(ChatMessage, {
         props: {
           message: {
-            role: 'assistant',
-            content: '# Title\n\nParagraph with **bold**'
+            question: 'Q',
+            response: '# Title\n\nParagraph with **bold**'
           }
         },
         global: {
@@ -462,7 +325,6 @@ describe('ChatMessage', () => {
           }
         }
       })
-
       expect(wrapper.findComponent(MarkdownRenderer).exists()).toBe(true)
     })
   })
@@ -494,17 +356,16 @@ describe('ChatMessage', () => {
       expect(wrapper.find('.message').exists()).toBe(true)
     })
 
-    it('should handle very long content', () => {
+    it('should handle very long question', () => {
       const longContent = 'a'.repeat(10000)
       wrapper = mount(ChatMessage, {
         props: {
           message: {
-            role: 'user',
-            content: longContent
+            question: longContent,
+            response: ''
           }
         }
       })
-
       expect(wrapper.find('.user-message').text()).toBe(longContent)
     })
   })

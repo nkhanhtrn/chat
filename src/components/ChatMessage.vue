@@ -1,15 +1,26 @@
 <template>
-  <div class="message" :class="messageClass">
-    <div class="message-header">
-      <span class="role-badge">{{ roleName }}</span>
-    </div>
-    <div class="message-content">
-      <div v-if="message.role === 'user'" class="user-message">
-        {{ message.content }}
+  <div>
+    <!-- User question -->
+    <div class="message message-user">
+      <div class="message-header">
+        <span class="role-badge">You</span>
       </div>
-      <div v-else class="assistant-message">
-        <MarkdownRenderer :content="message.content" />
-        <span v-if="isStreaming" class="cursor">▊</span>
+      <div class="message-content">
+        <div class="user-message">
+          {{ message.question }}
+        </div>
+      </div>
+    </div>
+    <!-- Assistant answer -->
+    <div v-if="message.response" class="message message-assistant">
+      <div class="message-header">
+        <span class="role-badge">Study Assistant</span>
+      </div>
+      <div class="message-content">
+        <div class="assistant-message">
+          <MarkdownRenderer :content="message.response" />
+          <span v-if="isStreaming" class="cursor">▊</span>
+        </div>
       </div>
     </div>
   </div>
@@ -30,13 +41,7 @@ const props = defineProps({
   }
 })
 
-const messageClass = computed(() => {
-  return props.message.role === 'user' ? 'message-user' : 'message-assistant'
-})
-
-const roleName = computed(() => {
-  return props.message.role === 'user' ? 'You' : 'Study Assistant'
-})
+// messageClass and roleName are no longer needed since we split the elements
 </script>
 
 <style scoped>

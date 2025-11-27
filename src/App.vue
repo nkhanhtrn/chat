@@ -21,7 +21,7 @@
 
       <ChatMessage
         v-for="(message, index) in messages"
-        :key="index"
+        :key="message.id"
         :message="message"
         :is-streaming="isStreaming && index === messages.length - 1"
       />
@@ -40,11 +40,12 @@
 </template>
 
 <script setup>
+
 import { ref, nextTick, onMounted } from 'vue'
 import ChatMessage from './components/ChatMessage.vue'
 import ChatInput from './components/ChatInput.vue'
 import { sendChatMessage, fetchModels } from './services/api.js'
-
+import Message from './stores/Message.js'
 const messages = ref([])
 const isStreaming = ref(false)
 const error = ref(null)
@@ -78,41 +79,29 @@ const handleSendMessage = async (userMessage) => {
 
   error.value = null
 
-  messages.value.push({
-    role: 'user',
-    content: userMessage
+  const msg = new Message({
+    id: crypto.randomUUID(),
+    question: userMessage,
+    response: ''
   })
-
+  messages.value.push(msg)
   scrollToBottom()
-
-  // Add assistant message placeholder
-  const assistantMessageIndex = messages.value.length
-  messages.value.push({
-    role: 'assistant',
-    content: ''
-  })
 
   isStreaming.value = true
 
   try {
-    const conversationHistory = messages.value
-      .filter(m => m.content !== '')
-      .map(m => ({
-        role: m.role,
-        content: m.content
-      }))
-
     await sendChatMessage(
-      conversationHistory,
+      userMessage,
       currentModel.value,
       (chunk) => {
-        // Directly update the message in the array to ensure reactivity
-        messages.value[assistantMessageIndex].content += chunk
+        // Find the last message (the one just added)
+        messages.value[messages.value.length - 1].response += chunk
         scrollToBottom()
       }
     )
   } catch (err) {
     error.value = err.message
+    // Remove last message on error
     messages.value.pop()
   } finally {
     isStreaming.value = false
@@ -211,4 +200,3 @@ const handleSendMessage = async (userMessage) => {
   border: 1px solid #f5c6cb;
 }
 </style>
-good, now add unit tets
