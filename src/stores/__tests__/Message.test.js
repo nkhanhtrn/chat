@@ -152,4 +152,135 @@ describe('Message', () => {
     })
   })
 
+  describe('Persistence of all Message properties', () => {
+    it('preserves questionSummarized when reconstructing from persisted data', () => {
+      // Create a message with a long question
+      const msg = new Message({
+        id: '1',
+        question: 'This is a very long question that exceeds one hundred characters and should be automatically truncated by the constructor',
+        response: 'A'
+      })
+
+      // Update the questionSummarized to a custom value
+      msg.updateQuestionSummarized('Custom Summary')
+
+      // Simulate serialization and deserialization (like localStorage does)
+      const serialized = JSON.parse(JSON.stringify(msg))
+      const restored = new Message(serialized)
+
+      // The custom summary should be preserved
+      expect(restored.questionSummarized).toBe('Custom Summary')
+    })
+
+    it('preserves lastVisitedChild when reconstructing from persisted data', () => {
+      const msg = new Message({
+        id: '1',
+        question: 'Q',
+        response: 'A',
+        childIds: ['child-1', 'child-2']
+      })
+
+      // Set lastVisitedChild
+      msg.lastVisitedChild = 'child-2'
+
+      // Simulate serialization and deserialization
+      const serialized = JSON.parse(JSON.stringify(msg))
+      const restored = new Message(serialized)
+
+      // lastVisitedChild should be preserved
+      expect(restored.lastVisitedChild).toBe('child-2')
+    })
+
+    it('preserves all properties when reconstructing a complete Message', () => {
+      const originalData = {
+        id: 'msg-123',
+        question: 'What is the meaning of life?',
+        questionSummarized: 'Life meaning?',
+        response: 'The answer is 42',
+        parentId: 'parent-456',
+        childIds: ['child-1', 'child-2', 'child-3'],
+        highlightedText: 'some highlighted text',
+        lastVisitedChild: 'child-2'
+      }
+
+      const msg = new Message(originalData)
+
+      // Verify all properties are set correctly
+      expect(msg.id).toBe(originalData.id)
+      expect(msg.question).toBe(originalData.question)
+      expect(msg.questionSummarized).toBe(originalData.questionSummarized)
+      expect(msg.response).toBe(originalData.response)
+      expect(msg.parentId).toBe(originalData.parentId)
+      expect(msg.childIds).toEqual(originalData.childIds)
+      expect(msg.highlightedText).toBe(originalData.highlightedText)
+      expect(msg.lastVisitedChild).toBe(originalData.lastVisitedChild)
+
+      // Simulate persistence (JSON serialization/deserialization)
+      const serialized = JSON.parse(JSON.stringify(msg))
+      const restored = new Message(serialized)
+
+      // Verify all properties are preserved after restoration
+      expect(restored.id).toBe(originalData.id)
+      expect(restored.question).toBe(originalData.question)
+      expect(restored.questionSummarized).toBe(originalData.questionSummarized)
+      expect(restored.response).toBe(originalData.response)
+      expect(restored.parentId).toBe(originalData.parentId)
+      expect(restored.childIds).toEqual(originalData.childIds)
+      expect(restored.highlightedText).toBe(originalData.highlightedText)
+      expect(restored.lastVisitedChild).toBe(originalData.lastVisitedChild)
+    })
+
+    it('correctly defaults questionSummarized when not provided in persisted data', () => {
+      const shortQuestion = 'Short Q'
+      const msg = new Message({
+        id: '1',
+        question: shortQuestion,
+        response: 'A'
+      })
+
+      // Simulate serialization and deserialization
+      const serialized = JSON.parse(JSON.stringify(msg))
+      const restored = new Message(serialized)
+
+      // questionSummarized should default to the question since it's short
+      expect(restored.questionSummarized).toBe(shortQuestion)
+    })
+
+    it('correctly defaults questionSummarized to truncated question when question is long and no custom summary provided', () => {
+      const longQuestion = 'This is a very long question that definitely exceeds one hundred characters in length and therefore should be truncated automatically'
+      const msg = new Message({
+        id: '1',
+        question: longQuestion,
+        response: 'A'
+      })
+
+      // Simulate serialization and deserialization
+      const serialized = JSON.parse(JSON.stringify(msg))
+      const restored = new Message(serialized)
+
+      // questionSummarized should be truncated to 100 chars + '...'
+      expect(restored.questionSummarized).toBe(longQuestion.slice(0, 100) + '...')
+      expect(restored.questionSummarized.length).toBe(103)
+    })
+
+    it('preserves null values for optional properties', () => {
+      const msg = new Message({
+        id: '1',
+        question: 'Q',
+        response: 'A',
+        parentId: null,
+        highlightedText: null,
+        lastVisitedChild: null
+      })
+
+      // Simulate serialization and deserialization
+      const serialized = JSON.parse(JSON.stringify(msg))
+      const restored = new Message(serialized)
+
+      expect(restored.parentId).toBe(null)
+      expect(restored.highlightedText).toBe(null)
+      expect(restored.lastVisitedChild).toBe(null)
+    })
+  })
+
 })

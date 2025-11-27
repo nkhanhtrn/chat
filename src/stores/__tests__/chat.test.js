@@ -38,6 +38,64 @@ describe('useChatStore', () => {
       expect(store.messagesById.msg1.question).toBe('Q1')
       expect(store.messagesById.msg2.parentId).toBe('msg1')
     })
+
+    it('restores all Message properties including questionSummarized and lastVisitedChild', () => {
+      const savedStateWithAllProps = {
+        messagesById: {
+          msg1: {
+            id: 'msg1',
+            question: 'This is a very long question that exceeds one hundred characters and should have been truncated',
+            questionSummarized: 'Custom summary for msg1',
+            response: 'R1',
+            parentId: null,
+            childIds: ['msg2', 'msg3'],
+            highlightedText: 'some text',
+            lastVisitedChild: 'msg2'
+          },
+          msg2: {
+            id: 'msg2',
+            question: 'Q2',
+            questionSummarized: 'Q2 summary',
+            response: 'R2',
+            parentId: 'msg1',
+            childIds: [],
+            highlightedText: null,
+            lastVisitedChild: null
+          },
+          msg3: {
+            id: 'msg3',
+            question: 'Q3',
+            questionSummarized: 'Q3',
+            response: 'R3',
+            parentId: 'msg1',
+            childIds: [],
+            highlightedText: 'highlighted',
+            lastVisitedChild: null
+          }
+        },
+        rootMessageIds: ['msg1'],
+        currentMessageId: 'msg1',
+        currentModel: 'gpt-4'
+      }
+
+      loadChatStateSpy.mockReturnValue(savedStateWithAllProps)
+      const store = useChatStore()
+
+      // Verify msg1 has all properties restored
+      expect(store.messagesById.msg1.questionSummarized).toBe('Custom summary for msg1')
+      expect(store.messagesById.msg1.lastVisitedChild).toBe('msg2')
+      expect(store.messagesById.msg1.highlightedText).toBe('some text')
+      expect(store.messagesById.msg1.childIds).toEqual(['msg2', 'msg3'])
+
+      // Verify msg2 has all properties restored
+      expect(store.messagesById.msg2.questionSummarized).toBe('Q2 summary')
+      expect(store.messagesById.msg2.lastVisitedChild).toBe(null)
+      expect(store.messagesById.msg2.highlightedText).toBe(null)
+
+      // Verify msg3 has all properties restored
+      expect(store.messagesById.msg3.questionSummarized).toBe('Q3')
+      expect(store.messagesById.msg3.highlightedText).toBe('highlighted')
+    })
   })
 
   beforeEach(() => {
@@ -251,6 +309,144 @@ describe('useChatStore', () => {
       chatStore.setError(null)
 
       expect(chatStore.error).toBeNull()
+    })
+  })
+
+  describe('End-to-end persistence of all Message properties', () => {
+    let saveChatStateSpy
+
+    beforeEach(() => {
+      saveChatStateSpy = vi.spyOn(storage, 'saveChatState')
+    })
+
+    afterEach(() => {
+      saveChatStateSpy.mockRestore()
+    })
+
+    it('persists questionSummarized when updated', () => {
+      chatStore.addRootMessage({
+        id: 'root1',
+        question: 'This is a very long question that exceeds one hundred characters and will be truncated by default',
+        response: 'Test response'
+      })
+
+      // Update the questionSummarized
+      chatStore.setQuestionSummarized('root1', 'Custom Summary')
+
+      // Verify _persistState was called
+      expect(saveChatStateSpy).toHaveBeenCalled()
+
+      // Get the last call's argument
+      const savedState = saveChatStateSpy.mock.calls[saveChatStateSpy.mock.calls.length - 1][0]
+
+      // Verify the custom summary is in the persisted state
+      expect(savedState.messagesById.root1.questionSummarized).toBe('Custom Summary')
+    })
+
+    it('persists lastVisitedChild when navigating to a child', () => {
+      chatStore.addRootMessage({
+        id: 'root',
+        question: 'Root question',
+        response: 'Root response'
+      })
+
+      chatStore.addChildMessage('root', {
+        id: 'child1',
+        question: 'Child 1',
+        response: 'Child 1 response'
+      })
+
+      chatStore.navigateToMessage('root')
+
+      chatStore.addChildMessage('root', {
+        id: 'child2',
+        question: 'Child 2',
+        response: 'Child 2 response'
+      })
+
+      // Navigate to child1
+      chatStore.navigateToChild('root', 0)
+
+      // Verify _persistState was called
+      expect(saveChatStateSpy).toHaveBeenCalled()
+
+      // Get the last call's argument
+      const savedState = saveChatStateSpy.mock.calls[saveChatStateSpy.mock.calls.length - 1][0]
+
+      // Verify lastVisitedChild is persisted
+      expect(savedState.messagesById.root.lastVisitedChild).toBe('child1')
+    })
+
+    it('persists all Message properties including highlightedText', () => {
+      const msgData = {
+        id: 'msg1',
+        question: 'What is this highlighted text about?',
+        response: '',
+        highlightedText: 'This is some highlighted text from the parent message'
+      }
+
+      chatStore.addRootMessage(msgData)
+
+      // Verify _persistState was called
+      expect(saveChatStateSpy).toHaveBeenCalled()
+
+      // Get the last call's argument
+      const savedState = saveChatStateSpy.mock.calls[saveChatStateSpy.mock.calls.length - 1][0]
+
+      // Verify all properties are persisted
+      expect(savedState.messagesById.msg1.id).toBe(msgData.id)
+      expect(savedState.messagesById.msg1.question).toBe(msgData.question)
+      expect(savedState.messagesById.msg1.response).toBe(msgData.response)
+      expect(savedState.messagesById.msg1.highlightedText).toBe(msgData.highlightedText)
+      expect(savedState.messagesById.msg1.childIds).toEqual([])
+      expect(savedState.messagesById.msg1.parentId).toBe(null)
+    })
+
+    it('persists complete message tree with all properties', () => {
+      // Create a complex tree structure
+      chatStore.addRootMessage({
+        id: 'root',
+        question: 'Root question that is quite long and will be auto-summarized unless we provide a custom summary',
+        response: 'Root response'
+      })
+
+      chatStore.setQuestionSummarized('root', 'Root summary')
+
+      chatStore.addChildMessage('root', {
+        id: 'child1',
+        question: 'Child 1 question',
+        response: 'Child 1 response',
+        parentId: 'root',
+        highlightedText: 'highlighted from root'
+      })
+
+      chatStore.navigateToMessage('root')
+      chatStore.addChildMessage('root', {
+        id: 'child2',
+        question: 'Child 2 question',
+        response: 'Child 2 response',
+        parentId: 'root'
+      })
+
+      // Navigate to child1 to set lastVisitedChild
+      chatStore.navigateToChild('root', 0)
+
+      // Get the final persisted state
+      const savedState = saveChatStateSpy.mock.calls[saveChatStateSpy.mock.calls.length - 1][0]
+
+      // Verify root message has all properties
+      expect(savedState.messagesById.root.questionSummarized).toBe('Root summary')
+      expect(savedState.messagesById.root.childIds).toEqual(['child1', 'child2'])
+      expect(savedState.messagesById.root.lastVisitedChild).toBe('child1')
+
+      // Verify child1 has all properties
+      expect(savedState.messagesById.child1.parentId).toBe('root')
+      expect(savedState.messagesById.child1.highlightedText).toBe('highlighted from root')
+      expect(savedState.messagesById.child1.questionSummarized).toBe('Child 1 question')
+
+      // Verify child2 has all properties
+      expect(savedState.messagesById.child2.parentId).toBe('root')
+      expect(savedState.messagesById.child2.highlightedText).toBe(null)
     })
   })
 })

@@ -59,10 +59,20 @@ const breadcrumbMessages = computed(() => {
   const path = []
   let msg = props.currentMessage
   const visited = new Set()
+  // Build path up to current message
   while (msg && !visited.has(msg.id)) {
     path.unshift(msg)
     visited.add(msg.id)
     msg = msg.parentId ? chatStore.messagesById[msg.parentId] : null
+  }
+  // If lastVisitedChild exists and is not the current message, append it
+  const lastVisitedChildId = props.currentMessage.lastVisitedChild
+  if (
+    lastVisitedChildId &&
+    chatStore.messagesById[lastVisitedChildId] &&
+    lastVisitedChildId !== props.currentMessage.id
+  ) {
+    path.push(chatStore.messagesById[lastVisitedChildId])
   }
   return path
 })
@@ -110,6 +120,17 @@ function switchToLastVisitedChild() {
   color: #222;
   cursor: default;
   text-decoration: none;
+}
+
+/* Make the last breadcrumb item grey and no underline on hover */
+.breadcrumb-item:last-of-type:not(.active) {
+  color: #aaa !important;
+  cursor: pointer;
+  text-decoration: none !important;
+}
+.breadcrumb-item:last-of-type:not(.active):hover {
+  color: #aaa !important;
+  text-decoration: none !important;
 }
 
 .breadcrumb-item:hover:not(.active) {

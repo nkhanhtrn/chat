@@ -11,15 +11,15 @@ export default class Message {
     });
   }
 
-  constructor({ id, question, response, parentId = null, childIds = [], highlightedText = null }) {
+  constructor({ id, question, response, parentId = null, childIds = [], highlightedText = null, questionSummarized = null, lastVisitedChild = null }) {
     this.id = id
     this.question = question
-    this.questionSummarized = question.length > 100 ? question.slice(0, 100) + '...' : question
+    this.questionSummarized = questionSummarized || (question.length > 100 ? question.slice(0, 100) + '...' : question)
     this.response = response
     this.parentId = parentId
     this.childIds = childIds
     this.highlightedText = highlightedText
-    this.lastVisitedChild = null
+    this.lastVisitedChild = lastVisitedChild
   }
 
   // Check if this message has any children
