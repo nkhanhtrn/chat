@@ -7,41 +7,168 @@
       </div>
       <div class="message-content">
         <div class="user-message">
-          {{ message.question }}
+          {{ state.currentMessage.question }}
         </div>
       </div>
     </div>
-    <!-- Assistant answer -->
-    <div v-if="message.response" class="message message-assistant">
-      <div class="message-header">
-        <span class="role-badge">Study Assistant</span>
-      </div>
-      <div class="message-content">
-        <div class="assistant-message">
-          <MarkdownRenderer :content="message.response" />
-          <span v-if="isStreaming" class="cursor">▊</span>
-        </div>
-      </div>
-    </div>
+     <!-- Assistant answer with streaming -->
+     <div v-if="isStreaming || currentResponse" class="message message-assistant">
+       <div class="message-header">
+         <span class="role-badge">Study Assistant</span>
+       </div>
+       <div class="message-content">
+         <div class="assistant-message" @mouseup="showContextMenu">
+           <MarkdownRenderer :content="currentResponse" />
+           <span v-if="isStreaming" class="cursor">▊</span>
+         </div>
+         <div v-if="state.error" class="error-message">{{ state.error }}</div>
+         <ContextMenu
+           :visible="state.contextMenu.visible"
+           :x="state.contextMenu.x"
+           :y="state.contextMenu.y"
+           :highlighted-text="state.contextMenu.selectedText"
+           @close="closeContextMenu"
+           @highlight="handleHighlight"
+         />
+       </div>
+     </div>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { reactive, computed } from 'vue'
+import { useChatStore } from '../stores/chat.js'
 import MarkdownRenderer from './MarkdownRenderer.vue'
+import ContextMenu from './ContextMenu.vue'
+import { sendChatMessage } from '../services/api.js'
+import Message from '../stores/Message.js'
 
 const props = defineProps({
   message: {
     type: Object,
     required: true
   },
-  isStreaming: {
+  isAppStreaming: {
     type: Boolean,
     default: false
   }
 })
 
-// messageClass and roleName are no longer needed since we split the elements
+const chatStore = useChatStore()
+
+const state = reactive({
+  isChildStreaming: false,
+  error: null,
+  // State for current message and current response
+  currentMessage: null,
+  currentMessageResponse: null,
+  contextMenu: {
+    visible: false,
+    x: 0,
+    y: 0,
+    selectedText: ''
+  }
+})
+
+// Initialize currentMessage and currentMessageResponse with props.message by default
+state.currentMessage = props.message
+state.currentMessageResponse = props.message.response
+
+// Computed property that directly tracks the response string for reactivity
+const currentResponse = computed(() => {
+  // Use the state's currentMessageResponse
+  return state.currentMessage.response
+})
+
+// Computed property that combines both streaming states
+const isStreaming = computed(() => {
+  return props.isAppStreaming || state.isChildStreaming
+})
+
+function showContextMenu(e) {
+  const { selectedText, x, y, visible } = getSelectedTextAndPosition();
+  state.contextMenu.selectedText = selectedText;
+  state.contextMenu.x = x;
+  state.contextMenu.y = y;
+  state.contextMenu.visible = visible;
+}
+
+function closeContextMenu() {
+  state.contextMenu.visible = false
+}
+
+async function handleHighlight(question) {
+  if (!question || state.isChildStreaming) return;
+  closeContextMenu(); // Close menu immediately to prevent retrigger
+  console.log('Highlight question:', question);
+
+  // Use currentMessage as the parent (not props.message)
+  const parentMsg = state.currentMessage;
+
+  // Create new child message (using Message static method)
+  const childMsg = reactive(Message.createChildMessage(parentMsg, question));
+
+  // Add child to parent's children array
+  parentMsg.children.push(childMsg);
+
+  // Move currentMessage and currentMessageResponse to the new child
+  state.currentMessage = childMsg;
+  state.currentMessageResponse = childMsg.response;
+
+  state.isChildStreaming = true;
+  state.error = null;
+
+  try {
+    await sendChatMessage(
+      question,
+      chatStore.currentModel,
+      (chunk) => {
+        childMsg.response += chunk;
+        // Update currentMessageResponse to reflect the streaming response
+        state.currentMessageResponse = childMsg.response;
+      }
+    );
+  } catch (err) {
+    state.error = err.message;
+  } finally {
+    state.isChildStreaming = false;
+  }
+}
+
+// Pure function for extracting selected text and position (for context menu)
+// Moved to separate <script> block for export
+function getSelectedTextAndPosition(selection = window.getSelection()) {
+  const selectedText = selection && selection.toString().trim();
+  if (selectedText) {
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    return {
+      selectedText,
+      x: rect.left + window.scrollX,
+      y: rect.bottom + window.scrollY,
+      visible: true
+    };
+  }
+  return { selectedText: '', x: 0, y: 0, visible: false };
+}
+</script>
+
+<script>
+// Exported for test usage
+export function getSelectedTextAndPosition(selection = window.getSelection()) {
+  const selectedText = selection && selection.toString().trim();
+  if (selectedText) {
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    return {
+      selectedText,
+      x: rect.left + window.scrollX,
+      y: rect.bottom + window.scrollY,
+      visible: true
+    };
+  }
+  return { selectedText: '', x: 0, y: 0, visible: false };
+}
 </script>
 
 <style scoped>
@@ -125,3 +252,31 @@ const props = defineProps({
   }
 }
 </style>
+
+/* Context menu styles */
+.context-menu {
+  position: absolute;
+  min-width: 160px;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  border-radius: 6px;
+  padding: 0.5em 0.25em;
+  font-size: 1rem;
+  color: #222;
+  z-index: 9999;
+  user-select: none;
+}
+.context-menu-btn {
+  background: none;
+  border: none;
+  width: 100%;
+  padding: 0.5em 1em;
+  text-align: left;
+  cursor: pointer;
+  font-size: 1rem;
+  color: #222;
+}
+.context-menu-btn:hover {
+  background: #f3f4f6;
+}

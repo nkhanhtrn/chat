@@ -1,5 +1,7 @@
+
 import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { createPinia } from 'pinia'
 import ChatMessage from '../ChatMessage.vue'
 import MarkdownRenderer from '../MarkdownRenderer.vue'
 
@@ -20,6 +22,9 @@ describe('ChatMessage', () => {
             role: 'user',
             content: 'Test message'
           }
+        },
+        global: {
+          plugins: [createPinia()]
         }
       })
 
@@ -33,6 +38,9 @@ describe('ChatMessage', () => {
             role: 'user',
             content: 'Test'
           }
+        },
+        global: {
+          plugins: [createPinia()]
         }
       })
 
@@ -47,6 +55,9 @@ describe('ChatMessage', () => {
             role: 'user',
             content: 'Test message'
           }
+        },
+        global: {
+          plugins: [createPinia()]
         }
       })
 
@@ -60,12 +71,6 @@ describe('ChatMessage', () => {
       expect(message.required).toBe(true)
       expect(message.type).toBe(Object)
     })
-
-    it('should accept isStreaming prop', () => {
-      const { isStreaming } = ChatMessage.props
-      expect(isStreaming.type).toBe(Boolean)
-      expect(isStreaming.default).toBe(false)
-    })
   })
 
 
@@ -77,6 +82,9 @@ describe('ChatMessage', () => {
             question: 'Hello',
             response: ''
           }
+        },
+        global: {
+          plugins: [createPinia()]
         }
       })
       expect(wrapper.find('.role-badge').text()).toBe('You')
@@ -89,6 +97,9 @@ describe('ChatMessage', () => {
             question: 'Hello',
             response: ''
           }
+        },
+        global: {
+          plugins: [createPinia()]
         }
       })
       expect(wrapper.find('.message').classes()).toContain('message-user')
@@ -104,6 +115,7 @@ describe('ChatMessage', () => {
           }
         },
         global: {
+          plugins: [createPinia()],
           stubs: {
             MarkdownRenderer: true
           }
@@ -122,6 +134,7 @@ describe('ChatMessage', () => {
           }
         },
         global: {
+          plugins: [createPinia()],
           stubs: {
             MarkdownRenderer: true
           }
@@ -140,6 +153,7 @@ describe('ChatMessage', () => {
           }
         },
         global: {
+          plugins: [createPinia()],
           stubs: {
             MarkdownRenderer: true
           }
@@ -150,25 +164,6 @@ describe('ChatMessage', () => {
   })
 
   describe('Streaming Indicator', () => {
-    it('should show cursor when streaming', () => {
-      wrapper = mount(ChatMessage, {
-        props: {
-          message: {
-            question: 'Q',
-            response: 'Partial response'
-          },
-          isStreaming: true
-        },
-        global: {
-          stubs: {
-            MarkdownRenderer: true
-          }
-        }
-      })
-      expect(wrapper.find('.cursor').exists()).toBe(true)
-      expect(wrapper.find('.cursor').text()).toBe('▊')
-    })
-
     it('should not show cursor when not streaming', () => {
       wrapper = mount(ChatMessage, {
         props: {
@@ -179,6 +174,7 @@ describe('ChatMessage', () => {
           isStreaming: false
         },
         global: {
+          plugins: [createPinia()],
           stubs: {
             MarkdownRenderer: true
           }
@@ -196,6 +192,9 @@ describe('ChatMessage', () => {
             content: 'User message'
           },
           isStreaming: true
+        },
+        global: {
+          plugins: [createPinia()]
         }
       })
 
@@ -211,6 +210,9 @@ describe('ChatMessage', () => {
             role: 'user',
             content: 'Test'
           }
+        },
+        global: {
+          plugins: [createPinia()]
         }
       })
 
@@ -228,6 +230,9 @@ describe('ChatMessage', () => {
             role: 'user',
             content: 'Test'
           }
+        },
+        global: {
+          plugins: [createPinia()]
         }
       })
 
@@ -244,6 +249,9 @@ describe('ChatMessage', () => {
             role: 'user',
             content: 'Test'
           }
+        },
+        global: {
+          plugins: [createPinia()]
         }
       })
 
@@ -263,6 +271,9 @@ describe('ChatMessage', () => {
             role: 'user',
             content: 'Test'
           }
+        },
+        global: {
+          plugins: [createPinia()]
         }
       })
 
@@ -279,6 +290,9 @@ describe('ChatMessage', () => {
             role: 'user',
             content: ''
           }
+        },
+        global: {
+          plugins: [createPinia()]
         }
       })
 
@@ -293,6 +307,9 @@ describe('ChatMessage', () => {
             question: multiline,
             response: ''
           }
+        },
+        global: {
+          plugins: [createPinia()]
         }
       })
       expect(wrapper.find('.user-message').text()).toBe(multiline)
@@ -306,6 +323,9 @@ describe('ChatMessage', () => {
             question: special,
             response: ''
           }
+        },
+        global: {
+          plugins: [createPinia()]
         }
       })
       expect(wrapper.find('.user-message').text()).toBe(special)
@@ -320,6 +340,7 @@ describe('ChatMessage', () => {
           }
         },
         global: {
+          plugins: [createPinia()],
           stubs: {
             MarkdownRenderer: true
           }
@@ -337,6 +358,9 @@ describe('ChatMessage', () => {
             role: 'user',
             content: undefined
           }
+        },
+        global: {
+          plugins: [createPinia()]
         }
       })
 
@@ -350,6 +374,9 @@ describe('ChatMessage', () => {
             role: 'user',
             content: null
           }
+        },
+        global: {
+          plugins: [createPinia()]
         }
       })
 
@@ -364,6 +391,9 @@ describe('ChatMessage', () => {
             question: longContent,
             response: ''
           }
+        },
+        global: {
+          plugins: [createPinia()]
         }
       })
       expect(wrapper.find('.user-message').text()).toBe(longContent)

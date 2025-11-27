@@ -2,8 +2,6 @@
 
 ![Coverage](https://img.shields.io/badge/coverage-96.59%25-brightgreen)
 
-A Vue.js chat interface for LM Studio.
-
 ## Quick Start
 
 1. Install [LM Studio](https://lmstudio.ai/) and start the local server
@@ -14,7 +12,7 @@ A Vue.js chat interface for LM Studio.
 
 - `npm run dev` - Start development server
 - `npm run build` - Build for production
-- `npm test` - Run tests
+- `npm run test` - Run tests with Vitest
 - `npm run test:coverage` - Run tests with coverage
 - `npm run deploy` - Deploy to GitHub Pages
 
@@ -31,7 +29,3 @@ Configure API settings in the app or edit `src/services/api.js`:
 ```javascript
 const API_BASE_URL = 'http://localhost:1234'
 ```
-
-## License
-
-MIT

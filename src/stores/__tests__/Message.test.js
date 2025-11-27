@@ -27,4 +27,17 @@ describe('Message', () => {
     expect(parent.children[0]).toBeInstanceOf(Message)
     expect(parent.children[0].question).toBe('C')
   })
+
+  describe('Message.createChildMessage', () => {
+    it('creates a child message with correct parent', () => {
+      const parent = new Message({ id: 'parent', question: 'Q', response: 'R', children: [] })
+      const question = 'child question'
+      const child = Message.createChildMessage(parent, question)
+      expect(child.parentId).toBe(parent.id)
+      expect(child.question).toBe(question)
+      expect(child.response).toBe('')
+      expect(child.parent).toBe(parent)
+      expect(child.children).toEqual([])
+    })
+  })
 })

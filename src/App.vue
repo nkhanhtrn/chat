@@ -23,7 +23,7 @@
         v-for="(message, index) in messages"
         :key="message.id"
         :message="message"
-        :is-streaming="isStreaming && index === messages.length - 1"
+        :is-app-streaming="isStreaming && index === messages.length - 1"
       />
 
       <div v-if="error" class="error-message">
@@ -41,23 +41,26 @@
 
 <script setup>
 
-import { ref, nextTick, onMounted } from 'vue'
+
+import { ref, nextTick, onMounted, reactive } from 'vue'
 import ChatMessage from './components/ChatMessage.vue'
 import ChatInput from './components/ChatInput.vue'
 import { sendChatMessage, fetchModels } from './services/api.js'
 import Message from './stores/Message.js'
+import { useChatStore } from './stores/chat.js'
+
 const messages = ref([])
 const isStreaming = ref(false)
 const error = ref(null)
 const messagesContainer = ref(null)
-const currentModel = ref(null)
+const chatStore = useChatStore()
 
 onMounted(async () => {
   try {
     const models = await fetchModels()
     if (models.length > 0) {
-      currentModel.value = models[0].id
-      console.log('Using model:', currentModel.value)
+      chatStore.setCurrentModel(models[0].id)
+      console.log('Using model:', models[0].id)
     } else {
       error.value = 'No models available. Please load a model in LM Studio.'
     }
@@ -79,11 +82,12 @@ const handleSendMessage = async (userMessage) => {
 
   error.value = null
 
-  const msg = new Message({
+  // Create a reactive message object
+  const msg = reactive(new Message({
     id: crypto.randomUUID(),
     question: userMessage,
     response: ''
-  })
+  }))
   messages.value.push(msg)
   scrollToBottom()
 
@@ -92,10 +96,10 @@ const handleSendMessage = async (userMessage) => {
   try {
     await sendChatMessage(
       userMessage,
-      currentModel.value,
+      chatStore.currentModel,
       (chunk) => {
-        // Find the last message (the one just added)
-        messages.value[messages.value.length - 1].response += chunk
+        // Update the message response - now it's reactive!
+        msg.response += chunk
         scrollToBottom()
       }
     )
