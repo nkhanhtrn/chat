@@ -7,7 +7,8 @@
         :style="{ left: `${x}px`, top: `${y}px`, display: visible ? 'block' : 'none' }"
         @mousedown.stop
       >
-        <button class="context-menu-btn" @click="onClick" :disabled="isStreaming">Show Highlight</button>
+        <button class="context-menu-btn" @click="onAddHighlight" :disabled="isStreaming">Add Highlight</button>
+        <button class="context-menu-btn" @click="onClick" :disabled="isStreaming">Ask Question</button>
       </div>
     </template>
   </teleport>
@@ -26,10 +27,15 @@ const props = defineProps({
     default: false
   }
 })
-const emit = defineEmits(['close', 'highlight'])
+const emit = defineEmits(['close', 'highlight', 'add-highlight'])
 
 function onClick() {
   emit('highlight', `${props.highlightedText}`)
+  emit('close')
+}
+
+function onAddHighlight() {
+  emit('add-highlight', props.highlightedText)
   emit('close')
 }
 

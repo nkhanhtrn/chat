@@ -109,16 +109,29 @@ export const replacePlaceholders = (html, blocks, renderFn) => {
 }
 
 /**
- * Process markdown content with code, math, and inline elements
+ * Process markdown content with code, math, inline elements, and custom content
  * @param {string} content - Raw markdown content
  * @param {Function} markdownRenderer - Function to render markdown (e.g., marked)
+ * @param {Array} customContentItems - Array of custom content metadata (highlights, notes, etc.)
+ * @param {Object} customRenderer - CustomContentRenderer instance (optional, will be created if not provided)
  * @returns {string} - Processed HTML
  */
-export const processMarkdown = (content, markdownRenderer) => {
+export const processMarkdown = (content, markdownRenderer, customContentItems = [], customRenderer = null) => {
   if (!content) return ''
 
-  // Extract special elements in order (to avoid conflicts)
-  let { processed, blocks: codeBlocks } = extractCodeBlocks(content)
+  // STEP 1: Extract custom content FIRST (before other extractions)
+  let processed = content
+  let customPlaceholders = []
+
+  if (customContentItems?.length > 0 && customRenderer) {
+    const customResult = customRenderer.extract(processed, customContentItems)
+    processed = customResult.processed
+    customPlaceholders = customResult.placeholders
+  }
+
+  // STEP 2: Extract special elements in order (to avoid conflicts)
+  let { processed: p1, blocks: codeBlocks } = extractCodeBlocks(processed)
+  processed = p1
   let mathResult = extractMathBlocks(processed)
   processed = mathResult.processed
   const mathBlocks = mathResult.blocks
@@ -131,10 +144,10 @@ export const processMarkdown = (content, markdownRenderer) => {
   processed = inlineCodeResult.processed
   const inlineCode = inlineCodeResult.blocks
 
-  // Render markdown
+  // STEP 3: Render markdown
   let html = markdownRenderer(processed)
 
-  // Replace placeholders with rendered content
+  // STEP 4: Replace placeholders with rendered content
   html = replacePlaceholders(html, codeBlocks, ({ lang, code }) =>
     `<div class="code-block-wrapper"><pre><code class="language-${lang}">${escapeHtml(code)}</code></pre></div>`
   )
@@ -150,6 +163,11 @@ export const processMarkdown = (content, markdownRenderer) => {
   html = replacePlaceholders(html, inlineCode, ({ code }) =>
     `<code class="inline-code">${escapeHtml(code)}</code>`
   )
+
+  // STEP 5: Replace custom content placeholders LAST (to preserve interactivity)
+  if (customPlaceholders.length > 0 && customRenderer) {
+    html = customRenderer.render(html, customPlaceholders)
+  }
 
   return html
 }

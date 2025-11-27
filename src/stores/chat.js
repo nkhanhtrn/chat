@@ -129,6 +129,15 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
+    // Update message properties
+    updateMessage(messageId, updates) {
+      const message = this.messagesById[messageId]
+      if (message) {
+        Object.assign(message, updates)
+        this._persistState()
+      }
+    },
+
     // Navigation actions
     navigateToMessage(messageId) {
       if (this.messagesById[messageId]) {

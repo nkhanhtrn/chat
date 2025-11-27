@@ -20,7 +20,11 @@
        <div class="message-content" style="position: relative;">
          <MessageNavigation v-if="currentMessage" :current-message="currentMessage" />
          <div class="assistant-message" @mouseup="showContextMenu" @click="handleResponseClick">
-           <MarkdownRenderer :content="processedResponse" />
+           <MarkdownRenderer
+             :content="processedResponse"
+             :custom-content="currentMessage?.customContent || []"
+             :custom-renderer="customRenderer"
+           />
            <span v-if="isStreaming" class="cursor">▊</span>
          </div>
          <div v-if="state.error" class="error-message">{{ state.error }}</div>
@@ -32,6 +36,7 @@
            :is-streaming="isStreaming"
            @close="closeContextMenu"
            @highlight="handleHighlight"
+           @add-highlight="handleAddHighlight"
          />
        </div>
      </div>
@@ -75,6 +80,12 @@ import MessageNavigation from './MessageNavigation.vue'
 import { getQuestionSummary, sendChatMessage } from '../services/api.js'
 import Message from '../stores/Message.js'
 import { getSelectedTextAndPosition as defaultGetSelectedTextAndPosition } from './ChatMessage.vue'
+import { CustomContentRenderer } from '../services/CustomContentRenderer.js'
+import { HighlightPlugin } from '../services/plugins/HighlightPlugin.js'
+
+// Create custom content renderer instance
+const customRenderer = new CustomContentRenderer()
+customRenderer.register('highlight', HighlightPlugin)
 
 
 const props = defineProps({
@@ -102,7 +113,8 @@ const state = reactive({
     x: 0,
     y: 0,
     selectedText: ''
-  }
+  },
+  highlightColors: ['#ffeb3b', '#4caf50', '#2196f3', '#ff9800', '#e91e63'] // Available highlight colors
 })
 
 // Computed property to always get the root/original message (from props)
@@ -226,6 +238,44 @@ function handleResponseClick(event) {
     }
   }
 }
+
+function handleAddHighlight(selectedText) {
+  if (!selectedText || !currentMessage.value) return
+
+  const response = currentResponse.value
+  const startOffset = response.indexOf(selectedText)
+
+  if (startOffset === -1) {
+    console.error('Selected text not found in response')
+    return
+  }
+
+  const endOffset = startOffset + selectedText.length
+
+  // Create highlight metadata
+  const highlightId = crypto.randomUUID()
+  const highlight = {
+    id: highlightId,
+    type: 'highlight',
+    text: selectedText,
+    color: state.highlightColors[0], // Default color (yellow)
+    startOffset,
+    endOffset
+  }
+
+  // Initialize customContent array if it doesn't exist
+  if (!currentMessage.value.customContent) {
+    currentMessage.value.customContent = []
+  }
+
+  // Add highlight to message
+  currentMessage.value.customContent.push(highlight)
+
+  // Update the store to trigger reactivity
+  chatStore.updateMessage(currentMessage.value.id, {
+    customContent: [...currentMessage.value.customContent]
+  })
+}
 </script>
 <style scoped>
 .message {
@@ -348,5 +398,16 @@ function handleResponseClick(event) {
 .assistant-message :deep(.highlighted-link:hover) {
   color: #5568d3;
   text-decoration: underline;
+}
+
+/* Custom highlight styles */
+.assistant-message :deep(.custom-highlight) {
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+  border-radius: 3px;
+}
+
+.assistant-message :deep(.custom-highlight:hover) {
+  opacity: 0.8;
 }
 </style>

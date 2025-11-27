@@ -11,11 +11,19 @@ const props = defineProps({
   content: {
     type: String,
     default: ''
+  },
+  customContent: {
+    type: Array,
+    default: () => []
+  },
+  customRenderer: {
+    type: Object,
+    default: null
   }
 })
 
 const renderedContent = computed(() => {
-  return processMarkdown(props.content, marked)
+  return processMarkdown(props.content, marked, props.customContent, props.customRenderer)
 })
 </script>
 
