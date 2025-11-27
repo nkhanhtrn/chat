@@ -85,11 +85,12 @@ const handleSendMessage = async (userMessage) => {
 
   scrollToBottom()
 
-  const assistantMessage = {
+  // Add assistant message placeholder
+  const assistantMessageIndex = messages.value.length
+  messages.value.push({
     role: 'assistant',
     content: ''
-  }
-  messages.value.push(assistantMessage)
+  })
 
   isStreaming.value = true
 
@@ -105,7 +106,8 @@ const handleSendMessage = async (userMessage) => {
       conversationHistory,
       currentModel.value,
       (chunk) => {
-        assistantMessage.content += chunk
+        // Directly update the message in the array to ensure reactivity
+        messages.value[assistantMessageIndex].content += chunk
         scrollToBottom()
       }
     )

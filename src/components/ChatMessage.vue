@@ -41,7 +41,7 @@ const roleName = computed(() => {
 
 <style scoped>
 .message {
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.75rem;
   animation: fadeIn 0.3s ease-in;
 }
 

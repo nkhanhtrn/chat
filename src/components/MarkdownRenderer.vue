@@ -31,10 +31,19 @@ const renderedContent = computed(() => {
 .markdown-renderer h4,
 .markdown-renderer h5,
 .markdown-renderer h6 {
-  margin-top: 1.5em;
-  margin-bottom: 0.5em;
+  margin-top: 2em;
+  margin-bottom: 1em;
   font-weight: 600;
   color: #2d3748;
+}
+
+.markdown-renderer h1:first-child,
+.markdown-renderer h2:first-child,
+.markdown-renderer h3:first-child,
+.markdown-renderer h4:first-child,
+.markdown-renderer h5:first-child,
+.markdown-renderer h6:first-child {
+  margin-top: 0;
 }
 
 .markdown-renderer h1 {
@@ -54,16 +63,19 @@ const renderedContent = computed(() => {
 }
 
 .markdown-renderer p {
+  margin-top: 1em;
   margin-bottom: 1em;
 }
 
 .markdown-renderer ul,
 .markdown-renderer ol {
-  margin-bottom: 1em;
   padding-left: 2em;
+  margin-top: 1em;
+  margin-bottom: 1em;
 }
 
 .markdown-renderer li {
+  margin-top: 0.5em;
   margin-bottom: 0.5em;
 }
 
@@ -79,7 +91,7 @@ const renderedContent = computed(() => {
 .markdown-renderer blockquote {
   border-left: 4px solid #667eea;
   padding-left: 1em;
-  margin-left: 0;
+  margin: 1.5em 0;
   color: #4a5568;
   font-style: italic;
 }
@@ -95,7 +107,7 @@ const renderedContent = computed(() => {
 }
 
 .markdown-renderer .code-block-wrapper {
-  margin: 1em 0;
+  margin: 2em 0;
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -116,7 +128,7 @@ const renderedContent = computed(() => {
 }
 
 .markdown-renderer .math-block-wrapper {
-  margin: 1.5em 0;
+  margin: 2em 0;
   padding: 1em;
   background-color: #f7fafc;
   border-radius: 8px;
@@ -131,7 +143,7 @@ const renderedContent = computed(() => {
 .markdown-renderer table {
   border-collapse: collapse;
   width: 100%;
-  margin: 1em 0;
+  margin: 2em 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
