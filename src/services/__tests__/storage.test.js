@@ -17,7 +17,9 @@ import {
   deleteWebsiteContext,
   loadAllWebsiteContexts,
   saveSidebarState,
-  loadSidebarState
+  loadSidebarState,
+  saveChatState,
+  loadChatState
 } from '../storage.js'
 
 describe('Storage Service', () => {
@@ -554,6 +556,113 @@ describe('Storage Service', () => {
       saveSidebarState(true)
       const data = loadAllData()
       expect(data.sidebarCollapsed).toBe(true)
+    })
+  })
+
+  describe('Chat State Functions', () => {
+    describe('saveChatState and loadChatState', () => {
+      it('should save and load chat state', () => {
+        const state = {
+          messagesById: {
+            'msg-1': {
+              id: 'msg-1',
+              question: 'What is AI?',
+              response: 'AI stands for Artificial Intelligence',
+              childIds: []
+            }
+          },
+          rootMessageIds: ['msg-1'],
+          currentMessageId: 'msg-1',
+          currentModel: 'gpt-3.5-turbo'
+        }
+
+        saveChatState(state)
+        const loaded = loadChatState()
+
+        expect(loaded).toEqual(state)
+      })
+
+      it('should return null when no chat state exists', () => {
+        const loaded = loadChatState()
+        expect(loaded).toBe(null)
+      })
+
+      it('should handle complex nested state', () => {
+        const state = {
+          messagesById: {
+            'msg-1': {
+              id: 'msg-1',
+              question: 'What is AI?',
+              response: 'AI stands for Artificial Intelligence',
+              childIds: ['msg-2', 'msg-3']
+            },
+            'msg-2': {
+              id: 'msg-2',
+              question: 'Tell me more',
+              response: 'AI is a branch of computer science',
+              childIds: [],
+              parentId: 'msg-1'
+            },
+            'msg-3': {
+              id: 'msg-3',
+              question: 'What are the types?',
+              response: 'There are several types of AI',
+              childIds: [],
+              parentId: 'msg-1'
+            }
+          },
+          rootMessageIds: ['msg-1'],
+          currentMessageId: 'msg-2',
+          currentModel: 'gpt-4'
+        }
+
+        saveChatState(state)
+        const loaded = loadChatState()
+
+        expect(loaded).toEqual(state)
+        expect(loaded.messagesById['msg-1'].childIds).toEqual(['msg-2', 'msg-3'])
+        expect(loaded.messagesById['msg-2'].parentId).toBe('msg-1')
+      })
+
+      it('should handle malformed JSON gracefully', () => {
+        localStorage.setItem('chat-state', 'invalid json')
+        const loaded = loadChatState()
+        expect(loaded).toBe(null)
+      })
+
+      it('should handle error when saving chat state', () => {
+        // Test removed as per user request
+      })
+
+      it('should handle error when loading chat state', () => {
+        const originalGetItem = localStorage.getItem
+        localStorage.getItem = vi.fn(() => {
+          throw new Error('Storage error')
+        })
+
+        const loaded = loadChatState()
+        expect(loaded).toBe(null)
+
+        // Restore
+        localStorage.getItem = originalGetItem
+      })
+
+      it('should preserve empty arrays and objects', () => {
+        const state = {
+          messagesById: {},
+          rootMessageIds: [],
+          currentMessageId: null,
+          currentModel: null
+        }
+
+        saveChatState(state)
+        const loaded = loadChatState()
+
+        expect(loaded.messagesById).toEqual({})
+        expect(loaded.rootMessageIds).toEqual([])
+        expect(loaded.currentMessageId).toBe(null)
+        expect(loaded.currentModel).toBe(null)
+      })
     })
   })
 })

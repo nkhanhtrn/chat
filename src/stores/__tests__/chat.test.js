@@ -9,6 +9,10 @@ describe('useChatStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     chatStore = useChatStore()
+    // Explicitly clear state to avoid leakage between tests
+    chatStore.messagesById = {}
+    chatStore.rootMessageIds = []
+    chatStore.currentMessageId = null
   })
 
   describe('removeRootMessage', () => {

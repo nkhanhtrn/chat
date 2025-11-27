@@ -1,22 +1,46 @@
 import Message from './Message.js'
 import { defineStore } from 'pinia'
+import { saveChatState, loadChatState } from '../services/storage.js'
 
 export const useChatStore = defineStore('chat', {
-  state: () => ({
-    // Normalized storage: flat object keyed by message ID
-    messagesById: {}, // { [id]: Message }
+  state: () => {
+    // Try to load saved state from localStorage
+    const savedState = loadChatState()
 
-    // Root-level messages (top-level questions)
-    rootMessageIds: [], // [id1, id2, ...]
+    if (savedState) {
+      // Reconstruct Message objects from plain objects
+      const messagesById = {}
+      for (const [id, msgData] of Object.entries(savedState.messagesById || {})) {
+        messagesById[id] = new Message(msgData)
+      }
 
-    // Current navigation state
-    currentMessageId: null, // Which message is currently being viewed
+      return {
+        messagesById,
+        rootMessageIds: savedState.rootMessageIds || [],
+        currentMessageId: savedState.currentMessageId || null,
+        isStreaming: false,
+        error: null,
+        currentModel: savedState.currentModel || null,
+      }
+    }
 
-    // App state
-    isStreaming: false,
-    error: null,
-    currentModel: null,
-  }),
+    // Default state if nothing is saved
+    return {
+      // Normalized storage: flat object keyed by message ID
+      messagesById: {}, // { [id]: Message }
+
+      // Root-level messages (top-level questions)
+      rootMessageIds: [], // [id1, id2, ...]
+
+      // Current navigation state
+      currentMessageId: null, // Which message is currently being viewed
+
+      // App state
+      isStreaming: false,
+      error: null,
+      currentModel: null,
+    }
+  },
 
   getters: {
     // Get root messages as array
@@ -60,6 +84,7 @@ export const useChatStore = defineStore('chat', {
       this.messagesById[message.id] = message
       this.rootMessageIds.push(message.id)
       this.currentMessageId = message.id
+      this._persistState()
       return message
     },
 
@@ -86,6 +111,7 @@ export const useChatStore = defineStore('chat', {
       // Set navigation to new child
       this.currentMessageId = childMessage.id
 
+      this._persistState()
       return childMessage
     },
 
@@ -94,6 +120,7 @@ export const useChatStore = defineStore('chat', {
       const message = this.messagesById[messageId]
       if (message) {
         message.response += chunk
+        this._persistState()
       }
     },
 
@@ -101,6 +128,7 @@ export const useChatStore = defineStore('chat', {
     navigateToMessage(messageId) {
       if (this.messagesById[messageId]) {
         this.currentMessageId = messageId
+        this._persistState()
       }
     },
 
@@ -108,6 +136,7 @@ export const useChatStore = defineStore('chat', {
       const message = this.messagesById[messageId]
       if (message?.parentId) {
         this.currentMessageId = message.parentId
+        this._persistState()
       }
     },
 
@@ -118,6 +147,7 @@ export const useChatStore = defineStore('chat', {
       }
       if (current) {
         this.currentMessageId = current.id
+        this._persistState()
       }
     },
 
@@ -126,6 +156,7 @@ export const useChatStore = defineStore('chat', {
       if (message?.childIds?.length > 0) {
         const lastChildId = message.childIds[message.childIds.length - 1]
         this.currentMessageId = lastChildId
+        this._persistState()
       }
     },
 
@@ -133,6 +164,7 @@ export const useChatStore = defineStore('chat', {
       const message = this.messagesById[messageId]
       if (message?.childIds?.[childIndex]) {
         this.currentMessageId = message.childIds[childIndex]
+        this._persistState()
       }
     },
 
@@ -151,6 +183,8 @@ export const useChatStore = defineStore('chat', {
       if (this.currentMessageId === messageId) {
         this.currentMessageId = null
       }
+
+      this._persistState()
     },
 
     // Helper to recursively remove a message and all its children
@@ -180,6 +214,7 @@ export const useChatStore = defineStore('chat', {
 
     setCurrentModel(model) {
       this.currentModel = model
+      this._persistState()
     },
 
     // Persistence helpers
@@ -195,6 +230,18 @@ export const useChatStore = defineStore('chat', {
       this.messagesById = data.messagesById || {}
       this.rootMessageIds = data.rootMessageIds || []
       this.currentMessageId = data.currentMessageId || null
+      this._persistState()
+    },
+
+    // Save state to localStorage after any mutation
+    _persistState() {
+      const state = {
+        messagesById: this.messagesById,
+        rootMessageIds: this.rootMessageIds,
+        currentMessageId: this.currentMessageId,
+        currentModel: this.currentModel,
+      }
+      saveChatState(state)
     },
   }
 })

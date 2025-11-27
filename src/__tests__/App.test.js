@@ -14,6 +14,15 @@ vi.mock('../services/api.js', () => ({
 
 import { fetchModels, sendChatMessage } from '../services/api.js'
 
+// Mock loadChatState to always return null for clean state
+vi.mock('../services/storage.js', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    loadChatState: () => null
+  }
+})
+
 describe('App', () => {
   let wrapper
 
