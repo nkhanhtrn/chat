@@ -65,6 +65,16 @@ describe('createChatBackup', () => {
     })
     URL.revokeObjectURL(url)
   })
+
+  it('should use default filename function when getFilenameFn is not provided', () => {
+    const backupChats = (data) => JSON.stringify(data)
+    const { url, filename } = createChatBackup({
+      ...sampleData,
+      backupChatsFn: backupChats
+    })
+    expect(filename).toMatch(/^chat-messages-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.json$/)
+    URL.revokeObjectURL(url)
+  })
 })
 // src/services/__tests__/backupRestore.test.js
 // Unit tests for backupRestore.js using Vitest
@@ -118,6 +128,14 @@ describe('restoreChats', () => {
     expect(restored.activeChat).toBe(5)
     expect(restored.selectedModel).toBe('')
     expect(restored.chatCounter).toBe(6)
+  })
+
+  it('should set defaults for empty chats array', () => {
+    const data = { chats: [] }
+    const restored = restoreChats(data)
+    expect(restored.activeChat).toBe(null)
+    expect(restored.selectedModel).toBe('')
+    expect(restored.chatCounter).toBe(1)
   })
 
   it('should throw on invalid JSON', () => {

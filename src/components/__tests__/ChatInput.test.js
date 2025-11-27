@@ -161,6 +161,34 @@ describe('ChatInput', () => {
 
       expect(wrapper.emitted('send')).toBeFalsy()
     })
+
+    it('should not send via Enter key when disabled', async () => {
+      wrapper = mount(ChatInput, {
+        props: {
+          disabled: true
+        }
+      })
+      const textarea = wrapper.find('textarea')
+
+      await textarea.setValue('Test message')
+      await textarea.trigger('keydown.enter')
+
+      expect(wrapper.emitted('send')).toBeFalsy()
+      // Input should remain unchanged
+      expect(textarea.element.value).toBe('Test message')
+    })
+
+    it('should not send with empty input when disabled', async () => {
+      wrapper = mount(ChatInput, {
+        props: {
+          disabled: true
+        }
+      })
+
+      await wrapper.find('.send-button').trigger('click')
+
+      expect(wrapper.emitted('send')).toBeFalsy()
+    })
   })
 
   describe('Keyboard Shortcuts', () => {
@@ -287,11 +315,32 @@ describe('ChatInput', () => {
       wrapper = mount(ChatInput)
       const textarea = wrapper.find('textarea')
 
+      // Set initial height
+      textarea.element.style.height = '100px'
+
       await textarea.setValue('Test')
       await wrapper.find('.send-button').trigger('click')
       await wrapper.vm.$nextTick()
 
       expect(textarea.element.style.height).toBe('auto')
+    })
+
+    it('should reset height to auto in nextTick after sending via Enter key', async () => {
+      wrapper = mount(ChatInput)
+      const textarea = wrapper.find('textarea')
+
+      // Set initial height to simulate expanded textarea
+      textarea.element.style.height = '150px'
+
+      await textarea.setValue('Test message')
+      await textarea.trigger('keydown.enter')
+      await wrapper.vm.$nextTick()
+
+      // Verify height is reset to auto after sending
+      expect(textarea.element.style.height).toBe('auto')
+      // Verify message was sent
+      expect(wrapper.emitted('send')).toBeTruthy()
+      expect(wrapper.emitted('send')[0]).toEqual(['Test message'])
     })
 
     it('should limit max height to 200px', async () => {
@@ -375,6 +424,65 @@ describe('ChatInput', () => {
       await wrapper.find('.send-button').trigger('click')
 
       expect(wrapper.emitted('send')[0][0]).toHaveLength(10000)
+    })
+
+    it('should handle adjustHeight when inputRef is null', async () => {
+      wrapper = mount(ChatInput)
+
+      // Save the original ref value
+      const originalRef = wrapper.vm.inputRef
+
+      // Set inputRef to null
+      wrapper.vm.inputRef = null
+
+      // Trigger input event - should not throw error
+      const textarea = wrapper.find('textarea')
+      await textarea.trigger('input')
+      await wrapper.vm.$nextTick()
+
+      // Restore ref
+      wrapper.vm.inputRef = originalRef
+
+      // Should not have thrown an error
+      expect(true).toBe(true)
+    })
+
+    it('should handle handleSend when inputRef is null after sending', async () => {
+      wrapper = mount(ChatInput)
+      const textarea = wrapper.find('textarea')
+
+      await textarea.setValue('Test message')
+
+      // Set inputRef to null before sending
+      wrapper.vm.inputRef = null
+
+      // Should not throw error when trying to reset height
+      await wrapper.find('.send-button').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      // Should still emit the message
+      expect(wrapper.emitted('send')).toBeTruthy()
+      expect(wrapper.emitted('send')[0]).toEqual(['Test message'])
+    })
+
+    it('should check inputRef existence before resetting height in handleSend', async () => {
+      wrapper = mount(ChatInput)
+      const textarea = wrapper.find('textarea')
+
+      // Set initial height and text
+      textarea.element.style.height = '100px'
+      await textarea.setValue('Test')
+
+      // Verify inputRef exists and has the textarea element
+      expect(wrapper.vm.inputRef).toBeTruthy()
+      expect(wrapper.vm.inputRef).toBe(textarea.element)
+
+      await wrapper.find('.send-button').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      // Verify the height was reset when inputRef exists
+      expect(textarea.element.style.height).toBe('auto')
+      expect(wrapper.emitted('send')).toBeTruthy()
     })
   })
 })

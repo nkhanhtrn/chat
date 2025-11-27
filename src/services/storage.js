@@ -16,6 +16,7 @@ export const saveChats = (chats) => {
     localStorage.setItem(STORAGE_KEY_CHATS, JSON.stringify(chats))
   } catch (error) {
     console.error('Failed to save chats to localStorage:', error)
+    throw error
   }
 }
 
@@ -55,6 +56,7 @@ export const saveActiveChat = (chatId) => {
     localStorage.setItem(STORAGE_KEY_ACTIVE, chatId)
   } catch (error) {
     console.error('Failed to save active chat to localStorage:', error)
+    throw error
   }
 }
 
@@ -79,6 +81,7 @@ export const saveSelectedModel = (model) => {
     localStorage.setItem(STORAGE_KEY_MODEL, model)
   } catch (error) {
     console.error('Failed to save selected model to localStorage:', error)
+    throw error
   }
 }
 
@@ -102,6 +105,7 @@ export const saveChatCounter = (counter) => {
     localStorage.setItem(STORAGE_KEY_COUNTER, counter)
   } catch (error) {
     console.error('Failed to save chat counter to localStorage:', error)
+    throw error
   }
 }
 

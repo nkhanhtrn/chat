@@ -100,6 +100,59 @@ describe('Storage Service', () => {
       const loaded = loadChats()
       expect(loaded).toBe(null)
     })
+
+    it('should preserve existing displayContent when loading', () => {
+      const chats = [
+        {
+          id: 1,
+          title: 'Test Chat',
+          messages: [
+            { role: 'user', content: 'Hello', displayContent: 'Custom Display' }
+          ]
+        }
+      ]
+
+      localStorage.setItem('chat-chats', JSON.stringify(chats))
+      const loaded = loadChats()
+
+      expect(loaded[0].messages[0].displayContent).toBe('Custom Display')
+    })
+
+    it('should preserve existing thinking and showThinking values', () => {
+      const chats = [
+        {
+          id: 1,
+          title: 'Test Chat',
+          messages: [
+            {
+              role: 'assistant',
+              content: 'Answer',
+              thinking: 'Thought process',
+              showThinking: true
+            }
+          ]
+        }
+      ]
+
+      localStorage.setItem('chat-chats', JSON.stringify(chats))
+      const loaded = loadChats()
+
+      expect(loaded[0].messages[0].thinking).toBe('Thought process')
+      expect(loaded[0].messages[0].showThinking).toBe(true)
+    })
+
+    it('should handle error when saving chats', () => {
+      const originalSetItem = localStorage.setItem
+      localStorage.setItem = vi.fn(() => {
+        throw new Error('Storage error')
+      })
+
+      // Should not throw error
+      expect(() => saveChats([{ id: 1, messages: [] }])).not.toThrow()
+
+      // Restore
+      localStorage.setItem = originalSetItem
+    })
   })
 
   describe('saveActiveChat and loadActiveChat', () => {
@@ -120,6 +173,33 @@ describe('Storage Service', () => {
       expect(loaded).toBe(10)
       expect(typeof loaded).toBe('number')
     })
+
+    it('should handle error when loading active chat', () => {
+      // Mock localStorage.getItem to throw an error
+      const originalGetItem = localStorage.getItem
+      localStorage.getItem = vi.fn(() => {
+        throw new Error('Storage error')
+      })
+
+      const loaded = loadActiveChat()
+      expect(loaded).toBe(null)
+
+      // Restore
+      localStorage.getItem = originalGetItem
+    })
+
+    it('should handle error when saving active chat', () => {
+      const originalSetItem = localStorage.setItem
+      localStorage.setItem = vi.fn(() => {
+        throw new Error('Storage error')
+      })
+
+      // Should not throw error
+      expect(() => saveActiveChat(1)).not.toThrow()
+
+      // Restore
+      localStorage.setItem = originalSetItem
+    })
   })
 
   describe('saveSelectedModel and loadSelectedModel', () => {
@@ -132,6 +212,32 @@ describe('Storage Service', () => {
     it('should return null when no model exists', () => {
       const loaded = loadSelectedModel()
       expect(loaded).toBe(null)
+    })
+
+    it('should handle error when saving selected model', () => {
+      const originalSetItem = localStorage.setItem
+      localStorage.setItem = vi.fn(() => {
+        throw new Error('Storage error')
+      })
+
+      // Should not throw error
+      expect(() => saveSelectedModel('gpt-4')).not.toThrow()
+
+      // Restore
+      localStorage.setItem = originalSetItem
+    })
+
+    it('should handle error when loading selected model', () => {
+      const originalGetItem = localStorage.getItem
+      localStorage.getItem = vi.fn(() => {
+        throw new Error('Storage error')
+      })
+
+      const loaded = loadSelectedModel()
+      expect(loaded).toBe(null)
+
+      // Restore
+      localStorage.getItem = originalGetItem
     })
   })
 
@@ -153,6 +259,32 @@ describe('Storage Service', () => {
       expect(loaded).toBe(20)
       expect(typeof loaded).toBe('number')
     })
+
+    it('should handle error when saving chat counter', () => {
+      const originalSetItem = localStorage.setItem
+      localStorage.setItem = vi.fn(() => {
+        throw new Error('Storage error')
+      })
+
+      // Should not throw error
+      expect(() => saveChatCounter(5)).not.toThrow()
+
+      // Restore
+      localStorage.setItem = originalSetItem
+    })
+
+    it('should handle error when loading chat counter', () => {
+      const originalGetItem = localStorage.getItem
+      localStorage.getItem = vi.fn(() => {
+        throw new Error('Storage error')
+      })
+
+      const loaded = loadChatCounter()
+      expect(loaded).toBe(1)
+
+      // Restore
+      localStorage.getItem = originalGetItem
+    })
   })
 
   describe('saveApiConfig and loadApiConfig', () => {
@@ -173,6 +305,7 @@ describe('Storage Service', () => {
       const loaded = loadApiConfig()
       expect(loaded).toBe(null)
     })
+
   })
 
   describe('saveAllData and loadAllData', () => {
@@ -216,6 +349,7 @@ describe('Storage Service', () => {
       expect(localStorage.getItem('chat-active')).toBe('3')
       expect(localStorage.getItem('chat-chats')).toBe(null)
     })
+
   })
 
   describe('Website Context Functions', () => {
@@ -237,6 +371,20 @@ describe('Storage Service', () => {
       it('should return null when no context exists for chat', () => {
         const loaded = loadWebsiteContext(999)
         expect(loaded).toBe(null)
+      })
+
+      it('should handle error when loading website context', () => {
+        // Mock localStorage.getItem to throw an error
+        const originalGetItem = localStorage.getItem
+        localStorage.getItem = vi.fn(() => {
+          throw new Error('Storage error')
+        })
+
+        const loaded = loadWebsiteContext(1)
+        expect(loaded).toBe(null)
+
+        // Restore
+        localStorage.getItem = originalGetItem
       })
 
       it('should handle multiple chat contexts', () => {
@@ -268,6 +416,19 @@ describe('Storage Service', () => {
 
         const loaded = loadWebsiteContext(chatId)
         expect(loaded).toEqual(newData)
+      })
+
+      it('should handle error when saving website context', () => {
+        const originalSetItem = localStorage.setItem
+        localStorage.setItem = vi.fn(() => {
+          throw new Error('Storage error')
+        })
+
+        // Should not throw error
+        expect(() => saveWebsiteContext(1, { url: 'https://example.com' })).not.toThrow()
+
+        // Restore
+        localStorage.setItem = originalSetItem
       })
     })
 
@@ -336,6 +497,20 @@ describe('Storage Service', () => {
           '3': websiteData3
         })
       })
+
+      it('should handle error when deleting website context', () => {
+        // Mock localStorage to throw an error
+        const originalSetItem = localStorage.setItem
+        localStorage.setItem = vi.fn(() => {
+          throw new Error('Storage error')
+        })
+
+        // Should not throw error
+        expect(() => deleteWebsiteContext(1)).not.toThrow()
+
+        // Restore
+        localStorage.setItem = originalSetItem
+      })
     })
   })
 
@@ -358,6 +533,20 @@ describe('Storage Service', () => {
         localStorage.setItem('chat-sidebar-collapsed', 'invalid-json')
         const result = loadSidebarState()
         expect(result).toBe(false)
+      })
+
+      it('should handle error when saving sidebar state', () => {
+        // Mock localStorage to throw an error
+        const originalSetItem = localStorage.setItem
+        localStorage.setItem = vi.fn(() => {
+          throw new Error('Storage error')
+        })
+
+        // Should not throw error
+        expect(() => saveSidebarState(true)).not.toThrow()
+
+        // Restore
+        localStorage.setItem = originalSetItem
       })
     })
 

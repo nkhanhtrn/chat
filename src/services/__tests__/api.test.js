@@ -212,7 +212,7 @@ describe('API Service', () => {
     it('should handle streaming with partial SSE lines', async () => {
       const messages = [{ role: 'user', content: 'Test' }]
       const model = 'test-model'
-      
+
       const mockReader = {
         read: vi.fn()
           .mockResolvedValueOnce({
@@ -228,22 +228,72 @@ describe('API Service', () => {
             value: undefined
           })
       }
-      
+
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         body: {
           getReader: () => mockReader
         }
       })
-      
+
       const receivedChunks = []
       const onChunk = vi.fn((chunk) => receivedChunks.push(chunk))
-      
+
       const result = await apiModule.sendChatMessage(messages, model, onChunk)
-      
+
       expect(onChunk).toHaveBeenCalledTimes(1)
       expect(receivedChunks).toEqual(['Hello'])
       expect(result).toBe('Hello')
+    })
+
+    it('should handle malformed JSON in SSE stream and log warning', async () => {
+      const messages = [{ role: 'user', content: 'Test' }]
+      const model = 'test-model'
+
+      // Spy on console.warn
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+      const mockReader = {
+        read: vi.fn()
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode('data: {invalid json}\n')
+          })
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode('data: {"choices":[{"delta":{"content":"Valid"}}]}\n')
+          })
+          .mockResolvedValueOnce({
+            done: true,
+            value: undefined
+          })
+      }
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        body: {
+          getReader: () => mockReader
+        }
+      })
+
+      const receivedChunks = []
+      const onChunk = vi.fn((chunk) => receivedChunks.push(chunk))
+
+      const result = await apiModule.sendChatMessage(messages, model, onChunk)
+
+      // Should have logged a warning for the malformed JSON
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        'Failed to parse SSE data:',
+        'data: {invalid json}',
+        expect.any(Error)
+      )
+
+      // Should still process valid chunks
+      expect(onChunk).toHaveBeenCalledTimes(1)
+      expect(receivedChunks).toEqual(['Valid'])
+      expect(result).toBe('Valid')
+
+      consoleWarnSpy.mockRestore()
     })
 
     it('should throw error when streaming response is not ok', async () => {
