@@ -16,9 +16,16 @@
        <div class="message-header">
          <span class="role-badge">Study Assistant</span>
        </div>
-       <div class="message-content">
-         <div class="assistant-message" @mouseup="showContextMenu">
-           <MarkdownRenderer :content="currentResponse" />
+       <div class="message-content" style="position: relative;">
+         <button
+           v-if="state.currentMessage && state.currentMessage.parent"
+           @click="switchToParent"
+           class="parent-switch-btn"
+           title="Go to parent message"
+           style="position: absolute; top: 0.5em; right: 0.5em; z-index: 2;"
+         >&lt;</button>
+         <div class="assistant-message" @mouseup="showContextMenu" @click="handleResponseClick">
+           <MarkdownRenderer :content="processedResponse" />
            <span v-if="isStreaming" class="cursor">▊</span>
          </div>
          <div v-if="state.error" class="error-message">{{ state.error }}</div>
@@ -34,6 +41,34 @@
      </div>
   </div>
 </template>
+
+<script>
+// Exported for test usage
+export function getSelectedTextAndPosition(selection = window.getSelection()) {
+  const selectedText = selection && selection.toString().trim();
+  if (selectedText) {
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    return {
+      selectedText,
+      x: rect.left + window.scrollX,
+      y: rect.bottom + window.scrollY,
+      visible: true
+    };
+  }
+  return { selectedText: '', x: 0, y: 0, visible: false };
+}
+
+// Exported for test usage
+export function escapeRegex(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Exported for test usage
+export function createHighlightedLink(text, childIndex) {
+  return `<a href="#" data-child-index="${childIndex}" class="highlighted-link">${text}</a>`;
+}
+</script>
 
 <script setup>
 import { reactive, computed } from 'vue'
@@ -80,6 +115,25 @@ const currentResponse = computed(() => {
   return state.currentMessage.response
 })
 
+// Computed property that processes the response and adds links for highlighted text
+const processedResponse = computed(() => {
+  let response = currentResponse.value;
+
+  // For each child message, replace its highlighted text with a clickable link
+  if (state.currentMessage && state.currentMessage.children) {
+    state.currentMessage.children.forEach((child, index) => {
+      if (child.highlightedText) {
+        const escapedText = escapeRegex(child.highlightedText);
+        const regex = new RegExp(`(${escapedText})`, 'g');
+        const replacement = createHighlightedLink('$1', index);
+        response = response.replace(regex, replacement);
+      }
+    });
+  }
+
+  return response;
+})
+
 // Computed property that combines both streaming states
 const isStreaming = computed(() => {
   return props.isAppStreaming || state.isChildStreaming
@@ -105,8 +159,8 @@ async function handleHighlight(question) {
   // Use currentMessage as the parent (not props.message)
   const parentMsg = state.currentMessage;
 
-  // Create new child message (using Message static method)
-  const childMsg = reactive(Message.createChildMessage(parentMsg, question));
+  // Create new child message with highlighted text (using Message static method)
+  const childMsg = reactive(Message.createChildMessage(parentMsg, question, state.contextMenu.selectedText));
 
   // Add child to parent's children array
   parentMsg.children.push(childMsg);
@@ -135,42 +189,32 @@ async function handleHighlight(question) {
   }
 }
 
-// Pure function for extracting selected text and position (for context menu)
-// Moved to separate <script> block for export
-function getSelectedTextAndPosition(selection = window.getSelection()) {
-  const selectedText = selection && selection.toString().trim();
-  if (selectedText) {
-    const range = selection.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-    return {
-      selectedText,
-      x: rect.left + window.scrollX,
-      y: rect.bottom + window.scrollY,
-      visible: true
-    };
+function switchToParent() {
+  if (state.currentMessage && state.currentMessage.parent) {
+    state.currentMessage = state.currentMessage.parent;
+    state.currentMessageResponse = state.currentMessage.response;
   }
-  return { selectedText: '', x: 0, y: 0, visible: false };
+}
+
+function navigateToChild(childIndex) {
+  if (state.currentMessage && state.currentMessage.children[childIndex]) {
+    state.currentMessage = state.currentMessage.children[childIndex];
+    state.currentMessageResponse = state.currentMessage.response;
+  }
+}
+
+function handleResponseClick(event) {
+  // Check if the clicked element is a highlighted link
+  const target = event.target;
+  if (target.tagName === 'A' && target.classList.contains('highlighted-link')) {
+    event.preventDefault();
+    const childIndex = parseInt(target.getAttribute('data-child-index'), 10);
+    if (!isNaN(childIndex)) {
+      navigateToChild(childIndex);
+    }
+  }
 }
 </script>
-
-<script>
-// Exported for test usage
-export function getSelectedTextAndPosition(selection = window.getSelection()) {
-  const selectedText = selection && selection.toString().trim();
-  if (selectedText) {
-    const range = selection.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-    return {
-      selectedText,
-      x: rect.left + window.scrollX,
-      y: rect.bottom + window.scrollY,
-      visible: true
-    };
-  }
-  return { selectedText: '', x: 0, y: 0, visible: false };
-}
-</script>
-
 <style scoped>
 .message {
   margin-bottom: 0.75rem;
@@ -251,7 +295,6 @@ export function getSelectedTextAndPosition(selection = window.getSelection()) {
     opacity: 0;
   }
 }
-</style>
 
 /* Context menu styles */
 .context-menu {
@@ -280,3 +323,39 @@ export function getSelectedTextAndPosition(selection = window.getSelection()) {
 .context-menu-btn:hover {
   background: #f3f4f6;
 }
+
+/* Parent switch button styles */
+.parent-switch-btn {
+  background: #fff;
+  border: none;
+  width: 2em;
+  height: 2em;
+  font-size: 1.2em;
+  font-weight: 600;
+  color: #38b2ac;
+  cursor: pointer;
+  opacity: 0.92;
+  outline: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.parent-switch-btn:hover {
+  color: #2c7a7b;
+}
+
+/* Highlighted text link styles */
+.assistant-message :deep(.highlighted-link) {
+  color: #667eea;
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.assistant-message :deep(.highlighted-link:hover) {
+  color: #5568d3;
+  text-decoration: underline;
+}
+
+</style>

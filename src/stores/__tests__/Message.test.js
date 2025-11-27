@@ -39,5 +39,41 @@ describe('Message', () => {
       expect(child.parent).toBe(parent)
       expect(child.children).toEqual([])
     })
+
+    it('creates a child message with highlightedText', () => {
+      const parent = new Message({ id: 'parent', question: 'Q', response: 'This is a test response', children: [] })
+      const question = 'Tell me more about this'
+      const highlightedText = 'test response'
+      const child = Message.createChildMessage(parent, question, highlightedText)
+      expect(child.parentId).toBe(parent.id)
+      expect(child.question).toBe(question)
+      expect(child.highlightedText).toBe(highlightedText)
+      expect(child.response).toBe('')
+      expect(child.parent).toBe(parent)
+    })
+
+    it('creates a child message without highlightedText when not provided', () => {
+      const parent = new Message({ id: 'parent', question: 'Q', response: 'R', children: [] })
+      const question = 'child question'
+      const child = Message.createChildMessage(parent, question)
+      expect(child.highlightedText).toBe(null)
+    })
+  })
+
+  describe('highlightedText', () => {
+    it('stores highlightedText in constructor', () => {
+      const msg = new Message({
+        id: '1',
+        question: 'Q',
+        response: 'A',
+        highlightedText: 'highlighted'
+      })
+      expect(msg.highlightedText).toBe('highlighted')
+    })
+
+    it('defaults highlightedText to null if not provided', () => {
+      const msg = new Message({ id: '1', question: 'Q', response: 'A' })
+      expect(msg.highlightedText).toBe(null)
+    })
   })
 })
