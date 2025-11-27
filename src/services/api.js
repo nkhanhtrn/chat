@@ -1,5 +1,4 @@
 import axios from 'axios'
-import { saveChats } from './storage.js'
 
 // Configure your LM Studio API base URL
 // Default LM Studio local server runs on http://localhost:1234
@@ -190,66 +189,3 @@ export const sendChatMessage = async (messages, model, onChunk = null) => {
   }
 }
 
-/**
- * POST /v1/completions - Text completion
- */
-export const sendCompletion = async (prompt, model) => {
-  try {
-    const response = await api.post('/v1/completions', {
-      model: model,
-      prompt: prompt,
-      max_tokens: 100,
-      temperature: 0.7
-    })
-    
-    return response.data.choices[0].text
-  } catch (error) {
-    console.error('Error in completion:', error)
-    throw new Error('Failed to get completion response')
-  }
-}
-
-/**
- * POST /v1/embeddings - Generate embeddings
- */
-export const generateEmbeddings = async (input, model) => {
-  try {
-    const response = await api.post('/v1/embeddings', {
-      model: model,
-      input: input
-    })
-    
-    return response.data.data
-  } catch (error) {
-    console.error('Error generating embeddings:', error)
-    throw new Error('Failed to generate embeddings')
-  }
-}
-
-/**
- * POST /v1/responses - Custom response endpoint (if available in LM Studio)
- */
-export const sendResponse = async (data, model) => {
-  try {
-    const response = await api.post('/v1/responses', {
-      model: model,
-      ...data
-    })
-    
-    return response.data
-  } catch (error) {
-    console.error('Error in response:', error)
-    throw new Error('Failed to get response')
-  }
-}
-
-export default {
-  fetchModels,
-  sendChatMessage,
-  sendCompletion,
-  generateEmbeddings,
-  sendResponse,
-  saveChats
-};
-
-export { saveChats };
