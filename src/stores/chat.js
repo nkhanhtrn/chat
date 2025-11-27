@@ -84,7 +84,6 @@ export const useChatStore = defineStore('chat', {
       this.messagesById[message.id] = message
       this.rootMessageIds.push(message.id)
       this.currentMessageId = message.id
-      this._persistState()
       return message
     },
 
@@ -103,15 +102,11 @@ export const useChatStore = defineStore('chat', {
       this.messagesById[childMessage.id] = childMessage
 
       // Update parent's childIds array
-      if (!parent.childIds) {
-        parent.childIds = []
-      }
-      parent.childIds.push(childMessage.id)
+      parent.addNewChild = childMessage.id
 
       // Set navigation to new child
       this.currentMessageId = childMessage.id
 
-      this._persistState()
       return childMessage
     },
 
@@ -120,7 +115,6 @@ export const useChatStore = defineStore('chat', {
       const message = this.messagesById[messageId]
       if (message) {
         message.response += chunk
-        this._persistState()
       }
     },
 
@@ -128,7 +122,6 @@ export const useChatStore = defineStore('chat', {
     navigateToMessage(messageId) {
       if (this.messagesById[messageId]) {
         this.currentMessageId = messageId
-        this._persistState()
       }
     },
 
@@ -136,27 +129,13 @@ export const useChatStore = defineStore('chat', {
       const message = this.messagesById[messageId]
       if (message?.parentId) {
         this.currentMessageId = message.parentId
-        this._persistState()
       }
     },
 
-    navigateToRoot(messageId = this.currentMessageId) {
-      let current = this.messagesById[messageId]
-      while (current?.parentId) {
-        current = this.messagesById[current.parentId]
-      }
-      if (current) {
-        this.currentMessageId = current.id
-        this._persistState()
-      }
-    },
-
-    navigateToLastChild(messageId = this.currentMessageId) {
+    navigateToLastVisitedChild(messageId = this.currentMessageId) {
       const message = this.messagesById[messageId]
-      if (message?.childIds?.length > 0) {
-        const lastChildId = message.childIds[message.childIds.length - 1]
-        this.currentMessageId = lastChildId
-        this._persistState()
+      if (message && message.lastVisitedChild) {
+        this.currentMessageId = message.lastVisitedChild
       }
     },
 
@@ -164,6 +143,7 @@ export const useChatStore = defineStore('chat', {
       const message = this.messagesById[messageId]
       if (message?.childIds?.[childIndex]) {
         this.currentMessageId = message.childIds[childIndex]
+        this.messagesById[messageId].lastVisitedChild = this.currentMessageId
         this._persistState()
       }
     },
@@ -183,8 +163,6 @@ export const useChatStore = defineStore('chat', {
       if (this.currentMessageId === messageId) {
         this.currentMessageId = null
       }
-
-      this._persistState()
     },
 
     // Helper to recursively remove a message and all its children
@@ -214,26 +192,9 @@ export const useChatStore = defineStore('chat', {
 
     setCurrentModel(model) {
       this.currentModel = model
-      this._persistState()
     },
 
-    // Persistence helpers
-    toJSON() {
-      return {
-        messagesById: this.messagesById,
-        rootMessageIds: this.rootMessageIds,
-        currentMessageId: this.currentMessageId,
-      }
-    },
-
-    fromJSON(data) {
-      this.messagesById = data.messagesById || {}
-      this.rootMessageIds = data.rootMessageIds || []
-      this.currentMessageId = data.currentMessageId || null
-      this._persistState()
-    },
-
-    // Save state to localStorage after any mutation
+    // Save state to localStorage (called by $subscribe)
     _persistState() {
       const state = {
         messagesById: this.messagesById,

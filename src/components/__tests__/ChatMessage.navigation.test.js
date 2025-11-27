@@ -1,35 +1,35 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
-import { reactive, nextTick } from 'vue'
+import { nextTick } from 'vue'
 import ChatMessage from '../ChatMessage.vue'
 import Message from '../../stores/Message.js'
-
-// Helper to access state from setup script
-function getState(wrapper) {
-  return wrapper.vm.$.setupState.state
-}
+import { useChatStore } from '../../stores/chat.js'
 
 describe('ChatMessage - Navigation Buttons', () => {
   let wrapper
   let pinia
+  let chatStore
 
   beforeEach(() => {
     if (wrapper) {
       wrapper.unmount()
     }
     pinia = createPinia()
+    chatStore = useChatStore(pinia)
   })
 
   describe('switchToParent function', () => {
 
     it('should do nothing when already at root (no parent)', async () => {
-      const parent = reactive(new Message({
+      const parent = new Message({
         id: 'parent',
         question: 'What is Vue?',
         response: 'Vue is a JavaScript framework',
         children: []
-      }))
+      })
+
+      chatStore.addRootMessage(parent)
 
       wrapper = mount(ChatMessage, {
         props: { message: parent },
@@ -37,64 +37,37 @@ describe('ChatMessage - Navigation Buttons', () => {
           plugins: [pinia],
           stubs: {
             MarkdownRenderer: true,
-            ContextMenu: true
+            ContextMenu: true,
+            MessageNavigation: true
           }
         }
       })
 
-      const state = getState(wrapper)
-      const originalMessage = state.currentMessage
+      await nextTick()
+      const originalMessageId = chatStore.currentMessageId
 
-      wrapper.vm.switchToParent()
+      // Call navigateToParent via store
+      chatStore.navigateToParent(parent.id)
       await nextTick()
 
-      // Should still be at the same message
-      expect(state.currentMessage).toBe(originalMessage)
-    })
-
-  })
-
-  describe('switchToRoot function', () => {
-
-    it('should do nothing when already at root', async () => {
-      const root = reactive(new Message({
-        id: 'root',
-        question: 'What is Vue?',
-        response: 'Vue is a framework',
-        children: []
-      }))
-
-      wrapper = mount(ChatMessage, {
-        props: { message: root },
-        global: {
-          plugins: [pinia],
-          stubs: {
-            MarkdownRenderer: true,
-            ContextMenu: true
-          }
-        }
-      })
-
-      const state = getState(wrapper)
-      const originalMessage = state.currentMessage
-
-      wrapper.vm.switchToRoot()
-      await nextTick()
-
-      expect(state.currentMessage).toBe(originalMessage)
+      // Should still be at the same message since it has no parent
+      expect(chatStore.currentMessageId).toBe(originalMessageId)
     })
 
   })
 
   describe('switchToLastChild function', () => {
-
-    it('should do nothing when message has no children', async () => {
-      const parent = reactive(new Message({
+    it('should do nothing when switchToLastVisitedChild is called and message has no lastVisitedChild', async () => {
+      const parent = new Message({
         id: 'parent',
         question: 'What is Vue?',
         response: 'Vue is a JavaScript framework',
-        children: []
-      }))
+        childIds: []
+      })
+      // Explicitly ensure lastVisitedChild is undefined
+      parent.lastVisitedChild = undefined
+
+      chatStore.addRootMessage(parent)
 
       wrapper = mount(ChatMessage, {
         props: { message: parent },
@@ -102,30 +75,34 @@ describe('ChatMessage - Navigation Buttons', () => {
           plugins: [pinia],
           stubs: {
             MarkdownRenderer: true,
-            ContextMenu: true
+            ContextMenu: true,
+            MessageNavigation: true
           }
         }
       })
 
-      const state = getState(wrapper)
-      const originalMessage = state.currentMessage
+      await nextTick()
+      const originalMessageId = chatStore.currentMessageId
 
-      wrapper.vm.switchToLastChild()
+      // Call navigateToLastVisitedChild via store
+      chatStore.navigateToLastVisitedChild(parent.id)
       await nextTick()
 
-      expect(state.currentMessage).toBe(originalMessage)
+      expect(chatStore.currentMessageId).toBe(originalMessageId)
     })
 
   })
 
   describe('Navigation Button Rendering', () => {
-    it('should render navigation buttons when viewing a message with response', async () => {
-      const message = reactive(new Message({
+    it('should render navigation component when viewing a message with response', async () => {
+      const message = new Message({
         id: '1',
         question: 'What is Vue?',
         response: 'Vue is a framework',
         children: []
-      }))
+      })
+
+      chatStore.addRootMessage(message)
 
       wrapper = mount(ChatMessage, {
         props: { message },
@@ -139,17 +116,18 @@ describe('ChatMessage - Navigation Buttons', () => {
       })
 
       await nextTick()
-      expect(wrapper.find('.nav-buttons').exists()).toBe(true)
-      expect(wrapper.findAll('.nav-btn').length).toBe(3) // parent, root, child buttons
+      expect(wrapper.findComponent({ name: 'MessageNavigation' }).exists()).toBe(true)
     })
 
-    it('should disable parent button when at root level', async () => {
-      const root = reactive(new Message({
+    it('should pass currentMessage to MessageNavigation component', async () => {
+      const root = new Message({
         id: 'root',
         question: 'What is Vue?',
         response: 'Vue is a framework',
         children: []
-      }))
+      })
+
+      chatStore.addRootMessage(root)
 
       wrapper = mount(ChatMessage, {
         props: { message: root },
@@ -163,19 +141,21 @@ describe('ChatMessage - Navigation Buttons', () => {
       })
 
       await nextTick()
-      const buttons = wrapper.findAll('.nav-btn')
-      const parentButton = buttons[0] // First button is parent button
-      expect(parentButton.attributes('disabled')).toBeDefined()
+      const navComponent = wrapper.findComponent({ name: 'MessageNavigation' })
+      expect(navComponent.exists()).toBe(true)
+      expect(navComponent.props('currentMessage')).toBeTruthy()
     })
 
 
-    it('should disable child button when message has no children', async () => {
-      const parent = reactive(new Message({
+    it('should render MessageNavigation component when message has response', async () => {
+      const parent = new Message({
         id: 'parent',
         question: 'What is Vue?',
         response: 'Vue is a framework',
         children: []
-      }))
+      })
+
+      chatStore.addRootMessage(parent)
 
       wrapper = mount(ChatMessage, {
         props: { message: parent },
@@ -189,35 +169,8 @@ describe('ChatMessage - Navigation Buttons', () => {
       })
 
       await nextTick()
-      const buttons = wrapper.findAll('.nav-btn')
-      const childButton = buttons[2] // Third button is child button
-      expect(childButton.attributes('disabled')).toBeDefined()
-    })
-
-
-    it('should render home button with SVG icon', async () => {
-      const message = reactive(new Message({
-        id: '1',
-        question: 'What is Vue?',
-        response: 'Vue is a framework',
-        children: []
-      }))
-
-      wrapper = mount(ChatMessage, {
-        props: { message },
-        global: {
-          plugins: [pinia],
-          stubs: {
-            MarkdownRenderer: true,
-            ContextMenu: true
-          }
-        }
-      })
-
-      await nextTick()
-      const homeButton = wrapper.find('.home-btn')
-      expect(homeButton.exists()).toBe(true)
-      expect(homeButton.find('svg').exists()).toBe(true)
+      const navComponent = wrapper.findComponent({ name: 'MessageNavigation' })
+      expect(navComponent.exists()).toBe(true)
     })
   })
 })

@@ -44,14 +44,14 @@ describe('ChatMessage - handleHighlight', () => {
 
     chatStore = useChatStore()
 
-    // Add the parent message to the store
-    chatStore.messagesById['parent-1'] = {
+    // Add the parent message to the store as a Message instance
+    chatStore.messagesById['parent-1'] = new Message({
       id: 'parent-1',
       question: 'What is JavaScript?',
       response: 'JavaScript is a programming language',
       childIds: [],
       parentId: null
-    }
+    })
     chatStore.rootMessageIds = ['parent-1']
     chatStore.currentMessageId = 'parent-1'
 

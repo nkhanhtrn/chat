@@ -287,6 +287,151 @@ describe('ChatMessage', () => {
     })
   })
 
+  describe('Breadcrumb and Navigation UI', () => {
+    it('should render breadcrumb for assistant message with parent chain', () => {
+      const pinia = createPinia()
+      // Simulate a message tree: root -> child
+      const rootMsg = {
+        id: 'root',
+        question: 'Root Q',
+        response: 'Root R',
+        childIds: ['child1'],
+        parentId: null
+      }
+      const childMsg = {
+        id: 'child1',
+        question: 'Child Q',
+        response: 'Child R',
+        childIds: [],
+        parentId: 'root'
+      }
+      // Setup store state manually
+      pinia.state.value.chat = {
+        messagesById: { root: rootMsg, child1: childMsg },
+        rootMessageIds: ['root'],
+        currentMessageId: 'child1',
+        isStreaming: false,
+        error: null,
+        currentModel: null
+      }
+      wrapper = mount(ChatMessage, {
+        props: { message: rootMsg },
+        global: {
+          plugins: [pinia],
+          stubs: { MarkdownRenderer: true, ContextMenu: true }
+        }
+      })
+      // Should render breadcrumb with two items
+      expect(wrapper.findAll('.breadcrumb-item').length).toBe(2)
+      // Clicking breadcrumb navigates (simulate click)
+      const spy = vi.spyOn(wrapper.vm.chatStore, 'navigateToMessage')
+      wrapper.findAll('.breadcrumb-item')[0].trigger('click')
+      expect(spy).toHaveBeenCalledWith('root')
+    })
+
+    it('should disable nav buttons appropriately', () => {
+      const pinia = createPinia()
+      const rootMsg = {
+        id: 'root',
+        question: 'Root Q',
+        response: 'Root R',
+        childIds: [],
+        parentId: null
+      }
+      pinia.state.value.chat = {
+        messagesById: { root: rootMsg },
+        rootMessageIds: ['root'],
+        currentMessageId: 'root',
+        isStreaming: false,
+        error: null,
+        currentModel: null
+      }
+      wrapper = mount(ChatMessage, {
+        props: { message: rootMsg },
+        global: {
+          plugins: [pinia],
+          stubs: { MarkdownRenderer: true, ContextMenu: true }
+        }
+      })
+      // Parent and child nav buttons should be disabled
+      const navBtns = wrapper.findAll('.nav-btn')
+      expect(navBtns[0].attributes('disabled')).toBeDefined()
+      expect(navBtns[1].attributes('disabled')).toBeDefined()
+    })
+  })
+
+  describe('Error and Streaming UI', () => {
+    it('should show error message in assistant message', async () => {
+      const pinia = createPinia()
+      const rootMsg = {
+        id: 'root',
+        question: 'Root Q',
+        response: 'Root R', // ensure assistant message is rendered
+        childIds: [],
+        parentId: null
+      }
+      pinia.state.value.chat = {
+        messagesById: { root: rootMsg },
+        rootMessageIds: ['root'],
+        currentMessageId: 'root',
+        isStreaming: false,
+        error: null,
+        currentModel: null
+      }
+      wrapper = mount(ChatMessage, {
+        props: { message: rootMsg },
+        global: {
+          plugins: [pinia],
+          stubs: { MarkdownRenderer: true, ContextMenu: true }
+        }
+      })
+      // Set error in local state
+      wrapper.vm.state.error = 'Test error!'
+      await wrapper.vm.$nextTick()
+      expect(wrapper.find('.error-message').exists()).toBe(true)
+      expect(wrapper.find('.error-message').text()).toContain('Test error!')
+    })
+
+    it('should show streaming cursor when isAppStreaming or isChildStreaming is true', async () => {
+      const pinia = createPinia()
+      const rootMsg = {
+        id: 'root',
+        question: 'Root Q',
+        response: 'Root R', // ensure assistant message is rendered
+        childIds: [],
+        parentId: null
+      }
+      pinia.state.value.chat = {
+        messagesById: { root: rootMsg },
+        rootMessageIds: ['root'],
+        currentMessageId: 'root',
+        isStreaming: false,
+        error: null,
+        currentModel: null
+      }
+      // isAppStreaming true
+      wrapper = mount(ChatMessage, {
+        props: { message: rootMsg, isAppStreaming: true },
+        global: {
+          plugins: [pinia],
+          stubs: { MarkdownRenderer: true, ContextMenu: true }
+        }
+      })
+      expect(wrapper.find('.cursor').exists()).toBe(true)
+      // isChildStreaming true
+      wrapper = mount(ChatMessage, {
+        props: { message: rootMsg },
+        global: {
+          plugins: [pinia],
+          stubs: { MarkdownRenderer: true, ContextMenu: true }
+        }
+      })
+      wrapper.vm.state.isChildStreaming = true
+      await wrapper.vm.$nextTick()
+      expect(wrapper.find('.cursor').exists()).toBe(true)
+    })
+  })
+
   describe('Content Rendering', () => {
     it('should render empty content', () => {
       wrapper = mount(ChatMessage, {
@@ -444,20 +589,25 @@ describe('ChatMessage', () => {
       })
 
 
-      it('should switch to parent/root/last child/child', async () => {
-        // switchToParent
-        wrapper.vm.switchToParent()
+      it('should switch to parent/root/last visited child/child', async () => {
+        // Navigate to parent using store
+        chatStore.navigateToParent('child1')
         expect(chatStore.currentMessageId).toBe('root')
-        // switchToLastChild
-        wrapper.vm.switchToLastChild()
+        // Navigate to last visited child using store
+        chatStore.navigateToLastVisitedChild('root')
         expect(chatStore.currentMessageId).toBe('child1')
-        // switchToRoot
-        wrapper.vm.switchToRoot()
-        expect(chatStore.currentMessageId).toBe('root')
-        // navigateToChild
-        wrapper.vm.switchToLastChild()
+        // navigateToChild (still exists in ChatMessage for highlighted links)
         wrapper.vm.navigateToChild(0)
         expect(chatStore.currentMessageId).toBe('child1')
+      })
+      it('should do nothing if no lastVisitedChild exists', async () => {
+        // Remove lastVisitedChild from root
+        chatStore.messagesById['root'].lastVisitedChild = null
+        chatStore.currentMessageId = 'root'
+        // Call navigateToLastVisitedChild via store
+        chatStore.navigateToLastVisitedChild('root')
+        // Should remain at root
+        expect(chatStore.currentMessageId).toBe('root')
       })
 
       it('should close context menu', () => {

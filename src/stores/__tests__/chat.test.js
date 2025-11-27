@@ -15,6 +15,8 @@ describe('useChatStore', () => {
     chatStore.currentMessageId = null
   })
 
+  // ...getters tests moved to chat.getters.test.js...
+
   describe('removeRootMessage', () => {
     it('should remove a root message without children', () => {
       const msg = chatStore.addRootMessage({
@@ -184,6 +186,37 @@ describe('useChatStore', () => {
       chatStore._removeMessageTree('nonexistent')
 
       expect(chatStore.messagesById['root']).toBeDefined()
+    })
+  })
+
+  describe('addChildMessage', () => {
+    it('should throw error when parent message is not found', () => {
+      expect(() => {
+        chatStore.addChildMessage('nonexistent-parent', {
+          id: 'child1',
+          question: 'Child question',
+          response: 'Child response'
+        })
+      }).toThrow('Parent message nonexistent-parent not found')
+    })
+  })
+
+  describe('setError', () => {
+    it('should set error state', () => {
+      expect(chatStore.error).toBeNull()
+
+      chatStore.setError('Test error message')
+
+      expect(chatStore.error).toBe('Test error message')
+    })
+
+    it('should clear error state when set to null', () => {
+      chatStore.setError('Error message')
+      expect(chatStore.error).toBe('Error message')
+
+      chatStore.setError(null)
+
+      expect(chatStore.error).toBeNull()
     })
   })
 })
