@@ -28,4 +28,17 @@ export default class Message {
     this.children.push(child)
     child.parentId = this.messageId
   }
+
+  // Check if this message has any children
+  get hasChildren() {
+    return this.children && this.children.length > 0
+  }
+
+  // Get the most recently accessed child (last child in the array)
+  get lastAccessedChild() {
+    if (this.hasChildren) {
+      return this.children[this.children.length - 1]
+    }
+    return null
+  }
 }

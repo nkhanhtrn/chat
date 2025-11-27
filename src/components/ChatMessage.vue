@@ -17,13 +17,30 @@
          <span class="role-badge">Study Assistant</span>
        </div>
        <div class="message-content" style="position: relative;">
-         <button
-           v-if="state.currentMessage && state.currentMessage.parent"
-           @click="switchToParent"
-           class="parent-switch-btn"
-           title="Go to parent message"
-           style="position: absolute; top: 0.5em; right: 0.5em; z-index: 2;"
-         >&lt;</button>
+         <div v-if="state.currentMessage" class="nav-buttons">
+           <button
+             @click="switchToParent"
+             class="nav-btn"
+             :disabled="!state.currentMessage.parent"
+             title="Go to parent message"
+           >&lt;</button>
+           <button
+             @click="switchToRoot"
+             class="nav-btn home-btn"
+             title="Go to root message"
+           >
+             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+               <polyline points="9 22 9 12 15 12 15 22"></polyline>
+             </svg>
+           </button>
+           <button
+             @click="switchToLastChild"
+             class="nav-btn"
+             :disabled="!state.currentMessage.hasChildren"
+             title="Go to child message"
+           >&gt;</button>
+         </div>
          <div class="assistant-message" @mouseup="showContextMenu" @click="handleResponseClick">
            <MarkdownRenderer :content="processedResponse" />
            <span v-if="isStreaming" class="cursor">▊</span>
@@ -196,6 +213,27 @@ function switchToParent() {
   }
 }
 
+function switchToRoot() {
+  // Navigate to the root message by following parent chain
+  let current = state.currentMessage;
+  while (current && current.parent) {
+    current = current.parent;
+  }
+  if (current) {
+    state.currentMessage = current;
+    state.currentMessageResponse = current.response;
+  }
+}
+
+function switchToLastChild() {
+  // Navigate to the last accessed child message
+  if (state.currentMessage && state.currentMessage.lastAccessedChild) {
+    const lastChild = state.currentMessage.lastAccessedChild;
+    state.currentMessage = lastChild;
+    state.currentMessageResponse = lastChild.response;
+  }
+}
+
 function navigateToChild(childIndex) {
   if (state.currentMessage && state.currentMessage.children[childIndex]) {
     state.currentMessage = state.currentMessage.children[childIndex];
@@ -324,24 +362,67 @@ function handleResponseClick(event) {
   background: #f3f4f6;
 }
 
-/* Parent switch button styles */
-.parent-switch-btn {
-  background: #fff;
-  border: none;
+/* Navigation buttons container */
+.nav-buttons {
+  position: absolute;
+  top: 0.5em;
+  right: 0.5em;
+  z-index: 2;
+  display: flex;
+  gap: 0.5em;
+  align-items: center;
+}
+
+/* Navigation button styles */
+.nav-btn {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
   width: 2em;
   height: 2em;
-  font-size: 1.2em;
+  font-size: 1.1em;
   font-weight: 600;
   color: #38b2ac;
   cursor: pointer;
-  opacity: 0.92;
+  border-radius: 8px;
   outline: none;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s ease;
+  padding: 0;
 }
-.parent-switch-btn:hover {
+.nav-btn:hover {
+  background: #f7fafc;
   color: #2c7a7b;
+  border-color: #38b2ac;
+  box-shadow: 0 2px 4px rgba(56, 178, 172, 0.15);
+  transform: translateY(-1px);
+}
+.nav-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+.nav-btn:disabled {
+  background: #f7fafc;
+  color: #cbd5e0;
+  border-color: #e2e8f0;
+  cursor: not-allowed;
+  opacity: 0.5;
+  box-shadow: none;
+}
+.nav-btn:disabled:hover {
+  transform: none;
+  background: #f7fafc;
+  color: #cbd5e0;
+  border-color: #e2e8f0;
+  box-shadow: none;
+}
+
+/* Home button specific styles */
+.home-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* Highlighted text link styles */

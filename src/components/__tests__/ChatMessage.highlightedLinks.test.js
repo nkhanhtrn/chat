@@ -280,7 +280,7 @@ describe('ChatMessage - Highlighted Text Links', () => {
       expect(markdownRenderer.text()).toBe('JavaScript is a programming language')
     })
 
-    it('should show parent button when viewing child message', async () => {
+    it('should enable parent button when viewing child message', async () => {
       const parent = reactive(new Message({
         id: 'parent',
         question: 'What is Vue?',
@@ -304,12 +304,18 @@ describe('ChatMessage - Highlighted Text Links', () => {
       })
 
       await nextTick()
-      expect(wrapper.find('.parent-switch-btn').exists()).toBe(false)
+      // Parent button should be disabled when at root
+      const buttons = wrapper.findAll('.nav-btn')
+      const parentButton = buttons[0]
+      expect(parentButton.attributes('disabled')).toBeDefined()
 
       wrapper.vm.navigateToChild(0)
       await nextTick()
 
-      expect(wrapper.find('.parent-switch-btn').exists()).toBe(true)
+      // Parent button should be enabled when viewing child
+      const updatedButtons = wrapper.findAll('.nav-btn')
+      const updatedParentButton = updatedButtons[0]
+      expect(updatedParentButton.attributes('disabled')).toBeUndefined()
     })
 
     it('should not navigate if child index is out of bounds', async () => {
@@ -491,7 +497,9 @@ describe('ChatMessage - Highlighted Text Links', () => {
 
       // Start with parent
       expect(wrapper.find('.markdown-stub').text()).toContain('Vue is a JavaScript framework')
-      expect(wrapper.find('.parent-switch-btn').exists()).toBe(false)
+      // Parent button should be disabled at root
+      const buttons = wrapper.findAll('.nav-btn')
+      expect(buttons[0].attributes('disabled')).toBeDefined()
 
       // Navigate to child by clicking link
       await wrapper.find('a.highlighted-link').trigger('click')
@@ -499,15 +507,19 @@ describe('ChatMessage - Highlighted Text Links', () => {
 
       // Should show child
       expect(wrapper.find('.markdown-stub').text()).toBe('JavaScript is a programming language')
-      expect(wrapper.find('.parent-switch-btn').exists()).toBe(true)
+      // Parent button should now be enabled
+      const childButtons = wrapper.findAll('.nav-btn')
+      expect(childButtons[0].attributes('disabled')).toBeUndefined()
 
       // Navigate back to parent
-      await wrapper.find('.parent-switch-btn').trigger('click')
+      await childButtons[0].trigger('click')
       await nextTick()
 
       // Should show parent again
       expect(wrapper.find('.markdown-stub').text()).toContain('Vue is a JavaScript framework')
-      expect(wrapper.find('.parent-switch-btn').exists()).toBe(false)
+      // Parent button should be disabled again
+      const parentButtons = wrapper.findAll('.nav-btn')
+      expect(parentButtons[0].attributes('disabled')).toBeDefined()
     })
 
     it('should support nested navigation with multiple children', async () => {
@@ -555,14 +567,16 @@ describe('ChatMessage - Highlighted Text Links', () => {
 
       expect(wrapper.find('.markdown-stub').text()).toBe('Data science involves analyzing data')
 
-      // Navigate back to child
-      await wrapper.find('.parent-switch-btn').trigger('click')
+      // Navigate back to child - use first nav button
+      let navButtons = wrapper.findAll('.nav-btn')
+      await navButtons[0].trigger('click')
       await nextTick()
 
       expect(wrapper.find('.markdown-stub').text()).toContain('Python is a high-level language')
 
-      // Navigate back to parent
-      await wrapper.find('.parent-switch-btn').trigger('click')
+      // Navigate back to parent - use first nav button
+      navButtons = wrapper.findAll('.nav-btn')
+      await navButtons[0].trigger('click')
       await nextTick()
 
       expect(wrapper.find('.markdown-stub').text()).toContain('Programming uses languages')
