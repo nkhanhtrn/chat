@@ -4,7 +4,9 @@
       "Bash(find:*)",
       "Bash(rm:*)",
       "Bash(npm run test:*)",
-      "Bash(rmdir:*)"
+      "Bash(rmdir:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run dev:*)"
     ],
     "deny": [],
     "ask": []

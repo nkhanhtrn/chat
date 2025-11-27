@@ -1,7 +1,8 @@
 import axios from 'axios'
 
-// Configure your LM Studio API base URL
+// Configure your Studio LM API base URL
 // Default LM Studio local server runs on http://localhost:1234
+// You can change this to point to your Studio LM API endpoint
 let API_BASE_URL = 'http://localhost:1234'
 
 const api = axios.create({
