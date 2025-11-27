@@ -118,6 +118,14 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
+    setQuestionSummarized(messageId, summary) {
+      const message = this.messagesById[messageId]
+      if (message) {
+        message.updateQuestionSummarized(summary)
+        this._persistState()
+      }
+    },
+
     // Navigation actions
     navigateToMessage(messageId) {
       if (this.messagesById[messageId]) {

@@ -71,7 +71,7 @@ import { useChatStore } from '../stores/chat.js'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import ContextMenu from './ContextMenu.vue'
 import MessageNavigation from './MessageNavigation.vue'
-import { sendChatMessage } from '../services/api.js'
+import { getQuestionSummary, sendChatMessage } from '../services/api.js'
 import Message from '../stores/Message.js'
 import { getSelectedTextAndPosition as defaultGetSelectedTextAndPosition } from './ChatMessage.vue'
 
@@ -186,20 +186,32 @@ async function handleHighlight(question) {
   state.isChildStreaming = true
   state.error = null
 
-  try {
-    await sendChatMessage(
-      question,
-      chatStore.currentModel,
-      (chunk) => {
-        // Update via store
-        chatStore.appendToResponse(childMsg.id, chunk)
-      }
-    )
-  } catch (err) {
-    state.error = err.message
-  } finally {
-    state.isChildStreaming = false
-  }
+  // Call getQuestionSummary and sendChatMessage independently (in parallel)
+  (async () => {
+    try {
+      const summary = await getQuestionSummary(question, chatStore.currentModel)
+      chatStore.setQuestionSummarized(childMsg.id, summary)
+    } catch (err) {
+      state.error = err.message
+    }
+  })();
+
+  (async () => {
+    try {
+      await sendChatMessage(
+        question,
+        chatStore.currentModel,
+        (chunk) => {
+          // Update via store
+          chatStore.appendToResponse(childMsg.id, chunk)
+        }
+      )
+    } catch (err) {
+      state.error = err.message
+    } finally {
+      state.isChildStreaming = false
+    }
+  })();
 }
 
 function navigateToChild(childIndex) {

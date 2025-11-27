@@ -60,22 +60,36 @@ export const abortChatMessage = () => {
   }
 }
 
-/**
- * POST /v1/chat/completions - Send chat message with streaming support
- * @param {Array} messages - Array of message objects
- * @param {string} model - Model name
- * @param {Function} onChunk - Optional callback for streaming chunks (chunk) => void
- * @returns {Promise<string>} - Complete response text (or empty if streaming)
- */
+
+export const getQuestionSummary = async (question, model) => {
+  const summaryPrompt = `Summarize the following in 2-5 words, no formatting, no punctuation, just the words:\n${question}`;
+  const messages = [
+    { role: 'user', content: summaryPrompt }
+  ];
+  try {
+    const response = await api.post('/v1/chat/completions', {
+      model: model,
+      messages: messages,
+      temperature: 0.7,
+      max_tokens: 100,
+      stream: false
+    });
+    if (response.data.choices && response.data.choices.length > 0) {
+      return response.data.choices[0].message.content.trim();
+    } else {
+      throw new Error('No summary response from model');
+    }
+  } catch (error) {
+    throw new Error(error.response?.data?.error?.message || 'Failed to get summary');
+  }
+};
+
 export const sendChatMessage = async (question, model, onChunk = null) => {
-  // Always wrap the question as the correct API message format
+  // Only send the question and return the answer
   const messages = [
     { role: 'user', content: question }
-  ]
+  ];
   try {
-    console.log('Sending chat request:', { model, messageCount: messages.length })
-    
-    // If no callback provided, use non-streaming mode
     if (!onChunk) {
       const response = await api.post('/v1/chat/completions', {
         model: model,
@@ -83,23 +97,16 @@ export const sendChatMessage = async (question, model, onChunk = null) => {
         temperature: 0.7,
         max_tokens: -1,
         stream: false
-      })
-      
-      console.log('Chat response received')
-      
+      });
       if (response.data.choices && response.data.choices.length > 0) {
-        return response.data.choices[0].message.content
+        return response.data.choices[0].message.content;
       } else {
-        throw new Error('No response from model')
+        throw new Error('No response from model');
       }
     }
-    
+
     // Streaming mode
-    console.log('Using streaming mode with callback')
-    
-    // Create abort controller for this request
-    currentAbortController = new AbortController()
-    
+    currentAbortController = new AbortController();
     const response = await fetch(`${API_BASE_URL}/v1/chat/completions`, {
       method: 'POST',
       headers: {
@@ -113,84 +120,46 @@ export const sendChatMessage = async (question, model, onChunk = null) => {
         stream: true
       }),
       signal: currentAbortController.signal
-    })
-    
-    console.log('Fetch response received, status:', response.status)
-    
+    });
     if (!response.ok) {
-      throw new Error('Failed to get chat response')
+      throw new Error('Failed to get chat response');
     }
-    
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-    let fullContent = ''
-    
-    console.log('Starting to read stream...')
-    
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let fullContent = '';
     while (true) {
-      const { done, value } = await reader.read()
-      
-      if (done) {
-        console.log('Stream done')
-        break
-      }
-      
-      console.log('Received stream chunk, size:', value.length)
-      
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      
-      // Keep the last incomplete line in the buffer
-      buffer = lines.pop() || ''
-      
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
       for (const line of lines) {
-        const trimmedLine = line.trim()
-        
-        if (trimmedLine === '' || trimmedLine === 'data: [DONE]') {
-          continue
-        }
-        
+        const trimmedLine = line.trim();
+        if (trimmedLine === '' || trimmedLine === 'data: [DONE]') continue;
         if (trimmedLine.startsWith('data: ')) {
           try {
-            const jsonStr = trimmedLine.slice(6) // Remove 'data: ' prefix
-            const data = JSON.parse(jsonStr)
-            
+            const jsonStr = trimmedLine.slice(6);
+            const data = JSON.parse(jsonStr);
             if (data.choices && data.choices[0].delta && data.choices[0].delta.content) {
-              const chunk = data.choices[0].delta.content
-              fullContent += chunk
-              onChunk(chunk)
+              const chunk = data.choices[0].delta.content;
+              fullContent += chunk;
+              onChunk(chunk);
             }
           } catch (e) {
-            console.warn('Failed to parse SSE data:', trimmedLine, e)
+            console.warn('Failed to parse SSE data:', trimmedLine, e);
           }
         }
       }
     }
-    
-    console.log('Streaming complete')
-    currentAbortController = null
-    return fullContent
+    currentAbortController = null;
+    return fullContent;
   } catch (error) {
-    console.error('Error in chat completion:', error.message)
-    
-    // Clean up abort controller
-    currentAbortController = null
-    
-    // Handle abort error
-    if (error.name === 'AbortError') {
-      console.log('Request was aborted by user')
-      throw new Error('Request cancelled')
-    }
-    
-    // If it's our own error message, rethrow it directly
-    if (error.message === 'No response from model') {
-      throw error
-    }
-    if (error.code === 'ERR_NETWORK' || error.name === 'TypeError') {
-      throw new Error('Cannot connect to LM Studio server')
-    }
-    throw new Error(error.response?.data?.error?.message || 'Failed to get chat response')
+    currentAbortController = null;
+    if (error.name === 'AbortError') throw new Error('Request cancelled');
+    if (error.message === 'No response from model') throw error;
+    if (error.code === 'ERR_NETWORK' || error.name === 'TypeError') throw new Error('Cannot connect to LM Studio server');
+    throw new Error(error.response?.data?.error?.message || 'Failed to get chat response');
   }
-}
+};
 

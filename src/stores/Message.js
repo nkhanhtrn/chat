@@ -22,7 +22,6 @@ export default class Message {
     this.lastVisitedChild = null
   }
 
-  
   // Check if this message has any children
   get hasChildren() {
     return this.childIds && this.childIds.length > 0
@@ -33,5 +32,19 @@ export default class Message {
     }
     this.childIds.push(childId)
     this.lastVisitedChild = childId
+  }
+
+  updateQuestionSummarized(summary) {
+    // If summary is provided, use it directly
+    if (summary) {
+      this.questionSummarized = summary;
+    } else {
+      // Otherwise, set questionSummarized to the first line of response and remove it from response
+      if (typeof this.response === 'string') {
+        const lines = this.response.split('\n');
+        this.questionSummarized = lines[0];
+        this.response = lines.slice(1).join('\n');
+      }
+    }
   }
 }
