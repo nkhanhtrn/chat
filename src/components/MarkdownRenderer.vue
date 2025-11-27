@@ -5,11 +5,7 @@
 <script setup>
 import { computed } from 'vue'
 import { marked } from 'marked'
-import CodeBlock from './CodeBlock.vue'
-import InlineCode from './InlineCode.vue'
-import MathBlock from './MathBlock.vue'
-import MathInline from './MathInline.vue'
-import MarkdownTable from './MarkdownTable.vue'
+import { processMarkdown } from '../services/markdownUtils.js'
 
 const props = defineProps({
   content: {
@@ -19,79 +15,8 @@ const props = defineProps({
 })
 
 const renderedContent = computed(() => {
-  if (!props.content) return ''
-
-  let processed = props.content
-
-  const codeBlocks = []
-  const mathBlocks = []
-  const inlineMath = []
-  const inlineCode = []
-
-  processed = processed.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-    const id = `CODE_BLOCK_${codeBlocks.length}`
-    codeBlocks.push({ id, lang: lang || 'text', code: code.trim() })
-    return `\n${id}\n`
-  })
-
-  processed = processed.replace(/\$\$([\s\S]+?)\$\$/g, (match, math) => {
-    const id = `MATH_BLOCK_${mathBlocks.length}`
-    mathBlocks.push({ id, math: math.trim() })
-    return `\n${id}\n`
-  })
-
-  processed = processed.replace(/\$([^\$\n]+?)\$/g, (match, math) => {
-    const id = `MATH_INLINE_${inlineMath.length}`
-    inlineMath.push({ id, math: math.trim() })
-    return id
-  })
-
-  processed = processed.replace(/`([^`]+?)`/g, (match, code) => {
-    const id = `CODE_INLINE_${inlineCode.length}`
-    inlineCode.push({ id, code })
-    return id
-  })
-
-  let html = marked(processed)
-
-  codeBlocks.forEach(({ id, lang, code }) => {
-    html = html.replace(id, `<div class="code-block-wrapper"><pre><code class="language-${lang}">${escapeHtml(code)}</code></pre></div>`)
-  })
-
-  mathBlocks.forEach(({ id, math }) => {
-    html = html.replace(id, `<div class="math-block-wrapper">${renderMath(math, true)}</div>`)
-  })
-
-  inlineMath.forEach(({ id, math }) => {
-    html = html.replace(id, `<span class="math-inline-wrapper">${renderMath(math, false)}</span>`)
-  })
-
-  inlineCode.forEach(({ id, code }) => {
-    html = html.replace(id, `<code class="inline-code">${escapeHtml(code)}</code>`)
-  })
-
-  return html
+  return processMarkdown(props.content, marked)
 })
-
-const escapeHtml = (text) => {
-  const div = document.createElement('div')
-  div.textContent = text
-  return div.innerHTML
-}
-
-const renderMath = (math, isBlock) => {
-  try {
-    if (typeof window !== 'undefined' && window.katex) {
-      return window.katex.renderToString(math, {
-        displayMode: isBlock,
-        throwOnError: false
-      })
-    }
-  } catch (e) {
-    console.error('KaTeX rendering error:', e)
-  }
-  return escapeHtml(math)
-}
 </script>
 
 <style>
