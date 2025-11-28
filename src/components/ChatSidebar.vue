@@ -17,7 +17,25 @@
           <div class="collapse-icon" @click="toggleCollapse(chat.id)" v-if="chat.questions.length > 0">
             {{ isCollapsed(chat.id) ? '▸' : '▾' }}
           </div>
-          <div class="chat-title" @click="$emit('select-chat', chat.id)">{{ chat.title }}</div>
+          <div
+            v-if="editingChatId !== chat.id"
+            class="chat-title"
+            @click="$emit('select-chat', chat.id)"
+            @dblclick="startEditing(chat.id, chat.title)"
+          >
+            {{ chat.title }}
+          </div>
+          <input
+            v-else
+            ref="editInput"
+            v-model="editingTitle"
+            @blur="finishEditing(chat.id)"
+            @keydown.enter="finishEditing(chat.id)"
+            @keydown.esc="cancelEditing"
+            @click.stop
+            class="chat-title-input"
+            type="text"
+          />
           <button class="delete-button" @click.stop="$emit('delete-chat', chat.id)" title="Delete chat">
             ×
           </button>
@@ -47,7 +65,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, nextTick } from 'vue'
 
 defineProps({
   chats: {
@@ -64,9 +82,12 @@ defineProps({
   }
 })
 
-defineEmits(['new-chat', 'select-chat', 'select-question', 'delete-chat'])
+const emit = defineEmits(['new-chat', 'select-chat', 'select-question', 'delete-chat', 'rename-chat'])
 
 const collapsedChats = ref(new Set())
+const editingChatId = ref(null)
+const editingTitle = ref('')
+const editInput = ref(null)
 
 const toggleCollapse = (chatId) => {
   if (collapsedChats.value.has(chatId)) {
@@ -78,6 +99,33 @@ const toggleCollapse = (chatId) => {
 
 const isCollapsed = (chatId) => {
   return collapsedChats.value.has(chatId)
+}
+
+const startEditing = (chatId, currentTitle) => {
+  editingChatId.value = chatId
+  editingTitle.value = currentTitle
+  nextTick(() => {
+    if (editInput.value) {
+      const input = Array.isArray(editInput.value) ? editInput.value[0] : editInput.value
+      if (input) {
+        input.focus()
+        input.select()
+      }
+    }
+  })
+}
+
+const finishEditing = (chatId) => {
+  if (editingTitle.value.trim() && editingTitle.value !== '') {
+    emit('rename-chat', chatId, editingTitle.value.trim())
+  }
+  editingChatId.value = null
+  editingTitle.value = ''
+}
+
+const cancelEditing = () => {
+  editingChatId.value = null
+  editingTitle.value = ''
 }
 </script>
 
@@ -176,6 +224,25 @@ const isCollapsed = (chatId) => {
 
 .chat-title:hover {
   color: var(--color-primary);
+}
+
+.chat-title-input {
+  font-weight: 600;
+  color: var(--color-text-strong);
+  font-size: 0.95rem;
+  line-height: 1.4;
+  flex: 1;
+  padding: 0.25rem 0.5rem;
+  background-color: var(--color-bg-base);
+  border: 2px solid var(--color-primary);
+  border-radius: 4px;
+  outline: none;
+  font-family: 'Georgia', serif;
+}
+
+.chat-title-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-subtle, rgba(99, 102, 241, 0.1));
 }
 
 .delete-button {

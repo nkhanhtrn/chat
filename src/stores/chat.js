@@ -329,5 +329,19 @@ export const useChatStore = defineStore('chat', {
 
       this._persistState()
     },
+
+    // Rename a chat session
+    renameChat(chatId, newTitle) {
+      const chat = this.chats.find(c => c.id === chatId)
+      if (!chat || !chat.rootMessageIds.length) return
+
+      // Update the first message's question to change the chat title
+      const firstMessageId = chat.rootMessageIds[0]
+      const firstMessage = this.messagesById[firstMessageId]
+      if (firstMessage) {
+        firstMessage.question = newTitle
+        this._persistState()
+      }
+    },
   }
 })

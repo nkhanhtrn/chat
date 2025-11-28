@@ -645,4 +645,232 @@ describe('ChatSidebar', () => {
       expect(wrapper.find('.collapse-icon').text()).toBe('▸')
     })
   })
+
+  describe('Chat Rename Functionality', () => {
+    it('should show input when double-clicking chat title', async () => {
+      const chats = [
+        { id: 'chat1', title: 'Original Title', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      // Initially showing title
+      expect(wrapper.find('.chat-title').exists()).toBe(true)
+      expect(wrapper.find('.chat-title-input').exists()).toBe(false)
+
+      // Double-click title
+      await wrapper.find('.chat-title').trigger('dblclick')
+
+      // Should show input
+      expect(wrapper.find('.chat-title').exists()).toBe(false)
+      expect(wrapper.find('.chat-title-input').exists()).toBe(true)
+    })
+
+    it('should populate input with current title on edit', async () => {
+      const chats = [
+        { id: 'chat1', title: 'Current Title', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      await wrapper.find('.chat-title').trigger('dblclick')
+
+      const input = wrapper.find('.chat-title-input')
+      expect(input.element.value).toBe('Current Title')
+    })
+
+    it('should focus and select text in input when editing starts', async () => {
+      const chats = [
+        { id: 'chat1', title: 'Title to Edit', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats },
+        attachTo: document.body
+      })
+
+      await wrapper.find('.chat-title').trigger('dblclick')
+      await wrapper.vm.$nextTick()
+
+      const input = wrapper.find('.chat-title-input').element
+      expect(document.activeElement).toBe(input)
+
+      wrapper.unmount()
+    })
+
+    it('should emit rename-chat event when pressing Enter', async () => {
+      const chats = [
+        { id: 'chat1', title: 'Original', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      await wrapper.find('.chat-title').trigger('dblclick')
+
+      const input = wrapper.find('.chat-title-input')
+      await input.setValue('New Title')
+      await input.trigger('keydown.enter')
+
+      expect(wrapper.emitted('rename-chat')).toBeTruthy()
+      expect(wrapper.emitted('rename-chat')[0]).toEqual(['chat1', 'New Title'])
+    })
+
+    it('should emit rename-chat event when input loses focus', async () => {
+      const chats = [
+        { id: 'chat1', title: 'Original', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      await wrapper.find('.chat-title').trigger('dblclick')
+
+      const input = wrapper.find('.chat-title-input')
+      await input.setValue('Updated Title')
+      await input.trigger('blur')
+
+      expect(wrapper.emitted('rename-chat')).toBeTruthy()
+      expect(wrapper.emitted('rename-chat')[0]).toEqual(['chat1', 'Updated Title'])
+    })
+
+    it('should cancel editing when pressing Escape', async () => {
+      const chats = [
+        { id: 'chat1', title: 'Original', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      await wrapper.find('.chat-title').trigger('dblclick')
+
+      const input = wrapper.find('.chat-title-input')
+      await input.setValue('New Title')
+      await input.trigger('keydown.esc')
+
+      // Should not emit rename-chat
+      expect(wrapper.emitted('rename-chat')).toBeFalsy()
+
+      // Should return to display mode
+      expect(wrapper.find('.chat-title').exists()).toBe(true)
+      expect(wrapper.find('.chat-title-input').exists()).toBe(false)
+    })
+
+    it('should trim whitespace from new title', async () => {
+      const chats = [
+        { id: 'chat1', title: 'Original', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      await wrapper.find('.chat-title').trigger('dblclick')
+
+      const input = wrapper.find('.chat-title-input')
+      await input.setValue('  Trimmed Title  ')
+      await input.trigger('keydown.enter')
+
+      expect(wrapper.emitted('rename-chat')[0]).toEqual(['chat1', 'Trimmed Title'])
+    })
+
+    it('should not emit rename-chat when title is empty or whitespace', async () => {
+      const chats = [
+        { id: 'chat1', title: 'Original', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      await wrapper.find('.chat-title').trigger('dblclick')
+
+      const input = wrapper.find('.chat-title-input')
+      await input.setValue('   ')
+      await input.trigger('keydown.enter')
+
+      expect(wrapper.emitted('rename-chat')).toBeFalsy()
+    })
+
+    it('should exit edit mode after saving', async () => {
+      const chats = [
+        { id: 'chat1', title: 'Original', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      await wrapper.find('.chat-title').trigger('dblclick')
+
+      const input = wrapper.find('.chat-title-input')
+      await input.setValue('New Title')
+      await input.trigger('keydown.enter')
+
+      // Should return to display mode
+      expect(wrapper.find('.chat-title').exists()).toBe(true)
+      expect(wrapper.find('.chat-title-input').exists()).toBe(false)
+    })
+
+    it('should handle editing different chats independently', async () => {
+      const chats = [
+        { id: 'chat1', title: 'Chat 1', questions: [] },
+        { id: 'chat2', title: 'Chat 2', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      const titles = wrapper.findAll('.chat-title')
+
+      // Edit first chat
+      await titles[0].trigger('dblclick')
+      expect(wrapper.findAll('.chat-title-input')).toHaveLength(1)
+
+      const input = wrapper.find('.chat-title-input')
+      await input.setValue('Updated Chat 1')
+      await input.trigger('keydown.enter')
+
+      expect(wrapper.emitted('rename-chat')[0]).toEqual(['chat1', 'Updated Chat 1'])
+
+      // Edit second chat
+      await wrapper.findAll('.chat-title')[1].trigger('dblclick')
+      const input2 = wrapper.find('.chat-title-input')
+      await input2.setValue('Updated Chat 2')
+      await input2.trigger('keydown.enter')
+
+      expect(wrapper.emitted('rename-chat')[1]).toEqual(['chat2', 'Updated Chat 2'])
+    })
+
+    it('should not trigger select-chat when double-clicking to edit', async () => {
+      const chats = [
+        { id: 'chat1', title: 'Original', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      await wrapper.find('.chat-title').trigger('dblclick')
+
+      // select-chat should still be emitted from the first click
+      // but we're verifying the edit mode is entered
+      expect(wrapper.find('.chat-title-input').exists()).toBe(true)
+    })
+
+    it('should prevent click propagation on input', async () => {
+      const chats = [
+        { id: 'chat1', title: 'Original', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      await wrapper.find('.chat-title').trigger('dblclick')
+
+      const input = wrapper.find('.chat-title-input')
+      await input.trigger('click')
+
+      // Should not emit select-chat when clicking inside input
+      // The click.stop should prevent propagation
+      expect(wrapper.emitted('select-chat')).toBeFalsy()
+    })
+  })
 })

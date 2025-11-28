@@ -103,7 +103,7 @@ describe('App', () => {
     })
 
     it('should render ChatInput component', () => {
-      wrapper = mount(App, {
+      wrapper = mount(App,{ 
         global: {
           plugins: [createPinia()],
           stubs: {

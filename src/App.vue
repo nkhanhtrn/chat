@@ -8,6 +8,7 @@
       @select-chat="handleSelectChat"
       @select-question="handleSelectQuestion"
       @delete-chat="handleDeleteChat"
+      @rename-chat="handleRenameChat"
     />
 
     <div class="chat-container">
@@ -153,6 +154,10 @@ const handleSelectQuestion = (questionId) => {
 const handleDeleteChat = (chatId) => {
   chatStore.deleteChat(chatId)
   scrollToBottom()
+}
+
+const handleRenameChat = (chatId, newTitle) => {
+  chatStore.renameChat(chatId, newTitle)
 }
 
 </script>

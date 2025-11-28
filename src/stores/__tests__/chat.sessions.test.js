@@ -588,6 +588,106 @@ describe('useChatStore - Chat Sessions', () => {
     })
   })
 
+  describe('renameChat', () => {
+    it('should rename a chat by updating first message question', () => {
+      chatStore.createNewChat()
+      const chatId = chatStore.currentChatId
+      chatStore.addRootMessage({ id: 'msg1', question: 'Original Title', response: 'R1' })
+
+      chatStore.renameChat(chatId, 'New Title')
+
+      expect(chatStore.messagesById['msg1'].question).toBe('New Title')
+    })
+
+    it('should update chat title in chatList getter', () => {
+      chatStore.createNewChat()
+      const chatId = chatStore.currentChatId
+      chatStore.addRootMessage({ id: 'msg1', question: 'Original Title', response: 'R1' })
+
+      chatStore.renameChat(chatId, 'Renamed Chat')
+
+      const chatList = chatStore.chatList
+      expect(chatList[0].title).toBe('Renamed Chat')
+    })
+
+    it('should do nothing when chat has no messages', () => {
+      chatStore.createNewChat()
+      const chatId = chatStore.currentChatId
+
+      chatStore.renameChat(chatId, 'New Title')
+
+      const chatList = chatStore.chatList
+      expect(chatList[0].title).toBe('New Chat')
+    })
+
+    it('should do nothing when chat does not exist', () => {
+      chatStore.createNewChat()
+      chatStore.addRootMessage({ id: 'msg1', question: 'Title', response: 'R1' })
+
+      chatStore.renameChat('nonexistent-id', 'New Title')
+
+      expect(chatStore.messagesById['msg1'].question).toBe('Title')
+    })
+
+    it('should persist state after renaming chat', () => {
+      chatStore.createNewChat()
+      const chatId = chatStore.currentChatId
+      chatStore.addRootMessage({ id: 'msg1', question: 'Original', response: 'R1' })
+
+      chatStore.renameChat(chatId, 'New Name')
+
+      expect(saveChatStateSpy).toHaveBeenCalled()
+      const savedState = saveChatStateSpy.mock.calls[saveChatStateSpy.mock.calls.length - 1][0]
+      expect(savedState.messagesById['msg1'].question).toBe('New Name')
+    })
+
+    it('should only rename the first message, not other messages', () => {
+      chatStore.createNewChat()
+      const chatId = chatStore.currentChatId
+      chatStore.addRootMessage({ id: 'msg1', question: 'First', response: 'R1' })
+      chatStore.addRootMessage({ id: 'msg2', question: 'Second', response: 'R2' })
+      chatStore.addRootMessage({ id: 'msg3', question: 'Third', response: 'R3' })
+
+      chatStore.renameChat(chatId, 'Renamed')
+
+      expect(chatStore.messagesById['msg1'].question).toBe('Renamed')
+      expect(chatStore.messagesById['msg2'].question).toBe('Second')
+      expect(chatStore.messagesById['msg3'].question).toBe('Third')
+    })
+
+    it('should work across multiple chats independently', () => {
+      chatStore.createNewChat()
+      const chat1Id = chatStore.currentChatId
+      chatStore.addRootMessage({ id: 'msg1', question: 'Chat 1', response: 'R1' })
+
+      chatStore.createNewChat()
+      const chat2Id = chatStore.currentChatId
+      chatStore.addRootMessage({ id: 'msg2', question: 'Chat 2', response: 'R2' })
+
+      chatStore.renameChat(chat1Id, 'Renamed Chat 1')
+      chatStore.renameChat(chat2Id, 'Renamed Chat 2')
+
+      expect(chatStore.messagesById['msg1'].question).toBe('Renamed Chat 1')
+      expect(chatStore.messagesById['msg2'].question).toBe('Renamed Chat 2')
+    })
+
+    it('should handle renaming a chat that is not currently active', () => {
+      chatStore.createNewChat()
+      const chat1Id = chatStore.currentChatId
+      chatStore.addRootMessage({ id: 'msg1', question: 'Chat 1', response: 'R1' })
+
+      chatStore.createNewChat()
+      const chat2Id = chatStore.currentChatId
+      chatStore.addRootMessage({ id: 'msg2', question: 'Chat 2', response: 'R2' })
+
+      // Rename chat1 while chat2 is active
+      chatStore.renameChat(chat1Id, 'Updated Chat 1')
+
+      expect(chatStore.messagesById['msg1'].question).toBe('Updated Chat 1')
+      expect(chatStore.currentChatId).toBe(chat2Id)
+    })
+  })
+
   describe('Edge Cases', () => {
     it('should handle creating chat when no current chat exists', () => {
       expect(chatStore.currentChatId).toBeNull()
