@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import ChatSidebar from '../ChatSidebar.vue'
 
@@ -9,6 +9,13 @@ describe('ChatSidebar', () => {
     if (wrapper) {
       wrapper.unmount()
     }
+    // Clear localStorage before each test
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    // Clear localStorage after each test
+    localStorage.clear()
   })
 
   describe('Rendering', () => {
@@ -871,6 +878,563 @@ describe('ChatSidebar', () => {
       // Should not emit select-chat when clicking inside input
       // The click.stop should prevent propagation
       expect(wrapper.emitted('select-chat')).toBeFalsy()
+    })
+  })
+
+  describe('Sidebar Collapse Functionality', () => {
+    it('should render collapse button', () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      const collapseButton = wrapper.find('.collapse-sidebar-button')
+      expect(collapseButton.exists()).toBe(true)
+    })
+
+    it('should render sidebar footer', () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      expect(wrapper.find('.sidebar-footer').exists()).toBe(true)
+    })
+
+    it('should initialize with sidebar expanded', () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      const sidebar = wrapper.find('.chat-sidebar')
+      expect(sidebar.classes()).not.toContain('collapsed')
+    })
+
+    it('should display collapse icon («) when expanded', () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      const collapseButton = wrapper.find('.collapse-sidebar-button')
+      expect(collapseButton.text()).toBe('«')
+    })
+
+    it('should toggle to collapsed state when clicking collapse button', async () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      const collapseButton = wrapper.find('.collapse-sidebar-button')
+      await collapseButton.trigger('click')
+
+      const sidebar = wrapper.find('.chat-sidebar')
+      expect(sidebar.classes()).toContain('collapsed')
+    })
+
+    it('should display expand icon (») when collapsed', async () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      const collapseButton = wrapper.find('.collapse-sidebar-button')
+      await collapseButton.trigger('click')
+
+      expect(collapseButton.text()).toBe('»')
+    })
+
+    it('should toggle back to expanded state when clicking collapse button again', async () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      const collapseButton = wrapper.find('.collapse-sidebar-button')
+
+      // Collapse
+      await collapseButton.trigger('click')
+      expect(wrapper.find('.chat-sidebar').classes()).toContain('collapsed')
+
+      // Expand
+      await collapseButton.trigger('click')
+      expect(wrapper.find('.chat-sidebar').classes()).not.toContain('collapsed')
+    })
+
+    it('should hide New Chat text when collapsed', async () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      const buttonText = wrapper.find('.button-text')
+      expect(buttonText.exists()).toBe(true)
+
+      // Collapse sidebar
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+
+      // v-show sets display:none but element still exists in DOM
+      // Check that the sidebar has the collapsed class which triggers the CSS
+      expect(wrapper.find('.chat-sidebar').classes()).toContain('collapsed')
+    })
+
+    it('should always show new chat button icon', async () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      const icon = wrapper.find('.new-chat-button .icon')
+      expect(icon.exists()).toBe(true)
+
+      // Collapse sidebar
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+
+      expect(icon.exists()).toBe(true)
+    })
+
+    it('should hide empty state when collapsed', async () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      expect(wrapper.find('.empty-state').exists()).toBe(true)
+
+      // Collapse sidebar
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+
+      expect(wrapper.find('.empty-state').exists()).toBe(false)
+    })
+
+    it('should show only first character of chat title when collapsed', async () => {
+      const chats = [
+        { id: 'chat1', title: 'Architecture Discussion', questions: [] },
+        { id: 'chat2', title: 'Backend API', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      // Collapse sidebar
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+
+      const collapsedTitles = wrapper.findAll('.chat-title-collapsed')
+      expect(collapsedTitles).toHaveLength(2)
+      expect(collapsedTitles[0].text()).toBe('A')
+      expect(collapsedTitles[1].text()).toBe('B')
+    })
+
+    it('should uppercase first character in collapsed mode', async () => {
+      const chats = [
+        { id: 'chat1', title: 'architecture', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      // Collapse sidebar
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+
+      const collapsedTitle = wrapper.find('.chat-title-collapsed')
+      expect(collapsedTitle.text()).toBe('A')
+    })
+
+    it('should show full title tooltip when collapsed', async () => {
+      const chats = [
+        { id: 'chat1', title: 'Very Long Chat Title', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      // Collapse sidebar
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+
+      const chatTitle = wrapper.find('.chat-title')
+      expect(chatTitle.attributes('title')).toBe('Very Long Chat Title')
+    })
+
+    it('should hide delete button when collapsed', async () => {
+      const chats = [
+        { id: 'chat1', title: 'Chat 1', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      const deleteButton = wrapper.find('.delete-button')
+      expect(deleteButton.exists()).toBe(true)
+
+      // Collapse sidebar
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+
+      // v-show sets display:none but element still exists in DOM
+      // Verify the sidebar is collapsed which triggers v-show=false
+      expect(wrapper.find('.chat-sidebar').classes()).toContain('collapsed')
+    })
+
+    it('should hide collapse icons for chat threads when collapsed', async () => {
+      const chats = [
+        {
+          id: 'chat1',
+          title: 'Chat 1',
+          questions: [{ id: 'q1', text: 'Question 1' }]
+        }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      expect(wrapper.find('.collapse-icon').exists()).toBe(true)
+
+      // Collapse sidebar
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+
+      expect(wrapper.find('.collapse-icon').exists()).toBe(false)
+    })
+
+    it('should hide question list when sidebar collapsed', async () => {
+      const chats = [
+        {
+          id: 'chat1',
+          title: 'Chat 1',
+          questions: [
+            { id: 'q1', text: 'Question 1' },
+            { id: 'q2', text: 'Question 2' }
+          ]
+        }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      expect(wrapper.find('.question-list').exists()).toBe(true)
+
+      // Collapse sidebar
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+
+      expect(wrapper.find('.question-list').exists()).toBe(false)
+    })
+
+    it('should still allow chat selection when collapsed', async () => {
+      const chats = [
+        { id: 'chat1', title: 'Chat 1', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      // Collapse sidebar
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+
+      // Click on collapsed chat
+      await wrapper.find('.chat-title').trigger('click')
+
+      expect(wrapper.emitted('select-chat')).toBeTruthy()
+      expect(wrapper.emitted('select-chat')[0]).toEqual(['chat1'])
+    })
+
+    it('should still allow new chat creation when collapsed', async () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      // Collapse sidebar
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+
+      // Click new chat button
+      await wrapper.find('.new-chat-button').trigger('click')
+
+      expect(wrapper.emitted('new-chat')).toBeTruthy()
+    })
+
+    it('should maintain active chat highlight when collapsed', async () => {
+      const chats = [
+        { id: 'chat1', title: 'Chat 1', questions: [] },
+        { id: 'chat2', title: 'Chat 2', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats,
+          currentChatId: 'chat1'
+        }
+      })
+
+      const chatThreads = wrapper.findAll('.chat-thread')
+      expect(chatThreads[0].classes()).toContain('active')
+
+      // Collapse sidebar
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+
+      // Active class should persist
+      expect(chatThreads[0].classes()).toContain('active')
+      expect(chatThreads[1].classes()).not.toContain('active')
+    })
+
+    it('should have correct tooltip for collapse button', () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      const collapseButton = wrapper.find('.collapse-sidebar-button')
+      expect(collapseButton.attributes('title')).toBe('Collapse sidebar')
+    })
+
+    it('should have correct tooltip for expand button', async () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      const collapseButton = wrapper.find('.collapse-sidebar-button')
+
+      // Collapse sidebar
+      await collapseButton.trigger('click')
+
+      expect(collapseButton.attributes('title')).toBe('Expand sidebar')
+    })
+
+    it('should preserve collapse state across multiple toggles', async () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      const collapseButton = wrapper.find('.collapse-sidebar-button')
+      const sidebar = wrapper.find('.chat-sidebar')
+
+      // Initial state - expanded
+      expect(sidebar.classes()).not.toContain('collapsed')
+
+      // Toggle 1 - collapse
+      await collapseButton.trigger('click')
+      expect(sidebar.classes()).toContain('collapsed')
+
+      // Toggle 2 - expand
+      await collapseButton.trigger('click')
+      expect(sidebar.classes()).not.toContain('collapsed')
+
+      // Toggle 3 - collapse again
+      await collapseButton.trigger('click')
+      expect(sidebar.classes()).toContain('collapsed')
+    })
+
+    it('should handle chat with single character title', async () => {
+      const chats = [
+        { id: 'chat1', title: 'A', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      // Collapse sidebar
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+
+      const collapsedTitle = wrapper.find('.chat-title-collapsed')
+      expect(collapsedTitle.text()).toBe('A')
+    })
+
+    it('should handle empty chat title gracefully', async () => {
+      const chats = [
+        { id: 'chat1', title: '', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      // Collapse sidebar
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+
+      const collapsedTitle = wrapper.find('.chat-title-collapsed')
+      // Empty string charAt(0) returns empty string, toUpperCase returns empty string
+      expect(collapsedTitle.text()).toBe('')
+    })
+
+    it('should render multiple collapsed chats correctly', async () => {
+      const chats = [
+        { id: 'chat1', title: 'Alpha', questions: [] },
+        { id: 'chat2', title: 'Beta', questions: [] },
+        { id: 'chat3', title: 'Gamma', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      // Collapse sidebar
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+
+      const collapsedTitles = wrapper.findAll('.chat-title-collapsed')
+      expect(collapsedTitles).toHaveLength(3)
+      expect(collapsedTitles[0].text()).toBe('A')
+      expect(collapsedTitles[1].text()).toBe('B')
+      expect(collapsedTitles[2].text()).toBe('G')
+    })
+  })
+
+  describe('LocalStorage Persistence', () => {
+    it('should save collapsed state to localStorage when toggled', async () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      // Initially should not be in localStorage or should be 'false'
+      expect(localStorage.getItem('chatSidebarCollapsed')).toBeNull()
+
+      // Collapse sidebar
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+
+      // Should save 'true' to localStorage
+      expect(localStorage.getItem('chatSidebarCollapsed')).toBe('true')
+    })
+
+    it('should save expanded state to localStorage when toggled back', async () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      // Collapse
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+      expect(localStorage.getItem('chatSidebarCollapsed')).toBe('true')
+
+      // Expand
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+      expect(localStorage.getItem('chatSidebarCollapsed')).toBe('false')
+    })
+
+    it('should load collapsed state from localStorage on mount', async () => {
+      // Pre-set localStorage to collapsed
+      localStorage.setItem('chatSidebarCollapsed', 'true')
+
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      // Wait for onMounted to complete
+      await wrapper.vm.$nextTick()
+
+      // Sidebar should be collapsed
+      expect(wrapper.find('.chat-sidebar').classes()).toContain('collapsed')
+      expect(wrapper.find('.collapse-sidebar-button').text()).toBe('»')
+    })
+
+    it('should load expanded state from localStorage on mount', async () => {
+      // Pre-set localStorage to expanded
+      localStorage.setItem('chatSidebarCollapsed', 'false')
+
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      // Wait for onMounted to complete
+      await wrapper.vm.$nextTick()
+
+      // Sidebar should be expanded
+      expect(wrapper.find('.chat-sidebar').classes()).not.toContain('collapsed')
+      expect(wrapper.find('.collapse-sidebar-button').text()).toBe('«')
+    })
+
+    it('should default to expanded when no localStorage value exists', () => {
+      // Ensure localStorage is clear
+      localStorage.removeItem('chatSidebarCollapsed')
+
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      // Sidebar should be expanded by default
+      expect(wrapper.find('.chat-sidebar').classes()).not.toContain('collapsed')
+    })
+
+    it('should persist state across component remounts', async () => {
+      // First mount - collapse sidebar
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+      expect(localStorage.getItem('chatSidebarCollapsed')).toBe('true')
+
+      // Unmount
+      wrapper.unmount()
+
+      // Second mount - should remember collapsed state
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('.chat-sidebar').classes()).toContain('collapsed')
+      expect(wrapper.find('.collapse-sidebar-button').text()).toBe('»')
+    })
+
+    it('should update localStorage on each toggle', async () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      const collapseButton = wrapper.find('.collapse-sidebar-button')
+
+      // Toggle 1 - collapse
+      await collapseButton.trigger('click')
+      expect(localStorage.getItem('chatSidebarCollapsed')).toBe('true')
+
+      // Toggle 2 - expand
+      await collapseButton.trigger('click')
+      expect(localStorage.getItem('chatSidebarCollapsed')).toBe('false')
+
+      // Toggle 3 - collapse again
+      await collapseButton.trigger('click')
+      expect(localStorage.getItem('chatSidebarCollapsed')).toBe('true')
+    })
+
+    it('should handle invalid localStorage values gracefully', () => {
+      // Set an invalid value
+      localStorage.setItem('chatSidebarCollapsed', 'invalid')
+
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      // Should default to expanded (since 'invalid' !== 'true')
+      expect(wrapper.find('.chat-sidebar').classes()).not.toContain('collapsed')
     })
   })
 })

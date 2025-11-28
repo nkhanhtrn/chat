@@ -1,9 +1,9 @@
 <template>
-  <div class="chat-sidebar">
+  <div :class="['chat-sidebar', { collapsed: isSidebarCollapsed }]">
     <div class="sidebar-header">
       <button @click="$emit('new-chat')" class="new-chat-button">
         <span class="icon">+</span>
-        New Chat
+        <span v-show="!isSidebarCollapsed" class="button-text">New Chat</span>
       </button>
     </div>
 
@@ -14,7 +14,7 @@
         :class="['chat-thread', { active: chat.id === currentChatId }]"
       >
         <div class="chat-header">
-          <div class="collapse-icon" @click="toggleCollapse(chat.id)" v-if="chat.questions.length > 0">
+          <div class="collapse-icon" @click="toggleCollapse(chat.id)" v-if="chat.questions.length > 0 && !isSidebarCollapsed">
             {{ isCollapsed(chat.id) ? '▸' : '▾' }}
           </div>
           <div
@@ -22,8 +22,12 @@
             class="chat-title"
             @click="$emit('select-chat', chat.id)"
             @dblclick="startEditing(chat.id, chat.title)"
+            :title="chat.title"
           >
-            {{ chat.title }}
+            <span v-if="isSidebarCollapsed" class="chat-title-collapsed">
+              {{ chat.title.charAt(0).toUpperCase() }}
+            </span>
+            <span v-else>{{ chat.title }}</span>
           </div>
           <input
             v-else
@@ -36,13 +40,13 @@
             class="chat-title-input"
             type="text"
           />
-          <button class="delete-button" @click.stop="$emit('delete-chat', chat.id)" title="Delete chat">
+          <button v-show="!isSidebarCollapsed" class="delete-button" @click.stop="$emit('delete-chat', chat.id)" title="Delete chat">
             ×
           </button>
         </div>
 
         <div
-          v-if="chat.questions.length > 0 && !isCollapsed(chat.id)"
+          v-if="chat.questions.length > 0 && !isCollapsed(chat.id) && !isSidebarCollapsed"
           class="question-list"
         >
           <div
@@ -56,16 +60,26 @@
         </div>
       </div>
 
-      <div v-if="chats.length === 0" class="empty-state">
+      <div v-if="chats.length === 0 && !isSidebarCollapsed" class="empty-state">
         <p>No chats yet</p>
         <p class="empty-hint">Click "New Chat" to start</p>
       </div>
+    </div>
+
+    <div class="sidebar-footer">
+      <button
+        @click="toggleSidebar"
+        class="collapse-sidebar-button"
+        :title="isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+      >
+        {{ isSidebarCollapsed ? '»' : '«' }}
+      </button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, onMounted, watch } from 'vue'
 
 defineProps({
   chats: {
@@ -84,10 +98,26 @@ defineProps({
 
 const emit = defineEmits(['new-chat', 'select-chat', 'select-question', 'delete-chat', 'rename-chat'])
 
+const SIDEBAR_COLLAPSED_KEY = 'chatSidebarCollapsed'
+
 const collapsedChats = ref(new Set())
 const editingChatId = ref(null)
 const editingTitle = ref('')
 const editInput = ref(null)
+const isSidebarCollapsed = ref(false)
+
+// Load sidebar collapsed state from localStorage on mount
+onMounted(() => {
+  const savedState = localStorage.getItem(SIDEBAR_COLLAPSED_KEY)
+  if (savedState !== null) {
+    isSidebarCollapsed.value = savedState === 'true'
+  }
+})
+
+// Watch for changes to sidebar collapsed state and save to localStorage
+watch(isSidebarCollapsed, (newValue) => {
+  localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(newValue))
+})
 
 const toggleCollapse = (chatId) => {
   if (collapsedChats.value.has(chatId)) {
@@ -99,6 +129,10 @@ const toggleCollapse = (chatId) => {
 
 const isCollapsed = (chatId) => {
   return collapsedChats.value.has(chatId)
+}
+
+const toggleSidebar = () => {
+  isSidebarCollapsed.value = !isSidebarCollapsed.value
 }
 
 const startEditing = (chatId, currentTitle) => {
@@ -139,12 +173,21 @@ const cancelEditing = () => {
   flex-direction: column;
   overflow: hidden;
   font-family: 'Georgia', serif;
+  transition: width 0.3s ease;
+}
+
+.chat-sidebar.collapsed {
+  width: 64px;
 }
 
 .sidebar-header {
   padding: 1rem;
   border-bottom: 2px solid var(--color-border-base);
   background-color: var(--color-bg-tertiary);
+}
+
+.chat-sidebar.collapsed .sidebar-header {
+  padding: 0.75rem;
 }
 
 .new-chat-button {
@@ -165,6 +208,11 @@ const cancelEditing = () => {
   font-family: system-ui, -apple-system, sans-serif;
 }
 
+.chat-sidebar.collapsed .new-chat-button {
+  padding: 0.5rem;
+  gap: 0;
+}
+
 .new-chat-button:hover {
   transform: translateY(-1px);
   box-shadow: 0 2px 8px var(--shadow-primary);
@@ -177,6 +225,10 @@ const cancelEditing = () => {
 .new-chat-button .icon {
   font-size: 1.5rem;
   line-height: 1;
+}
+
+.chat-sidebar.collapsed .new-chat-button .icon {
+  font-size: 1.8rem;
 }
 
 .chat-list {
@@ -224,6 +276,27 @@ const cancelEditing = () => {
 
 .chat-title:hover {
   color: var(--color-primary);
+}
+
+.chat-title-collapsed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  font-size: 1.3rem;
+  font-weight: 700;
+  border-radius: 50%;
+  background-color: var(--color-bg-hover);
+}
+
+.chat-sidebar.collapsed .chat-header {
+  justify-content: center;
+  padding: 0.5rem;
+}
+
+.chat-sidebar.collapsed .chat-title {
+  flex: none;
 }
 
 .chat-title-input {
@@ -364,5 +437,48 @@ const cancelEditing = () => {
 
 .chat-list::-webkit-scrollbar-thumb:hover {
   background: var(--color-scrollbar-thumb-hover);
+}
+
+.sidebar-footer {
+  padding: 0.75rem;
+  border-top: 2px solid var(--color-border-base);
+  background-color: var(--color-bg-tertiary);
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.chat-sidebar.collapsed .sidebar-footer {
+  justify-content: center;
+}
+
+.collapse-sidebar-button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background-color: var(--color-bg-elevated);
+  color: var(--color-text-strong);
+  border: 1px solid var(--color-border-base);
+  border-radius: 4px;
+  font-size: 1.2rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: system-ui, -apple-system, sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.collapse-sidebar-button:hover {
+  background-color: var(--color-bg-hover);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  transform: scale(1.05);
+}
+
+.collapse-sidebar-button:active {
+  transform: scale(0.98);
 }
 </style>
