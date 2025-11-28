@@ -1,6 +1,8 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import './style.css'
+// import './theme/colors.css' // Light theme
+import './theme/colors-dark.css' // Dark theme
 import { createPinia } from 'pinia'
 import { useChatStore } from './stores/chat.js'
 

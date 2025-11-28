@@ -88,21 +88,6 @@ describe('App', () => {
       expect(wrapper.find('.chat-container').exists()).toBe(true)
     })
 
-    it('should render header with title', () => {
-      wrapper = mount(App, {
-        global: {
-          plugins: [createPinia()],
-          stubs: {
-            ChatMessage: true,
-            ChatInput: true
-          }
-        }
-      })
-
-      expect(wrapper.find('.chat-header').exists()).toBe(true)
-      expect(wrapper.find('.chat-header h1').text()).toBe('Study Assistant')
-    })
-
     it('should render messages container', () => {
       wrapper = mount(App, {
         global: {

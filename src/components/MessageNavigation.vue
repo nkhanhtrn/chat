@@ -107,7 +107,7 @@ function switchToLastVisitedChild() {
 }
 
 .breadcrumb-item {
-  color: #38b2ac;
+  color: var(--color-accent);
   cursor: pointer;
   padding: 0;
   border-radius: 0;
@@ -117,7 +117,7 @@ function switchToLastVisitedChild() {
 }
 
 .breadcrumb-item.active {
-  color: #222;
+  color: var(--color-text-on-accent);
   cursor: default;
   text-decoration: none;
 }
@@ -134,13 +134,13 @@ function switchToLastVisitedChild() {
 }
 
 .breadcrumb-item:hover:not(.active) {
-  color: #269b91;
+  color: var(--color-accent-hover);
   text-decoration: underline;
   background: none;
 }
 
 .breadcrumb-sep {
-  color: #b2f5ea;
+  color: var(--color-bg-accent-muted);
   font-weight: bold;
   padding: 0 0.25em;
   font-size: 1.1em;
@@ -159,8 +159,8 @@ function switchToLastVisitedChild() {
 
 /* Navigation button styles */
 .nav-btn {
-  background: #38b2ac;
-  color: #fff;
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
   width: 1.7em;
   height: 1.7em;
   font-size: 1.1em;
@@ -184,35 +184,35 @@ function switchToLastVisitedChild() {
 }
 
 .nav-btn.nav-arrow {
-  background: #fff !important;
+  background: var(--color-bg-base) !important;
 }
 
 .nav-btn:hover {
-  background: #e6fffa !important;
-  color: #269b91;
-  box-shadow: 0 2px 6px rgba(56, 178, 172, 0.10);
+  background: var(--color-bg-accent-subtle) !important;
+  color: var(--color-accent-hover);
+  box-shadow: 0 2px 6px var(--shadow-accent);
 }
 
 .nav-btn:active {
-  background: #269b91;
-  color: #fff;
+  background: var(--color-accent-hover);
+  color: var(--color-text-inverse);
 }
 
 .nav-btn:disabled {
-  background: #e2e8f0;
-  color: #cbd5e0;
+  background: var(--color-nav-disabled-bg);
+  color: var(--color-nav-disabled-text);
   cursor: not-allowed;
   opacity: 0.5;
   box-shadow: none;
 }
 
 .nav-btn:disabled:hover {
-  background: #e2e8f0;
-  color: #cbd5e0;
+  background: var(--color-nav-disabled-bg);
+  color: var(--color-nav-disabled-text);
 }
 
 .home-btn {
-  background: #fff !important;
+  background: var(--color-bg-base) !important;
 }
 
 .home-btn svg {

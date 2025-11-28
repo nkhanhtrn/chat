@@ -70,9 +70,9 @@ const handleSend = () => {
 <style scoped>
 .chat-input-container {
   padding: 1.5rem;
-  background-color: white;
-  border-top: 1px solid #e2e8f0;
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+  background-color: var(--color-bg-base);
+  border-top: 1px solid var(--color-border-input);
+  box-shadow: 0 -2px 10px var(--shadow-sm);
 }
 
 .input-wrapper {
@@ -84,7 +84,7 @@ const handleSend = () => {
 textarea {
   flex: 1;
   padding: 0.875rem;
-  border: 2px solid #e2e8f0;
+  border: 2px solid var(--color-border-input);
   border-radius: 12px;
   font-size: 1rem;
   font-family: inherit;
@@ -97,18 +97,18 @@ textarea {
 
 textarea:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: var(--color-primary);
 }
 
 textarea:disabled {
-  background-color: #f7fafc;
+  background-color: var(--color-bg-disabled);
   cursor: not-allowed;
 }
 
 .send-button {
   padding: 0.875rem 1.75rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: linear-gradient(135deg, var(--color-primary-gradient-start) 0%, var(--color-primary-gradient-end) 100%);
+  color: var(--color-text-inverse);
   border: none;
   border-radius: 12px;
   font-size: 1rem;
@@ -121,7 +121,7 @@ textarea:disabled {
 
 .send-button:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 12px var(--shadow-primary-strong);
 }
 
 .send-button:active:not(:disabled) {
@@ -134,7 +134,7 @@ textarea:disabled {
 }
 
 .send-button.loading {
-  background: #667eea;
+  background: var(--color-primary);
 }
 
 .spinner {
@@ -143,7 +143,7 @@ textarea:disabled {
   height: 16px;
   border: 3px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
-  border-top-color: white;
+  border-top-color: var(--color-text-inverse);
   animation: spin 0.8s linear infinite;
 }
 
@@ -156,7 +156,7 @@ textarea:disabled {
 .input-hint {
   margin-top: 0.5rem;
   font-size: 0.75rem;
-  color: #a0aec0;
+  color: var(--color-text-placeholder);
   text-align: center;
 }
 </style>

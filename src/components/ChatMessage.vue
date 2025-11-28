@@ -183,7 +183,7 @@ function addHighlight(selectedText, startOffset, endOffset) {
     id: highlightId,
     type: 'highlight',
     text: selectedText,
-    color: '#ffeb3b',
+    color: 'var(--color-highlight)',
     startOffset,
     endOffset
   }
@@ -372,13 +372,13 @@ function addQuestionLinkToMessage(message, selectedText, childIndex, startOffset
 }
 
 .message-user .role-badge {
-  background-color: #667eea;
-  color: white;
+  background-color: var(--color-primary);
+  color: var(--color-text-inverse);
 }
 
 .message-assistant .role-badge {
-  background-color: #38b2ac;
-  color: white;
+  background-color: var(--color-accent);
+  color: var(--color-text-inverse);
 }
 
 .message-content {
@@ -388,31 +388,31 @@ function addQuestionLinkToMessage(message, selectedText, childIndex, startOffset
 }
 
 .message-user .message-content {
-  background-color: #f0f4ff;
-  border-left: 4px solid #667eea;
+  background-color: var(--color-bg-primary-subtle);
+  border-left: 4px solid var(--color-primary);
 }
 
 .message-assistant .message-content {
-  background-color: white;
-  border-left: 4px solid #38b2ac;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  background-color: var(--color-bg-base);
+  border-left: 4px solid var(--color-accent);
+  box-shadow: 0 2px 8px var(--shadow-sm);
 }
 
 .user-message {
-  color: #2d3748;
+  color: var(--color-text-base);
   white-space: pre-wrap;
   word-wrap: break-word;
   font-family: 'Georgia', serif;
 }
 
 .assistant-message {
-  color: #2d3748;
+  color: var(--color-text-base);
   font-family: 'Georgia', serif;
 }
 
 .cursor {
   animation: blink 1s infinite;
-  color: #38b2ac;
+  color: var(--color-accent);
   font-weight: bold;
 }
 
@@ -427,7 +427,7 @@ function addQuestionLinkToMessage(message, selectedText, childIndex, startOffset
 
 /* Question link styles */
 .assistant-message :deep(.question-link) {
-  color: #667eea;
+  color: var(--color-primary);
   text-decoration: underline;
   cursor: pointer;
   font-weight: 500;
@@ -435,7 +435,7 @@ function addQuestionLinkToMessage(message, selectedText, childIndex, startOffset
 }
 
 .assistant-message :deep(.question-link:hover) {
-  color: #5568d3;
+  color: var(--color-primary-hover);
   text-decoration: underline;
 }
 

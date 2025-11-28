@@ -48,13 +48,13 @@ function onClickOutside() {
 .context-menu {
   position: absolute;
   min-width: 160px;
-  background: #fff;
-  border: 1px solid #d1d5db;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-context);
+  box-shadow: 0 2px 8px var(--shadow-lg);
   border-radius: 6px;
   padding: 0.5em 0.25em;
   font-size: 1rem;
-  color: #222;
+  color: var(--color-text-on-accent);
   z-index: 9999;
   user-select: none;
 }
@@ -66,16 +66,16 @@ function onClickOutside() {
   text-align: left;
   cursor: pointer;
   font-size: 1rem;
-  color: #222;
+  color: var(--color-text-on-accent);
 }
 .context-menu-btn:hover:not(:disabled) {
-  background: #f3f4f6;
+  background: var(--color-bg-context-hover);
 }
 
 .context-menu-btn:disabled {
   cursor: not-allowed;
   opacity: 0.5;
-  color: #999;
+  color: var(--color-text-context-disabled);
 }
 
 .context-menu-backdrop {

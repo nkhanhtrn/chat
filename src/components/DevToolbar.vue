@@ -22,12 +22,12 @@ const handleClearCache = () => {
   display: flex;
   align-items: center;
   padding: 0.5rem 1rem;
-  background: #f8f8f8;
+  background: var(--color-bg-toolbar);
 }
 .dev-button {
-  background: #f3f3f3;
-  border: 1px solid #bbb;
-  color: #333;
+  background: var(--color-bg-button);
+  border: 1px solid var(--color-button-border);
+  color: var(--color-text-code);
   font: inherit;
   padding: 0.25rem 0.9rem;
   border-radius: 4px;
@@ -37,11 +37,11 @@ const handleClearCache = () => {
   transition: background 0.15s, border 0.15s;
 }
 .dev-button:hover {
-  background: #e2e2e2;
-  border-color: #888;
+  background: var(--color-bg-button-hover);
+  border-color: var(--color-button-border-hover);
 }
 .dev-button:active {
-  background: #d1d1d1;
-  border-color: #666;
+  background: var(--color-bg-button-active);
+  border-color: var(--color-button-border-active);
 }
 </style>

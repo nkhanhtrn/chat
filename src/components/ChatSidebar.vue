@@ -82,8 +82,8 @@ const isCollapsed = (chatId) => {
 .chat-sidebar {
   width: 320px;
   height: 100vh;
-  background-color: #fdfdf8;
-  border-right: 1px solid #d4d4c8;
+  background-color: var(--color-bg-elevated);
+  border-right: 1px solid var(--color-border-base);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -92,15 +92,15 @@ const isCollapsed = (chatId) => {
 
 .sidebar-header {
   padding: 1rem;
-  border-bottom: 2px solid #d4d4c8;
-  background-color: #f5f5ef;
+  border-bottom: 2px solid var(--color-border-base);
+  background-color: var(--color-bg-tertiary);
 }
 
 .new-chat-button {
   width: 100%;
   padding: 0.75rem 1rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: linear-gradient(135deg, var(--color-primary-gradient-start) 0%, var(--color-primary-gradient-end) 100%);
+  color: var(--color-text-inverse);
   border: none;
   border-radius: 4px;
   font-size: 0.95rem;
@@ -116,7 +116,7 @@ const isCollapsed = (chatId) => {
 
 .new-chat-button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 2px 8px var(--shadow-primary);
 }
 
 .new-chat-button:active {
@@ -139,7 +139,7 @@ const isCollapsed = (chatId) => {
 }
 
 .chat-item.active {
-  background-color: #f9f9f3;
+  background-color: var(--color-bg-hover);
 }
 
 .chat-header {
@@ -153,17 +153,17 @@ const isCollapsed = (chatId) => {
 }
 
 .chat-header:hover {
-  background-color: #f5f5ef;
+  background-color: var(--color-bg-tertiary);
 }
 
 .chat-item.active .chat-header {
-  background-color: #f0f0ea;
-  border-left-color: #667eea;
+  background-color: var(--color-bg-active);
+  border-left-color: var(--color-primary);
 }
 
 .chat-title {
   font-weight: 600;
-  color: #2c2c2c;
+  color: var(--color-text-strong);
   font-size: 0.95rem;
   line-height: 1.4;
   flex: 1;
@@ -172,12 +172,12 @@ const isCollapsed = (chatId) => {
 }
 
 .chat-title:hover {
-  color: #667eea;
+  color: var(--color-primary);
 }
 
 .collapse-icon {
   font-size: 1.2rem;
-  color: #6c6c68;
+  color: var(--color-text-muted);
   transition: all 0.2s;
   flex-shrink: 0;
   width: 1.5rem;
@@ -192,14 +192,14 @@ const isCollapsed = (chatId) => {
 }
 
 .collapse-icon:hover {
-  background-color: #e8e8e0;
-  color: #2c2c2c;
+  background-color: var(--color-border-subtle);
+  color: var(--color-text-strong);
 }
 
 .question-list {
   margin-top: 0.25rem;
   padding-left: 2.25rem;
-  border-left: 2px solid #e8e8e0;
+  border-left: 2px solid var(--color-border-subtle);
   margin-left: 0.75rem;
 }
 
@@ -213,18 +213,18 @@ const isCollapsed = (chatId) => {
 }
 
 .question-item:hover {
-  background-color: #f5f5ef;
-  border-left-color: #a0a098;
+  background-color: var(--color-bg-tertiary);
+  border-left-color: var(--color-border-strong);
 }
 
 .question-item.active {
-  background-color: #ededdf;
-  border-left-color: #667eea;
+  background-color: var(--color-bg-selected);
+  border-left-color: var(--color-primary);
 }
 
 .question-text {
   font-size: 0.9rem;
-  color: #4a4a46;
+  color: var(--color-text-secondary);
   line-height: 1.5;
   flex: 1;
   display: -webkit-box;
@@ -236,7 +236,7 @@ const isCollapsed = (chatId) => {
 .empty-state {
   text-align: center;
   padding: 2rem 1rem;
-  color: #6c6c68;
+  color: var(--color-text-muted);
 }
 
 .empty-state p {
@@ -246,7 +246,7 @@ const isCollapsed = (chatId) => {
 
 .empty-hint {
   font-size: 0.875rem;
-  color: #a0a098;
+  color: var(--color-text-disabled);
 }
 
 /* Scrollbar styling */
@@ -255,15 +255,15 @@ const isCollapsed = (chatId) => {
 }
 
 .chat-list::-webkit-scrollbar-track {
-  background: #f5f5ef;
+  background: var(--color-scrollbar-track);
 }
 
 .chat-list::-webkit-scrollbar-thumb {
-  background: #d4d4c8;
+  background: var(--color-scrollbar-thumb);
   border-radius: 4px;
 }
 
 .chat-list::-webkit-scrollbar-thumb:hover {
-  background: #a0a098;
+  background: var(--color-scrollbar-thumb-hover);
 }
 </style>

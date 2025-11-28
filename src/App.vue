@@ -12,15 +12,6 @@
     <div class="chat-container">
       <DevToolbar v-if="isDev" @reset="prepopulatedQuestions = $event" />
 
-      <header class="chat-header">
-        <div class="header-content">
-          <div class="header-text">
-            <h1>Study Assistant</h1>
-            <p>Ask me anything you want to learn about</p>
-          </div>
-        </div>
-      </header>
-
       <div class="messages-container" ref="messagesContainer">
         <div v-if="chatStore.rootMessages.length === 0" class="welcome-message">
           <h2>Welcome to your Study Assistant!</h2>
@@ -164,7 +155,7 @@ const handleSelectQuestion = (questionId) => {
 .app-container {
   display: flex;
   height: 100vh;
-  background-color: #ffffff;
+  background-color: var(--color-bg-base);
 }
 
 .chat-container {
@@ -173,62 +164,34 @@ const handleSelectQuestion = (questionId) => {
   flex: 1;
   max-width: 1200px;
   margin: 0 auto;
-  background-color: #ffffff;
+  background-color: var(--color-bg-base);
   font-family: 'Georgia', serif;
-}
-
-.chat-header {
-  padding: 1.5rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  max-width: 100%;
-}
-
-.header-text {
-  text-align: center;
-}
-
-.clear-cache-button:hover {
-  background: #e2e2e2;
-  border-color: #888;
-}
-
-.clear-cache-button:active {
-  background: #d1d1d1;
-  border-color: #666;
 }
 
 .messages-container {
   flex: 1;
   overflow-y: auto;
   padding: 2rem;
-  background-color: #f8f9fa;
+  background-color: var(--color-bg-secondary);
 }
 
 .welcome-message {
   text-align: center;
   padding: 3rem 2rem;
-  color: #495057;
+  color: var(--color-text-welcome);
 }
 
 .welcome-message h2 {
-  color: #667eea;
+  color: var(--color-primary);
   margin-bottom: 1rem;
 }
 
 .example-prompts {
   margin-top: 2rem;
   padding: 1.5rem;
-  background-color: white;
+  background-color: var(--color-bg-base);
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 8px var(--shadow-sm);
   max-width: 600px;
   margin-left: auto;
   margin-right: auto;
@@ -236,7 +199,7 @@ const handleSelectQuestion = (questionId) => {
 
 .example-prompts p {
   font-weight: 600;
-  color: #667eea;
+  color: var(--color-primary);
   margin-bottom: 0.8rem;
 }
 
@@ -248,7 +211,7 @@ const handleSelectQuestion = (questionId) => {
 
 .example-prompts li {
   padding: 0.5rem 0;
-  color: #6c757d;
+  color: var(--color-text-subtle);
 }
 
 .example-prompts li.clickable {
@@ -260,8 +223,8 @@ const handleSelectQuestion = (questionId) => {
 }
 
 .example-prompts li.clickable:hover {
-  background-color: #f0f4ff;
-  color: #667eea;
+  background-color: var(--color-bg-primary-subtle);
+  color: var(--color-primary);
   transform: translateX(5px);
 }
 
@@ -271,11 +234,11 @@ const handleSelectQuestion = (questionId) => {
 }
 
 .error-message {
-  background-color: #f8d7da;
-  color: #721c24;
+  background-color: var(--color-error-bg);
+  color: var(--color-error-text);
   padding: 1rem;
   border-radius: 8px;
   margin: 1rem 0;
-  border: 1px solid #f5c6cb;
+  border: 1px solid var(--color-error-border);
 }
 </style>

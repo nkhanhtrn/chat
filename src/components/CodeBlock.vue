@@ -57,7 +57,7 @@ export default {
 .copy-btn {
   background: none;
   border: none;
-  color: #888;
+  color: var(--color-text-tertiary);
   cursor: pointer;
   padding: 4px 8px;
   border-radius: 4px;
@@ -68,8 +68,8 @@ export default {
 }
 
 .copy-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: var(--color-bg-copy-hover);
+  color: var(--color-text-inverse);
 }
 
 .copy-btn:active {
