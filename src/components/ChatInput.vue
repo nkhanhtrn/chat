@@ -10,15 +10,15 @@
         :disabled="disabled"
         rows="1"
       ></textarea>
-      <button
+      <Button
         @click="handleSend"
         :disabled="!inputText.trim() || disabled"
+        :loading="isLoading"
         class="send-button"
-        :class="{ 'loading': isLoading }"
+        variant="primary"
       >
-        <span v-if="!isLoading">Send</span>
-        <span v-else class="spinner"></span>
-      </button>
+        Send
+      </Button>
     </div>
     <div class="input-hint">
       Press Enter to send • Shift + Enter for new line
@@ -28,6 +28,7 @@
 
 <script setup>
 import { ref, nextTick } from 'vue'
+import Button from './Button.vue'
 
 const props = defineProps({
   disabled: {
@@ -69,94 +70,70 @@ const handleSend = () => {
 
 <style scoped>
 .chat-input-container {
-  padding: 1.5rem;
-  background-color: var(--color-bg-base);
-  border-top: 1px solid var(--color-border-input);
-  box-shadow: 0 -2px 10px var(--shadow-sm);
+  padding: 1.5rem 4rem;
+  background-color: var(--color-bg-page);
+  border-top: 2px solid var(--color-border-base);
+  box-shadow: 0 -4px 20px var(--shadow-primary);
+  margin: 0;
+  border-radius: 0;
 }
 
 .input-wrapper {
   display: flex;
-  gap: 0.75rem;
+  gap: 1rem;
   align-items: flex-end;
 }
 
 textarea {
   flex: 1;
-  padding: 0.875rem;
-  border: 2px solid var(--color-border-input);
-  border-radius: 12px;
-  font-size: 1rem;
-  font-family: inherit;
+  padding: 0.875rem 1.125rem;
+  border: 1px solid var(--color-border-input);
+  border-radius: 2px;
+  font-size: 1.05rem;
+  font-family: 'Georgia', 'Palatino Linotype', 'Book Antiqua', serif;
   resize: none;
-  transition: border-color 0.2s;
+  transition: all 0.2s;
   min-height: 50px;
   max-height: 200px;
   overflow-y: auto;
+  background-color: var(--color-bg-input);
+  color: var(--color-text-base);
+  letter-spacing: 0.01em;
+  line-height: 1.6;
 }
 
 textarea:focus {
   outline: none;
-  border-color: var(--color-primary);
+  border-color: var(--color-border-strong);
+  box-shadow: 0 0 0 2px rgba(112, 112, 112, 0.2);
 }
 
 textarea:disabled {
   background-color: var(--color-bg-disabled);
   cursor: not-allowed;
+  opacity: 0.5;
+}
+
+textarea::placeholder {
+  color: var(--color-text-placeholder);
+  font-style: italic;
 }
 
 .send-button {
   padding: 0.875rem 1.75rem;
-  background: linear-gradient(135deg, var(--color-primary-gradient-start) 0%, var(--color-primary-gradient-end) 100%);
-  color: var(--color-text-inverse);
-  border: none;
-  border-radius: 12px;
+  border-radius: 2px;
   font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
   min-width: 80px;
   height: 50px;
-}
-
-.send-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px var(--shadow-primary-strong);
-}
-
-.send-button:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-.send-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.send-button.loading {
-  background: var(--color-primary);
-}
-
-.spinner {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  border: 3px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  border-top-color: var(--color-text-inverse);
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  font-family: 'Georgia', serif;
 }
 
 .input-hint {
   margin-top: 0.5rem;
   font-size: 0.75rem;
-  color: var(--color-text-placeholder);
+  color: var(--color-text-subtle);
   text-align: center;
+  font-style: italic;
+  font-family: 'Georgia', serif;
 }
 </style>

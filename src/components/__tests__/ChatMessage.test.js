@@ -321,11 +321,12 @@ describe('ChatMessage', () => {
           stubs: { MarkdownRenderer: true, ContextMenu: true }
         }
       })
-      // Should render breadcrumb with two items
-      expect(wrapper.findAll('.breadcrumb-item').length).toBe(2)
-      // Clicking breadcrumb navigates (simulate click)
+      // Should render breadcrumb with home button (root) and one breadcrumb item (child)
+      expect(wrapper.find('.home-button').exists()).toBe(true)
+      expect(wrapper.findAll('.breadcrumb-item').length).toBe(1)
+      // Clicking home button navigates to root
       const spy = vi.spyOn(wrapper.vm.chatStore, 'navigateToMessage')
-      wrapper.findAll('.breadcrumb-item')[0].trigger('click')
+      wrapper.find('.home-button').trigger('click')
       expect(spy).toHaveBeenCalledWith('root')
     })
 

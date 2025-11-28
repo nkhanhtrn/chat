@@ -4,18 +4,23 @@
     <div v-if="currentMessage" class="breadcrumb-nav">
       <div class="breadcrumb">
         <template v-for="(msg, idx) in breadcrumbMessages" :key="msg.id">
+          <Button
+            v-if="idx === 0"
+            @click="navigateToBreadcrumb(msg.id)"
+            class="home-button"
+            :title="msg.question"
+            variant="tertiary"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" style="vertical-align: middle;"><polygon points="12,6 6,12 7.5,12 7.5,18 16.5,18 16.5,12 18,12" fill="currentColor"/><rect x="9.5" y="13.5" width="5" height="4.5" rx="1" fill="currentColor"/><rect x="11.25" y="15.5" width="1.5" height="2.5" rx="0.5" fill="#fff"/></svg>
+          </Button>
           <span
+            v-else
             class="breadcrumb-item"
             :class="{ active: msg.id === currentMessage.id }"
             @click="navigateToBreadcrumb(msg.id)"
             :title="msg.question"
           >
-            <template v-if="idx === 0">
-              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" style="vertical-align: middle; margin-bottom: 2px;"><polygon points="12,6 6,12 7.5,12 7.5,18 16.5,18 16.5,12 18,12" fill="#38b2ac"/><rect x="9.5" y="13.5" width="5" height="4.5" rx="1" fill="#38b2ac"/><rect x="11.25" y="15.5" width="1.5" height="2.5" rx="0.5" fill="#fff"/></svg>
-            </template>
-            <template v-else>
-              {{ msg.questionSummarized }}
-            </template>
+            {{ msg.questionSummarized }}
           </span>
           <span v-if="idx < breadcrumbMessages.length - 1" class="breadcrumb-sep">&gt;</span>
         </template>
@@ -24,20 +29,20 @@
 
     <!-- Navigation Buttons -->
     <div v-if="currentMessage" class="nav-buttons">
-      <button
+      <Button
         @click="switchToParent"
         class="nav-btn nav-arrow"
         :disabled="!currentMessage.parentId"
         title="Go to parent message"
-        style="font-size: 1.2rem; color: #38b2ac; line-height: 1; padding-bottom: 2px; cursor: pointer;"
-      >&lt;</button>
-      <button
+        variant="tertiary"
+      >&lt;</Button>
+      <Button
         @click="switchToLastVisitedChild"
         class="nav-btn nav-arrow"
         :disabled="!currentMessage.hasChildren"
         title="Go to child message"
-        style="font-size: 1.2rem; color: #38b2ac; line-height: 1; padding-bottom: 2px; cursor: pointer;"
-      >&gt;</button>
+        variant="tertiary"
+      >&gt;</Button>
     </div>
   </div>
 </template>
@@ -45,6 +50,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useChatStore } from '../stores/chat.js'
+import Button from './Button.vue'
 
 const props = defineProps({
   currentMessage: {
@@ -158,72 +164,16 @@ function switchToLastVisitedChild() {
 }
 
 /* Navigation button styles */
-.nav-btn {
-  background: var(--color-accent);
-  color: var(--color-text-inverse);
-  width: 1.7em;
-  height: 1.7em;
-  font-size: 1.1em;
-  font-weight: 600;
-  border: none;
-  border-radius: 8px;
-  outline: none;
-  display: flex;
+.nav-btn.nav-arrow {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+/* Home button styles */
+.home-button {
+  padding: 0.15rem 0.4rem;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: none;
-  transition: background 0.2s, color 0.2s;
-  padding: 0;
-  cursor: pointer;
-}
-
-.nav-btn svg {
-  width: 22px;
-  height: 22px;
-  display: block;
-}
-
-.nav-btn.nav-arrow {
-  background: var(--color-bg-base) !important;
-}
-
-.nav-btn:hover {
-  background: var(--color-bg-accent-subtle) !important;
-  color: var(--color-accent-hover);
-  box-shadow: 0 2px 6px var(--shadow-accent);
-}
-
-.nav-btn:active {
-  background: var(--color-accent-hover);
-  color: var(--color-text-inverse);
-}
-
-.nav-btn:disabled {
-  background: var(--color-nav-disabled-bg);
-  color: var(--color-nav-disabled-text);
-  cursor: not-allowed;
-  opacity: 0.5;
-  box-shadow: none;
-}
-
-.nav-btn:disabled:hover {
-  background: var(--color-nav-disabled-bg);
-  color: var(--color-nav-disabled-text);
-}
-
-.home-btn {
-  background: var(--color-bg-base) !important;
-}
-
-.home-btn svg {
-  width: 28px;
-  height: 28px;
-  display: block;
-}
-
-/* Home button specific styles */
-.home-btn svg {
-  width: 28px;
-  height: 28px;
 }
 </style>

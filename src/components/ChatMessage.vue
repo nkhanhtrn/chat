@@ -69,7 +69,6 @@ import ContextMenu from './ContextMenu.vue'
 import MessageNavigation from './MessageNavigation.vue'
 import { getQuestionSummary, sendChatMessage } from '../services/api.js'
 import Message from '../stores/Message.js'
-import { getSelectedTextAndPosition as defaultGetSelectedTextAndPosition } from './ChatMessage.vue'
 import { getSelectedTextAndPosition as getSelectionWithOffsets } from '../services/DOMSelectionHelper.js'
 import { CustomContentRenderer } from '../services/CustomContentRenderer.js'
 import { HighlightPlugin } from '../services/plugins/HighlightPlugin.js'
@@ -344,8 +343,8 @@ function addQuestionLinkToMessage(message, selectedText, childIndex, startOffset
 </script>
 <style scoped>
 .message {
-  margin-bottom: 0.75rem;
-  animation: fadeIn 0.3s ease-in;
+  margin-bottom: 2.5rem;
+  animation: fadeIn 0.5s ease-in;
 }
 
 @keyframes fadeIn {
@@ -360,60 +359,71 @@ function addQuestionLinkToMessage(message, selectedText, childIndex, startOffset
 }
 
 .message-header {
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
+  text-align: left;
 }
 
 .role-badge {
   display: inline-block;
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  font-size: 0.85rem;
-  font-weight: 600;
+  padding: 0.1rem 0;
+  font-size: 0.9rem;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--color-text-badge);
+  border-bottom: 1px solid var(--color-border-strong);
+  font-family: 'Georgia', serif;
 }
 
 .message-user .role-badge {
-  background-color: var(--color-primary);
-  color: var(--color-text-inverse);
+  color: var(--color-text-badge);
 }
 
 .message-assistant .role-badge {
-  background-color: var(--color-accent);
-  color: var(--color-text-inverse);
+  color: var(--color-text-badge);
 }
 
 .message-content {
-  padding: 1rem 1.5rem;
-  border-radius: 12px;
-  line-height: 1.6;
+  padding: 0;
+  border-radius: 0;
+  line-height: 1.8;
+  text-align: justify;
+  hyphens: auto;
 }
 
 .message-user .message-content {
-  background-color: var(--color-bg-primary-subtle);
-  border-left: 4px solid var(--color-primary);
+  background-color: transparent;
+  border-left: none;
+  padding-left: 1.5rem;
+  border-left: 3px solid var(--color-border-message-user);
+  margin-bottom: 1.5rem;
 }
 
 .message-assistant .message-content {
-  background-color: var(--color-bg-base);
-  border-left: 4px solid var(--color-accent);
-  box-shadow: 0 2px 8px var(--shadow-sm);
+  background-color: transparent;
+  border-left: none;
+  box-shadow: none;
 }
 
 .user-message {
-  color: var(--color-text-base);
+  color: var(--color-text-message);
   white-space: pre-wrap;
   word-wrap: break-word;
-  font-family: 'Georgia', serif;
+  font-family: 'Georgia', 'Palatino Linotype', 'Book Antiqua', serif;
+  font-size: 1.05rem;
+  letter-spacing: 0.01em;
 }
 
 .assistant-message {
-  color: var(--color-text-base);
-  font-family: 'Georgia', serif;
+  color: var(--color-text-message);
+  font-family: 'Georgia', 'Palatino Linotype', 'Book Antiqua', serif;
+  font-size: 1.05rem;
+  letter-spacing: 0.01em;
 }
 
 .cursor {
   animation: blink 1s infinite;
-  color: var(--color-accent);
-  font-weight: bold;
+  color: var(--color-text-cursor);
+  font-weight: normal;
 }
 
 @keyframes blink {
@@ -427,21 +437,23 @@ function addQuestionLinkToMessage(message, selectedText, childIndex, startOffset
 
 /* Question link styles */
 .assistant-message :deep(.question-link) {
-  color: var(--color-primary);
-  text-decoration: underline;
+  color: var(--color-link-question);
+  text-decoration: none;
+  border-bottom: 1px solid red;
   cursor: pointer;
-  font-weight: 500;
-  transition: color 0.2s ease;
+  font-weight: normal;
+  transition: all 0.2s ease;
 }
 
 .assistant-message :deep(.question-link:hover) {
-  color: var(--color-primary-hover);
-  text-decoration: underline;
+  color: var(--color-link-question-hover);
+  border-bottom: 1px solid var(--color-link-border-hover);
 }
 
 /* Highlight styles */
 .assistant-message :deep(.custom-highlight) {
   padding: 2px 0;
+  background-color: var(--color-highlight);
   transition: background-color 0.2s ease;
 }
 

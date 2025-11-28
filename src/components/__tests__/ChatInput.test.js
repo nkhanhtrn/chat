@@ -85,7 +85,7 @@ describe('ChatInput', () => {
       })
 
       const sendButton = wrapper.find('.send-button')
-      expect(sendButton.classes()).toContain('loading')
+      expect(sendButton.classes()).toContain('btn-loading')
     })
   })
 

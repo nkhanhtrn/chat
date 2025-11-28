@@ -7,8 +7,8 @@
         :style="{ left: `${x}px`, top: `${y}px`, display: visible ? 'block' : 'none' }"
         @mousedown.stop
       >
-        <button class="context-menu-btn" @click="onKeepHighlight" :disabled="isStreaming">Add Highlight</button>
-        <button class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming">Ask Question</button>
+        <Button class="context-menu-btn" @click="onKeepHighlight" :disabled="isStreaming" variant="tertiary">Add Highlight</Button>
+        <Button class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming" variant="tertiary">Ask Question</Button>
       </div>
     </template>
   </teleport>
@@ -16,6 +16,7 @@
 
 <script setup>
 import { defineEmits, defineProps } from 'vue'
+import Button from './Button.vue'
 
 const props = defineProps({
   visible: Boolean,
@@ -48,34 +49,21 @@ function onClickOutside() {
 .context-menu {
   position: absolute;
   min-width: 160px;
-  background: var(--color-bg-base);
+  background: var(--color-bg-context-menu);
   border: 1px solid var(--color-border-context);
-  box-shadow: 0 2px 8px var(--shadow-lg);
-  border-radius: 6px;
-  padding: 0.5em 0.25em;
+  box-shadow: 0 4px 12px var(--shadow-md);
+  border-radius: 4px;
+  padding: 0.5rem 0.5rem;
   font-size: 1rem;
   color: var(--color-text-on-accent);
   z-index: 9999;
   user-select: none;
 }
 .context-menu-btn {
-  background: none;
-  border: none;
   width: 100%;
-  padding: 0.5em 1em;
   text-align: left;
-  cursor: pointer;
-  font-size: 1rem;
-  color: var(--color-text-on-accent);
-}
-.context-menu-btn:hover:not(:disabled) {
-  background: var(--color-bg-context-hover);
-}
-
-.context-menu-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-  color: var(--color-text-context-disabled);
+  font-size: 0.95rem;
+  justify-content: flex-start;
 }
 
 .context-menu-backdrop {

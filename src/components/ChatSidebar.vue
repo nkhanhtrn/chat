@@ -1,10 +1,10 @@
 <template>
   <div :class="['chat-sidebar', { collapsed: isSidebarCollapsed }]">
     <div class="sidebar-header">
-      <button @click="$emit('new-chat')" class="new-chat-button">
+      <Button @click="$emit('new-chat')" class="new-chat-button" variant="primary">
         <span class="icon">+</span>
         <span v-show="!isSidebarCollapsed" class="button-text">New Chat</span>
-      </button>
+      </Button>
     </div>
 
     <div class="chat-list">
@@ -40,9 +40,9 @@
             class="chat-title-input"
             type="text"
           />
-          <button v-show="!isSidebarCollapsed" class="delete-button" @click.stop="$emit('delete-chat', chat.id)" title="Delete chat">
+          <Button v-show="!isSidebarCollapsed" class="delete-button" @click.stop="$emit('delete-chat', chat.id)" title="Delete chat" variant="danger">
             ×
-          </button>
+          </Button>
         </div>
 
         <div
@@ -67,19 +67,21 @@
     </div>
 
     <div class="sidebar-footer">
-      <button
+      <Button
         @click="toggleSidebar"
         class="collapse-sidebar-button"
         :title="isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+        variant="secondary"
       >
         {{ isSidebarCollapsed ? '»' : '«' }}
-      </button>
+      </Button>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, nextTick, onMounted, watch } from 'vue'
+import Button from './Button.vue'
 
 defineProps({
   chats: {
@@ -192,43 +194,11 @@ const cancelEditing = () => {
 
 .new-chat-button {
   width: 100%;
-  padding: 0.75rem 1rem;
-  background: linear-gradient(135deg, var(--color-primary-gradient-start) 0%, var(--color-primary-gradient-end) 100%);
-  color: var(--color-text-inverse);
-  border: none;
-  border-radius: 4px;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  transition: transform 0.2s, box-shadow 0.2s;
-  font-family: system-ui, -apple-system, sans-serif;
-}
-
-.chat-sidebar.collapsed .new-chat-button {
-  padding: 0.5rem;
-  gap: 0;
-}
-
-.new-chat-button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px var(--shadow-primary);
-}
-
-.new-chat-button:active {
-  transform: translateY(0);
 }
 
 .new-chat-button .icon {
   font-size: 1.5rem;
   line-height: 1;
-}
-
-.chat-sidebar.collapsed .new-chat-button .icon {
-  font-size: 1.8rem;
 }
 
 .chat-list {
@@ -319,32 +289,15 @@ const cancelEditing = () => {
 }
 
 .delete-button {
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
-  font-size: 1.5rem;
-  cursor: pointer;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  transition: all 0.2s;
   flex-shrink: 0;
   width: 1.5rem;
   height: 1.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: system-ui, -apple-system, sans-serif;
-  line-height: 1;
+  font-size: 1.5rem;
   opacity: 0;
 }
 
 .chat-header:hover .delete-button {
   opacity: 1;
-}
-
-.delete-button:hover {
-  background-color: var(--color-error-bg);
-  color: var(--color-error-text);
 }
 
 .collapse-icon {
@@ -453,32 +406,7 @@ const cancelEditing = () => {
 }
 
 .collapse-sidebar-button {
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  background-color: var(--color-bg-elevated);
-  color: var(--color-text-strong);
-  border: 1px solid var(--color-border-base);
-  border-radius: 4px;
   font-size: 1.2rem;
   font-weight: bold;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-family: system-ui, -apple-system, sans-serif;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.collapse-sidebar-button:hover {
-  background-color: var(--color-bg-hover);
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-  transform: scale(1.05);
-}
-
-.collapse-sidebar-button:active {
-  transform: scale(0.98);
 }
 </style>
