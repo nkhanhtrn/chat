@@ -1,47 +1,58 @@
 <template>
-  <div class="chat-container">
-    <DevToolbar v-if="isDev" @reset="prepopulatedQuestions = $event" />
-
-    <header class="chat-header">
-      <div class="header-content">
-        <div class="header-text">
-          <h1>Study Assistant</h1>
-          <p>Ask me anything you want to learn about</p>
-        </div>
-      </div>
-    </header>
-
-    <div class="messages-container" ref="messagesContainer">
-      <div v-if="chatStore.rootMessages.length === 0" class="welcome-message">
-        <h2>Welcome to your Study Assistant!</h2>
-        <p>Start by asking a question about any topic you'd like to learn.</p>
-        <div class="example-prompts">
-          <p>Try asking:</p>
-          <ul>
-            <li v-for="q in prepopulatedQuestions" :key="q" @click="handleExampleClick(q)" class="clickable">
-              "{{ q }}"
-            </li>
-          </ul>
-        </div>
-      </div>
-
-      <ChatMessage
-        v-for="(message, index) in chatStore.rootMessages"
-        :key="message.id"
-        :message="message"
-        :is-app-streaming="chatStore.isStreaming && index === chatStore.rootMessages.length - 1"
-      />
-
-      <div v-if="error" class="error-message">
-        {{ error }}
-      </div>
-    </div>
-
-    <ChatInput
-      @send="handleSendMessage"
-      :disabled="chatStore.isStreaming"
-      :is-loading="chatStore.isStreaming"
+  <div class="app-container">
+    <ChatSidebar
+      :chats="chatStore.chatList"
+      :current-chat-id="chatStore.currentChatId"
+      :current-message-id="chatStore.currentMessageId"
+      @new-chat="handleNewChat"
+      @select-chat="handleSelectChat"
+      @select-question="handleSelectQuestion"
     />
+
+    <div class="chat-container">
+      <DevToolbar v-if="isDev" @reset="prepopulatedQuestions = $event" />
+
+      <header class="chat-header">
+        <div class="header-content">
+          <div class="header-text">
+            <h1>Study Assistant</h1>
+            <p>Ask me anything you want to learn about</p>
+          </div>
+        </div>
+      </header>
+
+      <div class="messages-container" ref="messagesContainer">
+        <div v-if="chatStore.rootMessages.length === 0" class="welcome-message">
+          <h2>Welcome to your Study Assistant!</h2>
+          <p>Start by asking a question about any topic you'd like to learn.</p>
+          <div class="example-prompts">
+            <p>Try asking:</p>
+            <ul>
+              <li v-for="q in prepopulatedQuestions" :key="q" @click="handleExampleClick(q)" class="clickable">
+                "{{ q }}"
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <ChatMessage
+          v-for="(message, index) in chatStore.rootMessages"
+          :key="message.id"
+          :message="message"
+          :is-app-streaming="chatStore.isStreaming && index === chatStore.rootMessages.length - 1"
+        />
+
+        <div v-if="error" class="error-message">
+          {{ error }}
+        </div>
+      </div>
+
+      <ChatInput
+        @send="handleSendMessage"
+        :disabled="chatStore.isStreaming"
+        :is-loading="chatStore.isStreaming"
+      />
+    </div>
   </div>
 </template>
 
@@ -49,6 +60,7 @@
 import { ref, nextTick, onMounted } from 'vue'
 import ChatMessage from './components/ChatMessage.vue'
 import ChatInput from './components/ChatInput.vue'
+import ChatSidebar from './components/ChatSidebar.vue'
 import { sendChatMessage, fetchModels } from './services/api.js'
 import { useChatStore } from './stores/chat.js'
 import DevToolbar from './components/DevToolbar.vue'
@@ -62,6 +74,14 @@ const isDev = getIsDev()
 const prepopulatedQuestions = ref(getDefaultQuestions())
 
 onMounted(async () => {
+  // Initialize first chat if none exists
+  if (chatStore.chats.length === 0) {
+    chatStore.createNewChat()
+  } else if (!chatStore.currentChatId && chatStore.chats.length > 0) {
+    // Load first chat if no current chat selected
+    chatStore.switchToChat(chatStore.chats[0].id)
+  }
+
   try {
     const models = await fetchModels()
     if (models.length > 0) {
@@ -123,16 +143,38 @@ const handleExampleClick = (question) => {
   handleSendMessage(question)
 }
 
+const handleNewChat = () => {
+  chatStore.createNewChat()
+  error.value = null
+}
+
+const handleSelectChat = (chatId) => {
+  chatStore.switchToChat(chatId)
+  scrollToBottom()
+}
+
+const handleSelectQuestion = (questionId) => {
+  chatStore.navigateToMessage(questionId)
+  scrollToBottom()
+}
+
 </script>
 
 <style scoped>
+.app-container {
+  display: flex;
+  height: 100vh;
+  background-color: #ffffff;
+}
+
 .chat-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  flex: 1;
   max-width: 1200px;
   margin: 0 auto;
   background-color: #ffffff;
+  font-family: 'Georgia', serif;
 }
 
 .chat-header {

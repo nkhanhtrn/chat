@@ -21,6 +21,8 @@ export const useChatStore = defineStore('chat', {
         isStreaming: false,
         error: null,
         currentModel: savedState.currentModel || null,
+        chats: savedState.chats || [],
+        currentChatId: savedState.currentChatId || null,
       }
     }
 
@@ -29,7 +31,7 @@ export const useChatStore = defineStore('chat', {
       // Normalized storage: flat object keyed by message ID
       messagesById: {}, // { [id]: Message }
 
-      // Root-level messages (top-level questions)
+      // Root-level messages (top-level questions) - legacy, kept for current chat
       rootMessageIds: [], // [id1, id2, ...]
 
       // Current navigation state
@@ -39,10 +41,35 @@ export const useChatStore = defineStore('chat', {
       isStreaming: false,
       error: null,
       currentModel: null,
+
+      // Chat sessions
+      chats: [], // [{ id, rootMessageIds }]
+      currentChatId: null,
     }
   },
 
   getters: {
+    // Get all chats with computed title and questions from messages
+    chatList: (state) => {
+      return state.chats.map(chat => {
+        const questions = chat.rootMessageIds
+          .map(id => state.messagesById[id])
+          .filter(Boolean)
+          .map(msg => ({
+            id: msg.id,
+            text: msg.question || 'Untitled'
+          }))
+
+        const firstMsg = state.messagesById[chat.rootMessageIds[0]]
+        return {
+          id: chat.id,
+          title: firstMsg?.question || 'New Chat',
+          messageCount: chat.rootMessageIds.length,
+          questions
+        }
+      })
+    },
+
     // Get root messages as array
     rootMessages: (state) => {
       return state.rootMessageIds.map(id => state.messagesById[id]).filter(Boolean)
@@ -84,6 +111,7 @@ export const useChatStore = defineStore('chat', {
       this.messagesById[message.id] = message
       this.rootMessageIds.push(message.id)
       this.currentMessageId = message.id
+      this._syncCurrentChat()
       this._persistState()
       return message
     },
@@ -224,8 +252,52 @@ export const useChatStore = defineStore('chat', {
         rootMessageIds: this.rootMessageIds,
         currentMessageId: this.currentMessageId,
         currentModel: this.currentModel,
+        chats: this.chats,
+        currentChatId: this.currentChatId,
       }
       saveChatState(state)
+    },
+
+    // Create a new chat session
+    createNewChat() {
+      const chatId = crypto.randomUUID()
+      this.chats.push({
+        id: chatId,
+        rootMessageIds: []
+      })
+      this.currentChatId = chatId
+      this.rootMessageIds = []
+      this.currentMessageId = null
+      this._persistState()
+    },
+
+    // Switch to a different chat
+    switchToChat(chatId) {
+      const chat = this.chats.find(c => c.id === chatId)
+      if (chat) {
+        // Save current chat's messages
+        if (this.currentChatId) {
+          const currentChat = this.chats.find(c => c.id === this.currentChatId)
+          if (currentChat) {
+            currentChat.rootMessageIds = this.rootMessageIds
+          }
+        }
+        // Load new chat
+        this.currentChatId = chatId
+        this.rootMessageIds = [...chat.rootMessageIds]
+        this.currentMessageId = null
+        this._persistState()
+      }
+    },
+
+    // Update current chat's message list
+    _syncCurrentChat() {
+      if (this.currentChatId) {
+        const chat = this.chats.find(c => c.id === this.currentChatId)
+        if (chat) {
+          chat.rootMessageIds = this.rootMessageIds
+        }
+      }
     },
   }
 })

@@ -402,10 +402,12 @@ function addQuestionLinkToMessage(message, selectedText, childIndex, startOffset
   color: #2d3748;
   white-space: pre-wrap;
   word-wrap: break-word;
+  font-family: 'Georgia', serif;
 }
 
 .assistant-message {
   color: #2d3748;
+  font-family: 'Georgia', serif;
 }
 
 .cursor {
