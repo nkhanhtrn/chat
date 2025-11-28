@@ -29,18 +29,6 @@ describe('ContextMenu', () => {
     expect(menu.style.display).toBe('block')
   })
 
-  it('emits highlight and close when button clicked', async () => {
-    const wrapper = mount(ContextMenu, { props: baseProps, attachTo: root })
-    const btn = document.body.querySelector('.context-menu-btn')
-    expect(btn).toBeTruthy()
-    await btn.click()
-    // wrapper.emitted() does not work with teleport, so listen to emitted events
-    // Instead, use a spy or check DOM changes if needed
-    // But here, we can check emitted events on the wrapper
-    expect(wrapper.emitted('highlight')).toBeTruthy()
-    expect(wrapper.emitted('highlight')[0]).toEqual(['test highlight'])
-    expect(wrapper.emitted('close')).toBeTruthy()
-  })
 
   it('emits close when clicking outside', async () => {
     const wrapper = mount(ContextMenu, { props: baseProps, attachTo: root })

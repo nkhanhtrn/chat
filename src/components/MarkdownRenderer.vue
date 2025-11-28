@@ -4,8 +4,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { marked } from 'marked'
-import { processMarkdown } from '../services/markdownUtils.js'
+import { processMarkdownWithCustomContent } from '../services/ASTMarkdownRenderer.js'
 
 const props = defineProps({
   content: {
@@ -23,7 +22,8 @@ const props = defineProps({
 })
 
 const renderedContent = computed(() => {
-  return processMarkdown(props.content, marked, props.customContent, props.customRenderer)
+  // Use the new AST-based renderer that properly handles highlights across markdown boundaries
+  return processMarkdownWithCustomContent(props.content, props.customContent)
 })
 </script>
 

@@ -21,7 +21,7 @@
          <MessageNavigation v-if="currentMessage" :current-message="currentMessage" />
          <div class="assistant-message" @mouseup="showContextMenu" @click="handleResponseClick">
            <MarkdownRenderer
-             :content="processedResponse"
+             :content="currentResponse"
              :custom-content="currentMessage?.customContent || []"
              :custom-renderer="customRenderer"
            />
@@ -35,8 +35,8 @@
            :highlighted-text="state.contextMenu.selectedText"
            :is-streaming="isStreaming"
            @close="closeContextMenu"
-           @highlight="handleHighlight"
-           @add-highlight="handleAddHighlight"
+           @keep-highlight="keepHighlight"
+           @ask-question="handleAskQuestion"
          />
        </div>
      </div>
@@ -59,16 +59,6 @@ export function getSelectedTextAndPosition(selection = window.getSelection()) {
   }
   return { selectedText: '', x: 0, y: 0, visible: false };
 }
-
-// Exported for test usage
-export function escapeRegex(text) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-// Exported for test usage
-export function createHighlightedLink(text, childIndex) {
-  return `<a href="#" data-child-index="${childIndex}" class="highlighted-link">${text}</a>`;
-}
 </script>
 
 <script setup>
@@ -80,12 +70,15 @@ import MessageNavigation from './MessageNavigation.vue'
 import { getQuestionSummary, sendChatMessage } from '../services/api.js'
 import Message from '../stores/Message.js'
 import { getSelectedTextAndPosition as defaultGetSelectedTextAndPosition } from './ChatMessage.vue'
+import { getSelectedTextAndPosition as getSelectionWithOffsets } from '../services/DOMSelectionHelper.js'
 import { CustomContentRenderer } from '../services/CustomContentRenderer.js'
 import { HighlightPlugin } from '../services/plugins/HighlightPlugin.js'
+import { QuestionLinkPlugin } from '../services/plugins/QuestionLinkPlugin.js'
 
 // Create custom content renderer instance
 const customRenderer = new CustomContentRenderer()
 customRenderer.register('highlight', HighlightPlugin)
+customRenderer.register('question-link', QuestionLinkPlugin)
 
 
 const props = defineProps({
@@ -112,9 +105,9 @@ const state = reactive({
     visible: false,
     x: 0,
     y: 0,
-    selectedText: ''
-  },
-  highlightColors: ['#ffeb3b', '#4caf50', '#2196f3', '#ff9800', '#e91e63'] // Available highlight colors
+    selectedText: '',
+    highlightId: null // Stores the current highlight ID
+  }
 })
 
 // Computed property to always get the root/original message (from props)
@@ -142,59 +135,140 @@ const currentResponse = computed(() => {
   return currentMessage.value?.response || ''
 })
 
-// Computed property that processes the response and adds links for highlighted text
-const processedResponse = computed(() => {
-  let response = currentResponse.value
-
-  // Get children from store using the current message ID
-  const children = chatStore.getChildren(currentMessage.value?.id)
-
-  // For each child message, replace its highlighted text with a clickable link
-  if (children && children.length > 0) {
-    children.forEach((child, index) => {
-      if (child.highlightedText) {
-        const escapedText = escapeRegex(child.highlightedText)
-        const regex = new RegExp(`(${escapedText})`, 'g')
-        const replacement = createHighlightedLink('$1', index)
-        response = response.replace(regex, replacement)
-      }
-    })
-  }
-
-  return response
-})
-
 // Computed property that combines both streaming states
 const isStreaming = computed(() => {
   return props.isAppStreaming || state.isChildStreaming
 })
 
 function showContextMenu(e) {
-  const getSel = props.getSelectedTextAndPosition || defaultGetSelectedTextAndPosition;
-  const { selectedText, x, y, visible } = getSel();
-  state.contextMenu.selectedText = selectedText;
-  state.contextMenu.x = x;
-  state.contextMenu.y = y;
-  state.contextMenu.visible = visible;
+  // Use the new DOM selection helper that includes markdown offsets
+  const getSel = props.getSelectedTextAndPosition || getSelectionWithOffsets;
+  const selectionData = getSel();
+  const { selectedText, x, y, visible, startOffset, endOffset } = selectionData;
+
+  if (visible && selectedText && startOffset !== undefined && endOffset !== undefined) {
+    // Add highlight with markdown offsets
+    const highlightId = addHighlight(selectedText, startOffset, endOffset);
+
+    state.contextMenu.selectedText = selectedText;
+    state.contextMenu.highlightId = highlightId;
+    state.contextMenu.x = x;
+    state.contextMenu.y = y;
+    state.contextMenu.visible = visible;
+  }
 }
 
 function closeContextMenu() {
+  // Remove highlight when clicking outside
+  if (state.contextMenu.highlightId) {
+    removeHighlight(state.contextMenu.highlightId)
+  }
+
   state.contextMenu.visible = false
+  state.contextMenu.highlightId = null
 }
 
-async function handleHighlight(question) {
-  if (!question || state.isChildStreaming) return
-  closeContextMenu() // Close menu immediately to prevent retrigger
-  console.log('Highlight question:', question)
+function addHighlight(selectedText, startOffset, endOffset) {
+  if (!selectedText || !currentMessage.value) return null
 
-  // Use currentMessage as the parent
-  const parentId = currentMessage.value.id
+  // Validate offsets (provided by DOM selection helper)
+  if (startOffset === undefined || endOffset === undefined) {
+    console.error('Invalid offsets for highlight - DOM selection helper may have failed')
+    return null
+  }
+
+  // Create highlight metadata
+  const highlightId = crypto.randomUUID()
+  const highlight = {
+    id: highlightId,
+    type: 'highlight',
+    text: selectedText,
+    color: '#ffeb3b',
+    startOffset,
+    endOffset
+  }
+
+  // Initialize customContent array if it doesn't exist
+  if (!currentMessage.value.customContent) {
+    currentMessage.value.customContent = []
+  }
+
+  // Add highlight to message
+  currentMessage.value.customContent.push(highlight)
+
+  // Update the store to trigger reactivity
+  chatStore.updateMessage(currentMessage.value.id, {
+    customContent: [...currentMessage.value.customContent]
+  })
+
+  return highlightId
+}
+
+function removeHighlight(highlightId) {
+  if (!highlightId || !currentMessage.value?.customContent) return
+
+  const index = currentMessage.value.customContent.findIndex(
+    item => item.id === highlightId
+  )
+
+  if (index !== -1) {
+    currentMessage.value.customContent.splice(index, 1)
+
+    // Update the store to trigger reactivity
+    chatStore.updateMessage(currentMessage.value.id, {
+      customContent: [...currentMessage.value.customContent]
+    })
+  }
+}
+
+function keepHighlight() {
+  // Just close the menu without removing the highlight
+  state.contextMenu.visible = false
+  state.contextMenu.highlightId = null
+}
+
+async function handleAskQuestion(question) {
+  if (!question || state.isChildStreaming) return
+
+  // Store the selected text and highlight ID before closing the context menu
+  const selectedText = state.contextMenu.selectedText
+  const highlightId = state.contextMenu.highlightId
+
+  // Get highlight info
+  const highlight = currentMessage.value?.customContent?.find(
+    item => item.id === highlightId
+  )
+
+  if (!highlight) {
+    console.error('Highlight not found')
+    return
+  }
+
+  const { startOffset, endOffset } = highlight
+
+  // Store reference to parent message (currentMessage) before it changes
+  const parentMessage = currentMessage.value
+  const parentId = parentMessage.id
+
+  // Remove the highlight (it will be replaced with question link)
+  removeHighlight(highlightId)
+
+  // Close menu
+  state.contextMenu.visible = false
+  state.contextMenu.highlightId = null
 
   // Create new child message with highlighted text
-  const childMsg = Message.createChildMessage(parentId, question, state.contextMenu.selectedText)
+  const childMsg = Message.createChildMessage(parentId, question, selectedText)
 
   // Add child to store
   chatStore.addChildMessage(parentId, childMsg)
+
+  // Get the child index for the new message
+  const children = chatStore.getChildren(parentId)
+  const childIndex = children.length - 1
+
+  // Add clickable question link to the PARENT message (before currentMessage changes)
+  addQuestionLinkToMessage(parentMessage, selectedText, childIndex, startOffset, endOffset)
 
   state.isChildStreaming = true
   state.error = null
@@ -228,9 +302,9 @@ function navigateToChild(childIndex) {
 }
 
 function handleResponseClick(event) {
-  // Check if the clicked element is a highlighted link
+  // Check if the clicked element is a question link
   const target = event.target;
-  if (target.tagName === 'A' && target.classList.contains('highlighted-link')) {
+  if (target.tagName === 'A' && target.classList.contains('question-link')) {
     event.preventDefault();
     const childIndex = parseInt(target.getAttribute('data-child-index'), 10);
     if (!isNaN(childIndex)) {
@@ -239,43 +313,34 @@ function handleResponseClick(event) {
   }
 }
 
-function handleAddHighlight(selectedText) {
-  if (!selectedText || !currentMessage.value) return
+function addQuestionLinkToMessage(message, selectedText, childIndex, startOffset, endOffset) {
+  if (!selectedText || !message) return
 
-  const response = currentResponse.value
-  const startOffset = response.indexOf(selectedText)
-
-  if (startOffset === -1) {
-    console.error('Selected text not found in response')
-    return
-  }
-
-  const endOffset = startOffset + selectedText.length
-
-  // Create highlight metadata
-  const highlightId = crypto.randomUUID()
-  const highlight = {
-    id: highlightId,
-    type: 'highlight',
+  // Create question link metadata
+  const linkId = crypto.randomUUID()
+  const questionLink = {
+    id: linkId,
+    type: 'question-link',
     text: selectedText,
-    color: state.highlightColors[0], // Default color (yellow)
+    childIndex,
     startOffset,
     endOffset
   }
 
   // Initialize customContent array if it doesn't exist
-  if (!currentMessage.value.customContent) {
-    currentMessage.value.customContent = []
+  if (!message.customContent) {
+    message.customContent = []
   }
 
-  // Add highlight to message
-  currentMessage.value.customContent.push(highlight)
+  // Add question link to message
+  message.customContent.push(questionLink)
 
   // Update the store to trigger reactivity
-  chatStore.updateMessage(currentMessage.value.id, {
-    customContent: [...currentMessage.value.customContent]
+  chatStore.updateMessage(message.id, {
+    customContent: [...message.customContent]
   })
 }
+
 </script>
 <style scoped>
 .message {
@@ -358,36 +423,8 @@ function handleAddHighlight(selectedText) {
   }
 }
 
-/* Context menu styles */
-.context-menu {
-  position: absolute;
-  min-width: 160px;
-  background: #fff;
-  border: 1px solid #d1d5db;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-  border-radius: 6px;
-  padding: 0.5em 0.25em;
-  font-size: 1rem;
-  color: #222;
-  z-index: 9999;
-  user-select: none;
-}
-.context-menu-btn {
-  background: none;
-  border: none;
-  width: 100%;
-  padding: 0.5em 1em;
-  text-align: left;
-  cursor: pointer;
-  font-size: 1rem;
-  color: #222;
-}
-.context-menu-btn:hover {
-  background: #f3f4f6;
-}
-
-/* Highlighted text link styles */
-.assistant-message :deep(.highlighted-link) {
+/* Question link styles */
+.assistant-message :deep(.question-link) {
   color: #667eea;
   text-decoration: underline;
   cursor: pointer;
@@ -395,19 +432,15 @@ function handleAddHighlight(selectedText) {
   transition: color 0.2s ease;
 }
 
-.assistant-message :deep(.highlighted-link:hover) {
+.assistant-message :deep(.question-link:hover) {
   color: #5568d3;
   text-decoration: underline;
 }
 
-/* Custom highlight styles */
+/* Highlight styles */
 .assistant-message :deep(.custom-highlight) {
-  cursor: pointer;
-  transition: opacity 0.2s ease;
-  border-radius: 3px;
+  padding: 2px 0;
+  transition: background-color 0.2s ease;
 }
 
-.assistant-message :deep(.custom-highlight:hover) {
-  opacity: 0.8;
-}
 </style>
