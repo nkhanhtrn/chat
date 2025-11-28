@@ -299,5 +299,35 @@ export const useChatStore = defineStore('chat', {
         }
       }
     },
+
+    // Delete a chat session
+    deleteChat(chatId) {
+      const chatIndex = this.chats.findIndex(c => c.id === chatId)
+      if (chatIndex === -1) return
+
+      const chat = this.chats[chatIndex]
+
+      // Remove all messages from this chat
+      chat.rootMessageIds.forEach(messageId => {
+        this._removeMessageTree(messageId)
+      })
+
+      // Remove the chat from the list
+      this.chats.splice(chatIndex, 1)
+
+      // If we deleted the current chat, switch to another or create new
+      if (this.currentChatId === chatId) {
+        if (this.chats.length > 0) {
+          // Switch to the chat above (or below if it was the first one)
+          const newIndex = chatIndex > 0 ? chatIndex - 1 : 0
+          this.switchToChat(this.chats[newIndex].id)
+        } else {
+          // No chats left, create a new one
+          this.createNewChat()
+        }
+      }
+
+      this._persistState()
+    },
   }
 })

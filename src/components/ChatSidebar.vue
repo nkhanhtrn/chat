@@ -11,13 +11,16 @@
       <div
         v-for="chat in chats"
         :key="chat.id"
-        :class="['chat-item', { active: chat.id === currentChatId }]"
+        :class="['chat-thread', { active: chat.id === currentChatId }]"
       >
         <div class="chat-header">
           <div class="collapse-icon" @click="toggleCollapse(chat.id)" v-if="chat.questions.length > 0">
             {{ isCollapsed(chat.id) ? '▸' : '▾' }}
           </div>
           <div class="chat-title" @click="$emit('select-chat', chat.id)">{{ chat.title }}</div>
+          <button class="delete-button" @click.stop="$emit('delete-chat', chat.id)" title="Delete chat">
+            ×
+          </button>
         </div>
 
         <div
@@ -61,7 +64,7 @@ defineProps({
   }
 })
 
-defineEmits(['new-chat', 'select-chat', 'select-question'])
+defineEmits(['new-chat', 'select-chat', 'select-question', 'delete-chat'])
 
 const collapsedChats = ref(new Set())
 
@@ -134,11 +137,11 @@ const isCollapsed = (chatId) => {
   padding: 1rem 0.5rem;
 }
 
-.chat-item {
+.chat-thread {
   margin-bottom: 0.5rem;
 }
 
-.chat-item.active {
+.chat-thread.active {
   background-color: var(--color-bg-hover);
 }
 
@@ -156,7 +159,7 @@ const isCollapsed = (chatId) => {
   background-color: var(--color-bg-tertiary);
 }
 
-.chat-item.active .chat-header {
+.chat-thread.active .chat-header {
   background-color: var(--color-bg-active);
   border-left-color: var(--color-primary);
 }
@@ -173,6 +176,35 @@ const isCollapsed = (chatId) => {
 
 .chat-title:hover {
   color: var(--color-primary);
+}
+
+.delete-button {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: system-ui, -apple-system, sans-serif;
+  line-height: 1;
+  opacity: 0;
+}
+
+.chat-header:hover .delete-button {
+  opacity: 1;
+}
+
+.delete-button:hover {
+  background-color: var(--color-error-bg);
+  color: var(--color-error-text);
 }
 
 .collapse-icon {

@@ -85,8 +85,8 @@ describe('ChatSidebar', () => {
         props: { chats }
       })
 
-      const chatItems = wrapper.findAll('.chat-item')
-      expect(chatItems).toHaveLength(3)
+      const chatThreads = wrapper.findAll('.chat-thread')
+      expect(chatThreads).toHaveLength(3)
     })
 
     it('should render chat titles correctly', () => {
@@ -115,9 +115,9 @@ describe('ChatSidebar', () => {
         }
       })
 
-      const chatItems = wrapper.findAll('.chat-item')
-      expect(chatItems[0].classes()).toContain('active')
-      expect(chatItems[1].classes()).not.toContain('active')
+      const chatThreads = wrapper.findAll('.chat-thread')
+      expect(chatThreads[0].classes()).toContain('active')
+      expect(chatThreads[1].classes()).not.toContain('active')
     })
 
     it('should render collapse icon only for chats with questions', () => {
@@ -129,9 +129,22 @@ describe('ChatSidebar', () => {
         props: { chats }
       })
 
-      const chatItems = wrapper.findAll('.chat-item')
-      expect(chatItems[0].find('.collapse-icon').exists()).toBe(false)
-      expect(chatItems[1].find('.collapse-icon').exists()).toBe(true)
+      const chatThreads = wrapper.findAll('.chat-thread')
+      expect(chatThreads[0].find('.collapse-icon').exists()).toBe(false)
+      expect(chatThreads[1].find('.collapse-icon').exists()).toBe(true)
+    })
+
+    it('should render delete button for each chat', () => {
+      const chats = [
+        { id: 'chat1', title: 'Chat 1', questions: [] },
+        { id: 'chat2', title: 'Chat 2', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      const deleteButtons = wrapper.findAll('.delete-button')
+      expect(deleteButtons).toHaveLength(2)
     })
   })
 
@@ -367,6 +380,33 @@ describe('ChatSidebar', () => {
 
       expect(wrapper.emitted('select-chat')).toBeFalsy()
     })
+
+    it('should emit delete-chat when delete button clicked', async () => {
+      const chats = [
+        { id: 'chat1', title: 'Chat 1', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      await wrapper.find('.delete-button').trigger('click')
+
+      expect(wrapper.emitted('delete-chat')).toBeTruthy()
+      expect(wrapper.emitted('delete-chat')[0]).toEqual(['chat1'])
+    })
+
+    it('should not emit select-chat when clicking delete button', async () => {
+      const chats = [
+        { id: 'chat1', title: 'Chat 1', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      await wrapper.find('.delete-button').trigger('click')
+
+      expect(wrapper.emitted('select-chat')).toBeFalsy()
+    })
   })
 
   describe('Props', () => {
@@ -494,8 +534,8 @@ describe('ChatSidebar', () => {
         props: { chats }
       })
 
-      const chatItems = wrapper.findAll('.chat-item')
-      expect(chatItems).toHaveLength(100)
+      const chatThreads = wrapper.findAll('.chat-thread')
+      expect(chatThreads).toHaveLength(100)
     })
 
     it('should handle many questions in a chat', () => {
@@ -527,8 +567,8 @@ describe('ChatSidebar', () => {
         }
       })
 
-      const chatItems = wrapper.findAll('.chat-item')
-      expect(chatItems[0].classes()).not.toContain('active')
+      const chatThreads = wrapper.findAll('.chat-thread')
+      expect(chatThreads[0].classes()).not.toContain('active')
     })
 
     it('should handle currentMessageId that does not match any question', () => {

@@ -7,6 +7,7 @@
       @new-chat="handleNewChat"
       @select-chat="handleSelectChat"
       @select-question="handleSelectQuestion"
+      @delete-chat="handleDeleteChat"
     />
 
     <div class="chat-container">
@@ -146,6 +147,11 @@ const handleSelectChat = (chatId) => {
 
 const handleSelectQuestion = (questionId) => {
   chatStore.navigateToMessage(questionId)
+  scrollToBottom()
+}
+
+const handleDeleteChat = (chatId) => {
+  chatStore.deleteChat(chatId)
   scrollToBottom()
 }
 
