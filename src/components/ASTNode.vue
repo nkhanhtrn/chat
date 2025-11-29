@@ -95,7 +95,7 @@ function getNodeProps(node) {
     case 'highlight':
       return {
         text: node.text,
-        color: node.color,
+        colorIndex: node.colorIndex,
         highlightId: node.highlightId,
         startOffset: node.startOffset,
         endOffset: node.endOffset

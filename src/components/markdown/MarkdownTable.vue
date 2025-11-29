@@ -4,14 +4,14 @@
       <thead v-if="headers.length > 0">
         <tr>
           <th v-for="(header, index) in headers" :key="index" :style="getAlignment(alignments[index])">
-            <TableCell :children="header" @question-link-click="bubbleQuestionLinkClick" />
+            <TableCell :children="header" @question-link-click="bubbleQuestionLinkClick" @highlight-click="bubbleHighlightClick" />
           </th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="(row, rowIndex) in rows" :key="rowIndex">
           <td v-for="(cell, cellIndex) in row" :key="cellIndex" :style="getAlignment(alignments[cellIndex])">
-            <TableCell :children="cell" @question-link-click="bubbleQuestionLinkClick" />
+            <TableCell :children="cell" @question-link-click="bubbleQuestionLinkClick" @highlight-click="bubbleHighlightClick" />
           </td>
         </tr>
       </tbody>
@@ -34,7 +34,7 @@ export default {
       required: true
     }
   },
-  emits: ['question-link-click'],
+  emits: ['question-link-click', 'highlight-click'],
   setup(props) {
     const headers = computed(() => {
       const headerCells = []
@@ -117,6 +117,9 @@ export default {
     },
     bubbleQuestionLinkClick(childIndex) {
       this.$emit('question-link-click', childIndex)
+    },
+    bubbleHighlightClick(data) {
+      this.$emit('highlight-click', data)
     }
   }
 }

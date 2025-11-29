@@ -7,16 +7,47 @@
         :style="{ left: `${x}px`, top: `${y}px`, display: visible ? 'block' : 'none' }"
         @mousedown.stop
       >
-        <Button class="context-menu-btn" @click="onKeepHighlight" :disabled="isStreaming" variant="tertiary">Add Highlight</Button>
+        <div class="context-menu-row">
+          <Button class="context-menu-btn" @click="onHighlightAction" :disabled="isStreaming" variant="tertiary">{{ hasExistingHighlight ? 'Remove' : 'Highlight' }}</Button>
+          <div class="color-picker">
+            <button
+              v-for="(color, index) in highlightColors"
+              :key="index"
+              class="color-circle"
+              :class="{ selected: selectedColorIndex === index }"
+              :style="{ backgroundColor: color }"
+              @click="selectColor(index)"
+              :disabled="isStreaming"
+            ></button>
+          </div>
+        </div>
         <Button class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming" variant="tertiary">Ask Question</Button>
+        <div class="custom-prompt-wrapper">
+            <input
+              ref="customPromptInput"
+              v-model="customPrompt"
+              class="custom-prompt-input"
+              type="text"
+              placeholder="Custom prompt..."
+              :disabled="isStreaming"
+              @keydown.enter="onSendCustomPrompt"
+            />
+            <button class="custom-prompt-send" @click="onSendCustomPrompt" :disabled="isStreaming || !customPrompt.trim()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+        </div>
       </div>
     </template>
   </teleport>
 </template>
 
 <script setup>
-import { defineEmits, defineProps } from 'vue'
+import { defineEmits, defineProps, ref, watch, onMounted, onUnmounted } from 'vue'
 import Button from './Button.vue'
+import { highlightColors } from '../constants/highlightColors.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -26,23 +57,73 @@ const props = defineProps({
   isStreaming: {
     type: Boolean,
     default: false
+  },
+  colorIndex: {
+    type: Number,
+    default: 0
+  },
+  hasExistingHighlight: {
+    type: Boolean,
+    default: false
   }
 })
-const emit = defineEmits(['close', 'keep-highlight', 'ask-question'])
+const emit = defineEmits(['close', 'keep-highlight', 'ask-question', 'change-color', 'remove-highlight'])
 
-function onKeepHighlight() {
-  emit('keep-highlight')
+const selectedColorIndex = ref(0)
+const customPrompt = ref('')
+
+// Update selected color index when colorIndex prop changes or menu becomes visible
+watch([() => props.colorIndex, () => props.visible], ([newIndex]) => {
+  selectedColorIndex.value = newIndex ?? 0
+}, { immediate: true })
+
+function selectColor(index) {
+  selectedColorIndex.value = index
+  if (props.hasExistingHighlight) {
+    // Just change color of existing highlight
+    emit('change-color', index)
+  } else {
+    // Create new highlight with this color
+    emit('keep-highlight', index)
+  }
+}
+
+function onHighlightAction() {
+  if (props.hasExistingHighlight) {
+    emit('remove-highlight')
+  } else {
+    emit('keep-highlight', selectedColorIndex.value)
+  }
 }
 
 function onAskQuestion() {
   emit('ask-question', `${props.highlightedText}`)
 }
 
+function onSendCustomPrompt() {
+  if (!customPrompt.value.trim()) return
+  const prompt = `${customPrompt.value}\nfor more context: ${props.highlightedText}`
+  emit('ask-question', prompt)
+  customPrompt.value = ''
+}
+
 function onClickOutside() {
   emit('close')
 }
 
+function onKeyDown(event) {
+  if (event.key === 'Escape' && props.visible) {
+    emit('close')
+  }
+}
 
+onMounted(() => {
+  document.addEventListener('keydown', onKeyDown)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', onKeyDown)
+})
 </script>
 
 <style scoped>
@@ -74,5 +155,96 @@ function onClickOutside() {
   height: 100vh;
   background: transparent;
   z-index: 9998;
+}
+
+.context-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.color-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem;
+}
+
+.color-circle {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+  outline: none;
+}
+
+.color-circle:hover {
+  transform: scale(1.15);
+}
+
+.color-circle.selected {
+  border-color: var(--color-text-strong);
+  box-shadow: 0 0 0 1px var(--color-bg-context-menu);
+}
+
+.color-circle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.custom-prompt-wrapper {
+  position: relative;
+  margin-top: 0.25rem;
+}
+
+.custom-prompt-input {
+  width: 100%;
+  padding: 0.4rem 2rem 0.4rem 0.6rem;
+  font-size: 0.9rem;
+  border: 1px solid var(--color-border-context);
+  border-radius: 4px;
+  background: var(--color-bg-input, var(--color-bg-context-menu));
+  color: var(--color-text-on-accent);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.custom-prompt-input:focus {
+  border-color: var(--color-accent, #007bff);
+}
+
+.custom-prompt-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.custom-prompt-send {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--color-text-on-accent);
+  opacity: 0.7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  transition: opacity 0.15s ease;
+}
+
+.custom-prompt-send:hover:not(:disabled) {
+  opacity: 1;
+}
+
+.custom-prompt-send:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 </style>

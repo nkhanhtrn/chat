@@ -82,6 +82,13 @@
   /* Special */
   --color-highlight: #ffff66;
 
+  /* iBook Highlight Colors */
+  --color-highlight-0: rgba(255, 230, 102, 0.6);
+  --color-highlight-1: rgba(170, 230, 130, 0.6);
+  --color-highlight-2: rgba(130, 200, 255, 0.6);
+  --color-highlight-3: rgba(255, 180, 200, 0.6);
+  --color-highlight-4: rgba(210, 170, 255, 0.6);
+
   /* Shadows */
   --shadow-sm: rgba(0, 0, 0, 0.3);
   --shadow-md: rgba(0, 0, 0, 0.5);

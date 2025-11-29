@@ -1,7 +1,7 @@
 <template>
   <mark
     class="custom-highlight"
-    :style="{ backgroundColor: color }"
+    :style="{ backgroundColor: highlightColor }"
     :data-highlight-id="highlightId"
     :data-md-start="startOffset"
     :data-md-end="endOffset"
@@ -12,14 +12,17 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
+import { highlightColors } from '../../constants/highlightColors.js'
+
 const props = defineProps({
   text: {
     type: String,
     default: ''
   },
-  color: {
-    type: String,
-    default: 'var(--color-highlight)'
+  colorIndex: {
+    type: Number,
+    default: 0
   },
   highlightId: {
     type: String,
@@ -35,6 +38,8 @@ const props = defineProps({
   }
 })
 
+const highlightColor = computed(() => highlightColors[props.colorIndex] || highlightColors[0])
+
 const emit = defineEmits(['highlight-click'])
 
 function handleClick(event) {
@@ -42,6 +47,7 @@ function handleClick(event) {
   emit('highlight-click', {
     highlightId: props.highlightId,
     text: props.text,
+    colorIndex: props.colorIndex,
     startOffset: props.startOffset,
     endOffset: props.endOffset,
     x: event.clientX,
@@ -53,7 +59,7 @@ function handleClick(event) {
 <style scoped>
 .custom-highlight {
   padding: 2px 0;
-  border-radius: 3px;
+  border-radius: 0;
   background-color: var(--color-highlight);
   transition: background-color 0.2s ease;
   cursor: pointer;

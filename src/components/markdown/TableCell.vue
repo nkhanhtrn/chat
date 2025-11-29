@@ -5,6 +5,7 @@
         :is="getComponent(node.type)"
         v-bind="getNodeProps(node)"
         @question-link-click="bubbleQuestionLinkClick"
+        @highlight-click="bubbleHighlightClick"
       >
         <template v-if="node.children">
           <TableCell
@@ -12,6 +13,7 @@
             :key="childIndex"
             :children="[child]"
             @question-link-click="bubbleQuestionLinkClick"
+            @highlight-click="bubbleHighlightClick"
           />
         </template>
         <template v-else-if="node.content">
@@ -51,7 +53,7 @@ export default {
       required: true
     }
   },
-  emits: ['question-link-click'],
+  emits: ['question-link-click', 'highlight-click'],
   methods: {
     getComponent(type) {
       const map = {
@@ -76,7 +78,7 @@ export default {
         case 'highlight':
           return {
             text: node.text,
-            color: node.color,
+            colorIndex: node.colorIndex,
             highlightId: node.highlightId,
             startOffset: node.startOffset,
             endOffset: node.endOffset
@@ -104,6 +106,9 @@ export default {
     },
     bubbleQuestionLinkClick(childIndex) {
       this.$emit('question-link-click', childIndex)
+    },
+    bubbleHighlightClick(data) {
+      this.$emit('highlight-click', data)
     }
   }
 }

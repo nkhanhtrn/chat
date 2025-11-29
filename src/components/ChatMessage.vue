@@ -22,7 +22,7 @@
          <div class="assistant-message" @mouseup="showContextMenu">
            <MarkdownRenderer
              :content="currentResponse"
-             :custom-content="currentMessage?.customContent || []"
+             :custom-content="effectiveCustomContent"
              @question-link-click="navigateToChild"
              @highlight-click="handleHighlightClick"
            />
@@ -35,9 +35,13 @@
            :y="state.contextMenu.y"
            :highlighted-text="state.contextMenu.selectedText"
            :is-streaming="isStreaming"
+           :color-index="state.contextMenu.colorIndex"
+           :has-existing-highlight="!!state.contextMenu.highlightId"
            @close="closeContextMenu"
            @keep-highlight="keepHighlight"
            @ask-question="handleAskQuestion"
+           @change-color="handleChangeColor"
+           @remove-highlight="handleRemoveHighlight"
          />
        </div>
      </div>
@@ -82,8 +86,10 @@ const state = reactive({
     selectedText: '',
     highlightId: null, // Stores the current highlight ID
     startOffset: undefined,
-    endOffset: undefined
-  }
+    endOffset: undefined,
+    colorIndex: 0 // Default to first color (yellow)
+  },
+  tempHighlight: null // Temporary highlight shown when context menu is open
 })
 
 // Computed property to always get the root/original message (from props)
@@ -111,6 +117,15 @@ const currentResponse = computed(() => {
   return currentMessage.value?.response || ''
 })
 
+// Computed property that merges customContent with temporary highlight
+const effectiveCustomContent = computed(() => {
+  const base = currentMessage.value?.customContent || []
+  if (state.tempHighlight) {
+    return [...base, state.tempHighlight]
+  }
+  return base
+})
+
 // Computed property that combines both streaming states
 const isStreaming = computed(() => {
   return props.isAppStreaming || state.isChildStreaming
@@ -131,23 +146,29 @@ function showContextMenu(e) {
     state.contextMenu.y = y;
     state.contextMenu.visible = visible;
     state.contextMenu.highlightId = null; // No highlight yet
+
+    // Create temporary highlight (always use first color for temp highlight)
+    state.tempHighlight = {
+      id: '__temp_highlight__',
+      type: 'highlight',
+      text: selectedText,
+      colorIndex: 0,
+      startOffset,
+      endOffset
+    }
+
+    // Clear the browser's text selection
+    window.getSelection()?.removeAllRanges()
   }
 }
 
 function closeContextMenu() {
-  // Remove highlight only if it was created (when clicking outside)
-  if (state.contextMenu.highlightId) {
-    removeHighlight(state.contextMenu.highlightId)
-  }
-
-  // Clear the browser's text selection
-  window.getSelection()?.removeAllRanges()
-
   state.contextMenu.visible = false
   state.contextMenu.highlightId = null
+  state.tempHighlight = null
 }
 
-function addHighlight(selectedText, startOffset, endOffset) {
+function addHighlight(selectedText, startOffset, endOffset, colorIndex = 0) {
   if (!selectedText || !currentMessage.value) return null
 
   // Validate offsets (provided by DOM selection helper)
@@ -162,7 +183,7 @@ function addHighlight(selectedText, startOffset, endOffset) {
     id: highlightId,
     type: 'highlight',
     text: selectedText,
-    color: 'var(--color-highlight)',
+    colorIndex,
     startOffset,
     endOffset
   }
@@ -200,21 +221,27 @@ function removeHighlight(highlightId) {
   }
 }
 
-function keepHighlight() {
+function keepHighlight(colorIndex) {
+  // Don't create duplicate highlight if one already exists
+  if (state.contextMenu.highlightId) {
+    // Just update the color of existing highlight
+    handleChangeColor(colorIndex)
+    state.contextMenu.visible = false
+    state.tempHighlight = null
+    return
+  }
+
   // Create the permanent highlight when user clicks "Keep Highlight"
   const { selectedText, startOffset, endOffset } = state.contextMenu;
 
   if (selectedText && startOffset !== undefined && endOffset !== undefined) {
-    const highlightId = addHighlight(selectedText, startOffset, endOffset);
-    state.contextMenu.highlightId = highlightId;
+    addHighlight(selectedText, startOffset, endOffset, colorIndex);
   }
-
-  // Clear the browser's text selection
-  window.getSelection()?.removeAllRanges()
 
   // Close the menu (highlight is now permanent)
   state.contextMenu.visible = false
   state.contextMenu.highlightId = null
+  state.tempHighlight = null
 }
 
 async function handleAskQuestion(question) {
@@ -234,12 +261,10 @@ async function handleAskQuestion(question) {
   const parentMessage = currentMessage.value
   const parentId = parentMessage.id
 
-  // Clear the browser's text selection
-  window.getSelection()?.removeAllRanges()
-
-  // Close menu
+  // Close menu and clear temporary highlight
   state.contextMenu.visible = false
   state.contextMenu.highlightId = null
+  state.tempHighlight = null
 
   // Create new child message with highlighted text
   const childMsg = Message.createChildMessage(parentId, question, selectedText)
@@ -294,6 +319,35 @@ function handleHighlightClick(highlightData) {
   state.contextMenu.y = highlightData.y
   state.contextMenu.visible = true
   state.contextMenu.highlightId = highlightData.highlightId
+  state.contextMenu.colorIndex = highlightData.colorIndex ?? 0
+}
+
+function handleChangeColor(colorIndex) {
+  // Always update the selected color index for new highlights
+  state.contextMenu.colorIndex = colorIndex
+
+  // Update color of existing highlight if one is selected
+  if (!state.contextMenu.highlightId || !currentMessage.value?.customContent) return
+
+  const highlight = currentMessage.value.customContent.find(
+    item => item.id === state.contextMenu.highlightId
+  )
+
+  if (highlight) {
+    highlight.colorIndex = colorIndex
+
+    // Update the store to trigger reactivity
+    chatStore.updateMessage(currentMessage.value.id, {
+      customContent: [...currentMessage.value.customContent]
+    })
+  }
+}
+
+function handleRemoveHighlight() {
+  if (state.contextMenu.highlightId) {
+    removeHighlight(state.contextMenu.highlightId)
+  }
+  closeContextMenu()
 }
 
 function addQuestionLinkToMessage(message, selectedText, childIndex, startOffset, endOffset) {

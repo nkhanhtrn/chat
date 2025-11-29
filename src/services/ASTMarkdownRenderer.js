@@ -137,7 +137,7 @@ function createCustomContentNode(item, text, startOffset, endOffset) {
       return {
         type: 'highlight',
         ...baseNode,
-        color: item.color || 'var(--color-highlight)',
+        colorIndex: item.colorIndex ?? 0,
         highlightId: item.id
       }
 

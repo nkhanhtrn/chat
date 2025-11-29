@@ -420,17 +420,17 @@ describe('Markdown Components', () => {
       expect(wrapper.attributes('data-md-end')).toBe('20')
     })
 
-    it('should apply custom color', () => {
+    it('should apply custom color via colorIndex', () => {
       const wrapper = mount(HighlightSpan, {
         props: {
           text: 'text',
-          color: '#ff0000',
+          colorIndex: 2,
           highlightId: 'id',
           startOffset: 0,
           endOffset: 4
         }
       })
-      expect(wrapper.attributes('style')).toContain('background-color: #ff0000')
+      expect(wrapper.attributes('style')).toContain('background-color: var(--color-highlight-2)')
     })
 
     it('should render slot content', () => {
@@ -488,6 +488,7 @@ describe('Markdown Components', () => {
       expect(eventData).toEqual({
         highlightId: 'highlight-123',
         text: 'test highlight',
+        colorIndex: 0,
         startOffset: 5,
         endOffset: 19,
         x: 150,
@@ -720,6 +721,137 @@ describe('Markdown Components', () => {
       expect(cells[1].attributes('style')).toContain('text-align: center')
       expect(cells[2].attributes('style')).toContain('text-align: right')
     })
+
+    it('should bubble highlight-click event from table cell', async () => {
+      const tableNode = {
+        type: 'table',
+        children: [
+          {
+            type: 'thead',
+            children: [
+              {
+                type: 'tr',
+                children: [
+                  { type: 'th', children: [{ type: 'text', text: 'Header' }], align: null }
+                ]
+              }
+            ]
+          },
+          {
+            type: 'tbody',
+            children: [
+              {
+                type: 'tr',
+                children: [
+                  {
+                    type: 'td',
+                    children: [
+                      {
+                        type: 'highlight',
+                        text: 'table highlight',
+                        highlightId: 'h-in-table',
+                        colorIndex: 3,
+                        startOffset: 0,
+                        endOffset: 15
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      const wrapper = mount(MarkdownTable, {
+        props: {
+          node: tableNode
+        }
+      })
+
+      const highlight = wrapper.findComponent(HighlightSpan)
+      expect(highlight.exists()).toBe(true)
+
+      const clickEvent = {
+        clientX: 100,
+        clientY: 200,
+        stopPropagation: vi.fn()
+      }
+
+      await highlight.trigger('click', clickEvent)
+
+      expect(wrapper.emitted('highlight-click')).toBeTruthy()
+      expect(wrapper.emitted('highlight-click')).toHaveLength(1)
+
+      const [eventData] = wrapper.emitted('highlight-click')[0]
+      expect(eventData.highlightId).toBe('h-in-table')
+      expect(eventData.text).toBe('table highlight')
+      expect(eventData.colorIndex).toBe(3)
+    })
+
+    it('should bubble highlight-click event from table header cell', async () => {
+      const tableNode = {
+        type: 'table',
+        children: [
+          {
+            type: 'thead',
+            children: [
+              {
+                type: 'tr',
+                children: [
+                  {
+                    type: 'th',
+                    children: [
+                      {
+                        type: 'highlight',
+                        text: 'header highlight',
+                        highlightId: 'h-in-header',
+                        colorIndex: 1,
+                        startOffset: 0,
+                        endOffset: 16
+                      }
+                    ],
+                    align: null
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            type: 'tbody',
+            children: [
+              {
+                type: 'tr',
+                children: [
+                  { type: 'td', children: [{ type: 'text', text: 'Cell' }] }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      const wrapper = mount(MarkdownTable, {
+        props: {
+          node: tableNode
+        }
+      })
+
+      const highlight = wrapper.findComponent(HighlightSpan)
+      expect(highlight.exists()).toBe(true)
+
+      const clickEvent = {
+        clientX: 50,
+        clientY: 100,
+        stopPropagation: vi.fn()
+      }
+
+      await highlight.trigger('click', clickEvent)
+
+      expect(wrapper.emitted('highlight-click')).toBeTruthy()
+      const [eventData] = wrapper.emitted('highlight-click')[0]
+      expect(eventData.highlightId).toBe('h-in-header')
+    })
   })
 
   describe('TableCell', () => {
@@ -928,7 +1060,7 @@ describe('Markdown Components', () => {
               {
                 type: 'highlight',
                 text: 'highlighted',
-                color: '#ff0000',
+                colorIndex: 3,
                 highlightId: 'h-456',
                 startOffset: 5,
                 endOffset: 16
@@ -939,7 +1071,7 @@ describe('Markdown Components', () => {
         const highlight = wrapper.findComponent(HighlightSpan)
         expect(highlight.exists()).toBe(true)
         expect(highlight.props('text')).toBe('highlighted')
-        expect(highlight.props('color')).toBe('#ff0000')
+        expect(highlight.props('colorIndex')).toBe(3)
         expect(highlight.props('highlightId')).toBe('h-456')
         expect(highlight.props('startOffset')).toBe(5)
         expect(highlight.props('endOffset')).toBe(16)
@@ -1220,6 +1352,80 @@ describe('Markdown Components', () => {
 
         expect(wrapper.emitted('question-link-click')).toBeFalsy()
       })
+
+      it('should bubble highlight-click event from HighlightSpan', async () => {
+        const wrapper = mount(TableCell, {
+          props: {
+            children: [
+              {
+                type: 'highlight',
+                text: 'highlighted text',
+                highlightId: 'h-table-123',
+                colorIndex: 2,
+                startOffset: 0,
+                endOffset: 16
+              }
+            ]
+          }
+        })
+
+        const highlight = wrapper.findComponent(HighlightSpan)
+        expect(highlight.exists()).toBe(true)
+
+        const clickEvent = {
+          clientX: 200,
+          clientY: 300,
+          stopPropagation: vi.fn()
+        }
+
+        await highlight.trigger('click', clickEvent)
+
+        expect(wrapper.emitted('highlight-click')).toBeTruthy()
+        expect(wrapper.emitted('highlight-click')).toHaveLength(1)
+
+        const [eventData] = wrapper.emitted('highlight-click')[0]
+        expect(eventData.highlightId).toBe('h-table-123')
+        expect(eventData.text).toBe('highlighted text')
+        expect(eventData.colorIndex).toBe(2)
+      })
+
+      it('should bubble highlight-click from nested TableCell children', async () => {
+        const wrapper = mount(TableCell, {
+          props: {
+            children: [
+              {
+                type: 'strong',
+                children: [
+                  {
+                    type: 'highlight',
+                    text: 'nested highlight',
+                    highlightId: 'h-nested-456',
+                    colorIndex: 1,
+                    startOffset: 0,
+                    endOffset: 16
+                  }
+                ]
+              }
+            ]
+          }
+        })
+
+        // Find the nested HighlightSpan
+        const highlight = wrapper.findComponent(HighlightSpan)
+        expect(highlight.exists()).toBe(true)
+
+        const clickEvent = {
+          clientX: 150,
+          clientY: 250,
+          stopPropagation: vi.fn()
+        }
+
+        await highlight.trigger('click', clickEvent)
+
+        expect(wrapper.emitted('highlight-click')).toBeTruthy()
+        const [eventData] = wrapper.emitted('highlight-click')[0]
+        expect(eventData.highlightId).toBe('h-nested-456')
+      })
     })
 
     describe('Edge Cases', () => {
@@ -1272,7 +1478,7 @@ describe('Markdown Components', () => {
         expect(link.props('title')).toBe('')
       })
 
-      it('should handle highlight without color', () => {
+      it('should handle highlight without colorIndex (uses default)', () => {
         const wrapper = mount(TableCell, {
           props: {
             children: [
@@ -1288,8 +1494,8 @@ describe('Markdown Components', () => {
         })
         const highlight = wrapper.findComponent(HighlightSpan)
         expect(highlight.exists()).toBe(true)
-        // HighlightSpan has a default value for color prop
-        expect(highlight.props('color')).toBe('var(--color-highlight)')
+        // HighlightSpan has a default value for colorIndex prop (0)
+        expect(highlight.props('colorIndex')).toBe(0)
       })
 
       it('should render multiple different child types', () => {
@@ -1799,14 +2005,14 @@ describe('Markdown Components', () => {
         const node = {
           type: 'highlight',
           text: 'highlighted text',
-          color: '#00ff00',
+          colorIndex: 1,
           highlightId: 'test-highlight',
           startOffset: 10,
           endOffset: 26
         }
         const wrapper = mount(ASTNode, { props: { node } })
         expect(wrapper.attributes('data-highlight-id')).toBe('test-highlight')
-        expect(wrapper.attributes('style')).toContain('background-color: #00ff00')
+        expect(wrapper.attributes('style')).toContain('background-color: var(--color-highlight-1)')
         expect(wrapper.attributes('data-md-start')).toBe('10')
         expect(wrapper.attributes('data-md-end')).toBe('26')
       })

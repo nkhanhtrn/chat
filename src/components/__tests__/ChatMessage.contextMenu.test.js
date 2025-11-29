@@ -30,7 +30,7 @@ describe('ChatMessage context menu integration', () => {
   })
 
   describe('Text Selection Behavior', () => {
-    it('showContextMenu does NOT create highlight immediately when text is selected', () => {
+    it('showContextMenu does NOT create permanent highlight immediately when text is selected', () => {
       const mockSelectionHelper = vi.fn(() => ({
         selectedText: 'test selection',
         x: 100,
@@ -59,9 +59,63 @@ describe('ChatMessage context menu integration', () => {
       expect(state.contextMenu.x).toBe(100)
       expect(state.contextMenu.y).toBe(200)
 
-      // But NO highlight should be created yet
+      // But NO permanent highlight should be created yet
       expect(state.contextMenu.highlightId).toBe(null)
       expect(wrapper.vm.$.props.message.customContent).toEqual([])
+    })
+
+    it('showContextMenu creates temporary highlight when text is selected', () => {
+      const mockSelectionHelper = vi.fn(() => ({
+        selectedText: 'temp text',
+        x: 100,
+        y: 200,
+        visible: true,
+        startOffset: 5,
+        endOffset: 14
+      }))
+
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: { id: '1', question: 'Q', response: 'Some temp text here', customContent: [] },
+          getSelectedTextAndPosition: mockSelectionHelper
+        },
+        global: { plugins: [createPinia()] }
+      })
+
+      wrapper.vm.showContextMenu()
+      const state = getState(wrapper)
+
+      // Temporary highlight should be created
+      expect(state.tempHighlight).not.toBe(null)
+      expect(state.tempHighlight.id).toBe('__temp_highlight__')
+      expect(state.tempHighlight.type).toBe('highlight')
+      expect(state.tempHighlight.text).toBe('temp text')
+      expect(state.tempHighlight.startOffset).toBe(5)
+      expect(state.tempHighlight.endOffset).toBe(14)
+    })
+
+    it('showContextMenu clears browser selection when creating temp highlight', () => {
+      const mockSelectionHelper = vi.fn(() => ({
+        selectedText: 'selected',
+        x: 50,
+        y: 100,
+        visible: true,
+        startOffset: 0,
+        endOffset: 8
+      }))
+
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: { id: '1', question: 'Q', response: 'selected text', customContent: [] },
+          getSelectedTextAndPosition: mockSelectionHelper
+        },
+        global: { plugins: [createPinia()] }
+      })
+
+      wrapper.vm.showContextMenu()
+
+      // Browser selection should be cleared
+      expect(mockRemoveAllRanges).toHaveBeenCalled()
     })
 
     it('showContextMenu stores offsets for later use', () => {
@@ -124,19 +178,26 @@ describe('ChatMessage context menu integration', () => {
       // Context menu should be closed
       expect(state.contextMenu.visible).toBe(false)
 
-      // Browser selection should be cleared
-      expect(mockRemoveAllRanges).toHaveBeenCalled()
+      // Temporary highlight should be cleared
+      expect(state.tempHighlight).toBe(null)
     })
 
-    it('keepHighlight clears browser text selection', () => {
+    it('keepHighlight clears temporary highlight', () => {
       const state = getState(wrapper)
       state.contextMenu.selectedText = 'text'
       state.contextMenu.startOffset = 0
       state.contextMenu.endOffset = 4
+      state.tempHighlight = {
+        id: '__temp_highlight__',
+        type: 'highlight',
+        text: 'text',
+        startOffset: 0,
+        endOffset: 4
+      }
 
       wrapper.vm.keepHighlight()
 
-      expect(mockRemoveAllRanges).toHaveBeenCalled()
+      expect(state.tempHighlight).toBe(null)
     })
 
     it('keepHighlight does nothing if no valid selection data', () => {
@@ -154,17 +215,24 @@ describe('ChatMessage context menu integration', () => {
   })
 
   describe('Close Context Menu Behavior', () => {
-    it('closeContextMenu clears browser selection', () => {
+    it('closeContextMenu clears temporary highlight', () => {
       const state = getState(wrapper)
       state.contextMenu.visible = true
+      state.tempHighlight = {
+        id: '__temp_highlight__',
+        type: 'highlight',
+        text: 'temp',
+        startOffset: 0,
+        endOffset: 4
+      }
 
       wrapper.vm.closeContextMenu()
 
-      expect(mockRemoveAllRanges).toHaveBeenCalled()
+      expect(state.tempHighlight).toBe(null)
       expect(state.contextMenu.visible).toBe(false)
     })
 
-    it('closeContextMenu removes highlight if one was created', () => {
+    it('closeContextMenu does not remove highlights when closed', () => {
       const state = getState(wrapper)
 
       // Manually create a highlight to simulate the scenario
@@ -184,8 +252,9 @@ describe('ChatMessage context menu integration', () => {
       // Close context menu
       wrapper.vm.closeContextMenu()
 
-      // Highlight should be removed
-      expect(message.customContent.length).toBe(0)
+      // Highlight should NOT be removed
+      expect(message.customContent.length).toBe(1)
+      expect(message.customContent[0].id).toBe(highlightId)
     })
 
     it('closeContextMenu does nothing if no highlight exists', () => {
@@ -200,7 +269,7 @@ describe('ChatMessage context menu integration', () => {
   })
 
   describe('Ask Question Behavior', () => {
-    it('handleAskQuestion clears browser selection', async () => {
+    it('handleAskQuestion clears temporary highlight', async () => {
       const pinia = createPinia()
 
       // Create a properly initialized message in the store
@@ -225,6 +294,13 @@ describe('ChatMessage context menu integration', () => {
       state.contextMenu.selectedText = 'question text'
       state.contextMenu.startOffset = 0
       state.contextMenu.endOffset = 13
+      state.tempHighlight = {
+        id: '__temp_highlight__',
+        type: 'highlight',
+        text: 'question text',
+        startOffset: 0,
+        endOffset: 13
+      }
 
       // Mock the API calls to prevent actual requests
       const mockGetQuestionSummary = vi.fn().mockResolvedValue('Summary')
@@ -237,7 +313,7 @@ describe('ChatMessage context menu integration', () => {
 
       await wrapper.vm.handleAskQuestion('What is this?')
 
-      expect(mockRemoveAllRanges).toHaveBeenCalled()
+      expect(state.tempHighlight).toBe(null)
     })
 
     it('handleAskQuestion uses stored offsets without requiring pre-existing highlight', async () => {
@@ -359,6 +435,23 @@ describe('ChatMessage context menu integration', () => {
       expect(state.contextMenu.y).toBe(400)
     })
 
+    it('handleHighlightClick does NOT create temporary highlight for existing highlights', () => {
+      const highlightData = {
+        highlightId: 'existing-h',
+        text: 'existing text',
+        startOffset: 0,
+        endOffset: 13,
+        x: 100,
+        y: 200
+      }
+
+      wrapper.vm.handleHighlightClick(highlightData)
+      const state = getState(wrapper)
+
+      // Should NOT create a temporary highlight when clicking on existing highlight
+      expect(state.tempHighlight).toBe(null)
+    })
+
     it('handleHighlightClick allows asking question about highlighted text', async () => {
       const pinia = createPinia()
 
@@ -412,6 +505,120 @@ describe('ChatMessage context menu integration', () => {
       await wrapper.vm.handleAskQuestion('What does this mean?')
 
       expect(state.contextMenu.visible).toBe(false)
+    })
+  })
+
+  describe('Temporary Highlight in effectiveCustomContent', () => {
+    it('effectiveCustomContent includes temporary highlight when present', () => {
+      const mockSelectionHelper = vi.fn(() => ({
+        selectedText: 'temp selection',
+        x: 100,
+        y: 200,
+        visible: true,
+        startOffset: 0,
+        endOffset: 14
+      }))
+
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: { id: '1', question: 'Q', response: 'temp selection here', customContent: [] },
+          getSelectedTextAndPosition: mockSelectionHelper
+        },
+        global: { plugins: [createPinia()] }
+      })
+
+      wrapper.vm.showContextMenu()
+
+      const effectiveContent = wrapper.vm.effectiveCustomContent
+      expect(effectiveContent.length).toBe(1)
+      expect(effectiveContent[0].id).toBe('__temp_highlight__')
+    })
+
+    it('effectiveCustomContent merges temp highlight with existing customContent', () => {
+      const existingHighlight = {
+        id: 'existing-h',
+        type: 'highlight',
+        text: 'existing',
+        colorIndex: 1,
+        startOffset: 20,
+        endOffset: 28
+      }
+
+      const mockSelectionHelper = vi.fn(() => ({
+        selectedText: 'new selection',
+        x: 100,
+        y: 200,
+        visible: true,
+        startOffset: 0,
+        endOffset: 13
+      }))
+
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: { id: '1', question: 'Q', response: 'new selection text existing', customContent: [existingHighlight] },
+          getSelectedTextAndPosition: mockSelectionHelper
+        },
+        global: { plugins: [createPinia()] }
+      })
+
+      wrapper.vm.showContextMenu()
+
+      const effectiveContent = wrapper.vm.effectiveCustomContent
+      expect(effectiveContent.length).toBe(2)
+      expect(effectiveContent[0].id).toBe('existing-h')
+      expect(effectiveContent[1].id).toBe('__temp_highlight__')
+    })
+
+    it('effectiveCustomContent returns only customContent when no temp highlight', () => {
+      const existingHighlight = {
+        id: 'h-1',
+        type: 'highlight',
+        text: 'text',
+        colorIndex: 0,
+        startOffset: 0,
+        endOffset: 4
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: { id: '1', question: 'Q', response: 'text here', customContent: [existingHighlight] }
+        },
+        global: { plugins: [createPinia()] }
+      })
+
+      const effectiveContent = wrapper.vm.effectiveCustomContent
+      expect(effectiveContent.length).toBe(1)
+      expect(effectiveContent[0].id).toBe('h-1')
+    })
+
+    it('temporary highlight always uses first color (index 0)', () => {
+      const mockSelectionHelper = vi.fn(() => ({
+        selectedText: 'colored text',
+        x: 100,
+        y: 200,
+        visible: true,
+        startOffset: 0,
+        endOffset: 12
+      }))
+
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: { id: '1', question: 'Q', response: 'colored text here', customContent: [] },
+          getSelectedTextAndPosition: mockSelectionHelper
+        },
+        global: { plugins: [createPinia()] }
+      })
+
+      // Set a non-default color index before selecting
+      const state = getState(wrapper)
+      state.contextMenu.colorIndex = 3
+
+      wrapper.vm.showContextMenu()
+
+      // Temp highlight should always use first color, regardless of contextMenu.colorIndex
+      expect(state.tempHighlight.colorIndex).toBe(0)
+      // But the context menu colorIndex should remain unchanged
+      expect(state.contextMenu.colorIndex).toBe(3)
     })
   })
 })

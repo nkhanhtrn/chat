@@ -189,7 +189,7 @@ const cancelEditing = () => {
 }
 
 .chat-sidebar.collapsed .sidebar-header {
-  padding: 0.75rem;
+  padding: 0.4rem 0.75rem;
 }
 
 .new-chat-button {
