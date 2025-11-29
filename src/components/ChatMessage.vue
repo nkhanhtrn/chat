@@ -54,7 +54,8 @@ import { useChatStore } from '../stores/chat.js'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import ContextMenu from './ContextMenu.vue'
 import MessageNavigation from './MessageNavigation.vue'
-import { getQuestionSummary, sendChatMessage } from '../services/api.js'
+import { sendChatMessage } from '../services/api.js'
+import { getShortenContentPrompts } from '../services/extraPrompt.js'
 import Message from '../stores/Message.js'
 import { getSelectedTextAndPosition as getSelectionWithOffsets } from '../services/DOMSelectionHelper.js'
 
@@ -264,23 +265,10 @@ async function handleAskQuestion(question) {
   state.isChildStreaming = true
   state.error = null
 
-  // Call getQuestionSummary and sendChatMessage sequentially
   try {
-    const summary = await getQuestionSummary(question, chatStore.currentModel)
+    messages = getShortenContentPrompts(question);
+    const summary = await sendChatMessage(question, chatStore.currentModel, messages)
     chatStore.setQuestionSummarized(childMsg.id, summary)
-  } catch (err) {
-    state.error = err.message
-  }
-
-  try {
-    await sendChatMessage(
-      question,
-      chatStore.currentModel,
-      (chunk) => {
-        // Update via store
-        chatStore.appendToResponse(childMsg.id, chunk)
-      }
-    )
   } catch (err) {
     state.error = err.message
   } finally {

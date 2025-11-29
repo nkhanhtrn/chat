@@ -1,6 +1,10 @@
 <template>
   <span class="inline-code-wrapper">
-    <code :class="['inline-code', { flashing: isFlashing }]">
+    <code
+      :class="['inline-code', { flashing: isFlashing }]"
+      :data-md-start="startOffset"
+      :data-md-end="endOffset"
+    >
       <slot>{{ content }}</slot>
     </code>
     <Button @click="copyCode" class="copy-btn" title="Copy code" variant="tertiary">
@@ -24,6 +28,14 @@ export default {
     content: {
       type: String,
       default: ''
+    },
+    startOffset: {
+      type: Number,
+      default: undefined
+    },
+    endOffset: {
+      type: Number,
+      default: undefined
     }
   },
   data() {

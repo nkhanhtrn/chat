@@ -38,34 +38,7 @@ export const fetchModels = async () => {
   }
 }
 
-export const getQuestionSummary = async (question, model) => {
-  const summaryPrompt = `Summarize the following in 2-5 words, no formatting, no punctuation, just the words:\n${question}`;
-  const messages = [
-    { role: 'user', content: summaryPrompt }
-  ];
-  try {
-    const response = await api.post('/v1/chat/completions', {
-      model: model,
-      messages: messages,
-      temperature: 0.7,
-      max_tokens: 100,
-      stream: false
-    });
-    if (response.data.choices && response.data.choices.length > 0) {
-      return response.data.choices[0].message.content.trim();
-    } else {
-      throw new Error('No summary response from model');
-    }
-  } catch (error) {
-    throw new Error(error.response?.data?.error?.message || 'Failed to get summary');
-  }
-};
-
-export const sendChatMessage = async (question, model, onChunk = null) => {
-  // Only send the question and return the answer
-  const messages = [
-    { role: 'user', content: question }
-  ];
+export const sendChatMessage = async (question, model, messages, onChunk = null) => {
   try {
     if (!onChunk) {
       const response = await api.post('/v1/chat/completions', {

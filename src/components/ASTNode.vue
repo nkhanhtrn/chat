@@ -120,7 +120,9 @@ function getNodeProps(node) {
 
     case 'code_inline':
       return {
-        content: node.content
+        content: node.content,
+        startOffset: node.startOffset,
+        endOffset: node.endOffset
       }
 
     case 'math_block':
