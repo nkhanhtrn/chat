@@ -18,6 +18,7 @@ export const useChatStore = defineStore('chat', {
         messagesById,
         rootMessageIds: savedState.rootMessageIds || [],
         currentMessageId: savedState.currentMessageId || null,
+        currentRootIndex: savedState.currentRootIndex || 0,
         isStreaming: false,
         error: null,
         currentModel: savedState.currentModel || null,
@@ -36,6 +37,7 @@ export const useChatStore = defineStore('chat', {
 
       // Current navigation state
       currentMessageId: null, // Which message is currently being viewed
+      currentRootIndex: 0, // Which root message is currently displayed
 
       // App state
       isStreaming: false,
@@ -75,6 +77,22 @@ export const useChatStore = defineStore('chat', {
       return state.rootMessageIds.map(id => state.messagesById[id]).filter(Boolean)
     },
 
+    // Get the currently displayed root message
+    currentRootMessage: (state) => {
+      const id = state.rootMessageIds[state.currentRootIndex]
+      return id ? state.messagesById[id] : null
+    },
+
+    // Check if can navigate to previous root message
+    canGoToPrevRoot: (state) => {
+      return state.currentRootIndex > 0
+    },
+
+    // Check if can navigate to next root message
+    canGoToNextRoot: (state) => {
+      return state.currentRootIndex < state.rootMessageIds.length - 1
+    },
+
     // Get currently viewed message
     currentMessage: (state) => {
       return state.currentMessageId ? state.messagesById[state.currentMessageId] : null
@@ -111,6 +129,7 @@ export const useChatStore = defineStore('chat', {
       this.messagesById[message.id] = message
       this.rootMessageIds.push(message.id)
       this.currentMessageId = message.id
+      this.currentRootIndex = this.rootMessageIds.length - 1 // Navigate to new message
       this._syncCurrentChat()
       this._persistState()
       return message
@@ -166,34 +185,101 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
-    // Navigation actions
-    navigateToMessage(messageId) {
-      if (this.messagesById[messageId]) {
-        this.currentMessageId = messageId
+    // Save scroll position for a message
+    saveScrollPosition(messageId, scrollPosition) {
+      const message = this.messagesById[messageId]
+      if (message) {
+        message.scrollPosition = scrollPosition
+        this._persistState()
       }
     },
 
-    navigateToParent(messageId = this.currentMessageId) {
+    // Navigation actions
+    // Returns the scroll position of the target message
+    navigateToMessage(messageId, currentScrollPosition = null) {
+      if (this.messagesById[messageId]) {
+        // Save scroll position of current message before navigating
+        if (currentScrollPosition !== null && this.currentMessageId) {
+          this.messagesById[this.currentMessageId].scrollPosition = currentScrollPosition
+        }
+        this.currentMessageId = messageId
+        this._persistState()
+        return this.messagesById[messageId].scrollPosition || 0
+      }
+      return 0
+    },
+
+    navigateToParent(messageId = this.currentMessageId, currentScrollPosition = null) {
       const message = this.messagesById[messageId]
       if (message?.parentId) {
+        // Save scroll position of current message before navigating
+        if (currentScrollPosition !== null && this.currentMessageId) {
+          this.messagesById[this.currentMessageId].scrollPosition = currentScrollPosition
+        }
         this.currentMessageId = message.parentId
+        this._persistState()
+        return this.messagesById[message.parentId].scrollPosition || 0
       }
+      return 0
     },
 
-    navigateToLastVisitedChild(messageId = this.currentMessageId) {
+    navigateToLastVisitedChild(messageId = this.currentMessageId, currentScrollPosition = null) {
       const message = this.messagesById[messageId]
       if (message && message.lastVisitedChild) {
+        // Save scroll position of current message before navigating
+        if (currentScrollPosition !== null && this.currentMessageId) {
+          this.messagesById[this.currentMessageId].scrollPosition = currentScrollPosition
+        }
         this.currentMessageId = message.lastVisitedChild
+        this._persistState()
+        return this.messagesById[message.lastVisitedChild].scrollPosition || 0
       }
+      return 0
     },
 
-    navigateToChild(messageId, childIndex) {
+    navigateToChild(messageId, childIndex, currentScrollPosition = null) {
       const message = this.messagesById[messageId]
       if (message?.childIds?.[childIndex]) {
+        // Save scroll position of current message before navigating
+        if (currentScrollPosition !== null && this.currentMessageId) {
+          this.messagesById[this.currentMessageId].scrollPosition = currentScrollPosition
+        }
         this.currentMessageId = message.childIds[childIndex]
         this.messagesById[messageId].lastVisitedChild = this.currentMessageId
         this._persistState()
+        return this.messagesById[this.currentMessageId].scrollPosition || 0
       }
+      return 0
+    },
+
+    // Navigate to previous root message
+    goToPrevRoot(currentScrollPosition = null) {
+      if (this.currentRootIndex > 0) {
+        // Save scroll position of current message before navigating
+        if (currentScrollPosition !== null && this.currentMessageId) {
+          this.messagesById[this.currentMessageId].scrollPosition = currentScrollPosition
+        }
+        this.currentRootIndex--
+        const newRootId = this.rootMessageIds[this.currentRootIndex]
+        this._persistState()
+        return newRootId ? (this.messagesById[newRootId].scrollPosition || 0) : 0
+      }
+      return 0
+    },
+
+    // Navigate to next root message
+    goToNextRoot(currentScrollPosition = null) {
+      if (this.currentRootIndex < this.rootMessageIds.length - 1) {
+        // Save scroll position of current message before navigating
+        if (currentScrollPosition !== null && this.currentMessageId) {
+          this.messagesById[this.currentMessageId].scrollPosition = currentScrollPosition
+        }
+        this.currentRootIndex++
+        const newRootId = this.rootMessageIds[this.currentRootIndex]
+        this._persistState()
+        return newRootId ? (this.messagesById[newRootId].scrollPosition || 0) : 0
+      }
+      return 0
     },
 
     // Remove a root message and its entire tree
@@ -210,6 +296,11 @@ export const useChatStore = defineStore('chat', {
       // Clear current message if it was removed
       if (this.currentMessageId === messageId) {
         this.currentMessageId = null
+      }
+
+      // Adjust currentRootIndex if needed
+      if (this.currentRootIndex >= this.rootMessageIds.length) {
+        this.currentRootIndex = Math.max(0, this.rootMessageIds.length - 1)
       }
 
       this._persistState()
@@ -251,6 +342,7 @@ export const useChatStore = defineStore('chat', {
         messagesById: this.messagesById,
         rootMessageIds: this.rootMessageIds,
         currentMessageId: this.currentMessageId,
+        currentRootIndex: this.currentRootIndex,
         currentModel: this.currentModel,
         chats: this.chats,
         currentChatId: this.currentChatId,
@@ -286,6 +378,7 @@ export const useChatStore = defineStore('chat', {
         this.currentChatId = chatId
         this.rootMessageIds = [...chat.rootMessageIds]
         this.currentMessageId = null
+        this.currentRootIndex = 0 // Reset to first root message
         this._persistState()
       }
     },

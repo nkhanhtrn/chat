@@ -49,7 +49,7 @@
 </template>
 
 <script setup>
-import { reactive, computed } from 'vue'
+import { reactive, computed, inject } from 'vue'
 import { useChatStore } from '../stores/chat.js'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import ContextMenu from './ContextMenu.vue'
@@ -75,6 +75,8 @@ const props = defineProps({
 })
 
 const chatStore = useChatStore()
+const getScrollPosition = inject('getScrollPosition', () => 0)
+const setScrollPosition = inject('setScrollPosition', () => {})
 
 const state = reactive({
   isChildStreaming: false,
@@ -307,7 +309,8 @@ async function handleAskQuestion(question) {
 }
 
 function navigateToChild(childIndex) {
-  chatStore.navigateToChild(currentMessage.value?.id, childIndex)
+  const scrollPos = chatStore.navigateToChild(currentMessage.value?.id, childIndex, getScrollPosition())
+  setScrollPosition(scrollPos)
 }
 
 function handleHighlightClick(highlightData) {

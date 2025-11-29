@@ -1230,7 +1230,7 @@ describe('Markdown Components', () => {
     })
 
     describe('Event Handling', () => {
-      it('should bubble click event from QuestionLinkSpan', async () => {
+      it('should emit question-link-click when QuestionLinkSpan is clicked', async () => {
         const wrapper = mount(TableCell, {
           props: {
             children: [
@@ -1249,9 +1249,13 @@ describe('Markdown Components', () => {
         const questionLink = wrapper.findComponent(QuestionLinkSpan)
         await questionLink.trigger('click')
 
-        // QuestionLinkSpan emits 'click' event, not 'question-link-click'
+        // QuestionLinkSpan emits 'click', which TableCell converts to 'question-link-click'
         expect(questionLink.emitted('click')).toBeTruthy()
         expect(questionLink.emitted('click')[0]).toEqual([5])
+
+        // TableCell should emit question-link-click for navigation
+        expect(wrapper.emitted('question-link-click')).toBeTruthy()
+        expect(wrapper.emitted('question-link-click')[0]).toEqual([5])
       })
 
       it('should bubble question-link-click from nested TableCell children', async () => {

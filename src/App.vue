@@ -28,12 +28,33 @@
           </div>
         </div>
 
-        <ChatMessage
-          v-for="(message, index) in chatStore.rootMessages"
-          :key="message.id"
-          :message="message"
-          :is-app-streaming="chatStore.isStreaming && index === chatStore.rootMessages.length - 1"
-        />
+        <div v-if="chatStore.currentRootMessage" class="root-message-container">
+          <div class="root-nav">
+            <Button
+              @click="handlePrevRoot"
+              :disabled="!chatStore.canGoToPrevRoot"
+              class="root-nav-btn"
+              variant="tertiary"
+              title="Previous question"
+            >&lt;</Button>
+            <span class="root-nav-indicator">
+              {{ chatStore.currentRootIndex + 1 }} / {{ chatStore.rootMessages.length }}
+            </span>
+            <Button
+              @click="handleNextRoot"
+              :disabled="!chatStore.canGoToNextRoot"
+              class="root-nav-btn"
+              variant="tertiary"
+              title="Next question"
+            >&gt;</Button>
+          </div>
+
+          <ChatMessage
+            :key="chatStore.currentRootMessage.id"
+            :message="chatStore.currentRootMessage"
+            :is-app-streaming="chatStore.isStreaming && chatStore.currentRootIndex === chatStore.rootMessages.length - 1"
+          />
+        </div>
 
         <div v-if="error" class="error-message">
           {{ error }}
@@ -50,10 +71,11 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted } from 'vue'
+import { ref, nextTick, onMounted, provide } from 'vue'
 import ChatMessage from './components/ChatMessage.vue'
 import ChatInput from './components/ChatInput.vue'
 import ChatSidebar from './components/ChatSidebar.vue'
+import Button from './components/Button.vue'
 import { sendChatMessage, fetchModels } from './services/api.js'
 import { useChatStore } from './stores/chat.js'
 import DevToolbar from './components/DevToolbar.vue'
@@ -95,6 +117,22 @@ const scrollToBottom = () => {
     }
   })
 }
+
+const getScrollPosition = () => {
+  return messagesContainer.value?.scrollTop || 0
+}
+
+const setScrollPosition = (position) => {
+  nextTick(() => {
+    if (messagesContainer.value) {
+      messagesContainer.value.scrollTop = position
+    }
+  })
+}
+
+// Provide scroll functions to child components
+provide('getScrollPosition', getScrollPosition)
+provide('setScrollPosition', setScrollPosition)
 
 const handleSendMessage = async (userMessage) => {
   if (!userMessage.trim() || chatStore.isStreaming) return false
@@ -147,8 +185,18 @@ const handleSelectChat = (chatId) => {
 }
 
 const handleSelectQuestion = (questionId) => {
-  chatStore.navigateToMessage(questionId)
-  scrollToBottom()
+  const scrollPos = chatStore.navigateToMessage(questionId, getScrollPosition())
+  setScrollPosition(scrollPos)
+}
+
+const handlePrevRoot = () => {
+  const scrollPos = chatStore.goToPrevRoot(getScrollPosition())
+  setScrollPosition(scrollPos)
+}
+
+const handleNextRoot = () => {
+  const scrollPos = chatStore.goToNextRoot(getScrollPosition())
+  setScrollPosition(scrollPos)
 }
 
 const handleDeleteChat = (chatId) => {
@@ -299,5 +347,32 @@ const handleRenameChat = (chatId, newTitle) => {
   font-family: 'Georgia', serif;
   font-size: 0.95rem;
   line-height: 1.6;
+}
+
+.root-message-container {
+  position: relative;
+}
+
+.root-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 0.5rem;
+}
+
+.root-nav-btn {
+  font-size: 1.2rem;
+  font-weight: bold;
+  min-width: 2.5rem;
+}
+
+.root-nav-indicator {
+  font-size: 0.95rem;
+  color: var(--color-text-muted);
+  font-family: system-ui, -apple-system, sans-serif;
+  min-width: 4rem;
+  text-align: center;
 }
 </style>

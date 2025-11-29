@@ -7,16 +7,8 @@ import { useChatStore } from '../../stores/chat.js'
 import Button from '../Button.vue'
 
 
-const makeMessages = () => ([
-  { id: '1', question: 'Root', questionSummarized: 'Root', parentId: null },
-  { id: '2', question: 'Child', questionSummarized: 'Child', parentId: '1' },
-  { id: '3', question: 'Last', questionSummarized: 'Last', parentId: '2' },
-])
-
-
 describe('MessageNavigation', () => {
   let chatStore
-  let messages
 
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -24,7 +16,7 @@ describe('MessageNavigation', () => {
     const Message = require('../../stores/Message.js').default
     // Use Message class instances for correct property behavior
     const msg1 = new Message({ id: '1', question: 'Root', response: '', parentId: null, childIds: ['2'] })
-    const msg2 = new Message({ id: '2', question: 'Child', response: '', parentId: '1', childIds: [] })
+    const msg2 = new Message({ id: '2', question: 'Child', response: '', parentId: '1', childIds: ['3'] })
     const msg3 = new Message({ id: '3', question: 'Last', response: '', parentId: '2', childIds: [] })
     msg1.lastVisitedChild = '2'
     chatStore.messagesById = {
@@ -32,62 +24,59 @@ describe('MessageNavigation', () => {
       '2': msg2,
       '3': msg3
     }
-    chatStore.navigateToMessage = vi.fn()
-    chatStore.navigateToParent = vi.fn()
-    chatStore.navigateToLastVisitedChild = vi.fn()
+    chatStore.navigateToMessage = vi.fn().mockReturnValue(0)
+    chatStore.navigateToParent = vi.fn().mockReturnValue(0)
+    chatStore.navigateToLastVisitedChild = vi.fn().mockReturnValue(0)
   })
 
   function mountComponent(currentMessageId = '1') {
     const currentMessage = chatStore.messagesById[currentMessageId]
     return mount(MessageNavigation, {
       props: { currentMessage },
+      global: {
+        provide: {
+          getScrollPosition: () => 0,
+          setScrollPosition: () => {}
+        }
+      }
     })
   }
 
-  describe('Home Button', () => {
-    it('should render home button as first breadcrumb item', () => {
-      const wrapper = mountComponent('1')
-      const homeButton = wrapper.find('.home-button')
-      expect(homeButton.exists()).toBe(true)
-    })
-
-    it('should render home button with tertiary variant', () => {
-      const wrapper = mountComponent('1')
-      const homeButton = wrapper.findComponent(Button)
-      expect(homeButton.props('variant')).toBe('tertiary')
-    })
-
-    it('should render home button with SVG icon', () => {
-      const wrapper = mountComponent('1')
-      const homeButton = wrapper.find('.home-button')
-      const svg = homeButton.find('svg')
+  describe('Home Button (First Breadcrumb Item)', () => {
+    it('should render first breadcrumb item with home icon (SVG)', () => {
+      const wrapper = mountComponent('2')
+      const items = wrapper.findAll('.breadcrumb-item')
+      expect(items.length).toBeGreaterThan(0)
+      const firstItem = items[0]
+      const svg = firstItem.find('svg')
       expect(svg.exists()).toBe(true)
     })
 
-    it('should have correct title attribute on home button', () => {
+    it('should render first breadcrumb with tertiary variant', () => {
       const wrapper = mountComponent('1')
-      const homeButton = wrapper.find('.home-button')
-      expect(homeButton.attributes('title')).toBe('Root')
+      const buttons = wrapper.findAllComponents(Button)
+      expect(buttons.length).toBeGreaterThan(0)
+      expect(buttons[0].props('variant')).toBe('tertiary')
     })
 
-    it('should navigate to root message when home button is clicked', async () => {
+    it('should have correct title attribute on first breadcrumb item', () => {
       const wrapper = mountComponent('2')
-      const homeButton = wrapper.find('.home-button')
-      await homeButton.trigger('click')
-      expect(chatStore.navigateToMessage).toHaveBeenCalledWith('1')
+      const items = wrapper.findAll('.breadcrumb-item')
+      expect(items[0].attributes('title')).toBe('Root')
     })
 
-    it('should render home button even when it is the current message', () => {
-      const wrapper = mountComponent('1')
-      const homeButton = wrapper.find('.home-button')
-      expect(homeButton.exists()).toBe(true)
+    it('should navigate to root message when first breadcrumb item is clicked', async () => {
+      const wrapper = mountComponent('2')
+      const items = wrapper.findAll('.breadcrumb-item')
+      await items[0].trigger('click')
+      expect(chatStore.navigateToMessage).toHaveBeenCalledWith('1', expect.any(Number))
     })
 
-    it('should apply home-button class for styling', () => {
+    it('should render only first breadcrumb item when viewing root message', () => {
       const wrapper = mountComponent('1')
-      const homeButton = wrapper.find('.home-button')
-      expect(homeButton.classes()).toContain('home-button')
-      expect(homeButton.classes()).toContain('btn-tertiary')
+      const items = wrapper.findAll('.breadcrumb-item')
+      // Only the root message itself (with home icon)
+      expect(items.length).toBe(1)
     })
   })
 
@@ -106,31 +95,24 @@ describe('MessageNavigation', () => {
     })
 
     it('should not render separator after last breadcrumb item', () => {
-      const wrapper = mountComponent('1')
-      const breadcrumb = wrapper.find('.breadcrumb')
-      const items = breadcrumb.findAll('.breadcrumb-item')
-
-      // Total items = home button + breadcrumb items
-      const totalItems = 1 + items.length
-      const separators = breadcrumb.findAll('.breadcrumb-sep')
+      const wrapper = mountComponent('2')
+      const items = wrapper.findAll('.breadcrumb-item')
+      const separators = wrapper.findAll('.breadcrumb-sep')
 
       // Separators should be one less than total items
-      expect(separators.length).toBe(totalItems - 1)
+      expect(separators.length).toBe(items.length - 1)
     })
   })
 
   describe('Breadcrumb Styles', () => {
-    it('last breadcrumb is grey and no underline if not active', async () => {
-      // currentMessage is '1', breadcrumb: 1 (home button/active), 2 (lastVisitedChild, not active)
-      const wrapper = mountComponent('1')
+    it('current message breadcrumb should have active class', async () => {
+      // currentMessage is '2', breadcrumb: Root (home icon), Child (active)
+      const wrapper = mountComponent('2')
       const items = wrapper.findAll('.breadcrumb-item')
-      // Note: home button is NOT a breadcrumb-item, so we only count text breadcrumbs
-      expect(items.length).toBe(1) // Only item '2' (lastVisitedChild)
+      expect(items.length).toBe(2) // Root + Child
       const last = items[items.length - 1]
-      // The last breadcrumb is not active (not currentMessage)
-      expect(last.classes()).not.toContain('active')
-      // Style checks (color and underline) are best-effort in jsdom/happy-dom
-      expect(last.attributes('style') || '').not.toMatch(/underline/i)
+      // The last breadcrumb is active (currentMessage)
+      expect(last.classes()).toContain('active')
     })
 
     it('last breadcrumb is normal if active', async () => {
@@ -142,21 +124,24 @@ describe('MessageNavigation', () => {
       expect(last.attributes('style') || '').not.toMatch(/#aaa|170/)
     })
 
-    it('last breadcrumb is clickable even if grey', async () => {
-      // currentMessage is '1', last breadcrumb is '2' (not active)
-      const wrapper = mountComponent('1')
+    it('non-active breadcrumb is clickable', async () => {
+      // currentMessage is '3', breadcrumb: Root, Child, Last
+      // Click on 'Child' which is not active
+      const wrapper = mountComponent('3')
       const items = wrapper.findAll('.breadcrumb-item')
-      const last = items[items.length - 1]
-      expect(last.classes()).not.toContain('active')
-      await last.trigger('click')
-      expect(chatStore.navigateToMessage).toHaveBeenCalledWith('2')
+      const childItem = items[1] // 'Child' which is not active
+      expect(childItem.classes()).not.toContain('active')
+      await childItem.trigger('click')
+      // navigateToMessage is called with messageId and current scroll position
+      expect(chatStore.navigateToMessage).toHaveBeenCalledWith('2', expect.any(Number))
     })
 
     it('breadcrumb items should have questionSummarized text', () => {
       const wrapper = mountComponent('2')
       const items = wrapper.findAll('.breadcrumb-item')
-      expect(items.length).toBeGreaterThan(0)
-      expect(items[0].text()).toBe('Child')
+      expect(items.length).toBe(2)
+      // Second item (idx=1) shows questionSummarized
+      expect(items[1].text()).toBe('Child')
     })
 
     it('active breadcrumb should have active class', () => {
@@ -171,25 +156,22 @@ describe('MessageNavigation', () => {
   describe('Navigation Path', () => {
     it('should show full path from root to current message', () => {
       const wrapper = mountComponent('3')
-      // Should have: home button + Child + Last
-      const homeButton = wrapper.find('.home-button')
+      // Should have: Root (home icon) + Child + Last
       const items = wrapper.findAll('.breadcrumb-item')
 
-      expect(homeButton.exists()).toBe(true)
-      expect(items.length).toBe(2) // Child and Last
-      expect(items[0].text()).toBe('Child')
-      expect(items[1].text()).toBe('Last')
+      expect(items.length).toBe(3) // Root, Child, and Last
+      // First item has SVG (home icon)
+      expect(items[0].find('svg').exists()).toBe(true)
+      expect(items[1].text()).toBe('Child')
+      expect(items[2].text()).toBe('Last')
     })
 
-    it('should show lastVisitedChild if present', () => {
+    it('should only show path up to current message without lastVisitedChild', () => {
       const wrapper = mountComponent('1')
-      // msg1.lastVisitedChild = '2', so should show: home button (id=1, active) + Child (id=2, not active)
-      const homeButton = wrapper.find('.home-button')
+      // msg1.lastVisitedChild = '2', but we only show path to current message
       const items = wrapper.findAll('.breadcrumb-item')
 
-      expect(homeButton.exists()).toBe(true)
-      expect(items.length).toBe(1) // Only Child (lastVisitedChild)
-      expect(items[0].text()).toBe('Child')
+      expect(items.length).toBe(1) // Only Root (current message)
     })
   })
 })

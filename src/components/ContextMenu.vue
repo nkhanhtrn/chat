@@ -8,7 +8,7 @@
         @mousedown.stop
       >
         <div class="context-menu-row">
-          <Button class="context-menu-btn" @click="onHighlightAction" :disabled="isStreaming" variant="tertiary">{{ hasExistingHighlight ? 'Remove' : 'Highlight' }}</Button>
+          <Button class="context-menu-btn" @click="onHighlightAction" variant="tertiary">{{ hasExistingHighlight ? 'Remove' : 'Highlight' }}</Button>
           <div class="color-picker">
             <button
               v-for="(color, index) in highlightColors"
@@ -21,7 +21,7 @@
             ></button>
           </div>
         </div>
-        <Button class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming" variant="tertiary">Ask Question</Button>
+        <Button class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming" variant="tertiary">Explain</Button>
         <div class="custom-prompt-wrapper">
             <input
               ref="customPromptInput"

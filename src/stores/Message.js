@@ -11,7 +11,7 @@ export default class Message {
     });
   }
 
-  constructor({ id, question, response, parentId = null, childIds = [], highlightedText = null, questionSummarized = null, lastVisitedChild = null, customContent = [] }) {
+  constructor({ id, question, response, parentId = null, childIds = [], highlightedText = null, questionSummarized = null, lastVisitedChild = null, customContent = [], scrollPosition = 0 }) {
     this.id = id
     this.question = question
     this.questionSummarized = questionSummarized || (question.length > 100 ? question.slice(0, 100) + '...' : question)
@@ -21,6 +21,7 @@ export default class Message {
     this.highlightedText = highlightedText
     this.lastVisitedChild = lastVisitedChild
     this.customContent = customContent // Array of custom content items (highlights, notes, etc.)
+    this.scrollPosition = scrollPosition // Scroll position when viewing this message
   }
 
   // Check if this message has any children

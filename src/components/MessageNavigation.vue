@@ -7,48 +7,32 @@
           <Button
             v-if="idx === 0"
             @click="navigateToBreadcrumb(msg.id)"
-            class="home-button"
+            class="breadcrumb-item"
             :title="msg.question"
             variant="tertiary"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" style="vertical-align: middle;"><polygon points="12,6 6,12 7.5,12 7.5,18 16.5,18 16.5,12 18,12" fill="currentColor"/><rect x="9.5" y="13.5" width="5" height="4.5" rx="1" fill="currentColor"/><rect x="11.25" y="15.5" width="1.5" height="2.5" rx="0.5" fill="#fff"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M3 12l9-9 9 9"/><path d="M5 10v10a1 1 0 001 1h12a1 1 0 001-1V10"/></svg>
           </Button>
-          <span
+          <Button
             v-else
             class="breadcrumb-item"
             :class="{ active: msg.id === currentMessage.id }"
             @click="navigateToBreadcrumb(msg.id)"
             :title="msg.question"
+            variant="tertiary"
           >
             {{ msg.questionSummarized }}
-          </span>
+          </Button>
           <span v-if="idx < breadcrumbMessages.length - 1" class="breadcrumb-sep">&gt;</span>
         </template>
       </div>
     </div>
 
-    <!-- Navigation Buttons -->
-    <div v-if="currentMessage" class="nav-buttons">
-      <Button
-        @click="switchToParent"
-        class="nav-btn nav-arrow"
-        :disabled="!currentMessage.parentId"
-        title="Go to parent message"
-        variant="tertiary"
-      >&lt;</Button>
-      <Button
-        @click="switchToLastVisitedChild"
-        class="nav-btn nav-arrow"
-        :disabled="!currentMessage.hasChildren"
-        title="Go to child message"
-        variant="tertiary"
-      >&gt;</Button>
-    </div>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, inject } from 'vue'
 import { useChatStore } from '../stores/chat.js'
 import Button from './Button.vue'
 
@@ -60,6 +44,8 @@ const props = defineProps({
 })
 
 const chatStore = useChatStore()
+const getScrollPosition = inject('getScrollPosition', () => 0)
+const setScrollPosition = inject('setScrollPosition', () => {})
 
 const breadcrumbMessages = computed(() => {
   const path = []
@@ -71,29 +57,13 @@ const breadcrumbMessages = computed(() => {
     visited.add(msg.id)
     msg = msg.parentId ? chatStore.messagesById[msg.parentId] : null
   }
-  // If lastVisitedChild exists and is not the current message, append it
-  const lastVisitedChildId = props.currentMessage.lastVisitedChild
-  if (
-    lastVisitedChildId &&
-    chatStore.messagesById[lastVisitedChildId] &&
-    lastVisitedChildId !== props.currentMessage.id
-  ) {
-    path.push(chatStore.messagesById[lastVisitedChildId])
-  }
   return path
 })
 
 function navigateToBreadcrumb(id) {
   if (id === props.currentMessage.id) return
-  chatStore.navigateToMessage(id)
-}
-
-function switchToParent() {
-  chatStore.navigateToParent(props.currentMessage?.id)
-}
-
-function switchToLastVisitedChild() {
-  chatStore.navigateToLastVisitedChild(props.currentMessage?.id)
+  const scrollPos = chatStore.navigateToMessage(id, getScrollPosition())
+  setScrollPosition(scrollPos)
 }
 </script>
 
@@ -112,37 +82,9 @@ function switchToLastVisitedChild() {
   user-select: none;
 }
 
-.breadcrumb-item {
-  color: var(--color-accent);
-  cursor: pointer;
-  padding: 0;
-  border-radius: 0;
-  background: none;
-  font-weight: normal;
-  transition: color 0.15s, text-decoration 0.15s;
-}
-
 .breadcrumb-item.active {
-  color: var(--color-text-on-accent);
-  cursor: default;
-  text-decoration: none;
-}
-
-/* Make the last breadcrumb item grey and no underline on hover */
-.breadcrumb-item:last-of-type:not(.active) {
-  color: #aaa !important;
-  cursor: pointer;
-  text-decoration: none !important;
-}
-.breadcrumb-item:last-of-type:not(.active):hover {
-  color: #aaa !important;
-  text-decoration: none !important;
-}
-
-.breadcrumb-item:hover:not(.active) {
-  color: var(--color-accent-hover);
-  text-decoration: underline;
-  background: none;
+  pointer-events: none;
+  opacity: 0.6;
 }
 
 .breadcrumb-sep {
@@ -150,30 +92,5 @@ function switchToLastVisitedChild() {
   font-weight: bold;
   padding: 0 0.25em;
   font-size: 1.1em;
-}
-
-/* Navigation buttons container */
-.nav-buttons {
-  position: absolute;
-  top: 0.5em;
-  right: 0.5em;
-  z-index: 2;
-  display: flex;
-  gap: 0.15em;
-  align-items: center;
-}
-
-/* Navigation button styles */
-.nav-btn.nav-arrow {
-  font-size: 1.2rem;
-  line-height: 1;
-}
-
-/* Home button styles */
-.home-button {
-  padding: 0.15rem 0.4rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 </style>

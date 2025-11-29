@@ -71,6 +71,37 @@ describe('Message', () => {
     })
   })
 
+  describe('scrollPosition', () => {
+    it('stores scrollPosition in constructor', () => {
+      const msg = new Message({
+        id: '1',
+        question: 'Q',
+        response: 'A',
+        scrollPosition: 500
+      })
+      expect(msg.scrollPosition).toBe(500)
+    })
+
+    it('defaults scrollPosition to 0 if not provided', () => {
+      const msg = new Message({ id: '1', question: 'Q', response: 'A' })
+      expect(msg.scrollPosition).toBe(0)
+    })
+
+    it('preserves scrollPosition when reconstructing from persisted data', () => {
+      const msg = new Message({
+        id: '1',
+        question: 'Q',
+        response: 'A',
+        scrollPosition: 750
+      })
+
+      const serialized = JSON.parse(JSON.stringify(msg))
+      const restored = new Message(serialized)
+
+      expect(restored.scrollPosition).toBe(750)
+    })
+  })
+
   describe('hasChildren getter', () => {
     it('returns false when message has no children', () => {
       const msg = new Message({
@@ -200,7 +231,8 @@ describe('Message', () => {
         parentId: 'parent-456',
         childIds: ['child-1', 'child-2', 'child-3'],
         highlightedText: 'some highlighted text',
-        lastVisitedChild: 'child-2'
+        lastVisitedChild: 'child-2',
+        scrollPosition: 425
       }
 
       const msg = new Message(originalData)
@@ -214,6 +246,7 @@ describe('Message', () => {
       expect(msg.childIds).toEqual(originalData.childIds)
       expect(msg.highlightedText).toBe(originalData.highlightedText)
       expect(msg.lastVisitedChild).toBe(originalData.lastVisitedChild)
+      expect(msg.scrollPosition).toBe(originalData.scrollPosition)
 
       // Simulate persistence (JSON serialization/deserialization)
       const serialized = JSON.parse(JSON.stringify(msg))
@@ -228,6 +261,7 @@ describe('Message', () => {
       expect(restored.childIds).toEqual(originalData.childIds)
       expect(restored.highlightedText).toBe(originalData.highlightedText)
       expect(restored.lastVisitedChild).toBe(originalData.lastVisitedChild)
+      expect(restored.scrollPosition).toBe(originalData.scrollPosition)
     })
 
     it('correctly defaults questionSummarized when not provided in persisted data', () => {

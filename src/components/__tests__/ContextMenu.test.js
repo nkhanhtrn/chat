@@ -56,40 +56,27 @@ describe('ContextMenu', () => {
     expect(menu).toBeFalsy()
   })
 
-  it('disables button when isStreaming is true', () => {
-    const wrapper = mount(ContextMenu, { props: { ...baseProps, isStreaming: true }, attachTo: root })
-    const btn = document.body.querySelector('.context-menu-btn')
-    expect(btn).toBeTruthy()
-    expect(btn.disabled).toBe(true)
-  })
-
-  it('enables button when isStreaming is false', () => {
-    const wrapper = mount(ContextMenu, { props: { ...baseProps, isStreaming: false }, attachTo: root })
-    const btn = document.body.querySelector('.context-menu-btn')
-    expect(btn).toBeTruthy()
-    expect(btn.disabled).toBe(false)
-  })
-
-  it('applies disabled styles when streaming', () => {
+  it('disables Ask Question button when isStreaming is true', () => {
     mount(ContextMenu, { props: { ...baseProps, isStreaming: true }, attachTo: root })
-    const btn = document.body.querySelector('.context-menu-btn')
-    expect(btn).toBeTruthy()
-    expect(btn.disabled).toBe(true)
-    // Verify the disabled attribute is present
-    expect(btn.hasAttribute('disabled')).toBe(true)
+    const buttons = document.body.querySelectorAll('.context-menu-btn')
+    const askQuestionBtn = buttons[1] // Second button is "Ask Question"
+    expect(askQuestionBtn).toBeTruthy()
+    expect(askQuestionBtn.disabled).toBe(true)
   })
 
-  it('does not emit highlight when button is disabled and clicked', async () => {
-    const wrapper = mount(ContextMenu, { props: { ...baseProps, isStreaming: true }, attachTo: root })
-    const btn = document.body.querySelector('.context-menu-btn')
-    expect(btn).toBeTruthy()
-    expect(btn.disabled).toBe(true)
+  it('enables Ask Question button when isStreaming is false', () => {
+    mount(ContextMenu, { props: { ...baseProps, isStreaming: false }, attachTo: root })
+    const buttons = document.body.querySelectorAll('.context-menu-btn')
+    const askQuestionBtn = buttons[1]
+    expect(askQuestionBtn).toBeTruthy()
+    expect(askQuestionBtn.disabled).toBe(false)
+  })
 
-    // Try to click the disabled button
-    await btn.click()
-
-    // Should not emit highlight event
-    expect(wrapper.emitted('highlight')).toBeFalsy()
+  it('highlight button is always enabled regardless of streaming', () => {
+    mount(ContextMenu, { props: { ...baseProps, isStreaming: true }, attachTo: root })
+    const highlightBtn = document.body.querySelector('.context-menu-btn')
+    expect(highlightBtn).toBeTruthy()
+    expect(highlightBtn.disabled).toBe(false)
   })
 
   describe('Color Picker', () => {

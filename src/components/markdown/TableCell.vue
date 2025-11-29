@@ -4,6 +4,7 @@
       <component
         :is="getComponent(node.type)"
         v-bind="getNodeProps(node)"
+        @click="handleClick(node, $event)"
         @question-link-click="bubbleQuestionLinkClick"
         @highlight-click="bubbleHighlightClick"
       >
@@ -102,6 +103,11 @@ export default {
           }
         default:
           return {}
+      }
+    },
+    handleClick(node, childIndex) {
+      if (node.type === 'question-link') {
+        this.$emit('question-link-click', childIndex)
       }
     },
     bubbleQuestionLinkClick(childIndex) {
