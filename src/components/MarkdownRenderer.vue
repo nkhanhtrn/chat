@@ -37,6 +37,6 @@ const astTree = computed(() => {
 .markdown-renderer {
   font-family: var(--message-font-family, Georgia, serif);
   font-size: var(--message-font-size, 18px);
-  line-height: 1.7;
+  line-height: var(--message-line-height, 1.7);
 }
 </style>

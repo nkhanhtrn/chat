@@ -386,7 +386,7 @@ function addQuestionLinkToMessage(message, selectedText, childIndex, startOffset
 .message-content {
   padding: 0;
   border-radius: 0;
-  line-height: 1.8;
+  line-height: var(--message-line-height, 1.7);
   text-align: justify;
   hyphens: auto;
 }

@@ -337,6 +337,8 @@ const handleDeleteQuestion = (messageId, chatId) => {
   text-align: center;
   padding: 4rem 2rem;
   color: var(--color-text-welcome);
+  max-width: var(--content-max-width, 800px);
+  margin: 0 auto;
 }
 
 .welcome-message h2 {
@@ -425,6 +427,8 @@ const handleDeleteQuestion = (messageId, chatId) => {
 
 .root-message-container {
   position: relative;
+  max-width: var(--content-max-width, 800px);
+  margin: 0 auto;
 }
 
 .root-nav {

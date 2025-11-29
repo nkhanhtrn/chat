@@ -12,13 +12,19 @@
               <label class="setting-label">Theme</label>
               <div class="button-group">
                 <button
-                  :class="['toggle-button', { active: currentTheme === 'light' }]"
+                  :class="['toggle-button theme-button theme-button-light', { active: currentTheme === 'light' }]"
                   @click="setTheme('light')"
                 >
                   Light
                 </button>
                 <button
-                  :class="['toggle-button', { active: currentTheme === 'dark' }]"
+                  :class="['toggle-button theme-button theme-button-sepia', { active: currentTheme === 'sepia' }]"
+                  @click="setTheme('sepia')"
+                >
+                  Sepia
+                </button>
+                <button
+                  :class="['toggle-button theme-button theme-button-dark', { active: currentTheme === 'dark' }]"
                   @click="setTheme('dark')"
                 >
                   Dark
@@ -59,6 +65,36 @@
                 <span class="font-size-value">{{ fontSize }}</span>
               </div>
             </div>
+            <div class="setting-item">
+              <label class="setting-label">Line Height</label>
+              <div class="slider-wrapper">
+                <span class="slider-label small">≡</span>
+                <input
+                  type="range"
+                  v-model="lineHeight"
+                  min="1.4"
+                  max="2.2"
+                  step="0.1"
+                  class="font-slider"
+                  @input="updateLineHeight"
+                />
+                <span class="slider-label large">≡</span>
+                <span class="font-size-value">{{ lineHeight }}</span>
+              </div>
+            </div>
+            <div class="setting-item">
+              <label class="setting-label">Width</label>
+              <div class="button-group">
+                <button
+                  v-for="option in widthOptions"
+                  :key="option.value"
+                  :class="['toggle-button', { active: contentWidth === option.value }]"
+                  @click="setContentWidth(option.value)"
+                >
+                  {{ option.label }}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -82,12 +118,20 @@ const emit = defineEmits(['update:modelValue'])
 const currentTheme = ref('light')
 const fontSize = ref(18)
 const fontFamily = ref('Georgia, serif')
+const lineHeight = ref(1.7)
+const contentWidth = ref('medium')
 
 const fonts = [
   { label: 'Georgia', value: 'Georgia, serif' },
-  { label: 'Palatino', value: "'Palatino Linotype', Palatino, serif" },
+  { label: 'Charter', value: "'Charis SIL', Charter, Georgia, serif" },
   { label: 'System', value: 'system-ui, -apple-system, sans-serif' },
-  { label: 'Helvetica', value: "'Helvetica Neue', Helvetica, Arial, sans-serif" }
+  { label: 'Inter', value: 'Inter, system-ui, sans-serif' }
+]
+
+const widthOptions = [
+  { label: 'Narrow', value: 'narrow' },
+  { label: 'Medium', value: 'medium' },
+  { label: 'Wide', value: 'wide' }
 ]
 
 const handleKeydown = (e) => {
@@ -107,6 +151,16 @@ onMounted(() => {
   if (savedFontFamily) {
     fontFamily.value = savedFontFamily
     applyFontFamily(savedFontFamily)
+  }
+  const savedLineHeight = localStorage.getItem('messageLineHeight')
+  if (savedLineHeight) {
+    lineHeight.value = parseFloat(savedLineHeight)
+    applyLineHeight(lineHeight.value)
+  }
+  const savedContentWidth = localStorage.getItem('contentWidth')
+  if (savedContentWidth) {
+    contentWidth.value = savedContentWidth
+    applyContentWidth(savedContentWidth)
   }
 })
 
@@ -145,6 +199,30 @@ const setFontFamily = (family) => {
   fontFamily.value = family
   applyFontFamily(family)
   localStorage.setItem('messageFontFamily', family)
+}
+
+const applyLineHeight = (height) => {
+  document.documentElement.style.setProperty('--message-line-height', height.toString())
+}
+
+const updateLineHeight = () => {
+  applyLineHeight(lineHeight.value)
+  localStorage.setItem('messageLineHeight', lineHeight.value.toString())
+}
+
+const applyContentWidth = (width) => {
+  const widthMap = {
+    narrow: '600px',
+    medium: '800px',
+    wide: '1000px'
+  }
+  document.documentElement.style.setProperty('--content-max-width', widthMap[width] || '800px')
+}
+
+const setContentWidth = (width) => {
+  contentWidth.value = width
+  applyContentWidth(width)
+  localStorage.setItem('contentWidth', width)
 }
 
 const close = () => {
@@ -250,6 +328,51 @@ const close = () => {
 .toggle-button.active {
   background: var(--color-bg-active);
   color: var(--color-text-strong);
+}
+
+.theme-button-light {
+  background: #ffffff;
+  color: #333333;
+}
+
+.theme-button-light:hover {
+  background: #f5f5f5;
+}
+
+.theme-button-light.active {
+  background: #f5f5f5;
+  color: #1a1a1a;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+
+.theme-button-sepia {
+  background: #faf6eb;
+  color: #4a3c31;
+}
+
+.theme-button-sepia:hover {
+  background: #f5efe1;
+}
+
+.theme-button-sepia.active {
+  background: #f5efe1;
+  color: #2d2015;
+  box-shadow: inset 0 0 0 1px rgba(92, 74, 61, 0.15);
+}
+
+.theme-button-dark {
+  background: #2a2a2a;
+  color: #d0d0d0;
+}
+
+.theme-button-dark:hover {
+  background: #353535;
+}
+
+.theme-button-dark.active {
+  background: #353535;
+  color: #e0e0e0;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
 .font-grid {

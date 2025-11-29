@@ -3,6 +3,7 @@ import App from './App.vue'
 import './style.css'
 import './theme/colors-light.css'
 import './theme/colors-dark.css'
+import './theme/colors-sepia.css'
 import { createPinia } from 'pinia'
 import { useChatStore } from './stores/chat.js'
 

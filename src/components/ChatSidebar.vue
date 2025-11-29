@@ -162,13 +162,13 @@ const toggleSidebar = () => {
 .chat-sidebar {
   width: 320px;
   height: 100vh;
-  background-color: var(--color-bg-elevated);
-  border-right: 1px solid var(--color-border-base);
+  background-color: var(--color-bg-base);
+  border-right: 1px solid var(--color-border-subtle);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  font-family: 'Georgia', serif;
-  transition: width 0.3s ease;
+  font-family: system-ui, -apple-system, sans-serif;
+  transition: width 0.2s ease;
 }
 
 .chat-sidebar.collapsed {
@@ -177,8 +177,7 @@ const toggleSidebar = () => {
 
 .sidebar-header {
   padding: 1rem;
-  border-bottom: 2px solid var(--color-border-base);
-  background-color: var(--color-bg-tertiary);
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .chat-sidebar.collapsed .sidebar-header {
@@ -201,13 +200,10 @@ const toggleSidebar = () => {
 }
 
 .chat-thread {
-  margin-bottom: 0.5rem;
-  background-color: var(--color-chat-item-bg);
-  border-radius: 6px;
+  margin-bottom: 0;
 }
 
 .chat-thread.active {
-  background-color: var(--color-bg-hover);
 }
 
 .chat-header {
@@ -215,32 +211,34 @@ const toggleSidebar = () => {
   gap: 0.75rem;
   align-items: flex-start;
   padding: 0.5rem 0.75rem;
-  border-left: 3px solid transparent;
-  transition: all 0.2s;
+  transition: all 0.15s;
   user-select: none;
 }
 
 .chat-header:hover {
-  background-color: var(--color-chat-item-hover);
+  background-color: var(--color-bg-hover);
 }
 
 .chat-thread.active .chat-header {
-  background-color: var(--color-bg-active);
-  border-left-color: var(--color-primary);
+  background-color: var(--color-bg-hover);
 }
 
 .chat-title {
-  font-weight: 600;
-  color: var(--color-text-strong);
-  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  font-size: 1rem;
   line-height: 1.4;
   flex: 1;
   cursor: pointer;
-  padding: 0.1rem 0;
+}
+
+.chat-thread.active .chat-title {
+  color: var(--color-text-strong);
+  font-weight: 600;
 }
 
 .chat-title:hover {
-  color: var(--color-primary);
+  color: var(--color-text-strong);
 }
 
 .chat-title-collapsed {
@@ -285,9 +283,9 @@ const toggleSidebar = () => {
 
 .delete-button {
   flex-shrink: 0;
-  width: 1.5rem;
-  height: 1.5rem;
-  font-size: 1.5rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  font-size: 1rem;
   opacity: 0;
 }
 
@@ -296,9 +294,9 @@ const toggleSidebar = () => {
 }
 
 .collapse-icon {
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   color: var(--color-text-muted);
-  transition: all 0.2s;
+  transition: all 0.15s;
   flex-shrink: 0;
   width: 1.5rem;
   height: 1.5rem;
@@ -308,39 +306,31 @@ const toggleSidebar = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 3px;
 }
 
 .collapse-icon:hover {
-  background-color: var(--color-border-subtle);
   color: var(--color-text-strong);
 }
 
 .question-list {
-  margin-top: 0.25rem;
-  padding-left: 0.25rem;
-  margin-left: 0.75rem;
+  padding-left: 1.25rem;
+  margin-left: 0.5rem;
+  border-left: 1px solid var(--color-border-subtle);
 }
 
 .question-item {
   display: flex;
   padding: 0.4rem 0.75rem;
   cursor: pointer;
-  transition: all 0.2s;
-  border-left: 1px solid transparent;
-  margin-left: -2px;
-  border-left-color: var(--color-border-subtle);
+  transition: all 0.15s;
 }
 
 .question-item:hover {
-  background-color: var(--color-chat-item-hover);
-  border-left: 3px solid transparent;
-  border-left-color: var(--color-border-strong);
+  background-color: var(--color-bg-hover);
 }
 
 .question-item.active {
-  background-color: var(--color-bg-selected);
-  border-left-color: var(--color-primary);
+  background-color: var(--color-bg-hover);
 }
 
 .question-item:hover .question-delete {
@@ -352,14 +342,18 @@ const toggleSidebar = () => {
 }
 
 .question-text {
-  font-size: 0.9rem;
-  color: var(--color-text-secondary);
+  font-size: 0.95rem;
+  color: var(--color-text-muted);
   line-height: 1.5;
   flex: 1;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.question-item.active .question-text {
+  color: var(--color-text-secondary);
 }
 
 .question-text-input {
@@ -407,8 +401,7 @@ const toggleSidebar = () => {
 
 .sidebar-footer {
   padding: 0.75rem;
-  border-top: 2px solid var(--color-border-base);
-  background-color: var(--color-bg-tertiary);
+  border-top: 1px solid var(--color-border-subtle);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -423,7 +416,7 @@ const toggleSidebar = () => {
   align-items: center;
   justify-content: center;
   font-size: 1.4rem;
-  font-weight: bold;
+  font-weight: normal;
   color: var(--color-text-muted);
 }
 
