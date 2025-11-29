@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import ChatSidebar from '../ChatSidebar.vue'
 
@@ -1672,6 +1672,190 @@ describe('ChatSidebar', () => {
 
       // Should default to expanded (since 'invalid' !== 'true')
       expect(wrapper.find('.chat-sidebar').classes()).not.toContain('collapsed')
+    })
+  })
+
+  describe('Settings Button', () => {
+    beforeEach(() => {
+      window.__getTheme = vi.fn(() => 'light')
+      window.__setTheme = vi.fn()
+    })
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('should render settings button when sidebar is expanded', () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      expect(wrapper.find('.settings-button').exists()).toBe(true)
+    })
+
+    it('should render settings button with gear icon', () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      const settingsButton = wrapper.find('.settings-button')
+      expect(settingsButton.find('.settings-icon').exists()).toBe(true)
+      expect(settingsButton.find('svg').exists()).toBe(true)
+    })
+
+    it('should hide settings button when sidebar is collapsed', async () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      // Collapse sidebar
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+
+      expect(wrapper.find('.settings-button').exists()).toBe(false)
+    })
+
+    it('should show settings button when sidebar is expanded again', async () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      // Collapse
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+      expect(wrapper.find('.settings-button').exists()).toBe(false)
+
+      // Expand
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+      expect(wrapper.find('.settings-button').exists()).toBe(true)
+    })
+
+    it('should open settings modal when settings button clicked', async () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      await wrapper.find('.settings-button').trigger('click')
+
+      // Modal should be rendered (via SettingsModal component)
+      expect(wrapper.findComponent({ name: 'SettingsModal' }).props('modelValue')).toBe(true)
+    })
+
+    it('should have correct title attribute', () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      expect(wrapper.find('.settings-button').attributes('title')).toBe('Settings')
+    })
+
+    it('should use secondary variant for settings button', () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      const settingsButton = wrapper.find('.settings-button')
+      expect(settingsButton.classes()).toContain('btn-secondary')
+    })
+
+    it('should position settings button on the left side of footer', () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      const footer = wrapper.find('.sidebar-footer')
+      const buttons = footer.findAll('button')
+
+      // Settings button should come before collapse button in DOM order
+      expect(buttons[0].classes()).toContain('settings-button')
+      expect(buttons[1].classes()).toContain('collapse-sidebar-button')
+    })
+
+    it('should render both settings and collapse buttons in footer when expanded', () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      const footer = wrapper.find('.sidebar-footer')
+      expect(footer.find('.settings-button').exists()).toBe(true)
+      expect(footer.find('.collapse-sidebar-button').exists()).toBe(true)
+    })
+
+    it('should only render collapse button in footer when collapsed', async () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+
+      const footer = wrapper.find('.sidebar-footer')
+      expect(footer.find('.settings-button').exists()).toBe(false)
+      expect(footer.find('.collapse-sidebar-button').exists()).toBe(true)
+    })
+  })
+
+  describe('Settings Modal Integration', () => {
+    beforeEach(() => {
+      window.__getTheme = vi.fn(() => 'light')
+      window.__setTheme = vi.fn()
+    })
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('should render SettingsModal component', () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      expect(wrapper.findComponent({ name: 'SettingsModal' }).exists()).toBe(true)
+    })
+
+    it('should initialize with modal closed', () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      expect(wrapper.findComponent({ name: 'SettingsModal' }).props('modelValue')).toBe(false)
+    })
+
+    it('should close modal when SettingsModal emits update:modelValue false', async () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: []
+        }
+      })
+
+      // Open modal
+      await wrapper.find('.settings-button').trigger('click')
+      expect(wrapper.findComponent({ name: 'SettingsModal' }).props('modelValue')).toBe(true)
+
+      // Close modal via emit
+      await wrapper.findComponent({ name: 'SettingsModal' }).vm.$emit('update:modelValue', false)
+      expect(wrapper.findComponent({ name: 'SettingsModal' }).props('modelValue')).toBe(false)
     })
   })
 })

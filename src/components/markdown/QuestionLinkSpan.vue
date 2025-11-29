@@ -47,7 +47,7 @@ function handleClick() {
 .question-link {
   color: var(--color-link-question);
   text-decoration: none;
-  border-bottom: 1px solid red;
+  border-bottom: 1.5px solid red;
   cursor: pointer;
   font-weight: normal;
   transition: all 0.2s ease;
@@ -55,6 +55,6 @@ function handleClick() {
 
 .question-link:hover {
   color: var(--color-link-question-hover);
-  border-bottom: 1px solid var(--color-link-border-hover);
+  border-bottom: 1.5px solid var(--color-link-border-hover);
 }
 </style>

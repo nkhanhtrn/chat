@@ -435,27 +435,4 @@ function addQuestionLinkToMessage(message, selectedText, childIndex, startOffset
     opacity: 0;
   }
 }
-
-/* Question link styles */
-.assistant-message :deep(.question-link) {
-  color: var(--color-link-question);
-  text-decoration: none;
-  border-bottom: 0.5px solid red;
-  cursor: pointer;
-  font-weight: normal;
-  transition: all 0.2s ease;
-}
-
-.assistant-message :deep(.question-link:hover) {
-  color: var(--color-link-question-hover);
-  border-bottom: 0.5px solid var(--color-link-border-hover);
-}
-
-/* Highlight styles */
-.assistant-message :deep(.custom-highlight) {
-  padding: 2px 0;
-  background-color: var(--color-highlight);
-  transition: background-color 0.2s ease;
-}
-
 </style>

@@ -1,0 +1,127 @@
+/* Theme Color Variables - Light Theme */
+:root,
+[data-theme="light"] {
+  /* Primary Brand Colors */
+  --color-primary: #404040;
+  --color-primary-hover: #303030;
+  --color-primary-gradient-start: #505050;
+  --color-primary-gradient-end: #707070;
+
+  /* Accent Colors */
+  --color-accent: #505050;
+  --color-accent-hover: #404040;
+
+  /* Base Backgrounds */
+  --color-bg-base: #fafafa;
+  --color-bg-elevated: #ffffff;
+  --color-bg-secondary: #f5f5f5;
+  --color-bg-tertiary: #eeeeee;
+  --color-bg-page: #ffffff;
+
+  /* Interactive Backgrounds */
+  --color-bg-hover: rgba(0, 0, 0, 0.03);
+  --color-bg-active: rgba(0, 0, 0, 0.06);
+  --color-bg-selected: #f0f0f0;
+  --color-bg-disabled: #f0f0f0;
+
+  /* Chat List */
+  --color-chat-item-bg: #ffffff;
+  --color-chat-item-hover: #f8f8f8;
+
+  /* Component Backgrounds */
+  --color-bg-primary-subtle: rgba(0, 0, 0, 0.03);
+  --color-bg-accent-subtle: #f0f0f0;
+  --color-bg-accent-muted: #d0d0d0;
+  --color-bg-button: #f5f5f5;
+  --color-bg-button-hover: rgba(0, 0, 0, 0.08);
+  --color-bg-button-active: rgba(0, 0, 0, 0.12);
+  --color-bg-context-hover: #f0f0f0;
+  --color-bg-copy-hover: rgba(0, 0, 0, 0.05);
+  --color-bg-toolbar: #f8f8f8;
+  --color-bg-input: #ffffff;
+  --color-bg-context-menu: #ffffff;
+
+  /* Borders */
+  --color-border-base: #d0d0d0;
+  --color-border-subtle: #e0e0e0;
+  --color-border-input: #c0c0c0;
+  --color-border-strong: #909090;
+  --color-border-context: #d0d0d0;
+  --color-border-button: #c0c0c0;
+  --color-border-button-hover: #a0a0a0;
+  --color-border-button-active: #909090;
+  --color-border-message-user: #909090;
+  --color-border-accent: #808080;
+
+  /* Text Colors */
+  --color-text-base: #000000;
+  --color-text-strong: #1a1a1a;
+  --color-text-muted: #686868;
+  --color-text-subtle: #999999;
+  --color-text-placeholder: #999999;
+  --color-text-disabled: #8d8d8d;
+  --color-text-inverse: #ffffff;
+  --color-text-on-accent: #202020;
+  --color-text-secondary: #393939;
+  --color-text-tertiary: #464646;
+  --color-text-code: #000000;
+  --color-text-context-disabled: #848484;
+  --color-text-cursor: #393939;
+
+  /* Message/Chat specific */
+  --color-text-welcome: #000000;
+  --color-text-message: #333333;
+  --color-text-badge: #333333;
+
+  /* Link Colors */
+  --color-link-question: #0d0d0d;
+  --color-link-question-hover: #1a1a1a;
+  --color-link-border: #646464;
+  --color-link-border-hover: #3c3c3c;
+
+  /* Feedback Colors */
+  --color-error-bg: rgba(220, 100, 100, 0.15);
+  --color-error-text: #b33a3a;
+  --color-error-border: #dc6464;
+
+  /* Special */
+  --color-highlight: #ffff66;
+
+  /* iBook Highlight Colors */
+  --color-highlight-0: rgba(215, 190, 62, 0.6);
+  --color-highlight-1: rgba(130, 190, 90, 0.6);
+  --color-highlight-2: rgba(90, 160, 215, 0.6);
+  --color-highlight-3: rgba(215, 140, 160, 0.6);
+  --color-highlight-4: rgba(170, 130, 215, 0.6);
+
+  /* Shadows */
+  --shadow-sm: rgba(0, 0, 0, 0.08);
+  --shadow-md: rgba(0, 0, 0, 0.12);
+  --shadow-lg: rgba(0, 0, 0, 0.16);
+  --shadow-primary: rgba(0, 0, 0, 0.1);
+  --shadow-primary-strong: rgba(0, 0, 0, 0.15);
+  --shadow-accent: rgba(0, 0, 0, 0.05);
+  --shadow-inset: rgba(0, 0, 0, 0.05);
+
+  /* Scrollbar */
+  --color-scrollbar-track: #f0f0f0;
+  --color-scrollbar-thumb: #c0c0c0;
+  --color-scrollbar-thumb-hover: #a0a0a0;
+
+  /* Navigation specific */
+  --color-nav-disabled-bg: #f0f0f0;
+  --color-nav-disabled-text: #b0b0b0;
+
+  /* Code Block & Table specific */
+  --color-code-block-bg: #f5f5f5;
+  --color-code-block-header-bg: #e8e8e8;
+  --color-code-block-border: #d0d0d0;
+  --color-code-block-header-text: #333333;
+  --color-code-block-text: #1a1a1a;
+  --color-inline-code-bg: #f0f0f0;
+  --color-inline-code-text: #333333;
+  --color-table-bg: #ffffff;
+  --color-table-header-bg: #f0f0f0;
+  --color-table-border: #d0d0d0;
+  --color-table-hover-bg: #f8f8f8;
+}
