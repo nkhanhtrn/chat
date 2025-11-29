@@ -59,7 +59,9 @@ export const useChatStore = defineStore('chat', {
           .filter(Boolean)
           .map(msg => ({
             id: msg.id,
-            text: msg.question || 'Untitled'
+            text: msg.question || 'Untitled',
+            chatId: chat.id,
+            rootIndex: chat.rootMessageIds.indexOf(msg.id)
           }))
 
         const firstMsg = state.messagesById[chat.rootMessageIds[0]]
@@ -261,6 +263,7 @@ export const useChatStore = defineStore('chat', {
         }
         this.currentRootIndex--
         const newRootId = this.rootMessageIds[this.currentRootIndex]
+        this.currentMessageId = newRootId
         this._persistState()
         return newRootId ? (this.messagesById[newRootId].scrollPosition || 0) : 0
       }
@@ -276,6 +279,7 @@ export const useChatStore = defineStore('chat', {
         }
         this.currentRootIndex++
         const newRootId = this.rootMessageIds[this.currentRootIndex]
+        this.currentMessageId = newRootId
         this._persistState()
         return newRootId ? (this.messagesById[newRootId].scrollPosition || 0) : 0
       }

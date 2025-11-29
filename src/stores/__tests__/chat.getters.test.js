@@ -85,4 +85,124 @@ describe('chat store getters', () => {
       expect(message).toBeUndefined()
     })
   })
+
+  describe('chatList', () => {
+    let chatStore
+
+    beforeEach(() => {
+      setActivePinia(createPinia())
+      chatStore = useChatStore()
+      // Reset store state to ensure clean state
+      chatStore.chats = []
+      chatStore.rootMessageIds = []
+      chatStore.messagesById = {}
+      chatStore.currentChatId = null
+      chatStore.currentMessageId = null
+      chatStore.currentRootIndex = 0
+    })
+
+    it('should return empty array when no chats exist', () => {
+      expect(chatStore.chatList).toEqual([])
+    })
+
+    it('should return chat with questions including chatId and rootIndex', () => {
+      // Create a chat with messages
+      chatStore.createNewChat()
+      const chatId = chatStore.currentChatId
+
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'First question',
+        response: 'First response'
+      })
+
+      chatStore.addRootMessage({
+        id: 'msg2',
+        question: 'Second question',
+        response: 'Second response'
+      })
+
+      const chatList = chatStore.chatList
+      expect(chatList).toHaveLength(1)
+
+      const chat = chatList[0]
+      expect(chat.id).toBe(chatId)
+      expect(chat.questions).toHaveLength(2)
+
+      // Verify first question has correct chatId and rootIndex
+      expect(chat.questions[0]).toEqual({
+        id: 'msg1',
+        text: 'First question',
+        chatId: chatId,
+        rootIndex: 0
+      })
+
+      // Verify second question has correct chatId and rootIndex
+      expect(chat.questions[1]).toEqual({
+        id: 'msg2',
+        text: 'Second question',
+        chatId: chatId,
+        rootIndex: 1
+      })
+    })
+
+    it('should include chatId and rootIndex for questions across multiple chats', () => {
+      // Create first chat
+      chatStore.createNewChat()
+      const chat1Id = chatStore.currentChatId
+
+      chatStore.addRootMessage({
+        id: 'chat1-msg1',
+        question: 'Chat 1 Question 1',
+        response: ''
+      })
+
+      // Create second chat
+      chatStore.createNewChat()
+      const chat2Id = chatStore.currentChatId
+
+      chatStore.addRootMessage({
+        id: 'chat2-msg1',
+        question: 'Chat 2 Question 1',
+        response: ''
+      })
+
+      chatStore.addRootMessage({
+        id: 'chat2-msg2',
+        question: 'Chat 2 Question 2',
+        response: ''
+      })
+
+      const chatList = chatStore.chatList
+      expect(chatList).toHaveLength(2)
+
+      // First chat questions
+      const chat1 = chatList.find(c => c.id === chat1Id)
+      expect(chat1.questions[0].chatId).toBe(chat1Id)
+      expect(chat1.questions[0].rootIndex).toBe(0)
+
+      // Second chat questions
+      const chat2 = chatList.find(c => c.id === chat2Id)
+      expect(chat2.questions[0].chatId).toBe(chat2Id)
+      expect(chat2.questions[0].rootIndex).toBe(0)
+      expect(chat2.questions[1].chatId).toBe(chat2Id)
+      expect(chat2.questions[1].rootIndex).toBe(1)
+    })
+
+    it('should use "Untitled" for questions with empty text', () => {
+      chatStore.createNewChat()
+      const chatId = chatStore.currentChatId
+
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: '',
+        response: ''
+      })
+
+      const chatList = chatStore.chatList
+      expect(chatList[0].questions[0].text).toBe('Untitled')
+      expect(chatList[0].questions[0].chatId).toBe(chatId)
+      expect(chatList[0].questions[0].rootIndex).toBe(0)
+    })
+  })
 })

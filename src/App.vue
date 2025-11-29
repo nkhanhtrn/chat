@@ -14,6 +14,37 @@
     <div class="chat-container">
       <DevToolbar v-if="isDev" @reset="prepopulatedQuestions = $event" />
 
+      <!-- Fixed Navigation Header -->
+      <Transition name="slide-down">
+        <div v-if="isScrolledDown && chatStore.currentRootMessage" class="fixed-nav-header">
+          <div class="fixed-nav-content">
+            <div class="root-nav fixed-root-nav">
+              <Button
+                @click="handlePrevRoot"
+                :disabled="!chatStore.canGoToPrevRoot"
+                class="root-nav-btn"
+                variant="tertiary"
+                title="Previous question"
+              >&lt;</Button>
+              <span class="root-nav-indicator">
+                {{ chatStore.currentRootIndex + 1 }} / {{ chatStore.rootMessages.length }}
+              </span>
+              <Button
+                @click="handleNextRoot"
+                :disabled="!chatStore.canGoToNextRoot"
+                class="root-nav-btn"
+                variant="tertiary"
+                title="Next question"
+              >&gt;</Button>
+            </div>
+            <MessageNavigation
+              v-if="chatStore.currentMessage"
+              :current-message="chatStore.currentMessage"
+            />
+          </div>
+        </div>
+      </Transition>
+
       <div class="messages-container" ref="messagesContainer">
         <div v-if="chatStore.rootMessages.length === 0" class="welcome-message">
           <h2>Welcome to your Study Assistant!</h2>
@@ -71,10 +102,11 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted, provide } from 'vue'
+import { ref, nextTick, onMounted, onUnmounted, provide } from 'vue'
 import ChatMessage from './components/ChatMessage.vue'
 import ChatInput from './components/ChatInput.vue'
 import ChatSidebar from './components/ChatSidebar.vue'
+import MessageNavigation from './components/MessageNavigation.vue'
 import Button from './components/Button.vue'
 import { sendChatMessage, fetchModels } from './services/api.js'
 import { useChatStore } from './stores/chat.js'
@@ -84,6 +116,20 @@ import { getIsDev, getDefaultQuestions } from './composables/useEnvironment.js'
 const error = ref(null)
 const messagesContainer = ref(null)
 const chatStore = useChatStore()
+const isScrolledDown = ref(false)
+const SCROLL_THRESHOLD = 100
+
+const handleScroll = () => {
+  if (messagesContainer.value) {
+    isScrolledDown.value = messagesContainer.value.scrollTop > SCROLL_THRESHOLD
+  }
+}
+
+onUnmounted(() => {
+  if (messagesContainer.value) {
+    messagesContainer.value.removeEventListener('scroll', handleScroll)
+  }
+})
 
 const isDev = getIsDev()
 const prepopulatedQuestions = ref(getDefaultQuestions())
@@ -95,6 +141,11 @@ onMounted(async () => {
   } else if (!chatStore.currentChatId && chatStore.chats.length > 0) {
     // Load first chat if no current chat selected
     chatStore.switchToChat(chatStore.chats[0].id)
+  }
+
+  // Add scroll listener
+  if (messagesContainer.value) {
+    messagesContainer.value.addEventListener('scroll', handleScroll)
   }
 
   try {
@@ -184,8 +235,22 @@ const handleSelectChat = (chatId) => {
   scrollToBottom()
 }
 
-const handleSelectQuestion = (questionId) => {
-  const scrollPos = chatStore.navigateToMessage(questionId, getScrollPosition())
+const handleSelectQuestion = (question) => {
+  const currentScrollPos = getScrollPosition()
+
+  // Switch to the chat containing this question if not already on it
+  if (chatStore.currentChatId !== question.chatId) {
+    // Save scroll position before switching (switchToChat clears currentMessageId)
+    if (chatStore.currentMessageId) {
+      chatStore.saveScrollPosition(chatStore.currentMessageId, currentScrollPos)
+    }
+    chatStore.switchToChat(question.chatId)
+  }
+
+  // Set the root index to display this question
+  chatStore.currentRootIndex = question.rootIndex
+  // Navigate to the message (passing scroll position for same-chat navigation)
+  const scrollPos = chatStore.navigateToMessage(question.id, currentScrollPos)
   setScrollPosition(scrollPos)
 }
 
@@ -374,5 +439,47 @@ const handleRenameChat = (chatId, newTitle) => {
   font-family: system-ui, -apple-system, sans-serif;
   min-width: 4rem;
   text-align: center;
+}
+
+/* Fixed Navigation Header */
+.fixed-nav-header {
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+}
+
+.fixed-nav-content {
+  align-items: center;
+  gap: 1.5rem;
+  max-width: 100%;
+}
+
+.fixed-root-nav {
+  margin-bottom: 0;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.fixed-root-nav .root-nav-btn {
+  font-size: 1rem;
+  min-width: 2rem;
+}
+
+.fixed-root-nav .root-nav-indicator {
+  font-size: 0.85rem;
+  min-width: 3.5rem;
+}
+
+/* Slide down transition */
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.slide-down-enter-from,
+.slide-down-leave-to {
+  transform: translateY(-100%);
+  opacity: 0;
 }
 </style>

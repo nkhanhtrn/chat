@@ -779,4 +779,410 @@ describe('App', () => {
       expect(sendChatMessage).toHaveBeenCalledTimes(2)
     })
   })
+
+  describe('Fixed Navigation Header', () => {
+    it('should not show fixed nav header initially (scroll position 0)', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      expect(wrapper.find('.fixed-nav-header').exists()).toBe(false)
+    })
+
+    it('should not show fixed nav header when no root message exists', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      // Simulate scrolling past threshold
+      const messagesContainer = wrapper.find('.messages-container')
+      Object.defineProperty(messagesContainer.element, 'scrollTop', {
+        value: 200,
+        writable: true
+      })
+      await messagesContainer.trigger('scroll')
+      await wrapper.vm.$nextTick()
+
+      // Still should not show because no root message
+      expect(wrapper.find('.fixed-nav-header').exists()).toBe(false)
+    })
+
+    it('should show fixed nav header when scrolled past threshold with messages', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true,
+            MessageNavigation: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      // Add a message first
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'Test message')
+      await flushPromises()
+
+      // Simulate scrolling past threshold (100px)
+      const messagesContainer = wrapper.find('.messages-container')
+      Object.defineProperty(messagesContainer.element, 'scrollTop', {
+        value: 150,
+        writable: true
+      })
+      await messagesContainer.trigger('scroll')
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('.fixed-nav-header').exists()).toBe(true)
+    })
+
+    it('should hide fixed nav header when scrolled back to top', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true,
+            MessageNavigation: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      // Add a message
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'Test message')
+      await flushPromises()
+
+      const messagesContainer = wrapper.find('.messages-container')
+
+      // First scroll down
+      Object.defineProperty(messagesContainer.element, 'scrollTop', {
+        value: 150,
+        writable: true,
+        configurable: true
+      })
+      await messagesContainer.trigger('scroll')
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('.fixed-nav-header').exists()).toBe(true)
+
+      // Then scroll back up
+      Object.defineProperty(messagesContainer.element, 'scrollTop', {
+        value: 50,
+        writable: true,
+        configurable: true
+      })
+      await messagesContainer.trigger('scroll')
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('.fixed-nav-header').exists()).toBe(false)
+    })
+
+    it('should show root navigation buttons in fixed header', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true,
+            MessageNavigation: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      // Add a message
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'Test message')
+      await flushPromises()
+
+      // Scroll down
+      const messagesContainer = wrapper.find('.messages-container')
+      Object.defineProperty(messagesContainer.element, 'scrollTop', {
+        value: 150,
+        writable: true
+      })
+      await messagesContainer.trigger('scroll')
+      await wrapper.vm.$nextTick()
+
+      const fixedHeader = wrapper.find('.fixed-nav-header')
+      expect(fixedHeader.exists()).toBe(true)
+
+      // Should have root nav with prev/next buttons
+      expect(fixedHeader.find('.fixed-root-nav').exists()).toBe(true)
+      expect(fixedHeader.find('.root-nav-indicator').exists()).toBe(true)
+    })
+
+    it('should show correct root navigation indicator in fixed header', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true,
+            MessageNavigation: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      // Add a message
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'Test message')
+      await flushPromises()
+
+      // Scroll down
+      const messagesContainer = wrapper.find('.messages-container')
+      Object.defineProperty(messagesContainer.element, 'scrollTop', {
+        value: 150,
+        writable: true
+      })
+      await messagesContainer.trigger('scroll')
+      await wrapper.vm.$nextTick()
+
+      const indicator = wrapper.find('.fixed-nav-header .root-nav-indicator')
+      expect(indicator.text()).toBe('1 / 1')
+    })
+
+    it('should add scroll listener on mount', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      // Unmount and re-mount to verify scroll listener works
+      wrapper.unmount()
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      const newMessagesContainer = wrapper.find('.messages-container')
+      // Verify the scroll handler is working by triggering scroll
+      Object.defineProperty(newMessagesContainer.element, 'scrollTop', {
+        value: 150,
+        writable: true
+      })
+      await newMessagesContainer.trigger('scroll')
+
+      // If scroll listener wasn't added, isScrolledDown wouldn't change
+      expect(wrapper.vm.isScrolledDown).toBe(true)
+    })
+  })
+
+  describe('Question Selection from Sidebar', () => {
+    it('should switch to correct chat when selecting question from different chat', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      const { useChatStore } = await import('../stores/chat.js')
+      const chatStore = useChatStore()
+
+      // Create first chat with a message
+      chatStore.createNewChat()
+      const chat1Id = chatStore.currentChatId
+      chatStore.addRootMessage({
+        id: 'chat1-msg1',
+        question: 'Chat 1 Question',
+        response: 'Response 1'
+      })
+
+      // Create second chat with a message
+      chatStore.createNewChat()
+      const chat2Id = chatStore.currentChatId
+      chatStore.addRootMessage({
+        id: 'chat2-msg1',
+        question: 'Chat 2 Question',
+        response: 'Response 2'
+      })
+
+      // Currently on chat2
+      expect(chatStore.currentChatId).toBe(chat2Id)
+
+      // Select question from chat1
+      const question = { id: 'chat1-msg1', chatId: chat1Id, rootIndex: 0 }
+      await wrapper.vm.handleSelectQuestion(question)
+
+      // Should switch to chat1
+      expect(chatStore.currentChatId).toBe(chat1Id)
+      expect(chatStore.currentRootIndex).toBe(0)
+      expect(chatStore.currentMessageId).toBe('chat1-msg1')
+    })
+
+    it('should set correct rootIndex when selecting question', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      const { useChatStore } = await import('../stores/chat.js')
+      const chatStore = useChatStore()
+
+      // Create chat with multiple messages
+      chatStore.createNewChat()
+      const chatId = chatStore.currentChatId
+
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Question 1',
+        response: 'Response 1'
+      })
+
+      chatStore.addRootMessage({
+        id: 'msg2',
+        question: 'Question 2',
+        response: 'Response 2'
+      })
+
+      chatStore.addRootMessage({
+        id: 'msg3',
+        question: 'Question 3',
+        response: 'Response 3'
+      })
+
+      // Currently on last message (index 2)
+      expect(chatStore.currentRootIndex).toBe(2)
+
+      // Select second question (index 1)
+      const question = { id: 'msg2', chatId: chatId, rootIndex: 1 }
+      await wrapper.vm.handleSelectQuestion(question)
+
+      expect(chatStore.currentRootIndex).toBe(1)
+      expect(chatStore.currentMessageId).toBe('msg2')
+    })
+
+    it('should not switch chat when selecting question from current chat', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      const { useChatStore } = await import('../stores/chat.js')
+      const chatStore = useChatStore()
+
+      // Create chat with message
+      chatStore.createNewChat()
+      const chatId = chatStore.currentChatId
+
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Question 1',
+        response: 'Response 1'
+      })
+
+      chatStore.addRootMessage({
+        id: 'msg2',
+        question: 'Question 2',
+        response: 'Response 2'
+      })
+
+      // Spy on switchToChat to verify it's not called unnecessarily
+      const switchToChatSpy = vi.spyOn(chatStore, 'switchToChat')
+
+      // Select question from same chat
+      const question = { id: 'msg1', chatId: chatId, rootIndex: 0 }
+      await wrapper.vm.handleSelectQuestion(question)
+
+      // Should not call switchToChat since we're already on the correct chat
+      expect(switchToChatSpy).not.toHaveBeenCalled()
+      expect(chatStore.currentRootIndex).toBe(0)
+    })
+
+    it('should navigate to message and set correct currentMessageId', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      const { useChatStore } = await import('../stores/chat.js')
+      const chatStore = useChatStore()
+
+      chatStore.createNewChat()
+      const chatId = chatStore.currentChatId
+
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Question 1',
+        response: 'Response 1'
+      })
+
+      chatStore.addRootMessage({
+        id: 'msg2',
+        question: 'Question 2',
+        response: 'Response 2'
+      })
+
+      // Select first question
+      const question = { id: 'msg1', chatId: chatId, rootIndex: 0 }
+      await wrapper.vm.handleSelectQuestion(question)
+
+      expect(chatStore.currentMessageId).toBe('msg1')
+    })
+  })
 })

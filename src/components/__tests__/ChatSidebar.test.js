@@ -346,14 +346,14 @@ describe('ChatSidebar', () => {
       expect(wrapper.emitted('select-chat')[0]).toEqual(['chat1'])
     })
 
-    it('should emit select-question when question clicked', async () => {
+    it('should emit select-question with full question object when question clicked', async () => {
       const chats = [
         {
           id: 'chat1',
           title: 'Chat 1',
           questions: [
-            { id: 'q1', text: 'Question 1' },
-            { id: 'q2', text: 'Question 2' }
+            { id: 'q1', text: 'Question 1', chatId: 'chat1', rootIndex: 0 },
+            { id: 'q2', text: 'Question 2', chatId: 'chat1', rootIndex: 1 }
           ]
         }
       ]
@@ -365,10 +365,46 @@ describe('ChatSidebar', () => {
       await questions[0].trigger('click')
 
       expect(wrapper.emitted('select-question')).toBeTruthy()
-      expect(wrapper.emitted('select-question')[0]).toEqual(['q1'])
+      expect(wrapper.emitted('select-question')[0]).toEqual([
+        { id: 'q1', text: 'Question 1', chatId: 'chat1', rootIndex: 0 }
+      ])
 
       await questions[1].trigger('click')
-      expect(wrapper.emitted('select-question')[1]).toEqual(['q2'])
+      expect(wrapper.emitted('select-question')[1]).toEqual([
+        { id: 'q2', text: 'Question 2', chatId: 'chat1', rootIndex: 1 }
+      ])
+    })
+
+    it('should emit question with correct chatId for different chats', async () => {
+      const chats = [
+        {
+          id: 'chat1',
+          title: 'Chat 1',
+          questions: [
+            { id: 'q1', text: 'Question 1', chatId: 'chat1', rootIndex: 0 }
+          ]
+        },
+        {
+          id: 'chat2',
+          title: 'Chat 2',
+          questions: [
+            { id: 'q2', text: 'Question 2', chatId: 'chat2', rootIndex: 0 }
+          ]
+        }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      const questions = wrapper.findAll('.question-item')
+
+      // Click question from first chat
+      await questions[0].trigger('click')
+      expect(wrapper.emitted('select-question')[0][0].chatId).toBe('chat1')
+
+      // Click question from second chat
+      await questions[1].trigger('click')
+      expect(wrapper.emitted('select-question')[1][0].chatId).toBe('chat2')
     })
 
     it('should not emit select-chat when clicking collapse icon', async () => {

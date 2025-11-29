@@ -52,7 +52,7 @@
           <div
             v-for="question in chat.questions"
             :key="question.id"
-            @click="$emit('select-question', question.id)"
+            @click="$emit('select-question', question)"
             :class="['question-item', { active: question.id === currentMessageId }]"
           >
             <span class="question-text">{{ question.text }}</span>
