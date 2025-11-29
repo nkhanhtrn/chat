@@ -38,69 +38,96 @@ export const fetchModels = async () => {
   }
 }
 
-export const sendChatMessage = async (question, model, messages, onChunk = null) => {
-  try {
-    if (!onChunk) {
-      const response = await api.post('/v1/chat/completions', {
-        model: model,
-        messages: messages,
-        temperature: 0.7,
-        max_tokens: -1,
-        stream: false
-      });
-      if (response.data.choices && response.data.choices.length > 0) {
-        return response.data.choices[0].message.content;
-      } else {
-        throw new Error('No response from model');
-      }
-    }
+// Default dependencies for production use
+const defaultDeps = {
+  fetchFn: (...args) => fetch(...args),
+  apiClient: api,
+  getBaseUrl: () => API_BASE_URL
+};
 
-    // Streaming mode
-    const response = await fetch(`${API_BASE_URL}/v1/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: model,
-        messages: messages,
-        temperature: 0.7,
-        max_tokens: -1,
-        stream: true
-      })
-    });
-    if (!response.ok) {
-      throw new Error('Failed to get chat response');
-    }
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let fullContent = '';
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-      for (const line of lines) {
-        const trimmedLine = line.trim();
-        if (trimmedLine === '' || trimmedLine === 'data: [DONE]') continue;
-        if (trimmedLine.startsWith('data: ')) {
-          try {
-            const jsonStr = trimmedLine.slice(6);
-            const data = JSON.parse(jsonStr);
-            if (data.choices && data.choices[0].delta && data.choices[0].delta.content) {
-              const chunk = data.choices[0].delta.content;
-              fullContent += chunk;
-              onChunk(chunk);
-            }
-          } catch (e) {
-            console.warn('Failed to parse SSE data:', trimmedLine, e);
+export const sendChatMessageFull = async (model, messages, deps = defaultDeps) => {
+  const { apiClient } = deps;
+  const response = await apiClient.post('/v1/chat/completions', {
+    model: model,
+    messages: messages,
+    temperature: 0.7,
+    max_tokens: -1,
+    stream: false
+  });
+  if (response.data.choices && response.data.choices.length > 0) {
+    return response.data.choices[0].message.content;
+  } else {
+    throw new Error('No response from model');
+  }
+};
+
+export const processSSEStream = async (reader, onChunk) => {
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let fullContent = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      if (trimmedLine === '' || trimmedLine === 'data: [DONE]') continue;
+
+      if (trimmedLine.startsWith('data: ')) {
+        try {
+          const jsonStr = trimmedLine.slice(6);
+          const data = JSON.parse(jsonStr);
+          if (data.choices && data.choices[0].delta && data.choices[0].delta.content) {
+            const chunk = data.choices[0].delta.content;
+            fullContent += chunk;
+            onChunk(chunk);
           }
+        } catch (e) {
+          console.warn('Failed to parse SSE data:', trimmedLine, e);
         }
       }
     }
-    return fullContent;
+  }
+
+  return fullContent;
+};
+
+export const sendChatMessageStreaming = async (model, messages, onChunk, deps = defaultDeps) => {
+  const { fetchFn, getBaseUrl } = deps;
+
+  const response = await fetchFn(`${getBaseUrl()}/v1/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: model,
+      messages: messages,
+      temperature: 0.7,
+      max_tokens: -1,
+      stream: true
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to get chat response');
+  }
+
+  const reader = response.body.getReader();
+  return processSSEStream(reader, onChunk);
+};
+
+export const sendChatMessage = async (model, messages, onChunk = null, deps = defaultDeps) => {
+  try {
+    if (!onChunk) {
+      return await sendChatMessageFull(model, messages, deps);
+    }
+    return await sendChatMessageStreaming(model, messages, onChunk, deps);
   } catch (error) {
     if (error.message === 'No response from model') throw error;
     if (error.code === 'ERR_NETWORK' || error.name === 'TypeError') throw new Error('Cannot connect to LM Studio server');

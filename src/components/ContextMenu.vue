@@ -21,6 +21,7 @@
             ></button>
           </div>
         </div>
+        <Button class="context-menu-btn" @click="onCopy" variant="tertiary">Copy</Button>
         <Button class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming" variant="tertiary">Explain</Button>
         <PromptInput
           placeholder="Custom prompt..."
@@ -97,9 +98,25 @@ function onClickOutside() {
   emit('close')
 }
 
+async function onCopy() {
+  if (props.highlightedText) {
+    try {
+      await navigator.clipboard.writeText(props.highlightedText)
+      emit('close')
+    } catch (err) {
+      console.error('Failed to copy text:', err)
+    }
+  }
+}
+
 function onKeyDown(event) {
   if (event.key === 'Escape' && props.visible) {
     emit('close')
+  }
+  // Ctrl+C or Cmd+C to copy
+  if ((event.ctrlKey || event.metaKey) && event.key === 'c' && props.visible) {
+    event.preventDefault()
+    onCopy()
   }
 }
 

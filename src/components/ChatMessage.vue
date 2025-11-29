@@ -267,7 +267,7 @@ async function handleAskQuestion(question) {
 
   try {
     messages = getShortenContentPrompts(question);
-    const summary = await sendChatMessage(question, chatStore.currentModel, messages)
+    const summary = await sendChatMessage(chatStore.currentModel, messages)
     chatStore.setQuestionSummarized(childMsg.id, summary)
   } catch (err) {
     state.error = err.message

@@ -214,7 +214,6 @@ const handleSendMessage = async (userMessage) => {
   console.log("Final message to send:", messages);
   try {
     await sendChatMessage(
-      userMessage,
       chatStore.currentModel,
       messages,
       (chunk) => {
