@@ -1403,4 +1403,89 @@ describe('ChatMessage context menu integration', () => {
       expect(state.popup.isStreaming).toBe(false)
     })
   })
+
+  describe('Note Detail Explain', () => {
+    it('handleNoteClick stores selectedText and offsets from noteData', () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-note-detail',
+        question: 'Q',
+        response: 'text with note here',
+        customContent: [{
+          id: 'note-detail-1',
+          type: 'highlight',
+          text: 'with note',
+          startOffset: 5,
+          endOffset: 14,
+          hasNote: true,
+          noteContent: 'This is a note'
+        }],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-note-detail'] = testMessage
+
+      const noteData = {
+        noteId: 'note-detail-1',
+        text: 'with note',
+        noteContent: 'This is a note',
+        startOffset: 5,
+        endOffset: 14,
+        x: 100,
+        y: 200
+      }
+
+      wrapper.vm.handleNoteClick(noteData)
+      const state = getState(wrapper)
+
+      expect(state.popup.mode).toBe('note')
+      expect(state.popup.selectedText).toBe('with note')
+      expect(state.popup.startOffset).toBe(5)
+      expect(state.popup.endOffset).toBe(14)
+    })
+
+    it('handleNoteDetailExplain triggers detail explanation flow', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-detail-explain',
+        question: 'Q',
+        response: 'some highlighted text here',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-detail-explain'] = testMessage
+
+      const state = getState(wrapper)
+
+      // Set up popup state as if note was opened via handleNoteClick
+      state.popup.mode = 'note'
+      state.popup.selectedText = 'highlighted text'
+      state.popup.startOffset = 5
+      state.popup.endOffset = 21
+      state.popup.highlightId = 'highlight-1'
+      state.popup.noteContent = 'Some note content'
+
+      // handleNoteDetailExplain calls handleAskQuestion which requires valid selection data
+      // The function should close popup and start streaming
+      wrapper.vm.handleNoteDetailExplain({ noteId: 'highlight-1', text: 'highlighted text' })
+
+      // Verify that popup was closed (handleAskQuestion calls closePopup)
+      expect(state.popup.mode).toBe(null)
+      // Verify streaming was started
+      expect(state.isChildStreaming).toBe(true)
+    })
+  })
 })

@@ -23,9 +23,21 @@
       </div>
 
       <!-- View mode: show text content -->
-      <div v-if="!isEditing && !isTemp" class="note-content">
-        {{ initialContent || (isStreaming ? '' : 'No content') }}<span v-if="isStreaming" class="streaming-cursor">▊</span>
-      </div>
+      <template v-if="!isEditing && !isTemp">
+        <div class="note-content">
+          {{ initialContent || (isStreaming ? '' : 'No content') }}<span v-if="isStreaming" class="streaming-cursor">▊</span>
+        </div>
+
+        <!-- Detail explain link (shown in view mode when not streaming) -->
+        <a
+          v-if="!isStreaming && highlightedText"
+          class="detail-explain-link"
+          href="#"
+          @click.prevent="onDetailExplain"
+        >
+          Explain in detail →
+        </a>
+      </template>
 
       <!-- Edit mode: show textarea -->
       <template v-else>
@@ -70,6 +82,10 @@ const props = defineProps({
     type: String,
     default: ''
   },
+  highlightedText: {
+    type: String,
+    default: ''
+  },
   isTemp: {
     type: Boolean,
     default: false
@@ -84,7 +100,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['save', 'cancel', 'delete'])
+const emit = defineEmits(['save', 'cancel', 'delete', 'detail-explain'])
 
 const content = ref('')
 const textareaRef = ref(null)
@@ -129,6 +145,10 @@ function onCancel() {
 
 function onDelete() {
   emit('delete', { noteId: props.noteId })
+}
+
+function onDetailExplain() {
+  emit('detail-explain', { noteId: props.noteId, text: props.highlightedText })
 }
 </script>
 
@@ -243,5 +263,20 @@ function onDelete() {
 @keyframes blink {
   0%, 50% { opacity: 1; }
   51%, 100% { opacity: 0; }
+}
+
+.detail-explain-link {
+  display: block;
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--color-border-input, #eee);
+  font-size: 0.85rem;
+  color: var(--color-accent, #007bff);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.detail-explain-link:hover {
+  text-decoration: underline;
 }
 </style>

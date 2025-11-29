@@ -43,7 +43,7 @@
         </div>
 
         <div
-          v-if="chat.questions.length > 0 && !isCollapsed(chat.id) && !isSidebarCollapsed"
+          v-if="(chat.questions.length > 0 || chat.id === currentChatId) && !isCollapsed(chat.id) && !isSidebarCollapsed"
           class="question-list"
         >
           <div
@@ -63,6 +63,15 @@
             <Button v-show="editingQuestionId !== question.id" class="delete-button question-delete" @click.stop="$emit('delete-question', question.id, chat.id)" title="Delete question" variant="danger">
               ×
             </Button>
+          </div>
+          <!-- New Question button -->
+          <div
+            v-if="chat.id === currentChatId"
+            @click="$emit('new-question')"
+            :class="['question-item', 'new-question-item', { active: isAddingNewQuestion }]"
+          >
+            <span class="new-question-icon">+</span>
+            <span class="question-text">Add new</span>
           </div>
         </div>
       </div>
@@ -115,10 +124,14 @@ defineProps({
   currentMessageId: {
     type: String,
     default: null
+  },
+  isAddingNewQuestion: {
+    type: Boolean,
+    default: false
   }
 })
 
-const emit = defineEmits(['new-chat', 'select-chat', 'select-question', 'delete-chat', 'delete-question', 'rename-chat', 'rename-question'])
+const emit = defineEmits(['new-chat', 'select-chat', 'select-question', 'delete-chat', 'delete-question', 'rename-chat', 'rename-question', 'new-question'])
 
 const SIDEBAR_COLLAPSED_KEY = 'chatSidebarCollapsed'
 
@@ -363,6 +376,31 @@ const toggleSidebar = () => {
   flex: 1;
   padding: 0.2rem 0.4rem;
   width: 100%;
+}
+
+.new-question-item {
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.new-question-item:hover,
+.new-question-item.active {
+  opacity: 1;
+}
+
+.new-question-item.active {
+  background-color: var(--color-bg-hover);
+}
+
+.new-question-item.active .question-text {
+  color: var(--color-text-secondary);
+}
+
+.new-question-icon {
+  font-size: 1rem;
+  font-weight: bold;
+  margin-right: 0.5rem;
+  color: var(--color-text-muted);
 }
 
 .empty-state {

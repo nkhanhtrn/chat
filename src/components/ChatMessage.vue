@@ -50,12 +50,14 @@
            :y="state.popup.y"
            :note-id="state.popup.highlightId"
            :initial-content="state.popup.noteContent"
+           :highlighted-text="state.popup.selectedText"
            :is-temp="state.popup.isNewNote"
            :start-in-edit-mode="state.popup.startInEditMode"
            :is-streaming="state.popup.isStreaming"
            @save="handleNoteSave"
            @cancel="handleNoteCancel"
            @delete="handleNoteDelete"
+           @detail-explain="handleNoteDetailExplain"
          />
        </div>
      </div>
@@ -571,6 +573,9 @@ function handleNoteClick(noteData) {
   state.popup.y = noteData.y
   state.popup.highlightId = noteData.noteId
   state.popup.noteContent = noteData.noteContent || ''
+  state.popup.selectedText = noteData.text
+  state.popup.startOffset = noteData.startOffset
+  state.popup.endOffset = noteData.endOffset
   state.popup.isNewNote = false
   state.popup.startInEditMode = false
 }
@@ -618,6 +623,11 @@ function handleNoteDelete({ noteId }) {
     noteContent: ''
   })
   closePopup()
+}
+
+function handleNoteDetailExplain({ text }) {
+  // Trigger the detail explanation flow using the highlighted text
+  handleAskQuestion(text)
 }
 
 </script>

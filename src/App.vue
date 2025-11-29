@@ -3,7 +3,8 @@
     <ChatSidebar
       :chats="chatStore.chatList"
       :current-chat-id="chatStore.currentChatId"
-      :current-message-id="chatStore.currentMessageId"
+      :current-message-id="isAddingNewQuestion ? null : chatStore.currentMessageId"
+      :is-adding-new-question="isAddingNewQuestion"
       @new-chat="handleNewChat"
       @select-chat="handleSelectChat"
       @select-question="handleSelectQuestion"
@@ -11,6 +12,7 @@
       @delete-question="handleDeleteQuestion"
       @rename-chat="handleRenameChat"
       @rename-question="handleRenameQuestion"
+      @new-question="handleNewQuestion"
     />
 
     <div class="chat-container">
@@ -32,10 +34,10 @@
       </Transition>
 
       <div class="messages-container" ref="messagesContainer">
-        <div v-if="chatStore.rootMessages.length === 0" class="welcome-message">
-          <h2>Welcome to your Study Assistant!</h2>
-          <p>Start by asking a question about any topic you'd like to learn.</p>
-          <div class="example-prompts">
+        <div v-if="chatStore.rootMessages.length === 0 || isAddingNewQuestion" class="welcome-message">
+          <h2>{{ isAddingNewQuestion ? 'Ask a new question' : 'Welcome to your Study Assistant!' }}</h2>
+          <p>{{ isAddingNewQuestion ? 'Enter your question below to continue learning.' : 'Start by asking a question about any topic you\'d like to learn.' }}</p>
+          <div v-if="!isAddingNewQuestion" class="example-prompts">
             <p>Try asking:</p>
             <ul>
               <li v-for="q in prepopulatedQuestions" :key="q" @click="handleExampleClick(q)" class="clickable">
@@ -45,7 +47,7 @@
           </div>
         </div>
 
-        <div v-if="chatStore.currentRootMessage" class="root-message-container">
+        <div v-if="chatStore.currentRootMessage && !isAddingNewQuestion" class="root-message-container">
           <ChatMessage
             :key="chatStore.currentRootMessage.id"
             :message="chatStore.currentRootMessage"
@@ -59,9 +61,11 @@
       </div>
 
       <ChatInput
+        v-if="chatStore.rootMessages.length === 0 || isAddingNewQuestion"
         @send="handleSendMessage"
         :disabled="chatStore.isStreaming"
         :is-loading="chatStore.isStreaming"
+        :autofocus="isAddingNewQuestion"
       />
     </div>
   </div>
@@ -83,6 +87,7 @@ const error = ref(null)
 const messagesContainer = ref(null)
 const chatStore = useChatStore()
 const isScrolledDown = ref(false)
+const isAddingNewQuestion = ref(false)
 const SCROLL_THRESHOLD = 100
 
 const handleScroll = () => {
@@ -155,6 +160,7 @@ const handleSendMessage = async (userMessage) => {
   if (!userMessage.trim() || chatStore.isStreaming) return false
 
   error.value = null
+  isAddingNewQuestion.value = false
 
   // Create and add message to store
   const msg = chatStore.addRootMessage({
@@ -209,6 +215,8 @@ const handleSelectChat = (chatId) => {
 }
 
 const handleSelectQuestion = (question) => {
+  isAddingNewQuestion.value = false
+
   // Save scroll position of current message before switching
   const currentScrollPos = getScrollPosition()
   if (chatStore.currentMessageId) {
@@ -241,6 +249,10 @@ const handleRenameQuestion = (messageId, newSummary) => {
 
 const handleDeleteQuestion = (messageId, chatId) => {
   chatStore.deleteQuestion(messageId, chatId)
+}
+
+const handleNewQuestion = () => {
+  isAddingNewQuestion.value = true
 }
 
 </script>

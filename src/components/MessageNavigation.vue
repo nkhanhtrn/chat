@@ -188,4 +188,5 @@ function truncateQuestion(question) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
 </style>

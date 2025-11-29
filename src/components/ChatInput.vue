@@ -27,7 +27,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, onMounted, watch } from 'vue'
 import Button from './Button.vue'
 
 const props = defineProps({
@@ -38,6 +38,10 @@ const props = defineProps({
   isLoading: {
     type: Boolean,
     default: false
+  },
+  autofocus: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -45,6 +49,28 @@ const emit = defineEmits(['send'])
 
 const inputText = ref('')
 const inputRef = ref(null)
+
+const focus = () => {
+  nextTick(() => {
+    inputRef.value?.focus()
+  })
+}
+
+// Auto-focus on mount if autofocus prop is true
+onMounted(() => {
+  if (props.autofocus) {
+    focus()
+  }
+})
+
+// Watch for autofocus changes
+watch(() => props.autofocus, (newVal) => {
+  if (newVal) {
+    focus()
+  }
+})
+
+defineExpose({ focus })
 
 const adjustHeight = () => {
   nextTick(() => {

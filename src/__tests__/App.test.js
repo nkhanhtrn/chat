@@ -312,15 +312,14 @@ describe('App', () => {
 
       await flushPromises()
 
-      const chatInput = wrapper.findComponent(ChatInput)
-
-      // First message causes error
-      await chatInput.vm.$emit('send', 'First')
+      // First message causes error (via direct call to handleSendMessage)
+      await wrapper.vm.handleSendMessage('First')
       await flushPromises()
       expect(wrapper.find('.error-message').exists()).toBe(true)
+      expect(wrapper.vm.error).toBe('First error')
 
-      // Second message should clear error
-      await chatInput.vm.$emit('send', 'Second')
+      // Second message should clear error (handleSendMessage sets error to null at start)
+      wrapper.vm.handleSendMessage('Second')
       await wrapper.vm.$nextTick()
       expect(wrapper.vm.error).toBeNull()
     })
@@ -386,14 +385,7 @@ describe('App', () => {
   })
 
   describe('ChatInput Props', () => {
-    it('should pass disabled prop to ChatInput when streaming', async () => {
-      let resolveMessage
-      sendChatMessage.mockImplementation(() => {
-        return new Promise((resolve) => {
-          resolveMessage = resolve
-        })
-      })
-
+    it('should pass disabled prop bound to isStreaming', async () => {
       wrapper = mount(App, {
         global: {
           plugins: [createPinia()]
@@ -402,25 +394,28 @@ describe('App', () => {
 
       await flushPromises()
 
+      const { useChatStore } = await import('../stores/chat.js')
+      const chatStore = useChatStore()
+
       const chatInput = wrapper.findComponent(ChatInput)
-      chatInput.vm.$emit('send', 'Test')
+
+      // Initially not streaming
+      expect(chatInput.props('disabled')).toBe(false)
+
+      // Simulate streaming state
+      chatStore.setIsStreaming(true)
       await wrapper.vm.$nextTick()
 
       expect(chatInput.props('disabled')).toBe(true)
 
-      resolveMessage('Response')
-      await flushPromises()
+      // End streaming
+      chatStore.setIsStreaming(false)
+      await wrapper.vm.$nextTick()
+
       expect(chatInput.props('disabled')).toBe(false)
     })
 
-    it('should pass isLoading prop to ChatInput when streaming', async () => {
-      let resolveMessage
-      sendChatMessage.mockImplementation(() => {
-        return new Promise((resolve) => {
-          resolveMessage = resolve
-        })
-      })
-
+    it('should pass isLoading prop bound to isStreaming', async () => {
       wrapper = mount(App, {
         global: {
           plugins: [createPinia()]
@@ -429,14 +424,24 @@ describe('App', () => {
 
       await flushPromises()
 
+      const { useChatStore } = await import('../stores/chat.js')
+      const chatStore = useChatStore()
+
       const chatInput = wrapper.findComponent(ChatInput)
-      chatInput.vm.$emit('send', 'Test')
+
+      // Initially not streaming
+      expect(chatInput.props('isLoading')).toBe(false)
+
+      // Simulate streaming state
+      chatStore.setIsStreaming(true)
       await wrapper.vm.$nextTick()
 
       expect(chatInput.props('isLoading')).toBe(true)
 
-      resolveMessage('Response')
-      await flushPromises()
+      // End streaming
+      chatStore.setIsStreaming(false)
+      await wrapper.vm.$nextTick()
+
       expect(chatInput.props('isLoading')).toBe(false)
     })
   })
@@ -730,13 +735,6 @@ describe('App', () => {
     })
 
     it('should prevent multiple messages during streaming', async () => {
-      let resolveMessage
-      sendChatMessage.mockImplementation(() => {
-        return new Promise((resolve) => {
-          resolveMessage = resolve
-        })
-      })
-
       wrapper = mount(App, {
         global: {
           plugins: [createPinia()]
@@ -748,35 +746,29 @@ describe('App', () => {
       const { useChatStore } = await import('../stores/chat.js')
       const chatStore = useChatStore()
 
-      const chatInput = wrapper.findComponent(ChatInput)
+      // Simulate streaming state directly
+      chatStore.setIsStreaming(true)
 
-      // Send first message
-      chatInput.vm.$emit('send', 'First')
+      // Try to send messages while streaming - should return false immediately
+      const result1 = await wrapper.vm.handleSendMessage('First')
+      const result2 = await wrapper.vm.handleSendMessage('Second')
+
+      // handleSendMessage should return early (returns false) when streaming
+      expect(result1).toBe(false)
+      expect(result2).toBe(false)
+
+      // sendChatMessage should not have been called
+      expect(sendChatMessage).not.toHaveBeenCalled()
+
+      // End streaming
+      chatStore.setIsStreaming(false)
+
+      // Now should be able to send a message
+      wrapper.vm.handleSendMessage('Third')
       await wrapper.vm.$nextTick()
 
-      // Verify streaming is active
-      expect(chatStore.isStreaming).toBe(true)
-
-      // Try to send multiple messages while streaming
-      chatInput.vm.$emit('send', 'Second')
-      chatInput.vm.$emit('send', 'Third')
-      await wrapper.vm.$nextTick()
-
-      // Should still only have one call to sendChatMessage
+      // Should have been called once now
       expect(sendChatMessage).toHaveBeenCalledTimes(1)
-
-      resolveMessage('Response')
-      await flushPromises()
-
-      // Now streaming is complete
-      expect(chatStore.isStreaming).toBe(false)
-
-      // Now should be able to send another message
-      chatInput.vm.$emit('send', 'Fourth')
-      await flushPromises()
-
-      // Should have been called twice now
-      expect(sendChatMessage).toHaveBeenCalledTimes(2)
     })
   })
 
@@ -935,6 +927,305 @@ describe('App', () => {
 
       // If scroll listener wasn't added, isScrolledDown wouldn't change
       expect(wrapper.vm.isScrolledDown).toBe(true)
+    })
+  })
+
+  describe('Add New Question Mode', () => {
+    it('should initialize with isAddingNewQuestion as false', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      expect(wrapper.vm.isAddingNewQuestion).toBe(false)
+    })
+
+    it('should set isAddingNewQuestion to true when handleNewQuestion is called', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      wrapper.vm.handleNewQuestion()
+      expect(wrapper.vm.isAddingNewQuestion).toBe(true)
+    })
+
+    it('should show ChatInput when isAddingNewQuestion is true even with existing messages', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()]
+        }
+      })
+
+      await flushPromises()
+
+      // Send a message first
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'Test message')
+      await flushPromises()
+
+      // ChatInput should be hidden (because there are messages)
+      expect(wrapper.findComponent(ChatInput).exists()).toBe(false)
+
+      // Enable add new question mode
+      wrapper.vm.handleNewQuestion()
+      await wrapper.vm.$nextTick()
+
+      // ChatInput should now be visible
+      expect(wrapper.findComponent(ChatInput).exists()).toBe(true)
+    })
+
+    it('should hide current message when isAddingNewQuestion is true', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()]
+        }
+      })
+
+      await flushPromises()
+
+      // Send a message first
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'Test message')
+      await flushPromises()
+
+      // ChatMessage should be visible
+      expect(wrapper.findComponent(ChatMessage).exists()).toBe(true)
+
+      // Enable add new question mode
+      wrapper.vm.handleNewQuestion()
+      await wrapper.vm.$nextTick()
+
+      // ChatMessage should be hidden
+      expect(wrapper.findComponent(ChatMessage).exists()).toBe(false)
+    })
+
+    it('should show "Ask a new question" heading when isAddingNewQuestion is true', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      // Send a message to have existing content
+      const { useChatStore } = await import('../stores/chat.js')
+      const chatStore = useChatStore()
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Test',
+        response: 'Response'
+      })
+      await wrapper.vm.$nextTick()
+
+      // Enable add new question mode
+      wrapper.vm.handleNewQuestion()
+      await wrapper.vm.$nextTick()
+
+      const welcomeMessage = wrapper.find('.welcome-message h2')
+      expect(welcomeMessage.exists()).toBe(true)
+      expect(welcomeMessage.text()).toContain('Ask a new question')
+    })
+
+    it('should reset isAddingNewQuestion to false when sending a message', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()]
+        }
+      })
+
+      await flushPromises()
+
+      // Enable add new question mode
+      wrapper.vm.handleNewQuestion()
+      expect(wrapper.vm.isAddingNewQuestion).toBe(true)
+
+      // Send a message
+      const chatInput = wrapper.findComponent(ChatInput)
+      await chatInput.vm.$emit('send', 'New question')
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.vm.isAddingNewQuestion).toBe(false)
+    })
+
+    it('should reset isAddingNewQuestion to false when selecting a question', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      const { useChatStore } = await import('../stores/chat.js')
+      const chatStore = useChatStore()
+
+      chatStore.createNewChat()
+      const chatId = chatStore.currentChatId
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Test',
+        response: 'Response'
+      })
+
+      // Enable add new question mode
+      wrapper.vm.handleNewQuestion()
+      expect(wrapper.vm.isAddingNewQuestion).toBe(true)
+
+      // Select a question
+      const question = { id: 'msg1', chatId: chatId, rootIndex: 0 }
+      await wrapper.vm.handleSelectQuestion(question)
+
+      expect(wrapper.vm.isAddingNewQuestion).toBe(false)
+    })
+
+    it('should pass isAddingNewQuestion to ChatSidebar', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      const chatSidebar = wrapper.findComponent({ name: 'ChatSidebar' })
+
+      // Initially false
+      expect(chatSidebar.props('isAddingNewQuestion')).toBe(false)
+
+      // Enable add new question mode
+      wrapper.vm.handleNewQuestion()
+      await wrapper.vm.$nextTick()
+
+      expect(chatSidebar.props('isAddingNewQuestion')).toBe(true)
+    })
+
+    it('should pass null as currentMessageId to ChatSidebar when isAddingNewQuestion is true', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      const { useChatStore } = await import('../stores/chat.js')
+      const chatStore = useChatStore()
+
+      chatStore.createNewChat()
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Test',
+        response: 'Response'
+      })
+
+      await wrapper.vm.$nextTick()
+
+      const chatSidebar = wrapper.findComponent({ name: 'ChatSidebar' })
+
+      // Initially should have currentMessageId
+      expect(chatSidebar.props('currentMessageId')).toBe('msg1')
+
+      // Enable add new question mode
+      wrapper.vm.handleNewQuestion()
+      await wrapper.vm.$nextTick()
+
+      // currentMessageId should be null
+      expect(chatSidebar.props('currentMessageId')).toBeNull()
+    })
+
+    it('should pass autofocus prop to ChatInput when isAddingNewQuestion is true', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()]
+        }
+      })
+
+      await flushPromises()
+
+      // Enable add new question mode
+      wrapper.vm.handleNewQuestion()
+      await wrapper.vm.$nextTick()
+
+      const chatInput = wrapper.findComponent(ChatInput)
+      expect(chatInput.props('autofocus')).toBe(true)
+    })
+
+    it('should not hide example prompts in initial welcome state', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      // Initial state (no messages)
+      expect(wrapper.find('.example-prompts').exists()).toBe(true)
+    })
+
+    it('should hide example prompts when isAddingNewQuestion is true', async () => {
+      wrapper = mount(App, {
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            ChatMessage: true,
+            ChatInput: true
+          }
+        }
+      })
+
+      await flushPromises()
+
+      const { useChatStore } = await import('../stores/chat.js')
+      const chatStore = useChatStore()
+
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Test',
+        response: 'Response'
+      })
+
+      // Enable add new question mode
+      wrapper.vm.handleNewQuestion()
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('.example-prompts').exists()).toBe(false)
     })
   })
 

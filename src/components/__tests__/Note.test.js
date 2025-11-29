@@ -459,4 +459,81 @@ describe('Note', () => {
       expect(cursor.classList.contains('streaming-cursor')).toBe(true)
     })
   })
+
+  describe('Detail Explain Link', () => {
+    const viewModeWithHighlightProps = {
+      ...baseProps,
+      isTemp: false,
+      initialContent: 'Some note content',
+      highlightedText: 'highlighted text here'
+    }
+
+    it('shows detail explain link in view mode when highlightedText is provided', () => {
+      wrapper = mount(Note, { props: viewModeWithHighlightProps, attachTo: root })
+      const link = document.body.querySelector('.detail-explain-link')
+      expect(link).toBeTruthy()
+      expect(link.textContent).toContain('Explain in detail')
+    })
+
+    it('does not show detail explain link when highlightedText is empty', () => {
+      wrapper = mount(Note, {
+        props: { ...viewModeWithHighlightProps, highlightedText: '' },
+        attachTo: root
+      })
+      const link = document.body.querySelector('.detail-explain-link')
+      expect(link).toBeFalsy()
+    })
+
+    it('does not show detail explain link when highlightedText is not provided', () => {
+      wrapper = mount(Note, {
+        props: { ...baseProps, isTemp: false, initialContent: 'Some content' },
+        attachTo: root
+      })
+      const link = document.body.querySelector('.detail-explain-link')
+      expect(link).toBeFalsy()
+    })
+
+    it('does not show detail explain link when streaming', () => {
+      wrapper = mount(Note, {
+        props: { ...viewModeWithHighlightProps, isStreaming: true },
+        attachTo: root
+      })
+      const link = document.body.querySelector('.detail-explain-link')
+      expect(link).toBeFalsy()
+    })
+
+    it('does not show detail explain link in edit mode', async () => {
+      wrapper = mount(Note, {
+        props: { ...viewModeWithHighlightProps, startInEditMode: true, visible: false },
+        attachTo: root
+      })
+      await wrapper.setProps({ visible: true })
+      const link = document.body.querySelector('.detail-explain-link')
+      expect(link).toBeFalsy()
+    })
+
+    it('does not show detail explain link when isTemp is true', async () => {
+      wrapper = mount(Note, {
+        props: { ...viewModeWithHighlightProps, isTemp: true, visible: false },
+        attachTo: root
+      })
+      await wrapper.setProps({ visible: true })
+      const link = document.body.querySelector('.detail-explain-link')
+      expect(link).toBeFalsy()
+    })
+
+    it('emits detail-explain event with noteId and text when link is clicked', async () => {
+      wrapper = mount(Note, { props: viewModeWithHighlightProps, attachTo: root })
+      const link = document.body.querySelector('.detail-explain-link')
+      expect(link).toBeTruthy()
+
+      await link.click()
+
+      expect(wrapper.emitted('detail-explain')).toBeTruthy()
+      expect(wrapper.emitted('detail-explain')).toHaveLength(1)
+      const [eventData] = wrapper.emitted('detail-explain')[0]
+      expect(eventData.noteId).toBe('note-123')
+      expect(eventData.text).toBe('highlighted text here')
+    })
+  })
 })

@@ -128,6 +128,7 @@ defineExpose({ startEditing })
 .inline-edit-input {
   font-family: 'Georgia', serif;
   background-color: var(--color-bg-base);
+  color: var(--color-text-base);
   border: 2px solid var(--color-primary);
   border-radius: 4px;
   outline: none;
@@ -156,7 +157,7 @@ defineExpose({ startEditing })
   border: none;
   padding: 3px;
   cursor: pointer;
-  color: var(--color-text-on-accent);
+  color: var(--color-text-muted);
   opacity: 0.7;
   display: flex;
   align-items: center;

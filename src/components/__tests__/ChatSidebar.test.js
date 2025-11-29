@@ -1812,6 +1812,223 @@ describe('ChatSidebar', () => {
     })
   })
 
+  describe('Add New Question Button', () => {
+    it('should render "Add new" button for current chat with questions', () => {
+      const chats = [
+        {
+          id: 'chat1',
+          title: 'Chat 1',
+          questions: [{ id: 'q1', text: 'Question 1' }]
+        }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats,
+          currentChatId: 'chat1'
+        }
+      })
+
+      const newQuestionItem = wrapper.find('.new-question-item')
+      expect(newQuestionItem.exists()).toBe(true)
+      expect(newQuestionItem.text()).toContain('Add new')
+    })
+
+    it('should render "Add new" button even when chat has no questions (but is current chat)', () => {
+      const chats = [
+        { id: 'chat1', title: 'Chat 1', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats,
+          currentChatId: 'chat1'
+        }
+      })
+
+      const newQuestionItem = wrapper.find('.new-question-item')
+      expect(newQuestionItem.exists()).toBe(true)
+    })
+
+    it('should not render "Add new" button for non-current chats', () => {
+      const chats = [
+        {
+          id: 'chat1',
+          title: 'Chat 1',
+          questions: [{ id: 'q1', text: 'Question 1' }]
+        },
+        {
+          id: 'chat2',
+          title: 'Chat 2',
+          questions: [{ id: 'q2', text: 'Question 2' }]
+        }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats,
+          currentChatId: 'chat1'
+        }
+      })
+
+      const questionLists = wrapper.findAll('.question-list')
+      // First chat (current) should have Add new button
+      const chat1Questions = questionLists[0].findAll('.question-item')
+      expect(chat1Questions.some(q => q.classes().includes('new-question-item'))).toBe(true)
+
+      // Second chat (not current) should not have Add new button
+      const chat2NewQuestion = questionLists[1]?.find('.new-question-item')
+      expect(chat2NewQuestion?.exists()).toBeFalsy()
+    })
+
+    it('should emit new-question when "Add new" button clicked', async () => {
+      const chats = [
+        {
+          id: 'chat1',
+          title: 'Chat 1',
+          questions: [{ id: 'q1', text: 'Question 1' }]
+        }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats,
+          currentChatId: 'chat1'
+        }
+      })
+
+      await wrapper.find('.new-question-item').trigger('click')
+
+      expect(wrapper.emitted('new-question')).toBeTruthy()
+      expect(wrapper.emitted('new-question')).toHaveLength(1)
+    })
+
+    it('should highlight "Add new" button when isAddingNewQuestion is true', () => {
+      const chats = [
+        {
+          id: 'chat1',
+          title: 'Chat 1',
+          questions: [{ id: 'q1', text: 'Question 1' }]
+        }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats,
+          currentChatId: 'chat1',
+          isAddingNewQuestion: true
+        }
+      })
+
+      const newQuestionItem = wrapper.find('.new-question-item')
+      expect(newQuestionItem.classes()).toContain('active')
+    })
+
+    it('should not highlight "Add new" button when isAddingNewQuestion is false', () => {
+      const chats = [
+        {
+          id: 'chat1',
+          title: 'Chat 1',
+          questions: [{ id: 'q1', text: 'Question 1' }]
+        }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats,
+          currentChatId: 'chat1',
+          isAddingNewQuestion: false
+        }
+      })
+
+      const newQuestionItem = wrapper.find('.new-question-item')
+      expect(newQuestionItem.classes()).not.toContain('active')
+    })
+
+    it('should default isAddingNewQuestion prop to false', () => {
+      const chats = [
+        {
+          id: 'chat1',
+          title: 'Chat 1',
+          questions: [{ id: 'q1', text: 'Question 1' }]
+        }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats,
+          currentChatId: 'chat1'
+        }
+      })
+
+      expect(wrapper.props('isAddingNewQuestion')).toBe(false)
+      expect(wrapper.find('.new-question-item').classes()).not.toContain('active')
+    })
+
+    it('should render plus icon in "Add new" button', () => {
+      const chats = [
+        {
+          id: 'chat1',
+          title: 'Chat 1',
+          questions: [{ id: 'q1', text: 'Question 1' }]
+        }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats,
+          currentChatId: 'chat1'
+        }
+      })
+
+      const newQuestionIcon = wrapper.find('.new-question-icon')
+      expect(newQuestionIcon.exists()).toBe(true)
+      expect(newQuestionIcon.text()).toBe('+')
+    })
+
+    it('should hide "Add new" button when sidebar is collapsed', async () => {
+      const chats = [
+        {
+          id: 'chat1',
+          title: 'Chat 1',
+          questions: [{ id: 'q1', text: 'Question 1' }]
+        }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats,
+          currentChatId: 'chat1'
+        }
+      })
+
+      // Initially visible
+      expect(wrapper.find('.new-question-item').exists()).toBe(true)
+
+      // Collapse sidebar
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+
+      // Should be hidden (question list is hidden when sidebar collapsed)
+      expect(wrapper.find('.new-question-item').exists()).toBe(false)
+    })
+
+    it('should not show currentMessageId highlight when isAddingNewQuestion is true', () => {
+      const chats = [
+        {
+          id: 'chat1',
+          title: 'Chat 1',
+          questions: [{ id: 'q1', text: 'Question 1' }]
+        }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats,
+          currentChatId: 'chat1',
+          currentMessageId: null, // When adding new question, currentMessageId should be null
+          isAddingNewQuestion: true
+        }
+      })
+
+      // Regular question should not be highlighted
+      const questionItems = wrapper.findAll('.question-item:not(.new-question-item)')
+      expect(questionItems[0].classes()).not.toContain('active')
+
+      // Add new button should be highlighted
+      expect(wrapper.find('.new-question-item').classes()).toContain('active')
+    })
+  })
+
   describe('Settings Modal Integration', () => {
     beforeEach(() => {
       window.__getTheme = vi.fn(() => 'light')

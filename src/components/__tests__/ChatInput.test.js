@@ -380,6 +380,105 @@ describe('ChatInput', () => {
     })
   })
 
+  describe('Autofocus', () => {
+    it('should accept autofocus prop', () => {
+      wrapper = mount(ChatInput, {
+        props: {
+          autofocus: true
+        }
+      })
+
+      expect(wrapper.props('autofocus')).toBe(true)
+    })
+
+    it('should default autofocus to false', () => {
+      wrapper = mount(ChatInput)
+
+      expect(wrapper.props('autofocus')).toBe(false)
+    })
+
+    it('should focus textarea on mount when autofocus is true', async () => {
+      wrapper = mount(ChatInput, {
+        props: {
+          autofocus: true
+        },
+        attachTo: document.body
+      })
+
+      await wrapper.vm.$nextTick()
+
+      const textarea = wrapper.find('textarea').element
+      expect(document.activeElement).toBe(textarea)
+
+      wrapper.unmount()
+    })
+
+    it('should not focus textarea on mount when autofocus is false', async () => {
+      wrapper = mount(ChatInput, {
+        props: {
+          autofocus: false
+        },
+        attachTo: document.body
+      })
+
+      await wrapper.vm.$nextTick()
+
+      const textarea = wrapper.find('textarea').element
+      expect(document.activeElement).not.toBe(textarea)
+
+      wrapper.unmount()
+    })
+
+    it('should focus textarea when autofocus changes from false to true', async () => {
+      wrapper = mount(ChatInput, {
+        props: {
+          autofocus: false
+        },
+        attachTo: document.body
+      })
+
+      await wrapper.vm.$nextTick()
+
+      // Initially not focused
+      const textarea = wrapper.find('textarea').element
+      expect(document.activeElement).not.toBe(textarea)
+
+      // Change autofocus to true
+      await wrapper.setProps({ autofocus: true })
+      await wrapper.vm.$nextTick()
+
+      expect(document.activeElement).toBe(textarea)
+
+      wrapper.unmount()
+    })
+
+    it('should expose focus method', () => {
+      wrapper = mount(ChatInput)
+
+      expect(typeof wrapper.vm.focus).toBe('function')
+    })
+
+    it('should focus textarea when focus method is called', async () => {
+      wrapper = mount(ChatInput, {
+        attachTo: document.body
+      })
+
+      await wrapper.vm.$nextTick()
+
+      // Initially not focused
+      const textarea = wrapper.find('textarea').element
+      expect(document.activeElement).not.toBe(textarea)
+
+      // Call focus method
+      wrapper.vm.focus()
+      await wrapper.vm.$nextTick()
+
+      expect(document.activeElement).toBe(textarea)
+
+      wrapper.unmount()
+    })
+  })
+
   describe('Edge Cases', () => {
     it('should handle rapid send button clicks', async () => {
       wrapper = mount(ChatInput)
