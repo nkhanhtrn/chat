@@ -3,14 +3,16 @@
     :is="componentMap[node.type]"
     v-bind="getNodeProps(node)"
     @click="handleClick"
-    @question-link-click="bubbleQuestionLinkClick"
+    @question-link-click="$emit('question-link-click', $event)"
+    @highlight-click="$emit('highlight-click', $event)"
   >
     <template v-if="node.children">
       <ASTNode
         v-for="(child, index) in node.children"
         :key="index"
         :node="child"
-        @question-link-click="bubbleQuestionLinkClick"
+        @question-link-click="$emit('question-link-click', $event)"
+        @highlight-click="$emit('highlight-click', $event)"
       />
     </template>
     <template v-else-if="node.content">
@@ -49,7 +51,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['question-link-click'])
+const emit = defineEmits(['question-link-click', 'highlight-click'])
 
 // Map AST node types to Vue components
 const componentMap = {
@@ -138,9 +140,5 @@ function handleClick(childIndex) {
   if (props.node.type === 'question-link') {
     emit('question-link-click', childIndex)
   }
-}
-
-function bubbleQuestionLinkClick(childIndex) {
-  emit('question-link-click', childIndex)
 }
 </script>

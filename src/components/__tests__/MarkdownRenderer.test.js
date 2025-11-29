@@ -224,4 +224,6 @@ describe('MarkdownRenderer', () => {
       expect(wrapper.html()).not.toContain('<img src=x')
     })
   })
+
 })
+

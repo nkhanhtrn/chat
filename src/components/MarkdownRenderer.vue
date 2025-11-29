@@ -4,7 +4,8 @@
       v-for="(node, index) in astTree.children"
       :key="index"
       :node="node"
-      @question-link-click="handleQuestionLinkClick"
+      @question-link-click="$emit('question-link-click', $event)"
+      @highlight-click="$emit('highlight-click', $event)"
     />
   </div>
 </template>
@@ -25,15 +26,11 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['question-link-click'])
+defineEmits(['question-link-click', 'highlight-click'])
 
 const astTree = computed(() => {
   return parseMarkdownToAST(props.content, props.customContent)
 })
-
-function handleQuestionLinkClick(childIndex) {
-  emit('question-link-click', childIndex)
-}
 </script>
 
 <style>

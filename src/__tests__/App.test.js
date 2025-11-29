@@ -9,8 +9,7 @@ import DevToolbar from '../components/DevToolbar.vue'
 // Mock the API module
 vi.mock('../services/api.js', () => ({
   fetchModels: vi.fn(),
-  sendChatMessage: vi.fn(),
-  abortChatMessage: vi.fn()
+  sendChatMessage: vi.fn()
 }))
 
 import { fetchModels, sendChatMessage } from '../services/api.js'

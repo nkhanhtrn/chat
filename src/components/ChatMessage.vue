@@ -24,6 +24,7 @@
              :content="currentResponse"
              :custom-content="currentMessage?.customContent || []"
              @question-link-click="navigateToChild"
+             @highlight-click="handleHighlightClick"
            />
            <span v-if="isStreaming" class="cursor">▊</span>
          </div>
@@ -42,24 +43,6 @@
      </div>
   </div>
 </template>
-
-<script>
-// Exported for test usage
-export function getSelectedTextAndPosition(selection = window.getSelection()) {
-  const selectedText = selection && selection.toString().trim();
-  if (selectedText) {
-    const range = selection.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-    return {
-      selectedText,
-      x: rect.left + window.scrollX,
-      y: rect.bottom + window.scrollY,
-      visible: true
-    };
-  }
-  return { selectedText: '', x: 0, y: 0, visible: false };
-}
-</script>
 
 <script setup>
 import { reactive, computed } from 'vue'
@@ -97,7 +80,9 @@ const state = reactive({
     x: 0,
     y: 0,
     selectedText: '',
-    highlightId: null // Stores the current highlight ID
+    highlightId: null, // Stores the current highlight ID
+    startOffset: undefined,
+    endOffset: undefined
   }
 })
 
@@ -138,22 +123,25 @@ function showContextMenu(e) {
   const { selectedText, x, y, visible, startOffset, endOffset } = selectionData;
 
   if (visible && selectedText && startOffset !== undefined && endOffset !== undefined) {
-    // Add highlight with markdown offsets
-    const highlightId = addHighlight(selectedText, startOffset, endOffset);
-
+    // Store selection data for later use (when user keeps highlight or asks question)
     state.contextMenu.selectedText = selectedText;
-    state.contextMenu.highlightId = highlightId;
+    state.contextMenu.startOffset = startOffset;
+    state.contextMenu.endOffset = endOffset;
     state.contextMenu.x = x;
     state.contextMenu.y = y;
     state.contextMenu.visible = visible;
+    state.contextMenu.highlightId = null; // No highlight yet
   }
 }
 
 function closeContextMenu() {
-  // Remove highlight when clicking outside
+  // Remove highlight only if it was created (when clicking outside)
   if (state.contextMenu.highlightId) {
     removeHighlight(state.contextMenu.highlightId)
   }
+
+  // Clear the browser's text selection
+  window.getSelection()?.removeAllRanges()
 
   state.contextMenu.visible = false
   state.contextMenu.highlightId = null
@@ -213,7 +201,18 @@ function removeHighlight(highlightId) {
 }
 
 function keepHighlight() {
-  // Just close the menu without removing the highlight
+  // Create the permanent highlight when user clicks "Keep Highlight"
+  const { selectedText, startOffset, endOffset } = state.contextMenu;
+
+  if (selectedText && startOffset !== undefined && endOffset !== undefined) {
+    const highlightId = addHighlight(selectedText, startOffset, endOffset);
+    state.contextMenu.highlightId = highlightId;
+  }
+
+  // Clear the browser's text selection
+  window.getSelection()?.removeAllRanges()
+
+  // Close the menu (highlight is now permanent)
   state.contextMenu.visible = false
   state.contextMenu.highlightId = null
 }
@@ -221,28 +220,22 @@ function keepHighlight() {
 async function handleAskQuestion(question) {
   if (!question || state.isChildStreaming) return
 
-  // Store the selected text and highlight ID before closing the context menu
+  // Store the selected text and offsets before closing the context menu
   const selectedText = state.contextMenu.selectedText
-  const highlightId = state.contextMenu.highlightId
+  const startOffset = state.contextMenu.startOffset
+  const endOffset = state.contextMenu.endOffset
 
-  // Get highlight info
-  const highlight = currentMessage.value?.customContent?.find(
-    item => item.id === highlightId
-  )
-
-  if (!highlight) {
-    console.error('Highlight not found')
+  if (!selectedText || startOffset === undefined || endOffset === undefined) {
+    console.error('Invalid selection data')
     return
   }
-
-  const { startOffset, endOffset } = highlight
 
   // Store reference to parent message (currentMessage) before it changes
   const parentMessage = currentMessage.value
   const parentId = parentMessage.id
 
-  // Remove the highlight (it will be replaced with question link)
-  removeHighlight(highlightId)
+  // Clear the browser's text selection
+  window.getSelection()?.removeAllRanges()
 
   // Close menu
   state.contextMenu.visible = false
@@ -290,6 +283,17 @@ async function handleAskQuestion(question) {
 
 function navigateToChild(childIndex) {
   chatStore.navigateToChild(currentMessage.value?.id, childIndex)
+}
+
+function handleHighlightClick(highlightData) {
+  // Show context menu at the click position with the highlight's data
+  state.contextMenu.selectedText = highlightData.text
+  state.contextMenu.startOffset = highlightData.startOffset
+  state.contextMenu.endOffset = highlightData.endOffset
+  state.contextMenu.x = highlightData.x
+  state.contextMenu.y = highlightData.y
+  state.contextMenu.visible = true
+  state.contextMenu.highlightId = highlightData.highlightId
 }
 
 function addQuestionLinkToMessage(message, selectedText, childIndex, startOffset, endOffset) {
@@ -419,7 +423,7 @@ function addQuestionLinkToMessage(message, selectedText, childIndex, startOffset
 .assistant-message :deep(.question-link) {
   color: var(--color-link-question);
   text-decoration: none;
-  border-bottom: 1px solid red;
+  border-bottom: 0.5px solid red;
   cursor: pointer;
   font-weight: normal;
   transition: all 0.2s ease;
@@ -427,7 +431,7 @@ function addQuestionLinkToMessage(message, selectedText, childIndex, startOffset
 
 .assistant-message :deep(.question-link:hover) {
   color: var(--color-link-question-hover);
-  border-bottom: 1px solid var(--color-link-border-hover);
+  border-bottom: 0.5px solid var(--color-link-border-hover);
 }
 
 /* Highlight styles */

@@ -13,14 +13,6 @@ const api = axios.create({
 })
 
 /**
- * Update the API base URL
- */
-export const setApiBaseUrl = (url) => {
-  API_BASE_URL = url
-  api.defaults.baseURL = url
-}
-
-/**
  * GET /v1/models - Fetch available models
  */
 export const fetchModels = async () => {
@@ -45,21 +37,6 @@ export const fetchModels = async () => {
     throw new Error(error.response?.data?.error?.message || 'Failed to fetch models')
   }
 }
-
-// Store the current abort controller for cancelling requests
-let currentAbortController = null
-
-/**
- * Abort the current streaming request
- */
-export const abortChatMessage = () => {
-  if (currentAbortController) {
-    console.log('Aborting current request')
-    currentAbortController.abort()
-    currentAbortController = null
-  }
-}
-
 
 export const getQuestionSummary = async (question, model) => {
   const summaryPrompt = `Summarize the following in 2-5 words, no formatting, no punctuation, just the words:\n${question}`;
@@ -106,7 +83,6 @@ export const sendChatMessage = async (question, model, onChunk = null) => {
     }
 
     // Streaming mode
-    currentAbortController = new AbortController();
     const response = await fetch(`${API_BASE_URL}/v1/chat/completions`, {
       method: 'POST',
       headers: {
@@ -118,8 +94,7 @@ export const sendChatMessage = async (question, model, onChunk = null) => {
         temperature: 0.7,
         max_tokens: -1,
         stream: true
-      }),
-      signal: currentAbortController.signal
+      })
     });
     if (!response.ok) {
       throw new Error('Failed to get chat response');
@@ -152,11 +127,8 @@ export const sendChatMessage = async (question, model, onChunk = null) => {
         }
       }
     }
-    currentAbortController = null;
     return fullContent;
   } catch (error) {
-    currentAbortController = null;
-    if (error.name === 'AbortError') throw new Error('Request cancelled');
     if (error.message === 'No response from model') throw error;
     if (error.code === 'ERR_NETWORK' || error.name === 'TypeError') throw new Error('Cannot connect to LM Studio server');
     throw new Error(error.response?.data?.error?.message || 'Failed to get chat response');

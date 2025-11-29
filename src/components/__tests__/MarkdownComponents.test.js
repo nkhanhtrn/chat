@@ -446,6 +446,89 @@ describe('Markdown Components', () => {
       })
       expect(wrapper.text()).toBe('Slot content')
     })
+
+    it('should emit highlight-click event when clicked', async () => {
+      const wrapper = mount(HighlightSpan, {
+        props: {
+          text: 'highlighted text',
+          highlightId: 'test-id-123',
+          startOffset: 10,
+          endOffset: 26
+        }
+      })
+
+      await wrapper.find('.custom-highlight').trigger('click')
+
+      expect(wrapper.emitted('highlight-click')).toBeTruthy()
+      expect(wrapper.emitted('highlight-click')).toHaveLength(1)
+    })
+
+    it('should emit highlight-click event with correct data', async () => {
+      const wrapper = mount(HighlightSpan, {
+        props: {
+          text: 'test highlight',
+          highlightId: 'highlight-123',
+          startOffset: 5,
+          endOffset: 19
+        }
+      })
+
+      const clickEvent = {
+        clientX: 150,
+        clientY: 250,
+        stopPropagation: vi.fn()
+      }
+
+      await wrapper.find('.custom-highlight').trigger('click', clickEvent)
+
+      const emittedEvents = wrapper.emitted('highlight-click')
+      expect(emittedEvents).toHaveLength(1)
+
+      const [eventData] = emittedEvents[0]
+      expect(eventData).toEqual({
+        highlightId: 'highlight-123',
+        text: 'test highlight',
+        startOffset: 5,
+        endOffset: 19,
+        x: 150,
+        y: 250
+      })
+    })
+
+    it('should call stopPropagation when clicked', async () => {
+      const wrapper = mount(HighlightSpan, {
+        props: {
+          text: 'text',
+          highlightId: 'id-123',
+          startOffset: 0,
+          endOffset: 4
+        }
+      })
+
+      const mockEvent = {
+        clientX: 100,
+        clientY: 200,
+        stopPropagation: vi.fn()
+      }
+
+      await wrapper.trigger('click', mockEvent)
+
+      expect(mockEvent.stopPropagation).toHaveBeenCalled()
+    })
+
+    it('should have cursor pointer style', () => {
+      const wrapper = mount(HighlightSpan, {
+        props: {
+          text: 'text',
+          highlightId: 'id',
+          startOffset: 0,
+          endOffset: 4
+        }
+      })
+
+      // Check if the CSS class is applied (cursor: pointer is in the scoped style)
+      expect(wrapper.classes()).toContain('custom-highlight')
+    })
   })
 
   describe('QuestionLinkSpan', () => {
@@ -1664,6 +1747,7 @@ describe('Markdown Components', () => {
 
         expect(wrapper.emitted('question-link-click')).toBeFalsy()
       })
+
     })
 
     describe('Props Binding', () => {
