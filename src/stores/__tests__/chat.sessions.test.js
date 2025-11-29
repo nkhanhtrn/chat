@@ -688,6 +688,144 @@ describe('useChatStore - Chat Sessions', () => {
     })
   })
 
+  describe('deleteQuestion', () => {
+    it('should delete a question from a chat', () => {
+      chatStore.createNewChat()
+      const chatId = chatStore.currentChatId
+      chatStore.addRootMessage({ id: 'msg1', question: 'Q1', response: 'R1' })
+      chatStore.addRootMessage({ id: 'msg2', question: 'Q2', response: 'R2' })
+
+      chatStore.deleteQuestion('msg1', chatId)
+
+      const chat = chatStore.chats.find(c => c.id === chatId)
+      expect(chat.rootMessageIds).toEqual(['msg2'])
+      expect(chatStore.messagesById['msg1']).toBeUndefined()
+      expect(chatStore.messagesById['msg2']).toBeDefined()
+    })
+
+    it('should delete message and all its children', () => {
+      chatStore.createNewChat()
+      const chatId = chatStore.currentChatId
+      chatStore.addRootMessage({ id: 'msg1', question: 'Q1', response: 'R1' })
+      chatStore.addChildMessage('msg1', { id: 'child1', question: 'C1', response: 'R1' })
+      chatStore.addChildMessage('child1', { id: 'grandchild1', question: 'GC1', response: 'R1' })
+
+      chatStore.deleteQuestion('msg1', chatId)
+
+      expect(chatStore.messagesById['msg1']).toBeUndefined()
+      expect(chatStore.messagesById['child1']).toBeUndefined()
+      expect(chatStore.messagesById['grandchild1']).toBeUndefined()
+    })
+
+    it('should sync rootMessageIds when deleting from current chat', () => {
+      chatStore.createNewChat()
+      const chatId = chatStore.currentChatId
+      chatStore.addRootMessage({ id: 'msg1', question: 'Q1', response: 'R1' })
+      chatStore.addRootMessage({ id: 'msg2', question: 'Q2', response: 'R2' })
+      chatStore.addRootMessage({ id: 'msg3', question: 'Q3', response: 'R3' })
+
+      chatStore.deleteQuestion('msg2', chatId)
+
+      // rootMessageIds should be synced with chat.rootMessageIds
+      expect(chatStore.rootMessageIds).toEqual(['msg1', 'msg3'])
+    })
+
+    it('should update currentRootIndex when deleting currently viewed question', () => {
+      chatStore.createNewChat()
+      const chatId = chatStore.currentChatId
+      chatStore.addRootMessage({ id: 'msg1', question: 'Q1', response: 'R1' })
+      chatStore.addRootMessage({ id: 'msg2', question: 'Q2', response: 'R2' })
+      chatStore.addRootMessage({ id: 'msg3', question: 'Q3', response: 'R3' })
+
+      // Navigate to msg2 (index 1)
+      chatStore.currentRootIndex = 1
+      chatStore.currentMessageId = 'msg2'
+
+      chatStore.deleteQuestion('msg2', chatId)
+
+      // Should switch to msg3 (now at index 1)
+      expect(chatStore.currentMessageId).toBe('msg3')
+      expect(chatStore.currentRootIndex).toBe(1)
+    })
+
+    it('should adjust currentRootIndex when deleting question before current', () => {
+      chatStore.createNewChat()
+      const chatId = chatStore.currentChatId
+      chatStore.addRootMessage({ id: 'msg1', question: 'Q1', response: 'R1' })
+      chatStore.addRootMessage({ id: 'msg2', question: 'Q2', response: 'R2' })
+      chatStore.addRootMessage({ id: 'msg3', question: 'Q3', response: 'R3' })
+
+      // Navigate to msg3 (index 2)
+      chatStore.currentRootIndex = 2
+      chatStore.currentMessageId = 'msg3'
+
+      chatStore.deleteQuestion('msg1', chatId)
+
+      // currentRootIndex should decrease since we deleted before it
+      expect(chatStore.currentMessageId).toBe('msg3')
+      expect(chatStore.currentRootIndex).toBe(1)
+    })
+
+    it('should delete chat when last question is deleted', () => {
+      chatStore.createNewChat()
+      const chatId = chatStore.currentChatId
+      chatStore.addRootMessage({ id: 'msg1', question: 'Q1', response: 'R1' })
+
+      chatStore.deleteQuestion('msg1', chatId)
+
+      // Chat should be deleted and a new one created
+      expect(chatStore.chats.find(c => c.id === chatId)).toBeUndefined()
+      expect(chatStore.chats.length).toBe(1)
+    })
+
+    it('should do nothing when chat does not exist', () => {
+      chatStore.createNewChat()
+      chatStore.addRootMessage({ id: 'msg1', question: 'Q1', response: 'R1' })
+
+      chatStore.deleteQuestion('msg1', 'nonexistent-chat')
+
+      expect(chatStore.messagesById['msg1']).toBeDefined()
+    })
+
+    it('should do nothing when message does not exist in chat', () => {
+      chatStore.createNewChat()
+      const chatId = chatStore.currentChatId
+      chatStore.addRootMessage({ id: 'msg1', question: 'Q1', response: 'R1' })
+
+      chatStore.deleteQuestion('nonexistent-msg', chatId)
+
+      expect(chatStore.messagesById['msg1']).toBeDefined()
+    })
+
+    it('should persist state after deleting question', () => {
+      chatStore.createNewChat()
+      const chatId = chatStore.currentChatId
+      chatStore.addRootMessage({ id: 'msg1', question: 'Q1', response: 'R1' })
+      chatStore.addRootMessage({ id: 'msg2', question: 'Q2', response: 'R2' })
+
+      chatStore.deleteQuestion('msg1', chatId)
+
+      expect(saveChatStateSpy).toHaveBeenCalled()
+    })
+
+    it('should handle deleting last question when viewing it', () => {
+      chatStore.createNewChat()
+      const chatId = chatStore.currentChatId
+      chatStore.addRootMessage({ id: 'msg1', question: 'Q1', response: 'R1' })
+      chatStore.addRootMessage({ id: 'msg2', question: 'Q2', response: 'R2' })
+
+      // View the last question
+      chatStore.currentRootIndex = 1
+      chatStore.currentMessageId = 'msg2'
+
+      chatStore.deleteQuestion('msg2', chatId)
+
+      // Should switch to msg1
+      expect(chatStore.currentMessageId).toBe('msg1')
+      expect(chatStore.currentRootIndex).toBe(0)
+    })
+  })
+
   describe('Edge Cases', () => {
     it('should handle creating chat when no current chat exists', () => {
       expect(chatStore.currentChatId).toBeNull()

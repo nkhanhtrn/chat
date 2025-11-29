@@ -155,6 +155,24 @@ describe('ChatMessage context menu integration', () => {
 
   describe('Keep Highlight Behavior', () => {
     it('keepHighlight creates permanent highlight from stored selection data', () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-keep',
+        question: 'Q',
+        response: 'test highlight text',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      // Register message in store
+      wrapper.vm.chatStore.messagesById['msg-keep'] = testMessage
+
       const state = getState(wrapper)
 
       // Simulate stored selection data from showContextMenu
@@ -166,14 +184,14 @@ describe('ChatMessage context menu integration', () => {
       // Call keepHighlight
       wrapper.vm.keepHighlight()
 
-      // Highlight should now be created
-      const message = wrapper.vm.$.props.message
-      expect(message.customContent).toBeDefined()
-      expect(message.customContent.length).toBe(1)
-      expect(message.customContent[0].type).toBe('highlight')
-      expect(message.customContent[0].text).toBe('test highlight')
-      expect(message.customContent[0].startOffset).toBe(0)
-      expect(message.customContent[0].endOffset).toBe(14)
+      // Highlight should now be created in the store
+      const storeMessage = wrapper.vm.chatStore.messagesById['msg-keep']
+      expect(storeMessage.customContent).toBeDefined()
+      expect(storeMessage.customContent.length).toBe(1)
+      expect(storeMessage.customContent[0].type).toBe('highlight')
+      expect(storeMessage.customContent[0].text).toBe('test highlight')
+      expect(storeMessage.customContent[0].startOffset).toBe(0)
+      expect(storeMessage.customContent[0].endOffset).toBe(14)
 
       // Context menu should be closed
       expect(state.contextMenu.visible).toBe(false)
@@ -233,6 +251,24 @@ describe('ChatMessage context menu integration', () => {
     })
 
     it('closeContextMenu does not remove highlights when closed', () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-close',
+        question: 'Q',
+        response: 'temp text here',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      // Register message in store
+      wrapper.vm.chatStore.messagesById['msg-close'] = testMessage
+
       const state = getState(wrapper)
 
       // Manually create a highlight to simulate the scenario
@@ -241,9 +277,9 @@ describe('ChatMessage context menu integration', () => {
       state.contextMenu.endOffset = 4
       wrapper.vm.keepHighlight()
 
-      // Get the created highlight ID
-      const message = wrapper.vm.$.props.message
-      const highlightId = message.customContent[0].id
+      // Get the created highlight ID from the store
+      const storeMessage = wrapper.vm.chatStore.messagesById['msg-close']
+      const highlightId = storeMessage.customContent[0].id
 
       // Set it in state as if context menu had it
       state.contextMenu.highlightId = highlightId
@@ -253,8 +289,8 @@ describe('ChatMessage context menu integration', () => {
       wrapper.vm.closeContextMenu()
 
       // Highlight should NOT be removed
-      expect(message.customContent.length).toBe(1)
-      expect(message.customContent[0].id).toBe(highlightId)
+      expect(storeMessage.customContent.length).toBe(1)
+      expect(storeMessage.customContent[0].id).toBe(highlightId)
     })
 
     it('closeContextMenu does nothing if no highlight exists', () => {

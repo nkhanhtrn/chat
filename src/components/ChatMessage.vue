@@ -190,37 +190,17 @@ function addHighlight(selectedText, startOffset, endOffset, colorIndex = 0) {
     endOffset
   }
 
-  // Initialize customContent array if it doesn't exist
-  if (!currentMessage.value.customContent) {
-    currentMessage.value.customContent = []
-  }
-
-  // Add highlight to message
-  currentMessage.value.customContent.push(highlight)
-
-  // Update the store to trigger reactivity
-  chatStore.updateMessage(currentMessage.value.id, {
-    customContent: [...currentMessage.value.customContent]
-  })
+  // Use store action to add highlight
+  chatStore.addCustomContent(currentMessage.value.id, highlight)
 
   return highlightId
 }
 
 function removeHighlight(highlightId) {
-  if (!highlightId || !currentMessage.value?.customContent) return
+  if (!highlightId || !currentMessage.value) return
 
-  const index = currentMessage.value.customContent.findIndex(
-    item => item.id === highlightId
-  )
-
-  if (index !== -1) {
-    currentMessage.value.customContent.splice(index, 1)
-
-    // Update the store to trigger reactivity
-    chatStore.updateMessage(currentMessage.value.id, {
-      customContent: [...currentMessage.value.customContent]
-    })
-  }
+  // Use store action to remove highlight
+  chatStore.removeCustomContent(currentMessage.value.id, highlightId)
 }
 
 function keepHighlight(colorIndex) {
@@ -330,20 +310,10 @@ function handleChangeColor(colorIndex) {
   state.contextMenu.colorIndex = colorIndex
 
   // Update color of existing highlight if one is selected
-  if (!state.contextMenu.highlightId || !currentMessage.value?.customContent) return
+  if (!state.contextMenu.highlightId || !currentMessage.value) return
 
-  const highlight = currentMessage.value.customContent.find(
-    item => item.id === state.contextMenu.highlightId
-  )
-
-  if (highlight) {
-    highlight.colorIndex = colorIndex
-
-    // Update the store to trigger reactivity
-    chatStore.updateMessage(currentMessage.value.id, {
-      customContent: [...currentMessage.value.customContent]
-    })
-  }
+  // Use store action to update highlight color
+  chatStore.updateCustomContent(currentMessage.value.id, state.contextMenu.highlightId, { colorIndex })
 }
 
 function handleRemoveHighlight() {
@@ -367,18 +337,8 @@ function addQuestionLinkToMessage(message, selectedText, childIndex, startOffset
     endOffset
   }
 
-  // Initialize customContent array if it doesn't exist
-  if (!message.customContent) {
-    message.customContent = []
-  }
-
-  // Add question link to message
-  message.customContent.push(questionLink)
-
-  // Update the store to trigger reactivity
-  chatStore.updateMessage(message.id, {
-    customContent: [...message.customContent]
-  })
+  // Use store action to add question link
+  chatStore.addCustomContent(message.id, questionLink)
 }
 
 </script>

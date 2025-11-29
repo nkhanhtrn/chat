@@ -173,8 +173,8 @@ describe('ChatSidebar', () => {
 
       const questions = wrapper.findAll('.question-item')
       expect(questions).toHaveLength(2)
-      expect(questions[0].text()).toBe('Question 1')
-      expect(questions[1].text()).toBe('Question 2')
+      expect(questions[0].find('.question-text').text()).toBe('Question 1')
+      expect(questions[1].find('.question-text').text()).toBe('Question 2')
     })
 
     it('should not render questions for collapsed chats', async () => {
@@ -449,6 +449,67 @@ describe('ChatSidebar', () => {
       await wrapper.find('.delete-button').trigger('click')
 
       expect(wrapper.emitted('select-chat')).toBeFalsy()
+    })
+
+    it('should emit delete-question when question delete button clicked', async () => {
+      const chats = [
+        {
+          id: 'chat1',
+          title: 'Chat 1',
+          questions: [
+            { id: 'q1', text: 'Question 1' },
+            { id: 'q2', text: 'Question 2' }
+          ]
+        }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      const questionDeleteBtns = wrapper.findAll('.question-delete')
+      await questionDeleteBtns[0].trigger('click')
+
+      expect(wrapper.emitted('delete-question')).toBeTruthy()
+      expect(wrapper.emitted('delete-question')[0]).toEqual(['q1', 'chat1'])
+    })
+
+    it('should not emit select-question when clicking question delete button', async () => {
+      const chats = [
+        {
+          id: 'chat1',
+          title: 'Chat 1',
+          questions: [{ id: 'q1', text: 'Question 1' }]
+        }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      await wrapper.find('.question-delete').trigger('click')
+
+      expect(wrapper.emitted('select-question')).toBeFalsy()
+    })
+
+    it('should emit rename-question when question InlineEdit saves', async () => {
+      const chats = [
+        {
+          id: 'chat1',
+          title: 'Chat 1',
+          questions: [{ id: 'q1', text: 'Question 1' }]
+        }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      // Start editing
+      await wrapper.find('.question-text').trigger('dblclick')
+      const input = wrapper.find('.question-text-input')
+      await input.setValue('Renamed Question')
+      await input.trigger('keydown.enter')
+
+      expect(wrapper.emitted('rename-question')).toBeTruthy()
+      expect(wrapper.emitted('rename-question')[0]).toEqual(['q1', 'Renamed Question'])
     })
   })
 
@@ -760,7 +821,7 @@ describe('ChatSidebar', () => {
       expect(wrapper.emitted('rename-chat')[0]).toEqual(['chat1', 'New Title'])
     })
 
-    it('should emit rename-chat event when input loses focus', async () => {
+    it('should emit rename-chat event when save button is clicked', async () => {
       const chats = [
         { id: 'chat1', title: 'Original', questions: [] }
       ]
@@ -772,7 +833,7 @@ describe('ChatSidebar', () => {
 
       const input = wrapper.find('.chat-title-input')
       await input.setValue('Updated Title')
-      await input.trigger('blur')
+      await wrapper.find('.save-btn').trigger('click')
 
       expect(wrapper.emitted('rename-chat')).toBeTruthy()
       expect(wrapper.emitted('rename-chat')[0]).toEqual(['chat1', 'Updated Title'])
@@ -908,12 +969,152 @@ describe('ChatSidebar', () => {
 
       await wrapper.find('.chat-title').trigger('dblclick')
 
+      // Clear any previous emissions from the dblclick
+      const previousEmissions = wrapper.emitted('select-chat')?.length || 0
+
       const input = wrapper.find('.chat-title-input')
       await input.trigger('click')
 
-      // Should not emit select-chat when clicking inside input
+      // Should not emit additional select-chat when clicking inside input
       // The click.stop should prevent propagation
-      expect(wrapper.emitted('select-chat')).toBeFalsy()
+      const currentEmissions = wrapper.emitted('select-chat')?.length || 0
+      expect(currentEmissions).toBe(previousEmissions)
+    })
+  })
+
+  describe('Delete Button Visibility During Edit Mode', () => {
+    // Helper to check if element is hidden via v-show (display: none)
+    const isHiddenByVShow = (element) => element.element.style.display === 'none'
+
+    it('should hide chat delete button when editing chat title', async () => {
+      const chats = [
+        { id: 'chat1', title: 'Chat 1', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      // Delete button should be visible initially
+      const deleteBtn = wrapper.find('.chat-header .delete-button')
+      expect(isHiddenByVShow(deleteBtn)).toBe(false)
+
+      // Start editing
+      await wrapper.find('.chat-title').trigger('dblclick')
+
+      // Delete button should be hidden during edit
+      expect(isHiddenByVShow(wrapper.find('.chat-header .delete-button'))).toBe(true)
+    })
+
+    it('should show chat delete button after finishing edit', async () => {
+      const chats = [
+        { id: 'chat1', title: 'Chat 1', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      // Start editing
+      await wrapper.find('.chat-title').trigger('dblclick')
+      expect(isHiddenByVShow(wrapper.find('.chat-header .delete-button'))).toBe(true)
+
+      // Finish editing
+      await wrapper.find('.chat-title-input').setValue('New Title')
+      await wrapper.find('.chat-title-input').trigger('keydown.enter')
+
+      // Delete button should be visible again
+      expect(isHiddenByVShow(wrapper.find('.chat-header .delete-button'))).toBe(false)
+    })
+
+    it('should show chat delete button after canceling edit', async () => {
+      const chats = [
+        { id: 'chat1', title: 'Chat 1', questions: [] }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      // Start editing
+      await wrapper.find('.chat-title').trigger('dblclick')
+      expect(isHiddenByVShow(wrapper.find('.chat-header .delete-button'))).toBe(true)
+
+      // Cancel editing
+      await wrapper.find('.chat-title-input').trigger('keydown.esc')
+
+      // Delete button should be visible again
+      expect(isHiddenByVShow(wrapper.find('.chat-header .delete-button'))).toBe(false)
+    })
+
+    it('should hide question delete button when editing question', async () => {
+      const chats = [
+        {
+          id: 'chat1',
+          title: 'Chat 1',
+          questions: [{ id: 'q1', text: 'Question 1' }]
+        }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      // Delete button should be visible initially
+      const deleteBtn = wrapper.find('.question-delete')
+      expect(isHiddenByVShow(deleteBtn)).toBe(false)
+
+      // Start editing question
+      await wrapper.find('.question-text').trigger('dblclick')
+
+      // Delete button should be hidden during edit
+      expect(isHiddenByVShow(wrapper.find('.question-delete'))).toBe(true)
+    })
+
+    it('should show question delete button after finishing edit', async () => {
+      const chats = [
+        {
+          id: 'chat1',
+          title: 'Chat 1',
+          questions: [{ id: 'q1', text: 'Question 1' }]
+        }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      // Start editing
+      await wrapper.find('.question-text').trigger('dblclick')
+      expect(isHiddenByVShow(wrapper.find('.question-delete'))).toBe(true)
+
+      // Finish editing
+      await wrapper.find('.question-text-input').setValue('New Question')
+      await wrapper.find('.question-text-input').trigger('keydown.enter')
+
+      // Delete button should be visible again
+      expect(isHiddenByVShow(wrapper.find('.question-delete'))).toBe(false)
+    })
+
+    it('should only hide delete button for the item being edited', async () => {
+      const chats = [
+        {
+          id: 'chat1',
+          title: 'Chat 1',
+          questions: [
+            { id: 'q1', text: 'Question 1' },
+            { id: 'q2', text: 'Question 2' }
+          ]
+        }
+      ]
+      wrapper = mount(ChatSidebar, {
+        props: { chats }
+      })
+
+      // Start editing first question
+      const questionTexts = wrapper.findAll('.question-text')
+      await questionTexts[0].trigger('dblclick')
+
+      // First question delete button should be hidden
+      const deleteButtons = wrapper.findAll('.question-delete')
+      expect(isHiddenByVShow(deleteButtons[0])).toBe(true)
+      // Second question delete button should still be visible
+      expect(isHiddenByVShow(deleteButtons[1])).toBe(false)
     })
   })
 

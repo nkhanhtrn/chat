@@ -59,7 +59,7 @@ export const useChatStore = defineStore('chat', {
           .filter(Boolean)
           .map(msg => ({
             id: msg.id,
-            text: msg.question || 'Untitled',
+            text: msg.questionSummarized || msg.question || 'Untitled',
             chatId: chat.id,
             rootIndex: chat.rootMessageIds.indexOf(msg.id)
           }))
@@ -183,6 +183,43 @@ export const useChatStore = defineStore('chat', {
       const message = this.messagesById[messageId]
       if (message) {
         Object.assign(message, updates)
+        this._persistState()
+      }
+    },
+
+    // Add custom content (highlight or question link) to a message
+    addCustomContent(messageId, content) {
+      const message = this.messagesById[messageId]
+      if (!message) return null
+
+      if (!message.customContent) {
+        message.customContent = []
+      }
+      message.customContent.push(content)
+      this._persistState()
+      return content.id
+    },
+
+    // Remove custom content by ID from a message
+    removeCustomContent(messageId, contentId) {
+      const message = this.messagesById[messageId]
+      if (!message?.customContent) return
+
+      const index = message.customContent.findIndex(item => item.id === contentId)
+      if (index !== -1) {
+        message.customContent.splice(index, 1)
+        this._persistState()
+      }
+    },
+
+    // Update custom content by ID
+    updateCustomContent(messageId, contentId, updates) {
+      const message = this.messagesById[messageId]
+      if (!message?.customContent) return
+
+      const item = message.customContent.find(item => item.id === contentId)
+      if (item) {
+        Object.assign(item, updates)
         this._persistState()
       }
     },
@@ -439,6 +476,59 @@ export const useChatStore = defineStore('chat', {
         firstMessage.question = newTitle
         this._persistState()
       }
+    },
+
+    // Delete a question (root message) from a chat
+    deleteQuestion(messageId, chatId) {
+      const chat = this.chats.find(c => c.id === chatId)
+      if (!chat) return
+
+      const messageIndex = chat.rootMessageIds.indexOf(messageId)
+      if (messageIndex === -1) return
+
+      // Check if this is the current chat
+      const isCurrentChat = this.currentChatId === chatId
+
+      // Remove from rootMessageIds
+      chat.rootMessageIds.splice(messageIndex, 1)
+
+      // Sync rootMessageIds if this is the current chat
+      if (isCurrentChat) {
+        this.rootMessageIds = [...chat.rootMessageIds]
+      }
+
+      // Helper to recursively delete a message and all its children
+      const deleteMessageTree = (id) => {
+        const msg = this.messagesById[id]
+        if (!msg) return
+        // Delete all children first
+        if (msg.childIds) {
+          msg.childIds.forEach(childId => deleteMessageTree(childId))
+        }
+        delete this.messagesById[id]
+      }
+
+      // Delete the message and its children
+      deleteMessageTree(messageId)
+
+      // If we deleted the currently viewed message, switch to another
+      if (this.currentMessageId === messageId) {
+        if (chat.rootMessageIds.length > 0) {
+          // Switch to the previous or first root message
+          const newIndex = Math.min(messageIndex, chat.rootMessageIds.length - 1)
+          this.currentMessageId = chat.rootMessageIds[newIndex]
+          this.currentRootIndex = newIndex
+        } else {
+          // No more questions in this chat, delete the chat
+          this.deleteChat(chatId)
+          return
+        }
+      } else if (isCurrentChat && messageIndex < this.currentRootIndex) {
+        // Adjust currentRootIndex when deleting a question before the current one
+        this.currentRootIndex--
+      }
+
+      this._persistState()
     },
   }
 })

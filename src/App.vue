@@ -8,7 +8,9 @@
       @select-chat="handleSelectChat"
       @select-question="handleSelectQuestion"
       @delete-chat="handleDeleteChat"
+      @delete-question="handleDeleteQuestion"
       @rename-chat="handleRenameChat"
+      @rename-question="handleRenameQuestion"
     />
 
     <div class="chat-container">
@@ -236,21 +238,20 @@ const handleSelectChat = (chatId) => {
 }
 
 const handleSelectQuestion = (question) => {
+  // Save scroll position of current message before switching
   const currentScrollPos = getScrollPosition()
+  if (chatStore.currentMessageId) {
+    chatStore.saveScrollPosition(chatStore.currentMessageId, currentScrollPos)
+  }
 
   // Switch to the chat containing this question if not already on it
   if (chatStore.currentChatId !== question.chatId) {
-    // Save scroll position before switching (switchToChat clears currentMessageId)
-    if (chatStore.currentMessageId) {
-      chatStore.saveScrollPosition(chatStore.currentMessageId, currentScrollPos)
-    }
     chatStore.switchToChat(question.chatId)
   }
-
   // Set the root index to display this question
   chatStore.currentRootIndex = question.rootIndex
-  // Navigate to the message (passing scroll position for same-chat navigation)
-  const scrollPos = chatStore.navigateToMessage(question.id, currentScrollPos)
+  // Navigate to the message and restore scroll position
+  const scrollPos = chatStore.navigateToMessage(question.id)
   setScrollPosition(scrollPos)
 }
 
@@ -271,6 +272,14 @@ const handleDeleteChat = (chatId) => {
 
 const handleRenameChat = (chatId, newTitle) => {
   chatStore.renameChat(chatId, newTitle)
+}
+
+const handleRenameQuestion = (messageId, newSummary) => {
+  chatStore.setQuestionSummarized(messageId, newSummary)
+}
+
+const handleDeleteQuestion = (messageId, chatId) => {
+  chatStore.deleteQuestion(messageId, chatId)
 }
 
 </script>

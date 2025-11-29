@@ -18,29 +18,26 @@
             {{ isCollapsed(chat.id) ? '▸' : '▾' }}
           </div>
           <div
-            v-if="editingChatId !== chat.id"
+            v-if="isSidebarCollapsed"
             class="chat-title"
             @click="$emit('select-chat', chat.id)"
-            @dblclick="startEditing(chat.id, chat.title)"
             :title="chat.title"
           >
-            <span v-if="isSidebarCollapsed" class="chat-title-collapsed">
+            <span class="chat-title-collapsed">
               {{ chat.title.charAt(0).toUpperCase() }}
             </span>
-            <span v-else>{{ chat.title }}</span>
           </div>
-          <input
+          <InlineEdit
             v-else
-            ref="editInput"
-            v-model="editingTitle"
-            @blur="finishEditing(chat.id)"
-            @keydown.enter="finishEditing(chat.id)"
-            @keydown.esc="cancelEditing"
-            @click.stop
-            class="chat-title-input"
-            type="text"
-          />
-          <Button v-show="!isSidebarCollapsed" class="delete-button" @click.stop="$emit('delete-chat', chat.id)" title="Delete chat" variant="danger">
+            :model-value="chat.title"
+            text-class="chat-title"
+            input-class="chat-title-input"
+            @click="$emit('select-chat', chat.id)"
+            @save="(newTitle) => $emit('rename-chat', chat.id, newTitle)"
+            @editing-start="editingChatId = chat.id"
+            @editing-end="editingChatId = null"
+          >{{ chat.title }}</InlineEdit>
+          <Button v-show="!isSidebarCollapsed && editingChatId !== chat.id" class="delete-button" @click.stop="$emit('delete-chat', chat.id)" title="Delete chat" variant="danger">
             ×
           </Button>
         </div>
@@ -55,7 +52,17 @@
             @click="$emit('select-question', question)"
             :class="['question-item', { active: question.id === currentMessageId }]"
           >
-            <span class="question-text">{{ question.text }}</span>
+            <InlineEdit
+              :model-value="question.text"
+              text-class="question-text"
+              input-class="question-text-input"
+              @save="(newText) => $emit('rename-question', question.id, newText)"
+              @editing-start="editingQuestionId = question.id"
+              @editing-end="editingQuestionId = null"
+            >{{ question.text }}</InlineEdit>
+            <Button v-show="editingQuestionId !== question.id" class="delete-button question-delete" @click.stop="$emit('delete-question', question.id, chat.id)" title="Delete question" variant="danger">
+              ×
+            </Button>
           </div>
         </div>
       </div>
@@ -80,8 +87,9 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted, watch } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import Button from './Button.vue'
+import InlineEdit from './InlineEdit.vue'
 
 defineProps({
   chats: {
@@ -98,15 +106,14 @@ defineProps({
   }
 })
 
-const emit = defineEmits(['new-chat', 'select-chat', 'select-question', 'delete-chat', 'rename-chat'])
+const emit = defineEmits(['new-chat', 'select-chat', 'select-question', 'delete-chat', 'delete-question', 'rename-chat', 'rename-question'])
 
 const SIDEBAR_COLLAPSED_KEY = 'chatSidebarCollapsed'
 
 const collapsedChats = ref(new Set())
-const editingChatId = ref(null)
-const editingTitle = ref('')
-const editInput = ref(null)
 const isSidebarCollapsed = ref(false)
+const editingChatId = ref(null)
+const editingQuestionId = ref(null)
 
 // Load sidebar collapsed state from localStorage on mount
 onMounted(() => {
@@ -135,33 +142,6 @@ const isCollapsed = (chatId) => {
 
 const toggleSidebar = () => {
   isSidebarCollapsed.value = !isSidebarCollapsed.value
-}
-
-const startEditing = (chatId, currentTitle) => {
-  editingChatId.value = chatId
-  editingTitle.value = currentTitle
-  nextTick(() => {
-    if (editInput.value) {
-      const input = Array.isArray(editInput.value) ? editInput.value[0] : editInput.value
-      if (input) {
-        input.focus()
-        input.select()
-      }
-    }
-  })
-}
-
-const finishEditing = (chatId) => {
-  if (editingTitle.value.trim() && editingTitle.value !== '') {
-    emit('rename-chat', chatId, editingTitle.value.trim())
-  }
-  editingChatId.value = null
-  editingTitle.value = ''
-}
-
-const cancelEditing = () => {
-  editingChatId.value = null
-  editingTitle.value = ''
 }
 </script>
 
@@ -323,8 +303,7 @@ const cancelEditing = () => {
 
 .question-list {
   margin-top: 0.25rem;
-  padding-left: 2.25rem;
-  border-left: 2px solid var(--color-border-subtle);
+  padding-left: 0.25rem;
   margin-left: 0.75rem;
 }
 
@@ -333,18 +312,28 @@ const cancelEditing = () => {
   padding: 0.4rem 0.75rem;
   cursor: pointer;
   transition: all 0.2s;
-  border-left: 2px solid transparent;
+  border-left: 1px solid transparent;
   margin-left: -2px;
+  border-left-color: var(--color-border-subtle);
 }
 
 .question-item:hover {
   background-color: var(--color-bg-tertiary);
+  border-left: 3px solid transparent;
   border-left-color: var(--color-border-strong);
 }
 
 .question-item.active {
   background-color: var(--color-bg-selected);
   border-left-color: var(--color-primary);
+}
+
+.question-item:hover .question-delete {
+  opacity: 1;
+}
+
+.question-delete {
+  flex-shrink: 0;
 }
 
 .question-text {
@@ -356,6 +345,15 @@ const cancelEditing = () => {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.question-text-input {
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  flex: 1;
+  padding: 0.2rem 0.4rem;
+  width: 100%;
 }
 
 .empty-state {

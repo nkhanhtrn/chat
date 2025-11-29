@@ -449,4 +449,118 @@ describe('useChatStore', () => {
       expect(savedState.messagesById.child2.highlightedText).toBe(null)
     })
   })
+
+  describe('Custom content actions', () => {
+    it('addCustomContent adds content to a message', () => {
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Test',
+        response: 'Response'
+      })
+
+      const highlight = {
+        id: 'h1',
+        type: 'highlight',
+        text: 'test',
+        colorIndex: 0,
+        startOffset: 0,
+        endOffset: 4
+      }
+
+      const resultId = chatStore.addCustomContent('msg1', highlight)
+
+      expect(resultId).toBe('h1')
+      expect(chatStore.messagesById.msg1.customContent).toHaveLength(1)
+      expect(chatStore.messagesById.msg1.customContent[0]).toEqual(highlight)
+    })
+
+    it('addCustomContent initializes customContent array if missing', () => {
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Test',
+        response: 'Response'
+      })
+
+      // Ensure no customContent exists
+      chatStore.messagesById.msg1.customContent = undefined
+
+      chatStore.addCustomContent('msg1', { id: 'h1', type: 'highlight' })
+
+      expect(Array.isArray(chatStore.messagesById.msg1.customContent)).toBe(true)
+      expect(chatStore.messagesById.msg1.customContent).toHaveLength(1)
+    })
+
+    it('addCustomContent returns null for non-existent message', () => {
+      const result = chatStore.addCustomContent('nonexistent', { id: 'h1' })
+      expect(result).toBe(null)
+    })
+
+    it('removeCustomContent removes content by ID', () => {
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Test',
+        response: 'Response'
+      })
+
+      chatStore.addCustomContent('msg1', { id: 'h1', type: 'highlight' })
+      chatStore.addCustomContent('msg1', { id: 'h2', type: 'highlight' })
+
+      expect(chatStore.messagesById.msg1.customContent).toHaveLength(2)
+
+      chatStore.removeCustomContent('msg1', 'h1')
+
+      expect(chatStore.messagesById.msg1.customContent).toHaveLength(1)
+      expect(chatStore.messagesById.msg1.customContent[0].id).toBe('h2')
+    })
+
+    it('removeCustomContent does nothing for non-existent content', () => {
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Test',
+        response: 'Response'
+      })
+
+      chatStore.addCustomContent('msg1', { id: 'h1', type: 'highlight' })
+
+      chatStore.removeCustomContent('msg1', 'nonexistent')
+
+      expect(chatStore.messagesById.msg1.customContent).toHaveLength(1)
+    })
+
+    it('removeCustomContent does nothing for non-existent message', () => {
+      expect(() => chatStore.removeCustomContent('nonexistent', 'h1')).not.toThrow()
+    })
+
+    it('updateCustomContent updates content properties', () => {
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Test',
+        response: 'Response'
+      })
+
+      chatStore.addCustomContent('msg1', { id: 'h1', type: 'highlight', colorIndex: 0 })
+
+      chatStore.updateCustomContent('msg1', 'h1', { colorIndex: 2 })
+
+      expect(chatStore.messagesById.msg1.customContent[0].colorIndex).toBe(2)
+    })
+
+    it('updateCustomContent does nothing for non-existent content', () => {
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Test',
+        response: 'Response'
+      })
+
+      chatStore.addCustomContent('msg1', { id: 'h1', colorIndex: 0 })
+
+      chatStore.updateCustomContent('msg1', 'nonexistent', { colorIndex: 2 })
+
+      expect(chatStore.messagesById.msg1.customContent[0].colorIndex).toBe(0)
+    })
+
+    it('updateCustomContent does nothing for non-existent message', () => {
+      expect(() => chatStore.updateCustomContent('nonexistent', 'h1', { colorIndex: 2 })).not.toThrow()
+    })
+  })
 })

@@ -22,23 +22,11 @@
           </div>
         </div>
         <Button class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming" variant="tertiary">Explain</Button>
-        <div class="custom-prompt-wrapper">
-            <input
-              ref="customPromptInput"
-              v-model="customPrompt"
-              class="custom-prompt-input"
-              type="text"
-              placeholder="Custom prompt..."
-              :disabled="isStreaming"
-              @keydown.enter="onSendCustomPrompt"
-            />
-            <button class="custom-prompt-send" @click="onSendCustomPrompt" :disabled="isStreaming || !customPrompt.trim()">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13"></line>
-                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-              </svg>
-            </button>
-        </div>
+        <PromptInput
+          placeholder="Custom prompt..."
+          :disabled="isStreaming"
+          @submit="onSendCustomPrompt"
+        />
       </div>
     </template>
   </teleport>
@@ -47,6 +35,7 @@
 <script setup>
 import { defineEmits, defineProps, ref, watch, onMounted, onUnmounted } from 'vue'
 import Button from './Button.vue'
+import PromptInput from './PromptInput.vue'
 import { highlightColors } from '../constants/highlightColors.js'
 
 const props = defineProps({
@@ -70,7 +59,6 @@ const props = defineProps({
 const emit = defineEmits(['close', 'keep-highlight', 'ask-question', 'change-color', 'remove-highlight'])
 
 const selectedColorIndex = ref(0)
-const customPrompt = ref('')
 
 // Update selected color index when colorIndex prop changes or menu becomes visible
 watch([() => props.colorIndex, () => props.visible], ([newIndex]) => {
@@ -100,11 +88,9 @@ function onAskQuestion() {
   emit('ask-question', `${props.highlightedText}`)
 }
 
-function onSendCustomPrompt() {
-  if (!customPrompt.value.trim()) return
-  const prompt = `${customPrompt.value}\nfor more context: ${props.highlightedText}`
+function onSendCustomPrompt(customPrompt) {
+  const prompt = `${customPrompt}\nfor more context: ${props.highlightedText}`
   emit('ask-question', prompt)
-  customPrompt.value = ''
 }
 
 function onClickOutside() {
@@ -195,56 +181,4 @@ onUnmounted(() => {
   cursor: not-allowed;
 }
 
-.custom-prompt-wrapper {
-  position: relative;
-  margin-top: 0.25rem;
-}
-
-.custom-prompt-input {
-  width: 100%;
-  padding: 0.4rem 2rem 0.4rem 0.6rem;
-  font-size: 0.9rem;
-  border: 1px solid var(--color-border-context);
-  border-radius: 4px;
-  background: var(--color-bg-input, var(--color-bg-context-menu));
-  color: var(--color-text-on-accent);
-  outline: none;
-  box-sizing: border-box;
-}
-
-.custom-prompt-input:focus {
-  border-color: var(--color-accent, #007bff);
-}
-
-.custom-prompt-input:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.custom-prompt-send {
-  position: absolute;
-  right: 4px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  padding: 4px;
-  cursor: pointer;
-  color: var(--color-text-on-accent);
-  opacity: 0.7;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 3px;
-  transition: opacity 0.15s ease;
-}
-
-.custom-prompt-send:hover:not(:disabled) {
-  opacity: 1;
-}
-
-.custom-prompt-send:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
 </style>
