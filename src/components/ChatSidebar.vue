@@ -207,7 +207,7 @@ const toggleSidebar = () => {
 }
 
 .chat-thread.active {
-  background-color: var(--color-chat-item-bg);
+  background-color: var(--color-bg-hover);
 }
 
 .chat-header {
@@ -225,12 +225,8 @@ const toggleSidebar = () => {
 }
 
 .chat-thread.active .chat-header {
-  background-color: var(--color-chat-item-bg);
+  background-color: var(--color-bg-active);
   border-left-color: var(--color-primary);
-}
-
-.chat-thread.active .chat-header:hover {
-  background-color: var(--color-chat-item-hover);
 }
 
 .chat-title {

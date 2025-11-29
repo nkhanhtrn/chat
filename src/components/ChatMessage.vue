@@ -409,15 +409,15 @@ function addQuestionLinkToMessage(message, selectedText, childIndex, startOffset
   color: var(--color-text-message);
   white-space: pre-wrap;
   word-wrap: break-word;
-  font-family: 'Georgia', 'Palatino Linotype', 'Book Antiqua', serif;
-  font-size: 1.05rem;
+  font-family: var(--message-font-family, Georgia, serif);
+  font-size: var(--message-font-size, 18px);
   letter-spacing: 0.01em;
 }
 
 .assistant-message {
   color: var(--color-text-message);
-  font-family: 'Georgia', 'Palatino Linotype', 'Book Antiqua', serif;
-  font-size: 1.05rem;
+  font-family: var(--message-font-family, Georgia, serif);
+  font-size: var(--message-font-size, 18px);
   letter-spacing: 0.01em;
 }
 

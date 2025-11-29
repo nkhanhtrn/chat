@@ -16,6 +16,18 @@ const setTheme = (theme) => {
 const savedTheme = localStorage.getItem('theme') || 'light'
 setTheme(savedTheme)
 
+// Load saved font size or use default
+const savedFontSize = localStorage.getItem('messageFontSize')
+if (savedFontSize) {
+  document.documentElement.style.setProperty('--message-font-size', `${savedFontSize}px`)
+}
+
+// Load saved font family or use default
+const savedFontFamily = localStorage.getItem('messageFontFamily')
+if (savedFontFamily) {
+  document.documentElement.style.setProperty('--message-font-family', savedFontFamily)
+}
+
 // Expose theme functions globally for components to use
 window.__setTheme = setTheme
 window.__getTheme = () => localStorage.getItem('theme') || 'light'

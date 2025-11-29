@@ -73,7 +73,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
-      expect(findInBody('.close-button')).toBeTruthy()
+      expect(findInBody('.modal-header .btn-danger')).toBeTruthy()
     })
 
     it('should render modal body', () => {
@@ -105,21 +105,10 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
-      const themeButtons = findAllInBody('.theme-button')
+      const themeButtons = findAllInBody('.toggle-button')
       expect(themeButtons).toHaveLength(2)
       expect(themeButtons[0].textContent).toContain('Light')
       expect(themeButtons[1].textContent).toContain('Dark')
-    })
-
-    it('should render theme icons', () => {
-      wrapper = mount(SettingsModal, {
-        props: {
-          modelValue: true
-        },
-        attachTo: document.body
-      })
-      const themeIcons = findAllInBody('.theme-icon')
-      expect(themeIcons).toHaveLength(2)
     })
 
     it('should highlight light theme button when current theme is light', () => {
@@ -130,7 +119,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
-      const themeButtons = findAllInBody('.theme-button')
+      const themeButtons = findAllInBody('.toggle-button')
       expect(themeButtons[0].classList.contains('active')).toBe(true)
       expect(themeButtons[1].classList.contains('active')).toBe(false)
     })
@@ -144,7 +133,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       await wrapper.vm.$nextTick()
-      const themeButtons = findAllInBody('.theme-button')
+      const themeButtons = findAllInBody('.toggle-button')
       expect(themeButtons[0].classList.contains('active')).toBe(false)
       expect(themeButtons[1].classList.contains('active')).toBe(true)
     })
@@ -157,7 +146,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
-      const lightButton = findAllInBody('.theme-button')[0]
+      const lightButton = findAllInBody('.toggle-button')[0]
       lightButton.click()
       await wrapper.vm.$nextTick()
       expect(window.__setTheme).toHaveBeenCalledWith('light')
@@ -171,7 +160,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
-      const darkButton = findAllInBody('.theme-button')[1]
+      const darkButton = findAllInBody('.toggle-button')[1]
       darkButton.click()
       await wrapper.vm.$nextTick()
       expect(window.__setTheme).toHaveBeenCalledWith('dark')
@@ -186,7 +175,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
 
-      const themeButtons = findAllInBody('.theme-button')
+      const themeButtons = findAllInBody('.toggle-button')
       expect(themeButtons[0].classList.contains('active')).toBe(true)
 
       themeButtons[1].click()
@@ -205,7 +194,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
-      findInBody('.close-button').click()
+      findInBody('.modal-header .btn-danger').click()
       await wrapper.vm.$nextTick()
       expect(wrapper.emitted('update:modelValue')).toBeTruthy()
       expect(wrapper.emitted('update:modelValue')[0]).toEqual([false])
@@ -326,7 +315,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
-      const themeButtons = findAllInBody('.theme-button')
+      const themeButtons = findAllInBody('.toggle-button')
       expect(themeButtons[0].classList.contains('active')).toBe(true)
     })
 
@@ -338,7 +327,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
-      const themeButtons = findAllInBody('.theme-button')
+      const themeButtons = findAllInBody('.toggle-button')
       expect(themeButtons[0].classList.contains('active')).toBe(true)
     })
 
@@ -350,7 +339,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
-      const darkButton = findAllInBody('.theme-button')[1]
+      const darkButton = findAllInBody('.toggle-button')[1]
       // Should not throw
       darkButton.click()
       await wrapper.vm.$nextTick()
@@ -395,7 +384,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
-      expect(findInBody('.close-button').textContent).toBe('×')
+      expect(findInBody('.modal-header .btn-danger').textContent).toBe('×')
     })
 
     it('should have semantic header element', () => {
@@ -417,7 +406,7 @@ describe('SettingsModal', () => {
       })
       expect(findInBody('.setting-item')).toBeTruthy()
       expect(findInBody('.setting-label')).toBeTruthy()
-      expect(findInBody('.theme-options')).toBeTruthy()
+      expect(findInBody('.button-group')).toBeTruthy()
     })
   })
 
@@ -445,15 +434,152 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
 
-      const darkButton = findAllInBody('.theme-button')[1]
+      const darkButton = findAllInBody('.toggle-button')[1]
       darkButton.click()
       await wrapper.vm.$nextTick()
 
-      findInBody('.close-button').click()
+      findInBody('.btn-danger').click()
       await wrapper.vm.$nextTick()
 
-      expect(window.__setTheme).toHaveBeenCalledWith('dark')
+      // Theme should remain as dark (instant save, no revert)
+      expect(window.__setTheme).toHaveBeenLastCalledWith('dark')
       expect(wrapper.emitted('update:modelValue')[0]).toEqual([false])
+    })
+  })
+
+  describe('Instant Persistence', () => {
+    it('should not render modal footer', () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const footer = findInBody('.modal-footer')
+      expect(footer).toBeNull()
+    })
+
+    it('should persist theme to localStorage immediately when changed', async () => {
+      localStorage.clear()
+
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+
+      const darkButton = findAllInBody('.toggle-button')[1]
+      darkButton.click()
+      await wrapper.vm.$nextTick()
+
+      expect(localStorage.getItem('theme')).toBe('dark')
+    })
+
+    it('should persist font size to localStorage immediately when changed', async () => {
+      localStorage.clear()
+
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+
+      const slider = findInBody('.font-slider')
+      slider.value = '22'
+      slider.dispatchEvent(new Event('input'))
+      await wrapper.vm.$nextTick()
+
+      expect(localStorage.getItem('messageFontSize')).toBe('22')
+    })
+
+    it('should persist font family to localStorage immediately when changed', async () => {
+      localStorage.clear()
+
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+
+      const fontButtons = findAllInBody('.font-button')
+      fontButtons[1].click() // Click Palatino
+      await wrapper.vm.$nextTick()
+
+      expect(localStorage.getItem('messageFontFamily')).toBe("'Palatino Linotype', Palatino, serif")
+    })
+
+    it('should not revert changes when closing modal', async () => {
+      window.__getTheme = vi.fn(() => 'light')
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+
+      // Change theme to dark
+      const darkButton = findAllInBody('.toggle-button')[1]
+      darkButton.click()
+      await wrapper.vm.$nextTick()
+
+      // Close modal via X button
+      findInBody('.btn-danger').click()
+      await wrapper.vm.$nextTick()
+
+      // Theme should remain as dark (no revert)
+      expect(window.__setTheme).toHaveBeenLastCalledWith('dark')
+    })
+
+    it('should not revert changes when clicking overlay', async () => {
+      window.__getTheme = vi.fn(() => 'light')
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+
+      // Change theme to dark
+      const darkButton = findAllInBody('.toggle-button')[1]
+      darkButton.click()
+      await wrapper.vm.$nextTick()
+
+      // Click overlay to close
+      findInBody('.modal-overlay').click()
+      await wrapper.vm.$nextTick()
+
+      // Theme should remain as dark (no revert)
+      expect(window.__setTheme).toHaveBeenLastCalledWith('dark')
+    })
+
+    it('should not revert changes when pressing Escape', async () => {
+      window.__getTheme = vi.fn(() => 'light')
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: false
+        },
+        attachTo: document.body
+      })
+
+      // Open modal
+      await wrapper.setProps({ modelValue: true })
+      await wrapper.vm.$nextTick()
+
+      // Change theme to dark
+      const darkButton = findAllInBody('.toggle-button')[1]
+      darkButton.click()
+      await wrapper.vm.$nextTick()
+
+      // Press Escape
+      const event = new KeyboardEvent('keydown', { key: 'Escape' })
+      document.dispatchEvent(event)
+      await wrapper.vm.$nextTick()
+
+      // Theme should remain as dark (no revert)
+      expect(window.__setTheme).toHaveBeenLastCalledWith('dark')
     })
   })
 })
