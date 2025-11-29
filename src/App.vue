@@ -23,25 +23,6 @@
             {{ chatStore.currentRootMessage.questionSummarized }}
           </div>
           <div class="fixed-nav-content">
-            <div class="root-nav fixed-root-nav">
-              <Button
-                @click="handlePrevRoot"
-                :disabled="!chatStore.canGoToPrevRoot"
-                class="root-nav-btn"
-                variant="tertiary"
-                title="Previous question"
-              >&lt;</Button>
-              <span class="root-nav-indicator">
-                {{ chatStore.currentRootIndex + 1 }} / {{ chatStore.rootMessages.length }}
-              </span>
-              <Button
-                @click="handleNextRoot"
-                :disabled="!chatStore.canGoToNextRoot"
-                class="root-nav-btn"
-                variant="tertiary"
-                title="Next question"
-              >&gt;</Button>
-            </div>
             <MessageNavigation
               v-if="chatStore.currentMessage"
               :current-message="chatStore.currentMessage"
@@ -65,26 +46,6 @@
         </div>
 
         <div v-if="chatStore.currentRootMessage" class="root-message-container">
-          <div class="root-nav">
-            <Button
-              @click="handlePrevRoot"
-              :disabled="!chatStore.canGoToPrevRoot"
-              class="root-nav-btn"
-              variant="tertiary"
-              title="Previous question"
-            >&lt;</Button>
-            <span class="root-nav-indicator">
-              {{ chatStore.currentRootIndex + 1 }} / {{ chatStore.rootMessages.length }}
-            </span>
-            <Button
-              @click="handleNextRoot"
-              :disabled="!chatStore.canGoToNextRoot"
-              class="root-nav-btn"
-              variant="tertiary"
-              title="Next question"
-            >&gt;</Button>
-          </div>
-
           <ChatMessage
             :key="chatStore.currentRootMessage.id"
             :message="chatStore.currentRootMessage"
@@ -112,7 +73,6 @@ import ChatMessage from './components/ChatMessage.vue'
 import ChatInput from './components/ChatInput.vue'
 import ChatSidebar from './components/ChatSidebar.vue'
 import MessageNavigation from './components/MessageNavigation.vue'
-import Button from './components/Button.vue'
 import { sendChatMessage, fetchModels } from './services/api.js'
 import { useChatStore } from './stores/chat.js'
 import DevToolbar from './components/DevToolbar.vue'
@@ -263,16 +223,6 @@ const handleSelectQuestion = (question) => {
   chatStore.currentRootIndex = question.rootIndex
   // Navigate to the message and restore scroll position
   const scrollPos = chatStore.navigateToMessage(question.id)
-  setScrollPosition(scrollPos)
-}
-
-const handlePrevRoot = () => {
-  const scrollPos = chatStore.goToPrevRoot(getScrollPosition())
-  setScrollPosition(scrollPos)
-}
-
-const handleNextRoot = () => {
-  const scrollPos = chatStore.goToNextRoot(getScrollPosition())
   setScrollPosition(scrollPos)
 }
 
@@ -442,29 +392,6 @@ const handleDeleteQuestion = (messageId, chatId) => {
   margin: 0 auto;
 }
 
-.root-nav {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  padding: 0.5rem;
-}
-
-.root-nav-btn {
-  font-size: 1.2rem;
-  font-weight: bold;
-  min-width: 2.5rem;
-}
-
-.root-nav-indicator {
-  font-size: 0.95rem;
-  color: var(--color-text-muted);
-  font-family: system-ui, -apple-system, sans-serif;
-  min-width: 4rem;
-  text-align: center;
-}
-
 /* Fixed Navigation Header */
 .fixed-nav-header {
   top: 0;
@@ -491,22 +418,6 @@ const handleDeleteQuestion = (messageId, chatId) => {
   align-items: center;
   gap: 1.5rem;
   max-width: 100%;
-}
-
-.fixed-root-nav {
-  margin-bottom: 0;
-  padding: 0;
-  flex-shrink: 0;
-}
-
-.fixed-root-nav .root-nav-btn {
-  font-size: 1rem;
-  min-width: 2rem;
-}
-
-.fixed-root-nav .root-nav-indicator {
-  font-size: 0.85rem;
-  min-width: 3.5rem;
 }
 
 /* Slide down transition */

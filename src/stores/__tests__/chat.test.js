@@ -563,4 +563,328 @@ describe('useChatStore', () => {
       expect(() => chatStore.updateCustomContent('nonexistent', 'h1', { colorIndex: 2 })).not.toThrow()
     })
   })
+
+  describe('Highlight merging on overlap', () => {
+    it('merges overlapping highlights into one with expanded range', () => {
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Test',
+        response: 'Hello world this is a test'
+      })
+
+      // Add first highlight: "world" (6-11)
+      chatStore.addCustomContent('msg1', {
+        id: 'h1',
+        type: 'highlight',
+        text: 'world',
+        colorIndex: 0,
+        startOffset: 6,
+        endOffset: 11
+      })
+
+      // Add overlapping highlight: "world this" (6-16) - overlaps with h1
+      chatStore.addCustomContent('msg1', {
+        id: 'h2',
+        type: 'highlight',
+        text: 'world this',
+        colorIndex: 1,
+        startOffset: 6,
+        endOffset: 16
+      })
+
+      // Should have only 1 highlight after merge
+      expect(chatStore.messagesById.msg1.customContent).toHaveLength(1)
+
+      const merged = chatStore.messagesById.msg1.customContent[0]
+      expect(merged.startOffset).toBe(6)
+      expect(merged.endOffset).toBe(16)
+      expect(merged.text).toBe('world this')
+    })
+
+    it('merges highlight that extends before existing highlight', () => {
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Test',
+        response: 'Hello world this is a test'
+      })
+
+      // Add first highlight: "world" (6-11)
+      chatStore.addCustomContent('msg1', {
+        id: 'h1',
+        type: 'highlight',
+        text: 'world',
+        colorIndex: 0,
+        startOffset: 6,
+        endOffset: 11
+      })
+
+      // Add highlight that starts before: "Hello world" (0-11)
+      chatStore.addCustomContent('msg1', {
+        id: 'h2',
+        type: 'highlight',
+        text: 'Hello world',
+        colorIndex: 1,
+        startOffset: 0,
+        endOffset: 11
+      })
+
+      expect(chatStore.messagesById.msg1.customContent).toHaveLength(1)
+
+      const merged = chatStore.messagesById.msg1.customContent[0]
+      expect(merged.startOffset).toBe(0)
+      expect(merged.endOffset).toBe(11)
+      expect(merged.text).toBe('Hello world')
+    })
+
+    it('merges highlight that extends both before and after existing', () => {
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Test',
+        response: 'Hello world this is a test'
+      })
+
+      // Add first highlight: "world" (6-11)
+      chatStore.addCustomContent('msg1', {
+        id: 'h1',
+        type: 'highlight',
+        text: 'world',
+        colorIndex: 0,
+        startOffset: 6,
+        endOffset: 11
+      })
+
+      // Add highlight that encompasses: "Hello world this" (0-16)
+      chatStore.addCustomContent('msg1', {
+        id: 'h2',
+        type: 'highlight',
+        text: 'Hello world this',
+        colorIndex: 1,
+        startOffset: 0,
+        endOffset: 16
+      })
+
+      expect(chatStore.messagesById.msg1.customContent).toHaveLength(1)
+
+      const merged = chatStore.messagesById.msg1.customContent[0]
+      expect(merged.startOffset).toBe(0)
+      expect(merged.endOffset).toBe(16)
+      expect(merged.text).toBe('Hello world this')
+    })
+
+    it('merges multiple overlapping highlights into one', () => {
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Test',
+        response: 'Hello world this is a test'
+      })
+
+      // Add "Hello" (0-5)
+      chatStore.addCustomContent('msg1', {
+        id: 'h1',
+        type: 'highlight',
+        text: 'Hello',
+        colorIndex: 0,
+        startOffset: 0,
+        endOffset: 5
+      })
+
+      // Add "this is" (12-19)
+      chatStore.addCustomContent('msg1', {
+        id: 'h2',
+        type: 'highlight',
+        text: 'this is',
+        colorIndex: 0,
+        startOffset: 12,
+        endOffset: 19
+      })
+
+      expect(chatStore.messagesById.msg1.customContent).toHaveLength(2)
+
+      // Add highlight that spans both: "Hello world this is" (0-19)
+      chatStore.addCustomContent('msg1', {
+        id: 'h3',
+        type: 'highlight',
+        text: 'Hello world this is',
+        colorIndex: 2,
+        startOffset: 0,
+        endOffset: 19
+      })
+
+      // Should merge all three into one
+      expect(chatStore.messagesById.msg1.customContent).toHaveLength(1)
+
+      const merged = chatStore.messagesById.msg1.customContent[0]
+      expect(merged.startOffset).toBe(0)
+      expect(merged.endOffset).toBe(19)
+    })
+
+    it('does not merge non-overlapping highlights', () => {
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Test',
+        response: 'Hello world this is a test'
+      })
+
+      // Add "Hello" (0-5)
+      chatStore.addCustomContent('msg1', {
+        id: 'h1',
+        type: 'highlight',
+        text: 'Hello',
+        colorIndex: 0,
+        startOffset: 0,
+        endOffset: 5
+      })
+
+      // Add "test" (22-26) - not overlapping
+      chatStore.addCustomContent('msg1', {
+        id: 'h2',
+        type: 'highlight',
+        text: 'test',
+        colorIndex: 1,
+        startOffset: 22,
+        endOffset: 26
+      })
+
+      // Should have 2 separate highlights
+      expect(chatStore.messagesById.msg1.customContent).toHaveLength(2)
+    })
+
+    it('merges adjacent highlights (touching at boundary)', () => {
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Test',
+        response: 'Hello world'
+      })
+
+      // Add "Hello" (0-5)
+      chatStore.addCustomContent('msg1', {
+        id: 'h1',
+        type: 'highlight',
+        text: 'Hello',
+        colorIndex: 0,
+        startOffset: 0,
+        endOffset: 5
+      })
+
+      // Add " world" (5-11) - adjacent, not overlapping
+      chatStore.addCustomContent('msg1', {
+        id: 'h2',
+        type: 'highlight',
+        text: ' world',
+        colorIndex: 1,
+        startOffset: 5,
+        endOffset: 11
+      })
+
+      // Adjacent highlights should NOT merge (endOffset === startOffset is not overlap)
+      expect(chatStore.messagesById.msg1.customContent).toHaveLength(2)
+    })
+
+    it('combines notes when merging highlights with notes', () => {
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Test',
+        response: 'Hello world this is a test'
+      })
+
+      // Add highlight with note
+      chatStore.addCustomContent('msg1', {
+        id: 'h1',
+        type: 'highlight',
+        text: 'world',
+        colorIndex: 0,
+        startOffset: 6,
+        endOffset: 11,
+        hasNote: true,
+        noteContent: 'Note 1'
+      })
+
+      // Add overlapping highlight with another note
+      chatStore.addCustomContent('msg1', {
+        id: 'h2',
+        type: 'highlight',
+        text: 'world this',
+        colorIndex: 1,
+        startOffset: 6,
+        endOffset: 16,
+        hasNote: true,
+        noteContent: 'Note 2'
+      })
+
+      expect(chatStore.messagesById.msg1.customContent).toHaveLength(1)
+
+      const merged = chatStore.messagesById.msg1.customContent[0]
+      expect(merged.hasNote).toBe(true)
+      expect(merged.noteContent).toContain('Note 1')
+      expect(merged.noteContent).toContain('Note 2')
+      expect(merged.noteContent).toContain('---') // separator
+    })
+
+    it('preserves note from existing highlight when new highlight has no note', () => {
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Test',
+        response: 'Hello world this is a test'
+      })
+
+      // Add highlight with note
+      chatStore.addCustomContent('msg1', {
+        id: 'h1',
+        type: 'highlight',
+        text: 'world',
+        colorIndex: 0,
+        startOffset: 6,
+        endOffset: 11,
+        hasNote: true,
+        noteContent: 'Existing note'
+      })
+
+      // Add overlapping highlight without note
+      chatStore.addCustomContent('msg1', {
+        id: 'h2',
+        type: 'highlight',
+        text: 'world this',
+        colorIndex: 1,
+        startOffset: 6,
+        endOffset: 16
+      })
+
+      expect(chatStore.messagesById.msg1.customContent).toHaveLength(1)
+
+      const merged = chatStore.messagesById.msg1.customContent[0]
+      expect(merged.hasNote).toBe(true)
+      expect(merged.noteContent).toBe('Existing note')
+    })
+
+    it('does not merge question-link type with highlights', () => {
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Test',
+        response: 'Hello world this is a test'
+      })
+
+      // Add question-link
+      chatStore.addCustomContent('msg1', {
+        id: 'ql1',
+        type: 'question-link',
+        text: 'world',
+        childIndex: 0,
+        startOffset: 6,
+        endOffset: 11
+      })
+
+      // Add overlapping highlight
+      chatStore.addCustomContent('msg1', {
+        id: 'h1',
+        type: 'highlight',
+        text: 'world this',
+        colorIndex: 0,
+        startOffset: 6,
+        endOffset: 16
+      })
+
+      // Should have both - question-link and highlight should not merge
+      expect(chatStore.messagesById.msg1.customContent).toHaveLength(2)
+    })
+  })
 })

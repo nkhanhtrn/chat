@@ -85,16 +85,6 @@ export const useChatStore = defineStore('chat', {
       return id ? state.messagesById[id] : null
     },
 
-    // Check if can navigate to previous root message
-    canGoToPrevRoot: (state) => {
-      return state.currentRootIndex > 0
-    },
-
-    // Check if can navigate to next root message
-    canGoToNextRoot: (state) => {
-      return state.currentRootIndex < state.rootMessageIds.length - 1
-    },
-
     // Get currently viewed message
     currentMessage: (state) => {
       return state.currentMessageId ? state.messagesById[state.currentMessageId] : null
@@ -195,6 +185,58 @@ export const useChatStore = defineStore('chat', {
       if (!message.customContent) {
         message.customContent = []
       }
+
+      // Check for overlapping highlights and merge them
+      if (content.type === 'highlight') {
+        const overlapping = message.customContent.filter(
+          item => item.type === 'highlight' &&
+            item.startOffset < content.endOffset &&
+            item.endOffset > content.startOffset
+        )
+
+        if (overlapping.length > 0) {
+          // Calculate merged range (smallest startOffset, biggest endOffset)
+          let mergedStart = content.startOffset
+          let mergedEnd = content.endOffset
+          let mergedNoteContent = content.noteContent || ''
+          let mergedHasNote = content.hasNote || false
+
+          overlapping.forEach(item => {
+            mergedStart = Math.min(mergedStart, item.startOffset)
+            mergedEnd = Math.max(mergedEnd, item.endOffset)
+            // Combine notes if any
+            if (item.noteContent) {
+              mergedHasNote = true
+              if (mergedNoteContent) {
+                mergedNoteContent += '\n\n---\n\n' + item.noteContent
+              } else {
+                mergedNoteContent = item.noteContent
+              }
+            }
+          })
+
+          // Remove all overlapping highlights
+          overlapping.forEach(item => {
+            const index = message.customContent.findIndex(c => c.id === item.id)
+            if (index !== -1) {
+              message.customContent.splice(index, 1)
+            }
+          })
+
+          // Extract merged text from the response
+          const mergedText = message.response.substring(mergedStart, mergedEnd)
+
+          // Update content with merged values
+          content.startOffset = mergedStart
+          content.endOffset = mergedEnd
+          content.text = mergedText
+          if (mergedHasNote) {
+            content.hasNote = true
+            content.noteContent = mergedNoteContent
+          }
+        }
+      }
+
       message.customContent.push(content)
       this._persistState()
       return content.id
@@ -287,38 +329,6 @@ export const useChatStore = defineStore('chat', {
         this.messagesById[messageId].lastVisitedChild = this.currentMessageId
         this._persistState()
         return this.messagesById[this.currentMessageId].scrollPosition || 0
-      }
-      return 0
-    },
-
-    // Navigate to previous root message
-    goToPrevRoot(currentScrollPosition = null) {
-      if (this.currentRootIndex > 0) {
-        // Save scroll position of current message before navigating
-        if (currentScrollPosition !== null && this.currentMessageId) {
-          this.messagesById[this.currentMessageId].scrollPosition = currentScrollPosition
-        }
-        this.currentRootIndex--
-        const newRootId = this.rootMessageIds[this.currentRootIndex]
-        this.currentMessageId = newRootId
-        this._persistState()
-        return newRootId ? (this.messagesById[newRootId].scrollPosition || 0) : 0
-      }
-      return 0
-    },
-
-    // Navigate to next root message
-    goToNextRoot(currentScrollPosition = null) {
-      if (this.currentRootIndex < this.rootMessageIds.length - 1) {
-        // Save scroll position of current message before navigating
-        if (currentScrollPosition !== null && this.currentMessageId) {
-          this.messagesById[this.currentMessageId].scrollPosition = currentScrollPosition
-        }
-        this.currentRootIndex++
-        const newRootId = this.rootMessageIds[this.currentRootIndex]
-        this.currentMessageId = newRootId
-        this._persistState()
-        return newRootId ? (this.messagesById[newRootId].scrollPosition || 0) : 0
       }
       return 0
     },

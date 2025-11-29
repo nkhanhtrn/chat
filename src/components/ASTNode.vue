@@ -5,6 +5,7 @@
     @click="handleClick"
     @question-link-click="$emit('question-link-click', $event)"
     @highlight-click="$emit('highlight-click', $event)"
+    @note-click="$emit('note-click', $event)"
   >
     <template v-if="node.children">
       <ASTNode
@@ -13,6 +14,7 @@
         :node="child"
         @question-link-click="$emit('question-link-click', $event)"
         @highlight-click="$emit('highlight-click', $event)"
+        @note-click="$emit('note-click', $event)"
       />
     </template>
     <template v-else-if="node.content">
@@ -52,7 +54,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['question-link-click', 'highlight-click'])
+const emit = defineEmits(['question-link-click', 'highlight-click', 'note-click'])
 
 // Map AST node types to Vue components
 const componentMap = {
@@ -100,7 +102,9 @@ function getNodeProps(node) {
         colorIndex: node.colorIndex,
         highlightId: node.highlightId,
         startOffset: node.startOffset,
-        endOffset: node.endOffset
+        endOffset: node.endOffset,
+        noteContent: node.noteContent || '',
+        hasNote: !!node.hasNote
       }
 
     case 'question-link':

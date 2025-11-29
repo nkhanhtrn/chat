@@ -503,9 +503,13 @@ describe('Markdown Components', () => {
           endOffset: 16
         }
       })
-      expect(wrapper.element.tagName).toBe('MARK')
-      expect(wrapper.classes()).toContain('custom-highlight')
-      expect(wrapper.text()).toBe('highlighted text')
+      // Root element is now a wrapper span, with mark inside
+      expect(wrapper.element.tagName).toBe('SPAN')
+      expect(wrapper.classes()).toContain('highlight-wrapper')
+      const mark = wrapper.find('mark')
+      expect(mark.exists()).toBe(true)
+      expect(mark.classes()).toContain('custom-highlight')
+      expect(mark.text()).toBe('highlighted text')
     })
 
     it('should have data attributes for offsets', () => {
@@ -517,9 +521,10 @@ describe('Markdown Components', () => {
           endOffset: 20
         }
       })
-      expect(wrapper.attributes('data-highlight-id')).toBe('id-123')
-      expect(wrapper.attributes('data-md-start')).toBe('10')
-      expect(wrapper.attributes('data-md-end')).toBe('20')
+      const mark = wrapper.find('mark')
+      expect(mark.attributes('data-highlight-id')).toBe('id-123')
+      expect(mark.attributes('data-md-start')).toBe('10')
+      expect(mark.attributes('data-md-end')).toBe('20')
     })
 
     it('should apply custom color via colorIndex', () => {
@@ -532,7 +537,8 @@ describe('Markdown Components', () => {
           endOffset: 4
         }
       })
-      expect(wrapper.attributes('style')).toContain('background-color: var(--color-highlight-2)')
+      const mark = wrapper.find('mark')
+      expect(mark.attributes('style')).toContain('background-color: var(--color-highlight-2)')
     })
 
     it('should render slot content', () => {
@@ -614,7 +620,9 @@ describe('Markdown Components', () => {
         stopPropagation: vi.fn()
       }
 
-      await wrapper.trigger('click', mockEvent)
+      // Click on the mark element, not the wrapper span
+      const mark = wrapper.find('mark')
+      await mark.trigger('click', mockEvent)
 
       expect(mockEvent.stopPropagation).toHaveBeenCalled()
     })
@@ -630,7 +638,156 @@ describe('Markdown Components', () => {
       })
 
       // Check if the CSS class is applied (cursor: pointer is in the scoped style)
-      expect(wrapper.classes()).toContain('custom-highlight')
+      const mark = wrapper.find('mark')
+      expect(mark.classes()).toContain('custom-highlight')
+    })
+
+    describe('Note Button', () => {
+      it('should not render note button when hasNote is false', () => {
+        const wrapper = mount(HighlightSpan, {
+          props: {
+            text: 'highlighted text',
+            highlightId: 'h-123',
+            startOffset: 0,
+            endOffset: 16,
+            hasNote: false
+          }
+        })
+        expect(wrapper.find('.note-button').exists()).toBe(false)
+      })
+
+      it('should render note button when hasNote is true', () => {
+        const wrapper = mount(HighlightSpan, {
+          props: {
+            text: 'highlighted text',
+            highlightId: 'h-123',
+            startOffset: 0,
+            endOffset: 16,
+            hasNote: true
+          }
+        })
+        expect(wrapper.find('.note-button').exists()).toBe(true)
+      })
+
+      it('should have data-note-id attribute on note button', () => {
+        const wrapper = mount(HighlightSpan, {
+          props: {
+            text: 'text',
+            highlightId: 'highlight-456',
+            startOffset: 0,
+            endOffset: 4,
+            hasNote: true
+          }
+        })
+        const noteButton = wrapper.find('.note-button')
+        expect(noteButton.attributes('data-note-id')).toBe('highlight-456')
+      })
+
+      it('should emit note-click event when note button is clicked', async () => {
+        const wrapper = mount(HighlightSpan, {
+          props: {
+            text: 'highlighted text',
+            highlightId: 'h-789',
+            startOffset: 10,
+            endOffset: 26,
+            hasNote: true,
+            noteContent: 'This is my note'
+          }
+        })
+
+        const clickEvent = {
+          clientX: 200,
+          clientY: 300,
+          stopPropagation: vi.fn()
+        }
+
+        await wrapper.find('.note-button').trigger('click', clickEvent)
+
+        expect(wrapper.emitted('note-click')).toBeTruthy()
+        expect(wrapper.emitted('note-click')).toHaveLength(1)
+
+        const [eventData] = wrapper.emitted('note-click')[0]
+        expect(eventData).toEqual({
+          noteId: 'h-789',
+          text: 'highlighted text',
+          noteContent: 'This is my note',
+          startOffset: 10,
+          endOffset: 26,
+          x: 200,
+          y: 300
+        })
+      })
+
+      it('should not emit highlight-click when note button is clicked', async () => {
+        const wrapper = mount(HighlightSpan, {
+          props: {
+            text: 'highlighted text',
+            highlightId: 'h-123',
+            startOffset: 0,
+            endOffset: 16,
+            hasNote: true
+          }
+        })
+
+        await wrapper.find('.note-button').trigger('click')
+
+        // Note button click should NOT trigger highlight-click
+        expect(wrapper.emitted('highlight-click')).toBeFalsy()
+        // But should emit note-click
+        expect(wrapper.emitted('note-click')).toBeTruthy()
+      })
+
+      it('should emit note-click with empty noteContent when not provided', async () => {
+        const wrapper = mount(HighlightSpan, {
+          props: {
+            text: 'text',
+            highlightId: 'h-123',
+            startOffset: 0,
+            endOffset: 4,
+            hasNote: true
+            // noteContent not provided, should default to ''
+          }
+        })
+
+        const clickEvent = {
+          clientX: 100,
+          clientY: 100,
+          stopPropagation: vi.fn()
+        }
+
+        await wrapper.find('.note-button').trigger('click', clickEvent)
+
+        const [eventData] = wrapper.emitted('note-click')[0]
+        expect(eventData.noteContent).toBe('')
+      })
+
+      it('should render note button with + symbol', () => {
+        const wrapper = mount(HighlightSpan, {
+          props: {
+            text: 'text',
+            highlightId: 'h-123',
+            startOffset: 0,
+            endOffset: 4,
+            hasNote: true
+          }
+        })
+        const noteButton = wrapper.find('.note-button')
+        expect(noteButton.text()).toBe('+')
+      })
+
+      it('should have title attribute on note button', () => {
+        const wrapper = mount(HighlightSpan, {
+          props: {
+            text: 'text',
+            highlightId: 'h-123',
+            startOffset: 0,
+            endOffset: 4,
+            hasNote: true
+          }
+        })
+        const noteButton = wrapper.find('.note-button')
+        expect(noteButton.attributes('title')).toBe('Open note')
+      })
     })
   })
 
@@ -874,13 +1031,15 @@ describe('Markdown Components', () => {
       const highlight = wrapper.findComponent(HighlightSpan)
       expect(highlight.exists()).toBe(true)
 
+      // Click on the mark element inside HighlightSpan
+      const mark = highlight.find('mark')
       const clickEvent = {
         clientX: 100,
         clientY: 200,
         stopPropagation: vi.fn()
       }
 
-      await highlight.trigger('click', clickEvent)
+      await mark.trigger('click', clickEvent)
 
       expect(wrapper.emitted('highlight-click')).toBeTruthy()
       expect(wrapper.emitted('highlight-click')).toHaveLength(1)
@@ -942,13 +1101,15 @@ describe('Markdown Components', () => {
       const highlight = wrapper.findComponent(HighlightSpan)
       expect(highlight.exists()).toBe(true)
 
+      // Click on the mark element inside HighlightSpan
+      const mark = highlight.find('mark')
       const clickEvent = {
         clientX: 50,
         clientY: 100,
         stopPropagation: vi.fn()
       }
 
-      await highlight.trigger('click', clickEvent)
+      await mark.trigger('click', clickEvent)
 
       expect(wrapper.emitted('highlight-click')).toBeTruthy()
       const [eventData] = wrapper.emitted('highlight-click')[0]
@@ -1702,13 +1863,15 @@ describe('Markdown Components', () => {
         const highlight = wrapper.findComponent(HighlightSpan)
         expect(highlight.exists()).toBe(true)
 
+        // Click on the mark element inside HighlightSpan
+        const mark = highlight.find('mark')
         const clickEvent = {
           clientX: 200,
           clientY: 300,
           stopPropagation: vi.fn()
         }
 
-        await highlight.trigger('click', clickEvent)
+        await mark.trigger('click', clickEvent)
 
         expect(wrapper.emitted('highlight-click')).toBeTruthy()
         expect(wrapper.emitted('highlight-click')).toHaveLength(1)
@@ -1740,17 +1903,18 @@ describe('Markdown Components', () => {
           }
         })
 
-        // Find the nested HighlightSpan
+        // Find the nested HighlightSpan and click on its mark element
         const highlight = wrapper.findComponent(HighlightSpan)
         expect(highlight.exists()).toBe(true)
 
+        const mark = highlight.find('mark')
         const clickEvent = {
           clientX: 150,
           clientY: 250,
           stopPropagation: vi.fn()
         }
 
-        await highlight.trigger('click', clickEvent)
+        await mark.trigger('click', clickEvent)
 
         expect(wrapper.emitted('highlight-click')).toBeTruthy()
         const [eventData] = wrapper.emitted('highlight-click')[0]
@@ -1994,9 +2158,13 @@ describe('Markdown Components', () => {
           endOffset: 11
         }
         const wrapper = mount(ASTNode, { props: { node } })
-        expect(wrapper.element.tagName).toBe('MARK')
-        expect(wrapper.classes()).toContain('custom-highlight')
-        expect(wrapper.attributes('data-highlight-id')).toBe('h-123')
+        // Root element is now a wrapper span
+        expect(wrapper.element.tagName).toBe('SPAN')
+        expect(wrapper.classes()).toContain('highlight-wrapper')
+        const mark = wrapper.find('mark')
+        expect(mark.exists()).toBe(true)
+        expect(mark.classes()).toContain('custom-highlight')
+        expect(mark.attributes('data-highlight-id')).toBe('h-123')
       })
 
       it('should render question-link node', () => {
@@ -2341,10 +2509,11 @@ describe('Markdown Components', () => {
           endOffset: 26
         }
         const wrapper = mount(ASTNode, { props: { node } })
-        expect(wrapper.attributes('data-highlight-id')).toBe('test-highlight')
-        expect(wrapper.attributes('style')).toContain('background-color: var(--color-highlight-1)')
-        expect(wrapper.attributes('data-md-start')).toBe('10')
-        expect(wrapper.attributes('data-md-end')).toBe('26')
+        const mark = wrapper.find('mark')
+        expect(mark.attributes('data-highlight-id')).toBe('test-highlight')
+        expect(mark.attributes('style')).toContain('background-color: var(--color-highlight-1)')
+        expect(mark.attributes('data-md-start')).toBe('10')
+        expect(mark.attributes('data-md-end')).toBe('26')
       })
 
       it('should bind question-link properties', () => {

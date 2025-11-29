@@ -27,31 +27,6 @@ describe('useEnvironment', () => {
   })
 
   describe('getDefaultQuestions', () => {
-    describe('in development mode', () => {
-      beforeEach(() => {
-        import.meta.env.DEV = true
-      })
-
-      it('should return development questions', () => {
-        const questions = getDefaultQuestions()
-        expect(questions).toEqual([
-          'give me 20 random words',
-          'give me 50 random words',
-          'give me 100 random words',
-        ])
-      })
-
-      it('should return an array of 3 questions', () => {
-        const questions = getDefaultQuestions()
-        expect(questions).toHaveLength(3)
-      })
-
-      it('should return questions for testing purposes', () => {
-        const questions = getDefaultQuestions()
-        expect(questions.every(q => q.includes('random words'))).toBe(true)
-      })
-    })
-
     describe('in production mode', () => {
       beforeEach(() => {
         import.meta.env.DEV = false

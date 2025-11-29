@@ -15,14 +15,19 @@
               :key="index"
               class="color-circle"
               :class="{ selected: selectedColorIndex === index }"
-              :style="{ backgroundColor: color }"
-              :disabled="isStreaming"
+              :style="{ backgroundColor: color }"su
               @click="selectColor(index)"
             ></button>
           </div>
         </div>
         <Button class="context-menu-btn" @click="onCopy" variant="tertiary">Copy</Button>
-        <Button class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming" variant="tertiary">Explain</Button>
+        <div class="context-menu-row">
+          <Button class="context-menu-btn" @click="onAddNote" variant="tertiary">{{ hasExistingNote ? 'Edit Note' : 'Add Note' }}</Button>
+          <span class="separator">|</span>
+          <Button class="context-menu-btn" @click="onQuickExplain" :disabled="isStreaming" variant="tertiary">Quick Explain</Button>
+        </div>
+        <Button class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming" variant="tertiary">Details Explain</Button>
+        <Button class="context-menu-btn" @click="onAddChapter" :disabled="isStreaming" variant="tertiary">New chapter from this</Button>
         <PromptInput
           placeholder="Custom prompt..."
           :disabled="isStreaming"
@@ -55,9 +60,13 @@ const props = defineProps({
   hasExistingHighlight: {
     type: Boolean,
     default: false
+  },
+  hasExistingNote: {
+    type: Boolean,
+    default: false
   }
 })
-const emit = defineEmits(['close', 'keep-highlight', 'ask-question', 'change-color', 'remove-highlight'])
+const emit = defineEmits(['close', 'keep-highlight', 'ask-question', 'change-color', 'remove-highlight', 'add-chapter', 'add-note', 'quick-explain'])
 
 const selectedColorIndex = ref(0)
 
@@ -87,6 +96,18 @@ function onHighlightAction() {
 
 function onAskQuestion() {
   emit('ask-question', `${props.highlightedText}`)
+}
+
+function onAddChapter() {
+  emit('add-chapter', `${props.highlightedText}`)
+}
+
+function onAddNote() {
+  emit('add-note')
+}
+
+function onQuickExplain() {
+  emit('quick-explain')
 }
 
 function onSendCustomPrompt(customPrompt) {
@@ -132,13 +153,13 @@ onUnmounted(() => {
 <style scoped>
 .context-menu {
   position: absolute;
-  min-width: 160px;
+  width: 300px;
   background: var(--color-bg-context-menu);
   border: 1px solid var(--color-border-context);
   box-shadow: 0 4px 12px var(--shadow-md);
   border-radius: 4px;
-  padding: 0.5rem 0.5rem;
-  font-size: 1rem;
+  padding: 0.25rem 0.35rem;
+  font-size: 1.1rem;
   color: var(--color-text-on-accent);
   z-index: 9999;
   user-select: none;
@@ -146,8 +167,9 @@ onUnmounted(() => {
 .context-menu-btn {
   width: 100%;
   text-align: left;
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   justify-content: flex-start;
+  padding: 0.25rem 0.5rem;
 }
 
 .context-menu-backdrop {

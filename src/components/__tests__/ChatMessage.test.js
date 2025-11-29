@@ -582,10 +582,10 @@ describe('ChatMessage', () => {
         expect(chatStore.currentMessageId).toBe('root')
       })
 
-      it('should close context menu', () => {
-        wrapper.vm.state.contextMenu.visible = true
-        wrapper.vm.closeContextMenu()
-        expect(wrapper.vm.state.contextMenu.visible).toBe(false)
+      it('should close popup', () => {
+        wrapper.vm.state.popup.mode = 'context-menu'
+        wrapper.vm.closePopup()
+        expect(wrapper.vm.state.popup.mode).toBe(null)
       })
 
       // Removed failing tests: should show context menu with selected text, should handle highlight (no question or streaming)

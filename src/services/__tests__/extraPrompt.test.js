@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getInitialPrompts, getNextPrompts, getShortenContentPrompts } from '../extraPrompt.js'
+import { getInitialPrompts, getNextPrompts, getShortenContentPrompts, getQuickExplainPrompts } from '../extraPrompt.js'
 
 describe('extraPrompt', () => {
   describe('getInitialPrompts', () => {
@@ -97,6 +97,43 @@ describe('extraPrompt', () => {
       const messages = getShortenContentPrompts(userContent)
       // The content should be longer than just the user content (due to prefix)
       expect(messages[0].content.length).toBeGreaterThan(userContent.length)
+    })
+  })
+
+  describe('getQuickExplainPrompts', () => {
+    it('should return an array of messages', () => {
+      const messages = getQuickExplainPrompts('some concept')
+      expect(Array.isArray(messages)).toBe(true)
+    })
+
+    it('should return exactly 1 message', () => {
+      const messages = getQuickExplainPrompts('some concept')
+      expect(messages.length).toBe(1)
+    })
+
+    it('should have user role', () => {
+      const messages = getQuickExplainPrompts('test concept')
+      expect(messages[0].role).toBe('user')
+    })
+
+    it('should include the text to explain in the message', () => {
+      const textToExplain = 'This is a concept to explain'
+      const messages = getQuickExplainPrompts(textToExplain)
+      expect(messages[0].content).toContain(textToExplain)
+    })
+
+    it('should prepend a quick explain request prefix', () => {
+      const textToExplain = 'Concept to explain'
+      const messages = getQuickExplainPrompts(textToExplain)
+      // The content should be longer than just the text (due to prefix)
+      expect(messages[0].content.length).toBeGreaterThan(textToExplain.length)
+    })
+
+    it('should request a short paragraph explanation', () => {
+      const messages = getQuickExplainPrompts('any text')
+      // The prompt should mention short/concise/paragraph
+      const content = messages[0].content.toLowerCase()
+      expect(content).toMatch(/short|concise|paragraph|sentence/)
     })
   })
 })

@@ -6,6 +6,7 @@
       :node="node"
       @question-link-click="$emit('question-link-click', $event)"
       @highlight-click="$emit('highlight-click', $event)"
+      @note-click="$emit('note-click', $event)"
     />
   </div>
 </template>
@@ -26,7 +27,7 @@ const props = defineProps({
   }
 })
 
-defineEmits(['question-link-click', 'highlight-click'])
+defineEmits(['question-link-click', 'highlight-click', 'note-click'])
 
 const astTree = computed(() => {
   return parseMarkdownToAST(props.content, props.customContent)

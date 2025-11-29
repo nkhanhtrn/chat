@@ -138,7 +138,9 @@ function createCustomContentNode(item, text, startOffset, endOffset) {
         type: 'highlight',
         ...baseNode,
         colorIndex: item.colorIndex ?? 0,
-        highlightId: item.id
+        highlightId: item.id,
+        noteContent: item.noteContent || '',
+        hasNote: !!item.hasNote
       }
 
     case 'question-link':

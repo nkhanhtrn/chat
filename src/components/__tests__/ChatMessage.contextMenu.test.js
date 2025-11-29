@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import ChatMessage from '../ChatMessage.vue'
+import * as api from '../../services/api.js'
 
 // Helper to access state from setup script
 function getState(wrapper) {
@@ -52,15 +53,15 @@ describe('ChatMessage context menu integration', () => {
       const state = getState(wrapper)
 
       // Context menu should be visible with stored data
-      expect(state.contextMenu.visible).toBe(true)
-      expect(state.contextMenu.selectedText).toBe('test selection')
-      expect(state.contextMenu.startOffset).toBe(10)
-      expect(state.contextMenu.endOffset).toBe(25)
-      expect(state.contextMenu.x).toBe(100)
-      expect(state.contextMenu.y).toBe(200)
+      expect(state.popup.mode).toBe('context-menu')
+      expect(state.popup.selectedText).toBe('test selection')
+      expect(state.popup.startOffset).toBe(10)
+      expect(state.popup.endOffset).toBe(25)
+      expect(state.popup.x).toBe(100)
+      expect(state.popup.y).toBe(200)
 
       // But NO permanent highlight should be created yet
-      expect(state.contextMenu.highlightId).toBe(null)
+      expect(state.popup.highlightId).toBe(null)
       expect(wrapper.vm.$.props.message.customContent).toEqual([])
     })
 
@@ -139,8 +140,8 @@ describe('ChatMessage context menu integration', () => {
       wrapper.vm.showContextMenu()
       const state = getState(wrapper)
 
-      expect(state.contextMenu.startOffset).toBe(5)
-      expect(state.contextMenu.endOffset).toBe(13)
+      expect(state.popup.startOffset).toBe(5)
+      expect(state.popup.endOffset).toBe(13)
     })
 
     it('showContextMenu hides contextMenu if no text selected', () => {
@@ -148,8 +149,8 @@ describe('ChatMessage context menu integration', () => {
       window.getSelection = vi.fn(() => mockSelection)
       wrapper.vm.showContextMenu()
       const state = getState(wrapper)
-      expect(state.contextMenu.visible).toBe(false)
-      expect(state.contextMenu.selectedText).toBe('')
+      expect(state.popup.mode).toBe(null)
+      expect(state.popup.selectedText).toBe('')
     })
   })
 
@@ -176,10 +177,10 @@ describe('ChatMessage context menu integration', () => {
       const state = getState(wrapper)
 
       // Simulate stored selection data from showContextMenu
-      state.contextMenu.selectedText = 'test highlight'
-      state.contextMenu.startOffset = 0
-      state.contextMenu.endOffset = 14
-      state.contextMenu.visible = true
+      state.popup.selectedText = 'test highlight'
+      state.popup.startOffset = 0
+      state.popup.endOffset = 14
+      state.popup.mode = 'context-menu'
 
       // Call keepHighlight
       wrapper.vm.keepHighlight()
@@ -194,7 +195,7 @@ describe('ChatMessage context menu integration', () => {
       expect(storeMessage.customContent[0].endOffset).toBe(14)
 
       // Context menu should be closed
-      expect(state.contextMenu.visible).toBe(false)
+      expect(state.popup.mode).toBe(null)
 
       // Temporary highlight should be cleared
       expect(state.tempHighlight).toBe(null)
@@ -202,9 +203,9 @@ describe('ChatMessage context menu integration', () => {
 
     it('keepHighlight clears temporary highlight', () => {
       const state = getState(wrapper)
-      state.contextMenu.selectedText = 'text'
-      state.contextMenu.startOffset = 0
-      state.contextMenu.endOffset = 4
+      state.popup.selectedText = 'text'
+      state.popup.startOffset = 0
+      state.popup.endOffset = 4
       state.tempHighlight = {
         id: '__temp_highlight__',
         type: 'highlight',
@@ -220,9 +221,9 @@ describe('ChatMessage context menu integration', () => {
 
     it('keepHighlight does nothing if no valid selection data', () => {
       const state = getState(wrapper)
-      state.contextMenu.selectedText = ''
-      state.contextMenu.startOffset = undefined
-      state.contextMenu.endOffset = undefined
+      state.popup.selectedText = ''
+      state.popup.startOffset = undefined
+      state.popup.endOffset = undefined
 
       const initialContent = wrapper.vm.$.props.message.customContent || []
       wrapper.vm.keepHighlight()
@@ -233,9 +234,9 @@ describe('ChatMessage context menu integration', () => {
   })
 
   describe('Close Context Menu Behavior', () => {
-    it('closeContextMenu clears temporary highlight', () => {
+    it('closePopup clears temporary highlight', () => {
       const state = getState(wrapper)
-      state.contextMenu.visible = true
+      state.popup.mode = 'context-menu'
       state.tempHighlight = {
         id: '__temp_highlight__',
         type: 'highlight',
@@ -244,13 +245,13 @@ describe('ChatMessage context menu integration', () => {
         endOffset: 4
       }
 
-      wrapper.vm.closeContextMenu()
+      wrapper.vm.closePopup()
 
       expect(state.tempHighlight).toBe(null)
-      expect(state.contextMenu.visible).toBe(false)
+      expect(state.popup.mode).toBe(null)
     })
 
-    it('closeContextMenu does not remove highlights when closed', () => {
+    it('closePopup does not remove highlights when closed', () => {
       const pinia = createPinia()
       const testMessage = {
         id: 'msg-close',
@@ -272,9 +273,9 @@ describe('ChatMessage context menu integration', () => {
       const state = getState(wrapper)
 
       // Manually create a highlight to simulate the scenario
-      state.contextMenu.selectedText = 'temp'
-      state.contextMenu.startOffset = 0
-      state.contextMenu.endOffset = 4
+      state.popup.selectedText = 'temp'
+      state.popup.startOffset = 0
+      state.popup.endOffset = 4
       wrapper.vm.keepHighlight()
 
       // Get the created highlight ID from the store
@@ -282,25 +283,25 @@ describe('ChatMessage context menu integration', () => {
       const highlightId = storeMessage.customContent[0].id
 
       // Set it in state as if context menu had it
-      state.contextMenu.highlightId = highlightId
-      state.contextMenu.visible = true
+      state.popup.highlightId = highlightId
+      state.popup.mode = 'context-menu'
 
       // Close context menu
-      wrapper.vm.closeContextMenu()
+      wrapper.vm.closePopup()
 
       // Highlight should NOT be removed
       expect(storeMessage.customContent.length).toBe(1)
       expect(storeMessage.customContent[0].id).toBe(highlightId)
     })
 
-    it('closeContextMenu does nothing if no highlight exists', () => {
+    it('closePopup does nothing if no highlight exists', () => {
       const state = getState(wrapper)
-      state.contextMenu.visible = true
-      state.contextMenu.highlightId = null
+      state.popup.mode = 'context-menu'
+      state.popup.highlightId = null
 
       // Should not throw error
-      expect(() => wrapper.vm.closeContextMenu()).not.toThrow()
-      expect(state.contextMenu.visible).toBe(false)
+      expect(() => wrapper.vm.closePopup()).not.toThrow()
+      expect(state.popup.mode).toBe(null)
     })
   })
 
@@ -327,9 +328,9 @@ describe('ChatMessage context menu integration', () => {
       wrapper.vm.chatStore.messagesById['1'] = testMessage
 
       const state = getState(wrapper)
-      state.contextMenu.selectedText = 'question text'
-      state.contextMenu.startOffset = 0
-      state.contextMenu.endOffset = 13
+      state.popup.selectedText = 'question text'
+      state.popup.startOffset = 0
+      state.popup.endOffset = 13
       state.tempHighlight = {
         id: '__temp_highlight__',
         type: 'highlight',
@@ -374,12 +375,12 @@ describe('ChatMessage context menu integration', () => {
       wrapper.vm.chatStore.messagesById['2'] = testMessage
 
       const state = getState(wrapper)
-      state.contextMenu.selectedText = 'selected text'
-      state.contextMenu.startOffset = 5
-      state.contextMenu.endOffset = 18
+      state.popup.selectedText = 'selected text'
+      state.popup.startOffset = 5
+      state.popup.endOffset = 18
 
       // No highlight should exist at this point
-      expect(state.contextMenu.highlightId).toBe(null)
+      expect(state.popup.highlightId).toBe(null)
 
       // Mock the API calls
       const mockGetQuestionSummary = vi.fn().mockResolvedValue('Summary')
@@ -394,7 +395,7 @@ describe('ChatMessage context menu integration', () => {
       await wrapper.vm.handleAskQuestion('Explain this')
 
       // Context menu should be closed
-      expect(state.contextMenu.visible).toBe(false)
+      expect(state.popup.mode).toBe(null)
     })
 
     it('handleAskQuestion validates selection data before proceeding', async () => {
@@ -402,9 +403,9 @@ describe('ChatMessage context menu integration', () => {
       const state = getState(wrapper)
 
       // Invalid data - missing offsets
-      state.contextMenu.selectedText = 'text'
-      state.contextMenu.startOffset = undefined
-      state.contextMenu.endOffset = undefined
+      state.popup.selectedText = 'text'
+      state.popup.startOffset = undefined
+      state.popup.endOffset = undefined
 
       await wrapper.vm.handleAskQuestion('Question?')
 
@@ -428,13 +429,13 @@ describe('ChatMessage context menu integration', () => {
       wrapper.vm.handleHighlightClick(highlightData)
       const state = getState(wrapper)
 
-      expect(state.contextMenu.visible).toBe(true)
-      expect(state.contextMenu.selectedText).toBe('highlighted text')
-      expect(state.contextMenu.startOffset).toBe(10)
-      expect(state.contextMenu.endOffset).toBe(26)
-      expect(state.contextMenu.x).toBe(150)
-      expect(state.contextMenu.y).toBe(250)
-      expect(state.contextMenu.highlightId).toBe('h-123')
+      expect(state.popup.mode).toBe('context-menu')
+      expect(state.popup.selectedText).toBe('highlighted text')
+      expect(state.popup.startOffset).toBe(10)
+      expect(state.popup.endOffset).toBe(26)
+      expect(state.popup.x).toBe(150)
+      expect(state.popup.y).toBe(250)
+      expect(state.popup.highlightId).toBe('h-123')
     })
 
     it('handleHighlightClick stores highlight ID for later removal', () => {
@@ -451,7 +452,7 @@ describe('ChatMessage context menu integration', () => {
       const state = getState(wrapper)
 
       // The highlightId should be stored so closing the menu can remove it
-      expect(state.contextMenu.highlightId).toBe('existing-highlight')
+      expect(state.popup.highlightId).toBe('existing-highlight')
     })
 
     it('handleHighlightClick sets context menu position from click coordinates', () => {
@@ -467,8 +468,8 @@ describe('ChatMessage context menu integration', () => {
       wrapper.vm.handleHighlightClick(highlightData)
       const state = getState(wrapper)
 
-      expect(state.contextMenu.x).toBe(300)
-      expect(state.contextMenu.y).toBe(400)
+      expect(state.popup.x).toBe(300)
+      expect(state.popup.y).toBe(400)
     })
 
     it('handleHighlightClick does NOT create temporary highlight for existing highlights', () => {
@@ -526,8 +527,8 @@ describe('ChatMessage context menu integration', () => {
       wrapper.vm.handleHighlightClick(highlightData)
 
       const state = getState(wrapper)
-      expect(state.contextMenu.visible).toBe(true)
-      expect(state.contextMenu.selectedText).toBe('highlighted')
+      expect(state.popup.mode).toBe('context-menu')
+      expect(state.popup.selectedText).toBe('highlighted')
 
       // User can now ask question using the stored highlight data
       const mockGetQuestionSummary = vi.fn().mockResolvedValue('Summary')
@@ -540,7 +541,7 @@ describe('ChatMessage context menu integration', () => {
 
       await wrapper.vm.handleAskQuestion('What does this mean?')
 
-      expect(state.contextMenu.visible).toBe(false)
+      expect(state.popup.mode).toBe(null)
     })
   })
 
@@ -645,16 +646,761 @@ describe('ChatMessage context menu integration', () => {
         global: { plugins: [createPinia()] }
       })
 
-      // Set a non-default color index before selecting
+      wrapper.vm.showContextMenu()
       const state = getState(wrapper)
-      state.contextMenu.colorIndex = 3
+
+      // Temp highlight should always use first color
+      expect(state.tempHighlight.colorIndex).toBe(0)
+      // And popup colorIndex should be reset to 0 for new selections
+      expect(state.popup.colorIndex).toBe(0)
+    })
+
+    it('effectiveCustomContent merges temp highlight with overlapping existing highlight', () => {
+      const existingHighlight = {
+        id: 'existing-h',
+        type: 'highlight',
+        text: 'world',
+        colorIndex: 1,
+        startOffset: 6,
+        endOffset: 11
+      }
+
+      const mockSelectionHelper = vi.fn(() => ({
+        selectedText: 'world this',
+        x: 100,
+        y: 200,
+        visible: true,
+        startOffset: 6,
+        endOffset: 16
+      }))
+
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: { id: '1', question: 'Q', response: 'Hello world this is a test', customContent: [existingHighlight] },
+          getSelectedTextAndPosition: mockSelectionHelper
+        },
+        global: { plugins: [createPinia()] }
+      })
 
       wrapper.vm.showContextMenu()
 
-      // Temp highlight should always use first color, regardless of contextMenu.colorIndex
-      expect(state.tempHighlight.colorIndex).toBe(0)
-      // But the context menu colorIndex should remain unchanged
-      expect(state.contextMenu.colorIndex).toBe(3)
+      const effectiveContent = wrapper.vm.effectiveCustomContent
+
+      // Should have only 1 item (merged)
+      expect(effectiveContent.length).toBe(1)
+
+      // Merged highlight should have expanded range
+      const merged = effectiveContent[0]
+      expect(merged.startOffset).toBe(6)
+      expect(merged.endOffset).toBe(16)
+    })
+
+    it('effectiveCustomContent expands temp highlight range when overlapping existing', () => {
+      const existingHighlight = {
+        id: 'existing-h',
+        type: 'highlight',
+        text: 'Hello world',
+        colorIndex: 1,
+        startOffset: 0,
+        endOffset: 11
+      }
+
+      const mockSelectionHelper = vi.fn(() => ({
+        selectedText: 'world this',
+        x: 100,
+        y: 200,
+        visible: true,
+        startOffset: 6,
+        endOffset: 16
+      }))
+
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: { id: '1', question: 'Q', response: 'Hello world this is a test', customContent: [existingHighlight] },
+          getSelectedTextAndPosition: mockSelectionHelper
+        },
+        global: { plugins: [createPinia()] }
+      })
+
+      wrapper.vm.showContextMenu()
+
+      const effectiveContent = wrapper.vm.effectiveCustomContent
+
+      // Should have merged highlight with min start (0) and max end (16)
+      expect(effectiveContent.length).toBe(1)
+      expect(effectiveContent[0].startOffset).toBe(0)
+      expect(effectiveContent[0].endOffset).toBe(16)
+      expect(effectiveContent[0].text).toBe('Hello world this')
+    })
+
+    it('effectiveCustomContent merges temp with multiple overlapping highlights', () => {
+      const highlight1 = {
+        id: 'h1',
+        type: 'highlight',
+        text: 'Hello',
+        colorIndex: 0,
+        startOffset: 0,
+        endOffset: 5
+      }
+
+      const highlight2 = {
+        id: 'h2',
+        type: 'highlight',
+        text: 'this is',
+        colorIndex: 1,
+        startOffset: 12,
+        endOffset: 19
+      }
+
+      // Temp selection spans both
+      const mockSelectionHelper = vi.fn(() => ({
+        selectedText: 'Hello world this is',
+        x: 100,
+        y: 200,
+        visible: true,
+        startOffset: 0,
+        endOffset: 19
+      }))
+
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: { id: '1', question: 'Q', response: 'Hello world this is a test', customContent: [highlight1, highlight2] },
+          getSelectedTextAndPosition: mockSelectionHelper
+        },
+        global: { plugins: [createPinia()] }
+      })
+
+      wrapper.vm.showContextMenu()
+
+      const effectiveContent = wrapper.vm.effectiveCustomContent
+
+      // Should have only 1 merged highlight
+      expect(effectiveContent.length).toBe(1)
+      expect(effectiveContent[0].startOffset).toBe(0)
+      expect(effectiveContent[0].endOffset).toBe(19)
+    })
+
+    it('effectiveCustomContent does not merge temp with non-overlapping highlights', () => {
+      const existingHighlight = {
+        id: 'existing-h',
+        type: 'highlight',
+        text: 'test',
+        colorIndex: 1,
+        startOffset: 22,
+        endOffset: 26
+      }
+
+      const mockSelectionHelper = vi.fn(() => ({
+        selectedText: 'Hello',
+        x: 100,
+        y: 200,
+        visible: true,
+        startOffset: 0,
+        endOffset: 5
+      }))
+
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: { id: '1', question: 'Q', response: 'Hello world this is a test', customContent: [existingHighlight] },
+          getSelectedTextAndPosition: mockSelectionHelper
+        },
+        global: { plugins: [createPinia()] }
+      })
+
+      wrapper.vm.showContextMenu()
+
+      const effectiveContent = wrapper.vm.effectiveCustomContent
+
+      // Should have both highlights (no merge)
+      expect(effectiveContent.length).toBe(2)
+      expect(effectiveContent.find(h => h.id === 'existing-h')).toBeDefined()
+      expect(effectiveContent.find(h => h.id === '__temp_highlight__')).toBeDefined()
+    })
+
+    it('effectiveCustomContent does not merge temp highlight with question-links', () => {
+      const questionLink = {
+        id: 'ql1',
+        type: 'question-link',
+        text: 'world',
+        childIndex: 0,
+        startOffset: 6,
+        endOffset: 11
+      }
+
+      const mockSelectionHelper = vi.fn(() => ({
+        selectedText: 'world this',
+        x: 100,
+        y: 200,
+        visible: true,
+        startOffset: 6,
+        endOffset: 16
+      }))
+
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: { id: '1', question: 'Q', response: 'Hello world this is a test', customContent: [questionLink] },
+          getSelectedTextAndPosition: mockSelectionHelper
+        },
+        global: { plugins: [createPinia()] }
+      })
+
+      wrapper.vm.showContextMenu()
+
+      const effectiveContent = wrapper.vm.effectiveCustomContent
+
+      // Should have both (question-link should not be merged)
+      expect(effectiveContent.length).toBe(2)
+      expect(effectiveContent.find(h => h.type === 'question-link')).toBeDefined()
+      expect(effectiveContent.find(h => h.id === '__temp_highlight__')).toBeDefined()
+    })
+  })
+
+  describe('Note Edit Mode Behavior', () => {
+    it('handleNoteClick opens note in view mode (startInEditMode = false)', () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-note',
+        question: 'Q',
+        response: 'text with note',
+        customContent: [{
+          id: 'note-1',
+          type: 'highlight',
+          text: 'with note',
+          startOffset: 5,
+          endOffset: 14,
+          hasNote: true,
+          noteContent: 'This is a note'
+        }],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-note'] = testMessage
+
+      const noteData = {
+        noteId: 'note-1',
+        noteContent: 'This is a note',
+        x: 100,
+        y: 200
+      }
+
+      wrapper.vm.handleNoteClick(noteData)
+      const state = getState(wrapper)
+
+      expect(state.popup.mode).toBe('note')
+      expect(state.popup.highlightId).toBe('note-1')
+      expect(state.popup.noteContent).toBe('This is a note')
+      expect(state.popup.isNewNote).toBe(false)
+      expect(state.popup.startInEditMode).toBe(false)
+    })
+
+    it('handleAddNote on existing highlight opens note in edit mode (startInEditMode = true)', () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-add-note',
+        question: 'Q',
+        response: 'text with highlight',
+        customContent: [{
+          id: 'highlight-1',
+          type: 'highlight',
+          text: 'with highlight',
+          startOffset: 5,
+          endOffset: 19,
+          colorIndex: 0
+        }],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-add-note'] = testMessage
+
+      const state = getState(wrapper)
+
+      // Simulate context menu on existing highlight
+      state.popup.selectedText = 'with highlight'
+      state.popup.startOffset = 5
+      state.popup.endOffset = 19
+      state.popup.highlightId = 'highlight-1'
+      state.popup.noteContent = ''
+      state.popup.colorIndex = 0
+      state.popup.mode = 'context-menu'
+
+      wrapper.vm.handleAddNote()
+
+      expect(state.popup.mode).toBe('note')
+      expect(state.popup.isNewNote).toBe(true)
+      expect(state.popup.startInEditMode).toBe(true)
+    })
+
+    it('handleAddNote on existing highlight with note opens in edit mode', () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-edit-note',
+        question: 'Q',
+        response: 'text with note',
+        customContent: [{
+          id: 'note-2',
+          type: 'highlight',
+          text: 'with note',
+          startOffset: 5,
+          endOffset: 14,
+          hasNote: true,
+          noteContent: 'Existing note content'
+        }],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-edit-note'] = testMessage
+
+      const state = getState(wrapper)
+
+      // Simulate context menu on highlight with existing note
+      state.popup.selectedText = 'with note'
+      state.popup.startOffset = 5
+      state.popup.endOffset = 14
+      state.popup.highlightId = 'note-2'
+      state.popup.noteContent = 'Existing note content'
+      state.popup.colorIndex = 0
+      state.popup.mode = 'context-menu'
+
+      wrapper.vm.handleAddNote()
+
+      expect(state.popup.mode).toBe('note')
+      expect(state.popup.isNewNote).toBe(false) // Not a new note, editing existing
+      expect(state.popup.startInEditMode).toBe(true)
+    })
+
+    it('handleAddNote on new selection creates temp highlight and opens in edit mode', () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-new-note',
+        question: 'Q',
+        response: 'some text to select',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-new-note'] = testMessage
+
+      const state = getState(wrapper)
+
+      // Simulate context menu with fresh selection (no existing highlight)
+      state.popup.selectedText = 'text to select'
+      state.popup.startOffset = 5
+      state.popup.endOffset = 19
+      state.popup.highlightId = null
+      state.popup.noteContent = ''
+      state.popup.colorIndex = 0
+      state.popup.mode = 'context-menu'
+
+      wrapper.vm.handleAddNote()
+
+      expect(state.popup.mode).toBe('note')
+      expect(state.popup.highlightId).toBe('__temp_highlight_with_note__')
+      expect(state.popup.isNewNote).toBe(true)
+      expect(state.popup.startInEditMode).toBe(true)
+      expect(state.tempHighlight).not.toBe(null)
+      expect(state.tempHighlight.hasNote).toBe(true)
+    })
+
+    it('closePopup resets startInEditMode to false', () => {
+      const state = getState(wrapper)
+
+      state.popup.mode = 'note'
+      state.popup.startInEditMode = true
+      state.popup.isNewNote = true
+      state.popup.highlightId = 'some-id'
+      state.popup.noteContent = 'content'
+
+      wrapper.vm.closePopup()
+
+      expect(state.popup.mode).toBe(null)
+      expect(state.popup.startInEditMode).toBe(false)
+      expect(state.popup.isNewNote).toBe(false)
+      expect(state.popup.highlightId).toBe(null)
+      expect(state.popup.noteContent).toBe('')
+    })
+  })
+
+  describe('Quick Explain Behavior', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('handleQuickExplain switches to note mode with streaming state', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-quick',
+        question: 'Q',
+        response: 'text to explain here',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-quick'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'text to explain'
+      state.popup.startOffset = 0
+      state.popup.endOffset = 15
+      state.popup.colorIndex = 0
+      state.popup.mode = 'context-menu'
+
+      // Mock the API to resolve immediately
+      vi.spyOn(api, 'sendChatMessage').mockResolvedValue('Quick explanation')
+
+      // Start the quick explain (don't await yet)
+      const promise = wrapper.vm.handleQuickExplain()
+
+      // Check immediate state changes
+      expect(state.popup.mode).toBe('note')
+      expect(state.popup.isStreaming).toBe(true)
+      expect(state.popup.isNewNote).toBe(false)
+      expect(state.popup.startInEditMode).toBe(false)
+      expect(state.popup.noteContent).toBe('')
+
+      await promise
+    })
+
+    it('handleQuickExplain creates temp highlight when no existing highlight', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-quick-temp',
+        question: 'Q',
+        response: 'some text here',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-quick-temp'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'some text'
+      state.popup.startOffset = 0
+      state.popup.endOffset = 9
+      state.popup.colorIndex = 2
+      state.popup.highlightId = null
+      state.popup.mode = 'context-menu'
+
+      vi.spyOn(api, 'sendChatMessage').mockResolvedValue('Explanation')
+
+      const promise = wrapper.vm.handleQuickExplain()
+
+      // Should create temp highlight
+      expect(state.tempHighlight).not.toBe(null)
+      expect(state.tempHighlight.text).toBe('some text')
+      expect(state.tempHighlight.colorIndex).toBe(2)
+      expect(state.tempHighlight.hasNote).toBe(true)
+
+      await promise
+    })
+
+    it('handleQuickExplain does NOT create temp highlight for existing highlight', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-quick-existing',
+        question: 'Q',
+        response: 'highlighted text here',
+        customContent: [{
+          id: 'existing-h',
+          type: 'highlight',
+          text: 'highlighted',
+          startOffset: 0,
+          endOffset: 11,
+          colorIndex: 1
+        }],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-quick-existing'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'highlighted'
+      state.popup.startOffset = 0
+      state.popup.endOffset = 11
+      state.popup.colorIndex = 1
+      state.popup.highlightId = 'existing-h'
+      state.popup.mode = 'context-menu'
+
+      vi.spyOn(api, 'sendChatMessage').mockResolvedValue('Explanation')
+
+      const promise = wrapper.vm.handleQuickExplain()
+
+      // Should NOT create temp highlight for existing
+      expect(state.tempHighlight).toBe(null)
+
+      await promise
+    })
+
+    it('handleQuickExplain updates existing highlight note content', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-quick-update',
+        question: 'Q',
+        response: 'text with highlight',
+        customContent: [{
+          id: 'h-update',
+          type: 'highlight',
+          text: 'with highlight',
+          startOffset: 5,
+          endOffset: 19,
+          colorIndex: 0,
+          hasNote: true,
+          noteContent: 'Old note'
+        }],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-quick-update'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'with highlight'
+      state.popup.startOffset = 5
+      state.popup.endOffset = 19
+      state.popup.colorIndex = 0
+      state.popup.highlightId = 'h-update'
+      state.popup.noteContent = 'Old note'
+      state.popup.mode = 'context-menu'
+
+      // Mock with callback to simulate streaming
+      vi.spyOn(api, 'sendChatMessage').mockImplementation((_model, _messages, callback) => {
+        if (callback) callback('New explanation')
+        return Promise.resolve('New explanation')
+      })
+
+      await wrapper.vm.handleQuickExplain()
+
+      // Should update existing highlight's note
+      const storeMessage = wrapper.vm.chatStore.messagesById['msg-quick-update']
+      expect(storeMessage.customContent.length).toBe(1)
+      expect(storeMessage.customContent[0].id).toBe('h-update')
+      expect(storeMessage.customContent[0].noteContent).toBe('New explanation')
+    })
+
+    it('handleQuickExplain creates new highlight with note for new selection', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-quick-new',
+        question: 'Q',
+        response: 'brand new selection',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-quick-new'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'brand new'
+      state.popup.startOffset = 0
+      state.popup.endOffset = 9
+      state.popup.colorIndex = 1
+      state.popup.highlightId = null
+      state.popup.mode = 'context-menu'
+
+      // Mock with callback to simulate streaming
+      vi.spyOn(api, 'sendChatMessage').mockImplementation((_model, _messages, callback) => {
+        if (callback) callback('New explanation')
+        return Promise.resolve('New explanation')
+      })
+
+      await wrapper.vm.handleQuickExplain()
+
+      // Should create new highlight with note
+      const storeMessage = wrapper.vm.chatStore.messagesById['msg-quick-new']
+      expect(storeMessage.customContent.length).toBe(1)
+      expect(storeMessage.customContent[0].text).toBe('brand new')
+      expect(storeMessage.customContent[0].hasNote).toBe(true)
+      expect(storeMessage.customContent[0].noteContent).toBe('New explanation')
+      expect(storeMessage.customContent[0].colorIndex).toBe(1)
+    })
+
+    it('handleQuickExplain sets isStreaming to false after completion', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-stream-end',
+        question: 'Q',
+        response: 'test text',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-stream-end'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'test'
+      state.popup.startOffset = 0
+      state.popup.endOffset = 4
+      state.popup.mode = 'context-menu'
+
+      vi.spyOn(api, 'sendChatMessage').mockResolvedValue('Done')
+
+      await wrapper.vm.handleQuickExplain()
+
+      expect(state.popup.isStreaming).toBe(false)
+      expect(state.isChildStreaming).toBe(false)
+    })
+
+    it('handleQuickExplain validates selection data before proceeding', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const state = getState(wrapper)
+
+      state.popup.selectedText = 'text'
+      state.popup.startOffset = undefined
+      state.popup.endOffset = undefined
+
+      await wrapper.vm.handleQuickExplain()
+
+      expect(consoleSpy).toHaveBeenCalledWith('Invalid selection data for quick explain')
+      consoleSpy.mockRestore()
+    })
+
+    it('handleQuickExplain closes popup and clears state on error', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-error',
+        question: 'Q',
+        response: 'error text',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-error'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'error'
+      state.popup.startOffset = 0
+      state.popup.endOffset = 5
+      state.popup.mode = 'context-menu'
+
+      vi.spyOn(api, 'sendChatMessage').mockRejectedValue(new Error('API Error'))
+
+      await wrapper.vm.handleQuickExplain()
+
+      expect(state.popup.mode).toBe(null)
+      expect(state.popup.isStreaming).toBe(false)
+      expect(state.error).toBe('API Error')
+    })
+
+    it('handleQuickExplain streams content to noteContent', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-stream',
+        question: 'Q',
+        response: 'streaming test',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-stream'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'streaming'
+      state.popup.startOffset = 0
+      state.popup.endOffset = 9
+      state.popup.mode = 'context-menu'
+
+      // Mock streaming by capturing the callback
+      let streamCallback
+      vi.spyOn(api, 'sendChatMessage').mockImplementation((model, messages, callback) => {
+        streamCallback = callback
+        return new Promise(resolve => {
+          // Simulate streaming chunks
+          setTimeout(() => {
+            callback('Hello ')
+            callback('World')
+            resolve('Hello World')
+          }, 0)
+        })
+      })
+
+      await wrapper.vm.handleQuickExplain()
+
+      // After streaming completes, noteContent should have the streamed content
+      expect(state.popup.noteContent).toBe('Hello World')
+    })
+
+    it('closePopup resets isStreaming to false', () => {
+      const state = getState(wrapper)
+
+      state.popup.mode = 'note'
+      state.popup.isStreaming = true
+      state.popup.highlightId = 'some-id'
+      state.popup.noteContent = 'content'
+
+      wrapper.vm.closePopup()
+
+      expect(state.popup.mode).toBe(null)
+      expect(state.popup.isStreaming).toBe(false)
     })
   })
 })

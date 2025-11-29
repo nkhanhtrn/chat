@@ -150,64 +150,6 @@ describe('scroll position', () => {
     })
   })
 
-  describe('goToPrevRoot with scroll position', () => {
-    beforeEach(() => {
-      chatStore.addRootMessage({ id: 'msg1', question: 'Q1', response: 'R1', scrollPosition: 100 })
-      chatStore.addRootMessage({ id: 'msg2', question: 'Q2', response: 'R2', scrollPosition: 200 })
-      chatStore.addRootMessage({ id: 'msg3', question: 'Q3', response: 'R3' })
-      chatStore.currentMessageId = 'msg3'
-    })
-
-    it('should save current scroll position when going to prev root', () => {
-      chatStore.goToPrevRoot(500)
-
-      expect(chatStore.messagesById['msg3'].scrollPosition).toBe(500)
-    })
-
-    it('should return previous root message scroll position', () => {
-      const scrollPos = chatStore.goToPrevRoot(0)
-
-      expect(scrollPos).toBe(200)
-    })
-
-    it('should return 0 when already at first root', () => {
-      chatStore.currentRootIndex = 0
-
-      const scrollPos = chatStore.goToPrevRoot(100)
-
-      expect(scrollPos).toBe(0)
-    })
-  })
-
-  describe('goToNextRoot with scroll position', () => {
-    beforeEach(() => {
-      chatStore.addRootMessage({ id: 'msg1', question: 'Q1', response: 'R1' })
-      chatStore.addRootMessage({ id: 'msg2', question: 'Q2', response: 'R2', scrollPosition: 300 })
-      chatStore.currentRootIndex = 0
-      chatStore.currentMessageId = 'msg1'
-    })
-
-    it('should save current scroll position when going to next root', () => {
-      chatStore.goToNextRoot(150)
-
-      expect(chatStore.messagesById['msg1'].scrollPosition).toBe(150)
-    })
-
-    it('should return next root message scroll position', () => {
-      const scrollPos = chatStore.goToNextRoot(0)
-
-      expect(scrollPos).toBe(300)
-    })
-
-    it('should return 0 when already at last root', () => {
-      chatStore.currentRootIndex = 1
-
-      const scrollPos = chatStore.goToNextRoot(200)
-
-      expect(scrollPos).toBe(0)
-    })
-  })
-
   describe('navigateToLastVisitedChild with scroll position', () => {
     beforeEach(() => {
       chatStore.addRootMessage({ id: 'root', question: 'Root', response: 'R' })

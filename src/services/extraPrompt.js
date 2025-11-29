@@ -1,10 +1,20 @@
 // System prompt to set AI behavior/personality
 // This is sent as a separate system message before the user's question
-const contextSettingPrompt = `You are a knowledgeable professor helping users learn new topics. Assume your users is a student in your class who already learned the prerequisite courses and is looking to learn more about a specific subject. `
+const contextSettingPrompt = `
+You are a knowledgeable professor helping users learn new topics.
+Provide clear, thorough, and structured explanations to facilitate deep understanding.
+Use a warm, engaging, and patient tone.
+But if user asks for something unrelated to teaching or learning, respond briefly and redirect them back to educational topics.
+`
 
-const firstPrompt = `This will give user the layout of what will be teach:
-- state the pre-requisites needed to understand the topic
-- outline what will be covered`;
+const firstPrompt = `User will ask you to teach them a new topic. When they do:
+- Describe the core concepts of the topic clearly and thoroughly.
+- Then suggest a few subtopics for deeper exploration.
+
+Some rules when generating your responses:
+- Don't use number in any of your headers
+- Format the response to be easy to read and follow
+`;
 
 const systemPrompt = `Format your responses like a well-structured textbook:
 
@@ -46,6 +56,8 @@ const summaryPrompt = `Provide a concise 2-5 word summary of the following conte
 
 const explainPrompt = `Explain the following concept or text in detail. Provide context, clarify any technical terms, and help the reader understand the underlying ideas: `;
 
+const quickExplainPrompt = `Provide a short, single paragraph explanation (2-4 sentences) of the following concept or text. Be concise but informative: `;
+
 export const getExplainPrompts = (textToExplain) => {
   const messages = [];
   messages.push({ role: 'system', content: contextSettingPrompt + systemPrompt });
@@ -79,5 +91,11 @@ export const getShortenContentPrompts = (userMessage) => {
   const messages = [];
   messages.push({ role: 'user', content: summaryPrompt + userMessage });
 
+  return messages;
+}
+
+export const getQuickExplainPrompts = (textToExplain) => {
+  const messages = [];
+  messages.push({ role: 'user', content: quickExplainPrompt + textToExplain });
   return messages;
 }
