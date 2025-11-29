@@ -399,55 +399,200 @@ function extractSpecialBlocks(content) {
   let processedContent = content
 
   // Extract code blocks (```...```)
-  processedContent = processedContent.replace(/```(\w+)?\n([\s\S]*?)```/g, (_match, lang, code) => {
+  processedContent = processedContent.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code, index) => {
     const id = `CODEBLOCK${extractedBlocks.length}PLACEHOLDER`
     extractedBlocks.push({
       id,
       type: 'code_block',
       language: lang || 'text',
-      code: code.trim()
+      code: code.trim(),
+      originalStart: index,
+      originalEnd: index + match.length
     })
     return `\n${id}\n`
   })
 
   // Extract math blocks ($$...$$)
-  processedContent = processedContent.replace(/\$\$([\s\S]+?)\$\$/g, (_match, math) => {
+  processedContent = processedContent.replace(/\$\$([\s\S]+?)\$\$/g, (match, math, index) => {
     const id = `MATHBLOCK${extractedBlocks.length}PLACEHOLDER`
     extractedBlocks.push({
       id,
       type: 'math_block',
-      content: math.trim()
+      content: math.trim(),
+      originalStart: index,
+      originalEnd: index + match.length
     })
     return `\n${id}\n`
+  })
+
+  // Extract math blocks with bracket notation (\[...\])
+  processedContent = processedContent.replace(/\\\[([\s\S]+?)\\\]/g, (match, math, index) => {
+    const id = `MATHBLOCK${extractedBlocks.length}PLACEHOLDER`
+    extractedBlocks.push({
+      id,
+      type: 'math_block',
+      content: math.trim(),
+      originalStart: index,
+      originalEnd: index + match.length
+    })
+    return `\n${id}\n`
+  })
+
+  // Extract inline math ($...$) - but not $$
+  processedContent = processedContent.replace(/(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)/g, (match, math, index) => {
+    const id = `MATHINLINE${extractedBlocks.length}PLACEHOLDER`
+    extractedBlocks.push({
+      id,
+      type: 'math_inline',
+      content: math.trim(),
+      originalStart: index,
+      originalEnd: index + match.length
+    })
+    return id
+  })
+
+  // Extract inline math with parenthesis notation (\(...\))
+  processedContent = processedContent.replace(/\\\((.+?)\\\)/g, (match, math, index) => {
+    const id = `MATHINLINE${extractedBlocks.length}PLACEHOLDER`
+    extractedBlocks.push({
+      id,
+      type: 'math_inline',
+      content: math.trim(),
+      originalStart: index,
+      originalEnd: index + match.length
+    })
+    return id
   })
 
   return { processedContent, extractedBlocks }
 }
 
 /**
+ * Check if a highlight fully contains a math block
+ * @param {Object} highlight - Highlight item with startOffset/endOffset
+ * @param {Object} block - Extracted block with originalStart/originalEnd
+ * @returns {boolean} - True if highlight fully contains block
+ */
+function highlightContainsBlock(highlight, block) {
+  if (block.originalStart === undefined || block.originalEnd === undefined) {
+    return false
+  }
+  // Highlight must start at or before block start AND end at or after block end
+  return highlight.startOffset <= block.originalStart && highlight.endOffset >= block.originalEnd
+}
+
+/**
+ * Find the first highlight that fully contains this block
+ * @param {Array} highlights - Array of highlight items
+ * @param {Object} block - Extracted block
+ * @returns {Object|null} - The highlight or null
+ */
+function findContainingHighlight(highlights, block) {
+  if (!highlights || highlights.length === 0) return null
+
+  for (const highlight of highlights) {
+    if (highlight.type === 'highlight' && highlightContainsBlock(highlight, block)) {
+      return highlight
+    }
+  }
+  return null
+}
+
+/**
  * Restore special blocks in the AST
  * @param {Array} ast - AST nodes
  * @param {Array} extractedBlocks - Extracted blocks to restore
+ * @param {Array} customContentItems - Custom content items (highlights, etc.)
  * @returns {Array} - AST with blocks restored
  */
-function restoreSpecialBlocksInAST(ast, extractedBlocks) {
-  return ast.map(node => {
+function restoreSpecialBlocksInAST(ast, extractedBlocks, customContentItems = []) {
+  return ast.flatMap(node => {
     if (node.type === 'text' && node.content) {
-      // Check if this text node contains a placeholder
+      // Check if this text node contains any placeholders
+      let content = node.content
+      let hasPlaceholder = false
+
       for (const block of extractedBlocks) {
-        if (node.content.includes(block.id)) {
-          // Replace with the actual block node
-          return {
-            type: block.type,
-            ...block
-          }
+        if (content.includes(block.id)) {
+          hasPlaceholder = true
+          break
         }
       }
+
+      if (!hasPlaceholder) {
+        return node
+      }
+
+      // Split text by all placeholders and rebuild as array of nodes
+      const result = []
+      let remaining = content
+
+      while (remaining) {
+        let foundBlock = null
+        let foundIndex = -1
+
+        // Find the first placeholder in remaining text
+        for (const block of extractedBlocks) {
+          const idx = remaining.indexOf(block.id)
+          if (idx !== -1 && (foundIndex === -1 || idx < foundIndex)) {
+            foundIndex = idx
+            foundBlock = block
+          }
+        }
+
+        if (foundBlock === null) {
+          // No more placeholders, add remaining text
+          if (remaining) {
+            result.push({
+              type: 'text',
+              content: remaining,
+              startOffset: node.startOffset,
+              endOffset: node.endOffset
+            })
+          }
+          break
+        }
+
+        // Add text before placeholder
+        if (foundIndex > 0) {
+          result.push({
+            type: 'text',
+            content: remaining.substring(0, foundIndex),
+            startOffset: node.startOffset,
+            endOffset: node.endOffset
+          })
+        }
+
+        // Add the block node with highlight info if applicable
+        const blockNode = {
+          type: foundBlock.type,
+          ...foundBlock,
+          startOffset: foundBlock.originalStart,
+          endOffset: foundBlock.originalEnd
+        }
+
+        // Check if this math block should be highlighted
+        if (foundBlock.type === 'math_block' || foundBlock.type === 'math_inline') {
+          const highlight = findContainingHighlight(customContentItems, foundBlock)
+          if (highlight) {
+            blockNode.highlighted = true
+            blockNode.colorIndex = highlight.colorIndex ?? 0
+            blockNode.highlightId = highlight.id
+          }
+        }
+
+        result.push(blockNode)
+
+        // Continue with text after placeholder
+        remaining = remaining.substring(foundIndex + foundBlock.id.length)
+      }
+
+      return result
     }
 
     if (node.type === 'paragraph' && node.children) {
       // Check if paragraph contains only a placeholder
-      const updatedChildren = restoreSpecialBlocksInAST(node.children, extractedBlocks)
+      const updatedChildren = restoreSpecialBlocksInAST(node.children, extractedBlocks, customContentItems)
       if (updatedChildren.length === 1 &&
           (updatedChildren[0].type === 'code_block' || updatedChildren[0].type === 'math_block')) {
         // Replace paragraph with the block directly
@@ -457,10 +602,48 @@ function restoreSpecialBlocksInAST(ast, extractedBlocks) {
     }
 
     if (node.children) {
-      return { ...node, children: restoreSpecialBlocksInAST(node.children, extractedBlocks) }
+      const updatedChildren = restoreSpecialBlocksInAST(node.children, extractedBlocks, customContentItems).flat()
+      return { ...node, children: updatedChildren }
     }
 
     return node
+  })
+}
+
+/**
+ * Check if a highlight overlaps with a block (any overlap)
+ * @param {Object} highlight - Highlight item with startOffset/endOffset
+ * @param {Object} block - Extracted block with originalStart/originalEnd
+ * @returns {boolean} - True if they overlap at all
+ */
+function highlightOverlapsBlock(highlight, block) {
+  if (block.originalStart === undefined || block.originalEnd === undefined) {
+    return false
+  }
+  return highlight.startOffset < block.originalEnd && highlight.endOffset > block.originalStart
+}
+
+/**
+ * Filter out custom content items that overlap with extracted blocks
+ * Items that fully contain blocks will be applied to the blocks in restoreSpecialBlocksInAST
+ * Items that partially overlap are filtered out entirely (ignored)
+ * @param {Array} customContentItems - All custom content items
+ * @param {Array} extractedBlocks - Extracted blocks (code, math)
+ * @returns {Array} - Filtered custom content items
+ */
+function filterItemsNotOverlappingBlocks(customContentItems, extractedBlocks) {
+  if (!customContentItems || customContentItems.length === 0) return []
+  if (!extractedBlocks || extractedBlocks.length === 0) return customContentItems
+
+  return customContentItems.filter(item => {
+    // Check if this item overlaps with any extracted block (fully or partially)
+    for (const block of extractedBlocks) {
+      if (highlightOverlapsBlock(item, block)) {
+        // This item overlaps with a block, filter it out from text processing
+        return false
+      }
+    }
+    return true
   })
 }
 
@@ -476,6 +659,11 @@ export function parseMarkdownToAST(content, customContentItems = []) {
   // Extract special blocks (code, math)
   const { processedContent, extractedBlocks } = extractSpecialBlocks(content)
 
+  // Filter out custom content items that overlap with extracted blocks
+  // Items fully containing blocks will be applied in restoreSpecialBlocksInAST
+  // Items partially overlapping blocks are ignored entirely
+  const nonBlockItems = filterItemsNotOverlappingBlocks(customContentItems, extractedBlocks)
+
   // Create position tracker
   const tracker = new PositionTracker()
 
@@ -490,12 +678,12 @@ export function parseMarkdownToAST(content, customContentItems = []) {
   // Parse markdown to tokens
   const tokens = md.parse(processedContent, {})
 
-  // Convert tokens to AST
+  // Convert tokens to AST (only with non-block-overlapping items)
   tracker.reset()
-  let children = processTokens(tokens, customContentItems, tracker)
+  let children = processTokens(tokens, nonBlockItems, tracker)
 
-  // Restore special blocks
-  children = restoreSpecialBlocksInAST(children, extractedBlocks)
+  // Restore special blocks (with highlight support for block-overlapping items)
+  children = restoreSpecialBlocksInAST(children, extractedBlocks, customContentItems)
 
   return {
     type: 'root',

@@ -1,10 +1,22 @@
 <template>
-  <span ref="mathEl"></span>
+  <mark
+    v-if="highlighted"
+    class="math-highlight"
+    :style="{ backgroundColor: highlightColor }"
+    :data-highlight-id="highlightId"
+    :data-md-start="startOffset"
+    :data-md-end="endOffset"
+    @click="handleHighlightClick"
+  >
+    <span ref="mathEl"></span>
+  </mark>
+  <span v-else ref="mathEl"></span>
 </template>
 
 <script>
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, ref, watch, computed, nextTick } from 'vue'
 import { renderKatex } from '../../services/katex'
+import { highlightColors } from '../../constants/highlightColors.js'
 import 'katex/dist/katex.min.css'
 
 export default {
@@ -13,10 +25,33 @@ export default {
     content: {
       type: String,
       required: true
+    },
+    highlighted: {
+      type: Boolean,
+      default: false
+    },
+    colorIndex: {
+      type: Number,
+      default: 0
+    },
+    highlightId: {
+      type: String,
+      default: ''
+    },
+    startOffset: {
+      type: Number,
+      default: 0
+    },
+    endOffset: {
+      type: Number,
+      default: 0
     }
   },
-  setup(props) {
+  emits: ['highlight-click'],
+  setup(props, { emit }) {
     const mathEl = ref(null)
+
+    const highlightColor = computed(() => highlightColors[props.colorIndex] || highlightColors[0])
 
     const renderMath = () => {
       if (mathEl.value) {
@@ -24,10 +59,27 @@ export default {
       }
     }
 
+    const handleHighlightClick = (event) => {
+      event.stopPropagation()
+      emit('highlight-click', {
+        highlightId: props.highlightId,
+        text: props.content,
+        colorIndex: props.colorIndex,
+        startOffset: props.startOffset,
+        endOffset: props.endOffset,
+        x: event.clientX,
+        y: event.clientY
+      })
+    }
+
     onMounted(renderMath)
     watch(() => props.content, renderMath)
+    // Re-render when highlighted changes because the ref element changes with v-if
+    watch(() => props.highlighted, () => {
+      nextTick(renderMath)
+    })
 
-    return { mathEl }
+    return { mathEl, highlightColor, handleHighlightClick }
   }
 }
 </script>
@@ -35,5 +87,15 @@ export default {
 <style scoped>
 .katex {
   font-size: 1em;
+}
+
+.math-highlight {
+  padding: 2px 0;
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.math-highlight:hover {
+  filter: brightness(0.9);
 }
 </style>

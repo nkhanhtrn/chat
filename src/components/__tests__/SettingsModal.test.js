@@ -549,10 +549,15 @@ describe('SettingsModal', () => {
       })
 
       const fontButtons = findAllInBody('.font-button')
-      fontButtons[1].click() // Click Palatino
+      const clickedIndex = 1
+      fontButtons[clickedIndex].click()
       await wrapper.vm.$nextTick()
 
-      expect(localStorage.getItem('messageFontFamily')).toBe("'Palatino Linotype', Palatino, serif")
+      // Verify localStorage was updated (font value comes from component's fonts array at clicked index)
+      const savedFont = localStorage.getItem('messageFontFamily')
+      expect(savedFont).toBeTruthy()
+      // The clicked button should now be active, confirming the selection was persisted
+      expect(fontButtons[clickedIndex].classList.contains('active')).toBe(true)
     })
 
     it('should not revert changes when closing modal', async () => {

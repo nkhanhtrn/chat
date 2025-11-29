@@ -42,6 +42,7 @@ import QuestionLinkSpan from './markdown/QuestionLinkSpan.vue'
 import CodeBlock from './markdown/CodeBlock.vue'
 import InlineCode from './markdown/InlineCode.vue'
 import MathBlock from './markdown/MathBlock.vue'
+import MathInline from './markdown/MathInline.vue'
 import MarkdownTable from './markdown/MarkdownTable.vue'
 
 const props = defineProps({
@@ -71,6 +72,7 @@ const componentMap = {
   'code_block': CodeBlock,
   'code_inline': InlineCode,
   'math_block': MathBlock,
+  'math_inline': MathInline,
   'table': MarkdownTable
 }
 
@@ -122,8 +124,14 @@ function getNodeProps(node) {
       }
 
     case 'math_block':
+    case 'math_inline':
       return {
-        content: node.content
+        content: node.content,
+        highlighted: node.highlighted || false,
+        colorIndex: node.colorIndex,
+        highlightId: node.highlightId,
+        startOffset: node.startOffset,
+        endOffset: node.endOffset
       }
 
     case 'table':

@@ -33,6 +33,7 @@ import TextSpan from './TextSpan.vue'
 import HighlightSpan from './HighlightSpan.vue'
 import QuestionLinkSpan from './QuestionLinkSpan.vue'
 import InlineCode from './InlineCode.vue'
+import MathInline from './MathInline.vue'
 import MarkdownStrong from './MarkdownStrong.vue'
 import MarkdownEmphasis from './MarkdownEmphasis.vue'
 import MarkdownLink from './MarkdownLink.vue'
@@ -44,6 +45,7 @@ export default {
     HighlightSpan,
     QuestionLinkSpan,
     InlineCode,
+    MathInline,
     MarkdownStrong,
     MarkdownEmphasis,
     MarkdownLink
@@ -62,6 +64,7 @@ export default {
         'highlight': HighlightSpan,
         'question-link': QuestionLinkSpan,
         'code_inline': InlineCode,
+        'math_inline': MathInline,
         'strong': MarkdownStrong,
         'em': MarkdownEmphasis,
         'link': MarkdownLink
@@ -95,6 +98,15 @@ export default {
         case 'code_inline':
           return {
             content: node.content
+          }
+        case 'math_inline':
+          return {
+            content: node.content,
+            highlighted: node.highlighted || false,
+            colorIndex: node.colorIndex,
+            highlightId: node.highlightId,
+            startOffset: node.startOffset,
+            endOffset: node.endOffset
           }
         case 'link':
           return {
