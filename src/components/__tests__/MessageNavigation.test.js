@@ -73,10 +73,13 @@ describe('MessageNavigation', () => {
       expect(chatStore.navigateToMessage).toHaveBeenCalledWith('1', expect.any(Number))
     })
 
-    it('should not render breadcrumb when viewing root message (only 1 item)', () => {
+    it('should render breadcrumb even for root message', () => {
       const wrapper = mountComponent('1')
-      // Component only renders when breadcrumbMessages.length > 1
-      expect(wrapper.find('.breadcrumb-nav').exists()).toBe(false)
+      // Breadcrumb is rendered for any message (to show children indicator)
+      expect(wrapper.find('.breadcrumb-nav').exists()).toBe(true)
+      // Only one breadcrumb item (the root itself)
+      const items = wrapper.findAll('.breadcrumb-item')
+      expect(items.length).toBe(1)
     })
   })
 
@@ -106,14 +109,15 @@ describe('MessageNavigation', () => {
   })
 
   describe('Breadcrumb Styles', () => {
-    it('current message breadcrumb should have active class', async () => {
-      // currentMessage is '2', breadcrumb: Root (home icon), Child (active)
+    it('current message breadcrumb should not have active class when it has children', async () => {
+      // currentMessage is '2', breadcrumb: Root (home icon), Child
+      // msg2 has children, so it should NOT have active class
       const wrapper = mountComponent('2')
       const items = wrapper.findAll('.breadcrumb-item')
       expect(items.length).toBe(2) // Root + Child
       const last = items[items.length - 1]
-      // The last breadcrumb is active (currentMessage)
-      expect(last.classes()).toContain('active')
+      // The last breadcrumb should NOT be active because it has children
+      expect(last.classes()).not.toContain('active')
     })
 
     it('last breadcrumb is normal if active', async () => {
@@ -141,16 +145,17 @@ describe('MessageNavigation', () => {
       const wrapper = mountComponent('2')
       const items = wrapper.findAll('.breadcrumb-item')
       expect(items.length).toBe(2)
-      // Second item (idx=1) shows questionSummarized
-      expect(items[1].text()).toBe('Child')
+      // Second item (idx=1) shows questionSummarized + children count
+      expect(items[1].text()).toContain('Child')
     })
 
-    it('active breadcrumb should have active class', () => {
-      const wrapper = mountComponent('2')
+    it('active breadcrumb should have active class when no children', () => {
+      // msg3 has no children, so it should have active class
+      const wrapper = mountComponent('3')
       const items = wrapper.findAll('.breadcrumb-item')
       const activeItem = items.find(item => item.classes().includes('active'))
       expect(activeItem).toBeDefined()
-      expect(activeItem.text()).toBe('Child')
+      expect(activeItem.text()).toContain('Last')
     })
   })
 
@@ -163,15 +168,184 @@ describe('MessageNavigation', () => {
       expect(items.length).toBe(3) // Root, Child, and Last
       // First item has SVG (home icon)
       expect(items[0].find('svg').exists()).toBe(true)
-      expect(items[1].text()).toBe('Child')
-      expect(items[2].text()).toBe('Last')
+      expect(items[1].text()).toContain('Child')
+      expect(items[2].text()).toContain('Last')
     })
 
-    it('should not render breadcrumb for root message (only 1 item in path)', () => {
+    it('should render breadcrumb for root message with children indicator', () => {
       const wrapper = mountComponent('1')
-      // msg1.lastVisitedChild = '2', but we only show path to current message
-      // Component only renders when breadcrumbMessages.length > 1
-      expect(wrapper.find('.breadcrumb-nav').exists()).toBe(false)
+      // Breadcrumb is rendered even for root (to show children indicator)
+      expect(wrapper.find('.breadcrumb-nav').exists()).toBe(true)
+      const items = wrapper.findAll('.breadcrumb-item')
+      expect(items.length).toBe(1)
+      // Should show children indicator
+      expect(wrapper.find('.children-indicator').exists()).toBe(true)
+    })
+  })
+
+  describe('Children Indicator', () => {
+    it('should show children count indicator on current message', () => {
+      // msg2 has one child (msg3)
+      const wrapper = mountComponent('2')
+      const indicator = wrapper.find('.children-indicator')
+      expect(indicator.exists()).toBe(true)
+      expect(indicator.text()).toBe('1')
+    })
+
+    it('should show 0 when current message has no children', () => {
+      // msg3 has no children
+      const wrapper = mountComponent('3')
+      const indicator = wrapper.find('.children-indicator')
+      expect(indicator.exists()).toBe(true)
+      expect(indicator.text()).toBe('0')
+    })
+
+    it('should only show indicator on current message breadcrumb', () => {
+      const wrapper = mountComponent('3')
+      const indicators = wrapper.findAll('.children-indicator')
+      // Only one indicator should exist (on current message)
+      expect(indicators.length).toBe(1)
+    })
+  })
+
+  describe('Children Popup', () => {
+    it('should not show popup initially', () => {
+      const wrapper = mountComponent('2')
+      expect(wrapper.find('.children-popup').exists()).toBe(false)
+    })
+
+    it('should show popup when clicking current message with children', async () => {
+      // msg2 has one child (msg3)
+      const wrapper = mountComponent('2')
+      const items = wrapper.findAll('.breadcrumb-item')
+      const currentItem = items[items.length - 1] // Last item is current message
+
+      await currentItem.trigger('click')
+
+      expect(wrapper.find('.children-popup').exists()).toBe(true)
+      expect(wrapper.find('.children-popup-content').exists()).toBe(true)
+    })
+
+    it('should not show popup when clicking current message with no children', async () => {
+      // msg3 has no children
+      const wrapper = mountComponent('3')
+      const items = wrapper.findAll('.breadcrumb-item')
+      const currentItem = items[items.length - 1]
+
+      await currentItem.trigger('click')
+
+      expect(wrapper.find('.children-popup').exists()).toBe(false)
+    })
+
+    it('should list all children in popup', async () => {
+      const wrapper = mountComponent('2')
+      const items = wrapper.findAll('.breadcrumb-item')
+      const currentItem = items[items.length - 1]
+
+      await currentItem.trigger('click')
+
+      const popupItems = wrapper.findAll('.children-popup-item')
+      expect(popupItems.length).toBe(1) // msg2 has one child (msg3)
+      expect(popupItems[0].text()).toBe('Last')
+    })
+
+    it('should close popup when clicking backdrop', async () => {
+      const wrapper = mountComponent('2')
+      const items = wrapper.findAll('.breadcrumb-item')
+      const currentItem = items[items.length - 1]
+
+      await currentItem.trigger('click')
+      expect(wrapper.find('.children-popup').exists()).toBe(true)
+
+      await wrapper.find('.children-popup-backdrop').trigger('click')
+      expect(wrapper.find('.children-popup').exists()).toBe(false)
+    })
+
+    it('should toggle popup on repeated clicks', async () => {
+      const wrapper = mountComponent('2')
+      const items = wrapper.findAll('.breadcrumb-item')
+      const currentItem = items[items.length - 1]
+
+      // First click - open
+      await currentItem.trigger('click')
+      expect(wrapper.find('.children-popup').exists()).toBe(true)
+
+      // Second click - close
+      await currentItem.trigger('click')
+      expect(wrapper.find('.children-popup').exists()).toBe(false)
+
+      // Third click - open again
+      await currentItem.trigger('click')
+      expect(wrapper.find('.children-popup').exists()).toBe(true)
+    })
+
+    it('should navigate to child when clicking popup item', async () => {
+      const wrapper = mountComponent('2')
+      const items = wrapper.findAll('.breadcrumb-item')
+      const currentItem = items[items.length - 1]
+
+      await currentItem.trigger('click')
+
+      const popupItems = wrapper.findAll('.children-popup-item')
+      await popupItems[0].trigger('click')
+
+      expect(chatStore.navigateToMessage).toHaveBeenCalledWith('3', expect.any(Number))
+    })
+
+    it('should close popup after navigating to child', async () => {
+      const wrapper = mountComponent('2')
+      const items = wrapper.findAll('.breadcrumb-item')
+      const currentItem = items[items.length - 1]
+
+      await currentItem.trigger('click')
+      expect(wrapper.find('.children-popup').exists()).toBe(true)
+
+      const popupItems = wrapper.findAll('.children-popup-item')
+      await popupItems[0].trigger('click')
+
+      expect(wrapper.find('.children-popup').exists()).toBe(false)
+    })
+
+    it('should show truncated question if questionSummarized is not available', async () => {
+      // Create a message with a long question but no questionSummarized
+      const Message = require('../../stores/Message.js').default
+      const longQuestion = 'This is a very long question that should be truncated in the popup'
+      const msg4 = new Message({ id: '4', question: longQuestion, response: '', parentId: '2', childIds: [] })
+      // Explicitly set questionSummarized to null to test truncation
+      msg4.questionSummarized = null
+      chatStore.messagesById['4'] = msg4
+      chatStore.messagesById['2'].childIds.push('4')
+
+      const wrapper = mountComponent('2')
+      const items = wrapper.findAll('.breadcrumb-item')
+      const currentItem = items[items.length - 1]
+
+      await currentItem.trigger('click')
+
+      const popupItems = wrapper.findAll('.children-popup-item')
+      // Find the item for msg4 (the one with the long question)
+      const msg4Item = popupItems.find(item => item.attributes('title') === longQuestion)
+      expect(msg4Item).toBeDefined()
+      // Should be truncated to 30 chars + '...'
+      expect(msg4Item.text()).toBe('This is a very long question t...')
+    })
+  })
+
+  describe('Current Message Active State', () => {
+    it('should have active class when current message has no children', () => {
+      // msg3 has no children
+      const wrapper = mountComponent('3')
+      const items = wrapper.findAll('.breadcrumb-item')
+      const currentItem = items[items.length - 1]
+      expect(currentItem.classes()).toContain('active')
+    })
+
+    it('should not have active class when current message has children', () => {
+      // msg2 has children
+      const wrapper = mountComponent('2')
+      const items = wrapper.findAll('.breadcrumb-item')
+      const currentItem = items[items.length - 1]
+      expect(currentItem.classes()).not.toContain('active')
     })
   })
 })
