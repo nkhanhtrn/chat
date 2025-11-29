@@ -1,7 +1,7 @@
 <template>
   <div>
     <!-- Breadcrumb Navigation -->
-    <div v-if="currentMessage" class="breadcrumb-nav">
+    <div v-if="currentMessage && breadcrumbMessages.length > 1" class="breadcrumb-nav">
       <div class="breadcrumb">
         <template v-for="(msg, idx) in breadcrumbMessages" :key="msg.id">
           <Button

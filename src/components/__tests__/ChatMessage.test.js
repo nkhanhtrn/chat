@@ -36,12 +36,12 @@ describe('ChatMessage', () => {
       expect(wrapper.find('.message').exists()).toBe(true)
     })
 
-    it('should render message header with role badge', () => {
+    it('should render user message content', () => {
       wrapper = mount(ChatMessage, {
         props: {
           message: {
-            role: 'user',
-            content: 'Test'
+            question: 'Test',
+            response: ''
           }
         },
         global: {
@@ -49,8 +49,7 @@ describe('ChatMessage', () => {
         }
       })
 
-      expect(wrapper.find('.message-header').exists()).toBe(true)
-      expect(wrapper.find('.role-badge').exists()).toBe(true)
+      expect(wrapper.find('.user-message').exists()).toBe(true)
     })
 
     it('should render message content', () => {
@@ -80,7 +79,7 @@ describe('ChatMessage', () => {
 
 
   describe('User Messages', () => {
-    it('should display user role badge (You) when response is empty', () => {
+    it('should display user question when response is empty', () => {
       wrapper = mount(ChatMessage, {
         props: {
           message: {
@@ -92,7 +91,7 @@ describe('ChatMessage', () => {
           plugins: [createPinia()]
         }
       })
-      expect(wrapper.find('.role-badge').text()).toBe('You')
+      expect(wrapper.find('.user-message').text()).toBe('Hello')
     })
 
     it('should apply user message class when response is empty', () => {
@@ -228,12 +227,12 @@ describe('ChatMessage', () => {
   })
 
   describe('Structure', () => {
-    it('should have correct HTML structure', () => {
+    it('should have correct HTML structure for user message', () => {
       wrapper = mount(ChatMessage, {
         props: {
           message: {
-            role: 'user',
-            content: 'Test'
+            question: 'Test',
+            response: ''
           }
         },
         global: {
@@ -242,17 +241,17 @@ describe('ChatMessage', () => {
       })
 
       expect(wrapper.find('.message').exists()).toBe(true)
-      expect(wrapper.find('.message-header').exists()).toBe(true)
-      expect(wrapper.find('.role-badge').exists()).toBe(true)
+      expect(wrapper.find('.message-user').exists()).toBe(true)
       expect(wrapper.find('.message-content').exists()).toBe(true)
+      expect(wrapper.find('.user-message').exists()).toBe(true)
     })
 
     it('should nest elements correctly', () => {
       wrapper = mount(ChatMessage, {
         props: {
           message: {
-            role: 'user',
-            content: 'Test'
+            question: 'Test',
+            response: ''
           }
         },
         global: {
@@ -261,10 +260,10 @@ describe('ChatMessage', () => {
       })
 
       const message = wrapper.find('.message')
-      const header = message.find('.message-header')
-      const badge = header.find('.role-badge')
+      const content = message.find('.message-content')
+      const userMessage = content.find('.user-message')
 
-      expect(badge.exists()).toBe(true)
+      expect(userMessage.exists()).toBe(true)
     })
   })
 

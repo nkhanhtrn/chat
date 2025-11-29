@@ -16,8 +16,8 @@
               class="color-circle"
               :class="{ selected: selectedColorIndex === index }"
               :style="{ backgroundColor: color }"
-              @click="selectColor(index)"
               :disabled="isStreaming"
+              @click="selectColor(index)"
             ></button>
           </div>
         </div>

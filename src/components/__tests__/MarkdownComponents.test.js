@@ -349,6 +349,108 @@ describe('Markdown Components', () => {
       await wrapper.find('.copy-btn').trigger('click')
       expect(wrapper.find('pre').classes()).toContain('flashing')
     })
+
+    it('should start in expanded state', () => {
+      const wrapper = mount(CodeBlock, {
+        props: {
+          code: 'const x = 5;'
+        }
+      })
+      expect(wrapper.find('.code-container').exists()).toBe(true)
+      expect(wrapper.find('.collapse-row').exists()).toBe(false)
+      expect(wrapper.find('.code-block').exists()).toBe(true)
+    })
+
+    it('should collapse when collapse button is clicked', async () => {
+      const wrapper = mount(CodeBlock, {
+        props: {
+          language: 'javascript',
+          code: 'const x = 5;'
+        }
+      })
+
+      // Initially expanded
+      expect(wrapper.find('.code-container').exists()).toBe(true)
+
+      // Click collapse button
+      await wrapper.find('.collapse-btn').trigger('click')
+
+      // Should now be collapsed
+      expect(wrapper.find('.collapse-row').exists()).toBe(true)
+      expect(wrapper.find('.code-container').exists()).toBe(false)
+    })
+
+    it('should expand when expand button is clicked', async () => {
+      const wrapper = mount(CodeBlock, {
+        props: {
+          language: 'javascript',
+          code: 'const x = 5;'
+        }
+      })
+
+      // Collapse first
+      await wrapper.find('.collapse-btn').trigger('click')
+      expect(wrapper.find('.collapse-row').exists()).toBe(true)
+
+      // Click expand button
+      await wrapper.find('.collapse-btn').trigger('click')
+
+      // Should now be expanded
+      expect(wrapper.find('.code-container').exists()).toBe(true)
+      expect(wrapper.find('.collapse-row').exists()).toBe(false)
+    })
+
+    it('should show language and line count when collapsed', async () => {
+      const wrapper = mount(CodeBlock, {
+        props: {
+          language: 'python',
+          code: 'line1\nline2\nline3'
+        }
+      })
+
+      await wrapper.find('.collapse-btn').trigger('click')
+
+      const label = wrapper.find('.collapsed-label')
+      expect(label.exists()).toBe(true)
+      expect(label.text()).toContain('python')
+      expect(label.text()).toContain('3 lines')
+    })
+
+    it('should expand when collapsed label is clicked', async () => {
+      const wrapper = mount(CodeBlock, {
+        props: {
+          code: 'test code'
+        }
+      })
+
+      // Collapse
+      await wrapper.find('.collapse-btn').trigger('click')
+      expect(wrapper.find('.collapse-row').exists()).toBe(true)
+
+      // Click label
+      await wrapper.find('.collapsed-label').trigger('click')
+
+      // Should expand
+      expect(wrapper.find('.code-container').exists()).toBe(true)
+    })
+
+    it('should compute line count correctly', () => {
+      const wrapper = mount(CodeBlock, {
+        props: {
+          code: 'line1\nline2\nline3\nline4\nline5'
+        }
+      })
+      expect(wrapper.vm.lineCount).toBe(5)
+    })
+
+    it('should compute line count as 1 for single line', () => {
+      const wrapper = mount(CodeBlock, {
+        props: {
+          code: 'single line'
+        }
+      })
+      expect(wrapper.vm.lineCount).toBe(1)
+    })
   })
 
   describe('MathBlock', () => {
@@ -851,6 +953,230 @@ describe('Markdown Components', () => {
       expect(wrapper.emitted('highlight-click')).toBeTruthy()
       const [eventData] = wrapper.emitted('highlight-click')[0]
       expect(eventData.highlightId).toBe('h-in-header')
+    })
+
+    it('should start in expanded state', () => {
+      const tableNode = {
+        type: 'table',
+        children: [
+          {
+            type: 'thead',
+            children: [
+              {
+                type: 'tr',
+                children: [
+                  { type: 'th', children: [{ type: 'text', text: 'Header' }], align: null }
+                ]
+              }
+            ]
+          },
+          {
+            type: 'tbody',
+            children: [
+              {
+                type: 'tr',
+                children: [
+                  { type: 'td', children: [{ type: 'text', text: 'Cell' }] }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      const wrapper = mount(MarkdownTable, {
+        props: { node: tableNode }
+      })
+
+      expect(wrapper.find('.table-container').exists()).toBe(true)
+      expect(wrapper.find('.collapse-row').exists()).toBe(false)
+      expect(wrapper.find('.markdown-table').exists()).toBe(true)
+    })
+
+    it('should collapse when collapse button is clicked', async () => {
+      const tableNode = {
+        type: 'table',
+        children: [
+          {
+            type: 'thead',
+            children: [
+              {
+                type: 'tr',
+                children: [
+                  { type: 'th', children: [{ type: 'text', text: 'Header' }], align: null }
+                ]
+              }
+            ]
+          },
+          {
+            type: 'tbody',
+            children: [
+              {
+                type: 'tr',
+                children: [
+                  { type: 'td', children: [{ type: 'text', text: 'Cell' }] }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      const wrapper = mount(MarkdownTable, {
+        props: { node: tableNode }
+      })
+
+      // Initially expanded
+      expect(wrapper.find('.table-container').exists()).toBe(true)
+
+      // Click collapse button
+      await wrapper.find('.collapse-btn').trigger('click')
+
+      // Should now be collapsed
+      expect(wrapper.find('.collapse-row').exists()).toBe(true)
+      expect(wrapper.find('.table-container').exists()).toBe(false)
+    })
+
+    it('should expand when expand button is clicked', async () => {
+      const tableNode = {
+        type: 'table',
+        children: [
+          {
+            type: 'thead',
+            children: [
+              {
+                type: 'tr',
+                children: [
+                  { type: 'th', children: [{ type: 'text', text: 'Header' }], align: null }
+                ]
+              }
+            ]
+          },
+          {
+            type: 'tbody',
+            children: [
+              {
+                type: 'tr',
+                children: [
+                  { type: 'td', children: [{ type: 'text', text: 'Cell' }] }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      const wrapper = mount(MarkdownTable, {
+        props: { node: tableNode }
+      })
+
+      // Collapse first
+      await wrapper.find('.collapse-btn').trigger('click')
+      expect(wrapper.find('.collapse-row').exists()).toBe(true)
+
+      // Click expand button
+      await wrapper.find('.collapse-btn').trigger('click')
+
+      // Should now be expanded
+      expect(wrapper.find('.table-container').exists()).toBe(true)
+      expect(wrapper.find('.collapse-row').exists()).toBe(false)
+    })
+
+    it('should show row count when collapsed', async () => {
+      const tableNode = {
+        type: 'table',
+        children: [
+          {
+            type: 'thead',
+            children: [
+              {
+                type: 'tr',
+                children: [
+                  { type: 'th', children: [{ type: 'text', text: 'Header' }], align: null }
+                ]
+              }
+            ]
+          },
+          {
+            type: 'tbody',
+            children: [
+              {
+                type: 'tr',
+                children: [
+                  { type: 'td', children: [{ type: 'text', text: 'Row 1' }] }
+                ]
+              },
+              {
+                type: 'tr',
+                children: [
+                  { type: 'td', children: [{ type: 'text', text: 'Row 2' }] }
+                ]
+              },
+              {
+                type: 'tr',
+                children: [
+                  { type: 'td', children: [{ type: 'text', text: 'Row 3' }] }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      const wrapper = mount(MarkdownTable, {
+        props: { node: tableNode }
+      })
+
+      await wrapper.find('.collapse-btn').trigger('click')
+
+      const label = wrapper.find('.collapsed-label')
+      expect(label.exists()).toBe(true)
+      expect(label.text()).toContain('Table')
+      expect(label.text()).toContain('3 rows')
+    })
+
+    it('should expand when collapsed label is clicked', async () => {
+      const tableNode = {
+        type: 'table',
+        children: [
+          {
+            type: 'thead',
+            children: [
+              {
+                type: 'tr',
+                children: [
+                  { type: 'th', children: [{ type: 'text', text: 'Header' }], align: null }
+                ]
+              }
+            ]
+          },
+          {
+            type: 'tbody',
+            children: [
+              {
+                type: 'tr',
+                children: [
+                  { type: 'td', children: [{ type: 'text', text: 'Cell' }] }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      const wrapper = mount(MarkdownTable, {
+        props: { node: tableNode }
+      })
+
+      // Collapse
+      await wrapper.find('.collapse-btn').trigger('click')
+      expect(wrapper.find('.collapse-row').exists()).toBe(true)
+
+      // Click label
+      await wrapper.find('.collapsed-label').trigger('click')
+
+      // Should expand
+      expect(wrapper.find('.table-container').exists()).toBe(true)
     })
   })
 

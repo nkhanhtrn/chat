@@ -53,7 +53,8 @@ describe('MessageNavigation', () => {
     })
 
     it('should render first breadcrumb with tertiary variant', () => {
-      const wrapper = mountComponent('1')
+      // Use '2' to test with at least 2 breadcrumb items (component only renders when > 1)
+      const wrapper = mountComponent('2')
       const buttons = wrapper.findAllComponents(Button)
       expect(buttons.length).toBeGreaterThan(0)
       expect(buttons[0].props('variant')).toBe('tertiary')
@@ -72,17 +73,17 @@ describe('MessageNavigation', () => {
       expect(chatStore.navigateToMessage).toHaveBeenCalledWith('1', expect.any(Number))
     })
 
-    it('should render only first breadcrumb item when viewing root message', () => {
+    it('should not render breadcrumb when viewing root message (only 1 item)', () => {
       const wrapper = mountComponent('1')
-      const items = wrapper.findAll('.breadcrumb-item')
-      // Only the root message itself (with home icon)
-      expect(items.length).toBe(1)
+      // Component only renders when breadcrumbMessages.length > 1
+      expect(wrapper.find('.breadcrumb-nav').exists()).toBe(false)
     })
   })
 
   describe('Breadcrumb Navigation', () => {
     it('should render breadcrumb navigation container', () => {
-      const wrapper = mountComponent('1')
+      // Use '2' to get at least 2 breadcrumb items (component only renders when > 1)
+      const wrapper = mountComponent('2')
       expect(wrapper.find('.breadcrumb-nav').exists()).toBe(true)
       expect(wrapper.find('.breadcrumb').exists()).toBe(true)
     })
@@ -166,12 +167,11 @@ describe('MessageNavigation', () => {
       expect(items[2].text()).toBe('Last')
     })
 
-    it('should only show path up to current message without lastVisitedChild', () => {
+    it('should not render breadcrumb for root message (only 1 item in path)', () => {
       const wrapper = mountComponent('1')
       // msg1.lastVisitedChild = '2', but we only show path to current message
-      const items = wrapper.findAll('.breadcrumb-item')
-
-      expect(items.length).toBe(1) // Only Root (current message)
+      // Component only renders when breadcrumbMessages.length > 1
+      expect(wrapper.find('.breadcrumb-nav').exists()).toBe(false)
     })
   })
 })

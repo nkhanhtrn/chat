@@ -19,6 +19,9 @@
       <!-- Fixed Navigation Header -->
       <Transition name="slide-down">
         <div v-if="isScrolledDown && chatStore.currentRootMessage" class="fixed-nav-header">
+          <div class="fixed-question-summary">
+            {{ chatStore.currentRootMessage.questionSummarized }}
+          </div>
           <div class="fixed-nav-content">
             <div class="root-nav fixed-root-nav">
               <Button
@@ -219,7 +222,6 @@ const handleSendMessage = async (userMessage) => {
       (chunk) => {
         // Update the message response through the store
         chatStore.appendToResponse(msg.id, chunk)
-        scrollToBottom()
       }
     )
   } catch (err) {
@@ -469,6 +471,20 @@ const handleDeleteQuestion = (messageId, chatId) => {
   left: 0;
   right: 0;
   z-index: 100;
+}
+
+.fixed-question-summary {
+  font-family: var(--message-font-family, Georgia, serif);
+  font-size: 0.95rem;
+  font-weight: bold;
+  color: var(--color-text-message);
+  text-align: center;
+  padding: 0.5rem 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.fixed-question-summary::first-letter {
+  text-transform: uppercase;
 }
 
 .fixed-nav-content {

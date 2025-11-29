@@ -42,7 +42,16 @@ On ending responses:
 - Summarize key takeaways
 - Suggest next steps for further learning`;
 
-const summaryPromptPrefix = `Provide a concise 2-5 word summary of the following content: `;
+const summaryPrompt = `Provide a concise 2-5 word summary of the following content: `;
+
+const explainPrompt = `Explain the following concept or text in detail. Provide context, clarify any technical terms, and help the reader understand the underlying ideas: `;
+
+export const getExplainPrompts = (textToExplain) => {
+  const messages = [];
+  messages.push({ role: 'system', content: contextSettingPrompt + systemPrompt });
+  messages.push({ role: 'user', content: explainPrompt + textToExplain });
+  return messages;
+};
 
 export const getInitialPrompts = (userMessage) => {
   const messages = [];
@@ -68,7 +77,7 @@ export const getNextPrompts = (userMessage) => {
 
 export const getShortenContentPrompts = (userMessage) => {
   const messages = [];
-  messages.push({ role: 'user', content: summaryPromptPrefix + userMessage });
+  messages.push({ role: 'user', content: summaryPrompt + userMessage });
 
   return messages;
 }

@@ -2,9 +2,6 @@
   <div>
     <!-- Root question -->
     <div class="message message-user">
-      <div class="message-header">
-        <span class="role-badge">You</span>
-      </div>
       <div class="message-content">
         <div class="user-message">
           {{ rootMessage.question }}
@@ -12,13 +9,12 @@
       </div>
     </div>
 
+     <!-- Breadcrumb navigation (shown when message has children) -->
+     <MessageNavigation v-if="hasChildren" :current-message="currentMessage" />
+
      <!-- Assistant answer with streaming -->
      <div v-if="isStreaming || currentResponse" class="message message-assistant">
-       <div class="message-header">
-         <span class="role-badge">Study Assistant</span>
-       </div>
        <div class="message-content" style="position: relative;">
-         <MessageNavigation v-if="currentMessage" :current-message="currentMessage" />
          <div class="assistant-message" @mouseup="showContextMenu">
            <MarkdownRenderer
              :content="currentResponse"
@@ -55,7 +51,7 @@ import MarkdownRenderer from './MarkdownRenderer.vue'
 import ContextMenu from './ContextMenu.vue'
 import MessageNavigation from './MessageNavigation.vue'
 import { sendChatMessage } from '../services/api.js'
-import { getShortenContentPrompts } from '../services/extraPrompt.js'
+import { getShortenContentPrompts, getExplainPrompts } from '../services/extraPrompt.js'
 import Message from '../stores/Message.js'
 import { getSelectedTextAndPosition as getSelectionWithOffsets } from '../services/DOMSelectionHelper.js'
 
@@ -132,6 +128,15 @@ const effectiveCustomContent = computed(() => {
 // Computed property that combines both streaming states
 const isStreaming = computed(() => {
   return props.isAppStreaming || state.isChildStreaming
+})
+
+// Show breadcrumb when there are children or we're viewing a child message
+const hasChildren = computed(() => {
+  // Show if current message has children
+  const children = chatStore.getChildren(currentMessage.value?.id)
+  if (children && children.length > 0) return true
+  // Show if we're not at the root (navigated deeper)
+  return currentMessage.value?.id !== rootMessage.value.id
 })
 
 function showContextMenu(e) {
@@ -266,8 +271,19 @@ async function handleAskQuestion(question) {
   state.error = null
 
   try {
-    messages = getShortenContentPrompts(question);
-    const summary = await sendChatMessage(chatStore.currentModel, messages)
+    // Get the explanation response (streaming)
+    const explainMessages = getExplainPrompts(question);
+    await sendChatMessage(
+      chatStore.currentModel,
+      explainMessages,
+      (chunk) => {
+        chatStore.appendToResponse(childMsg.id, chunk)
+      }
+    )
+
+    // Get a short summary for the question label
+    const summaryMessages = getShortenContentPrompts(question);
+    const summary = await sendChatMessage(chatStore.currentModel, summaryMessages)
     chatStore.setQuestionSummarized(childMsg.id, summary)
   } catch (err) {
     state.error = err.message
@@ -347,29 +363,6 @@ function addQuestionLinkToMessage(message, selectedText, childIndex, startOffset
   }
 }
 
-.message-header {
-  margin-bottom: 0.75rem;
-  text-align: left;
-}
-
-.role-badge {
-  display: inline-block;
-  padding: 0.1rem 0;
-  font-size: 0.9rem;
-  font-weight: 400;
-  font-style: italic;
-  color: var(--color-text-badge);
-  border-bottom: 1px solid var(--color-border-strong);
-  font-family: 'Georgia', serif;
-}
-
-.message-user .role-badge {
-  color: var(--color-text-badge);
-}
-
-.message-assistant .role-badge {
-  color: var(--color-text-badge);
-}
 
 .message-content {
   padding: 0;
@@ -381,10 +374,9 @@ function addQuestionLinkToMessage(message, selectedText, childIndex, startOffset
 
 .message-user .message-content {
   background-color: transparent;
-  border-left: none;
-  padding-left: 1.5rem;
-  border-left: 3px solid var(--color-border-message-user);
   margin-bottom: 1.5rem;
+  border: 2px solid var(--color-border);
+  padding: 1rem 1.2rem;
 }
 
 .message-assistant .message-content {
@@ -400,6 +392,11 @@ function addQuestionLinkToMessage(message, selectedText, childIndex, startOffset
   font-family: var(--message-font-family, Georgia, serif);
   font-size: var(--message-font-size, 18px);
   letter-spacing: 0.01em;
+  font-weight: bold;
+}
+
+.user-message::first-letter {
+  text-transform: uppercase;
 }
 
 .assistant-message {
@@ -422,5 +419,11 @@ function addQuestionLinkToMessage(message, selectedText, childIndex, startOffset
   51%, 100% {
     opacity: 0;
   }
+}
+
+.message-separator {
+  border: none;
+  border-top: 1px solid var(--color-border, #e0e0e0);
+  margin: 1rem 0;
 }
 </style>
