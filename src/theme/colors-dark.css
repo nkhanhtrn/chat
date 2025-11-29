@@ -99,4 +99,17 @@
   /* Navigation specific */
   --color-nav-disabled-bg: #262626;
   --color-nav-disabled-text: #525252;
+
+  /* Code Block & Table specific */
+  --color-code-block-bg: #1e1e1e;
+  --color-code-block-header-bg: #2d2d2d;
+  --color-code-block-border: #5a5a5a;
+  --color-code-block-header-text: #e8e8e8;
+  --color-code-block-text: #e0e0e0;
+  --color-inline-code-bg: #1e1e1e;
+  --color-inline-code-text: #e8e8e8;
+  --color-table-bg: #2a2a2a;
+  --color-table-header-bg: #353535;
+  --color-table-border: #4a4a4a;
+  --color-table-hover-bg: #303030;
 }

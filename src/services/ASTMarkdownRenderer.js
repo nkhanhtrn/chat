@@ -1,14 +1,13 @@
 /**
- * AST-based Markdown Renderer with Custom Content Support
+ * AST-based Markdown Parser with Custom Content Support
  *
- * This renderer uses markdown-it to parse markdown into an AST,
+ * This parser uses markdown-it to parse markdown into an AST,
  * then injects custom content (highlights, links) at the correct positions
- * in the rendered HTML. This approach properly handles highlights that cross
+ * in the AST tree. This approach properly handles highlights that cross
  * markdown element boundaries (e.g., highlighting "**bold** text").
  */
 
 import MarkdownIt from 'markdown-it'
-import { escapeHtml } from './markdownUtils.js'
 
 /**
  * Track character positions as we walk through the source text
@@ -46,20 +45,25 @@ function findOverlappingItems(items, textStart, textEnd) {
 }
 
 /**
- * Split text and inject custom content HTML at the correct positions
+ * Split text and inject custom content into AST nodes
  * @param {string} text - The text content to process
  * @param {Array} items - Custom content items that overlap with this text
  * @param {number} textStartOffset - The starting offset of this text in the original markdown
- * @returns {string} - HTML with custom content injected
+ * @returns {Array} - Array of AST nodes with custom content injected
  */
-function injectCustomContent(text, items, textStartOffset) {
+function injectCustomContentIntoText(text, items, textStartOffset) {
   if (items.length === 0) {
     const textEndOffset = textStartOffset + text.length
-    return `<span data-md-start="${textStartOffset}" data-md-end="${textEndOffset}">${escapeHtml(text)}</span>`
+    return [{
+      type: 'text',
+      content: text,
+      startOffset: textStartOffset,
+      endOffset: textEndOffset
+    }]
   }
 
   const textEndOffset = textStartOffset + text.length
-  const parts = []
+  const nodes = []
   let currentPos = 0
 
   // Sort items by start offset to process them in order
@@ -80,201 +84,309 @@ function injectCustomContent(text, items, textStartOffset) {
       const beforeText = text.substring(currentPos, relativeStart)
       const beforeStart = textStartOffset + currentPos
       const beforeEnd = textStartOffset + relativeStart
-      parts.push(`<span data-md-start="${beforeStart}" data-md-end="${beforeEnd}">${escapeHtml(beforeText)}</span>`)
+      nodes.push({
+        type: 'text',
+        content: beforeText,
+        startOffset: beforeStart,
+        endOffset: beforeEnd
+      })
     }
 
-    // Add the custom content with position markers
+    // Add the custom content node
     const contentText = text.substring(relativeStart, relativeEnd)
     const contentStart = textStartOffset + relativeStart
     const contentEnd = textStartOffset + relativeEnd
-    parts.push(renderCustomItem(item, contentText, contentStart, contentEnd))
+    nodes.push(createCustomContentNode(item, contentText, contentStart, contentEnd))
 
     currentPos = relativeEnd
   })
 
-  // Add remaining text after all custom content with position markers
+  // Add remaining text after all custom content
   if (currentPos < text.length) {
     const afterText = text.substring(currentPos)
     const afterStart = textStartOffset + currentPos
     const afterEnd = textEndOffset
-    parts.push(`<span data-md-start="${afterStart}" data-md-end="${afterEnd}">${escapeHtml(afterText)}</span>`)
+    nodes.push({
+      type: 'text',
+      content: afterText,
+      startOffset: afterStart,
+      endOffset: afterEnd
+    })
   }
 
-  return parts.join('')
+  return nodes
 }
 
 /**
- * Render a custom content item as HTML
+ * Create a custom content AST node
  * @param {Object} item - Custom content metadata
  * @param {string} text - The text content to wrap
  * @param {number} startOffset - Start position in markdown
  * @param {number} endOffset - End position in markdown
- * @returns {string} - Rendered HTML
+ * @returns {Object} - AST node
  */
-function renderCustomItem(item, text, startOffset, endOffset) {
-  const escapedText = escapeHtml(text)
-  const positionAttrs = `data-md-start="${startOffset}" data-md-end="${endOffset}"`
+function createCustomContentNode(item, text, startOffset, endOffset) {
+  const baseNode = {
+    text,
+    startOffset,
+    endOffset
+  }
 
   switch (item.type) {
     case 'highlight':
-      return `<mark class="custom-highlight" style="background-color: ${item.color || '#ffeb3b'}; border-radius: 3px;" data-highlight-id="${item.id}" ${positionAttrs}>${escapedText}</mark>`
+      return {
+        type: 'highlight',
+        ...baseNode,
+        color: item.color || 'var(--color-highlight)',
+        highlightId: item.id
+      }
 
     case 'question-link':
-      return `<a href="#" class="question-link" data-child-index="${item.childIndex}" data-question-id="${item.id}" ${positionAttrs}>${escapedText}</a>`
+      return {
+        type: 'question-link',
+        ...baseNode,
+        childIndex: item.childIndex,
+        questionId: item.id
+      }
 
     default:
-      return `<span ${positionAttrs}>${escapedText}</span>`
+      return {
+        type: 'text',
+        content: text,
+        startOffset,
+        endOffset
+      }
   }
 }
 
 /**
- * Create a markdown-it plugin that injects custom content
+ * Convert markdown-it token to AST node
+ * @param {Object} token - markdown-it token
  * @param {Array} customContentItems - Array of custom content metadata
- * @param {PositionTracker} tracker - Position tracker instance
- * @returns {Function} - markdown-it plugin function
+ * @returns {Object|Array} - AST node or array of nodes
  */
-function createCustomContentPlugin(customContentItems, tracker) {
-  return (md) => {
-    // Store the default renderer for text tokens
-    const defaultTextRender = md.renderer.rules.text || function(tokens, idx) {
-      return escapeHtml(tokens[idx].content)
-    }
+function tokenToASTNode(token, customContentItems) {
+  switch (token.type) {
+    case 'heading_open':
+      return null // Handled by heading_close
 
-    // Override the text renderer to inject custom content
-    md.renderer.rules.text = function(tokens, idx, options, env, self) {
-      const token = tokens[idx]
-      const content = token.content
+    case 'paragraph_open':
+      return null // Handled by paragraph_close
+
+    case 'bullet_list_open':
+      return { type: 'list', ordered: false, children: [] }
+
+    case 'ordered_list_open':
+      return { type: 'list', ordered: true, children: [] }
+
+    case 'list_item_open':
+      return { type: 'list_item', children: [] }
+
+    case 'blockquote_open':
+      return { type: 'blockquote', children: [] }
+
+    case 'strong_open':
+      return { type: 'strong', children: [] }
+
+    case 'em_open':
+      return { type: 'em', children: [] }
+
+    case 'link_open':
+      const href = token.attrGet('href') || ''
+      const title = token.attrGet('title') || ''
+      return { type: 'link', href, title, children: [] }
+
+    case 'table_open':
+      return { type: 'table', headers: [], rows: [], alignments: [] }
+
+    case 'thead_open':
+      return { type: 'thead', children: [] }
+
+    case 'tbody_open':
+      return { type: 'tbody', children: [] }
+
+    case 'tr_open':
+      return { type: 'tr', children: [] }
+
+    case 'th_open':
+      const thAlign = token.attrGet('style')
+      return { type: 'th', align: thAlign, children: [] }
+
+    case 'td_open':
+      const tdAlign = token.attrGet('style')
+      return { type: 'td', align: tdAlign, children: [] }
+
+    case 'code_inline':
       const textStartOffset = token.sourceOffset
-      const textEndOffset = textStartOffset + content.length
-
-      // Find custom items that overlap with this text node
-      const overlapping = findOverlappingItems(
-        customContentItems,
-        textStartOffset,
-        textEndOffset
-      )
+      const textEndOffset = textStartOffset + token.content.length
+      const overlapping = findOverlappingItems(customContentItems, textStartOffset, textEndOffset)
 
       if (overlapping.length === 0) {
-        // Wrap text in span with position markers for selection mapping
-        return `<span data-md-start="${textStartOffset}" data-md-end="${textEndOffset}">${escapeHtml(content)}</span>`
+        return {
+          type: 'code_inline',
+          content: token.content,
+          startOffset: textStartOffset,
+          endOffset: textEndOffset
+        }
       }
 
-      // Inject custom content into the text
-      return injectCustomContent(content, overlapping, textStartOffset)
-    }
-
-    // Also handle inline code to preserve highlighting inside code blocks
-    const defaultCodeInlineRender = md.renderer.rules.code_inline || function(tokens, idx) {
-      return '<code>' + escapeHtml(tokens[idx].content) + '</code>'
-    }
-
-    md.renderer.rules.code_inline = function(tokens, idx, options, env, self) {
-      const token = tokens[idx]
-      const content = token.content
-      const textStartOffset = token.sourceOffset
-      const textEndOffset = textStartOffset + content.length
-
-      const overlapping = findOverlappingItems(
-        customContentItems,
-        textStartOffset,
-        textEndOffset
-      )
-
-      if (overlapping.length === 0) {
-        return '<code class="inline-code">' + escapeHtml(content) + '</code>'
+      // Inject custom content into inline code
+      return {
+        type: 'code_inline',
+        children: injectCustomContentIntoText(token.content, overlapping, textStartOffset)
       }
 
-      const injected = injectCustomContent(content, overlapping, textStartOffset)
-      return '<code class="inline-code">' + injected + '</code>'
-    }
+    case 'text':
+      const start = token.sourceOffset
+      const end = start + token.content.length
+      const items = findOverlappingItems(customContentItems, start, end)
+
+      // Return array of nodes (may be split by custom content)
+      return injectCustomContentIntoText(token.content, items, start)
+
+    case 'softbreak':
+    case 'hardbreak':
+      return { type: 'br' }
+
+    case 'hr':
+      return { type: 'hr' }
+
+    default:
+      return null
   }
 }
 
 /**
- * Create a markdown-it plugin that tracks source positions
- * This walks through all tokens and assigns sourceOffset to each text token
- * @param {PositionTracker} tracker - Position tracker instance
- * @returns {Function} - markdown-it plugin function
- */
-function createPositionTrackingPlugin(tracker) {
-  return (md) => {
-    md.core.ruler.push('track_source_positions', (state) => {
-      tracker.reset()
-
-      function walkTokens(tokens) {
-        tokens.forEach(token => {
-          if (token.type === 'text' || token.type === 'code_inline') {
-            token.sourceOffset = tracker.offset
-            tracker.advance(token.content.length)
-          } else if (token.type === 'softbreak' || token.type === 'hardbreak') {
-            tracker.advance(1) // newline character
-          } else if (token.children) {
-            walkTokens(token.children)
-          }
-
-          // Track markdown syntax characters
-          // This is approximate but works for most cases
-          if (token.markup) {
-            // markup contains the markdown syntax like '**', '#', etc.
-            tracker.advance(token.markup.length)
-          }
-        })
-      }
-
-      walkTokens(state.tokens)
-    })
-  }
-}
-
-/**
- * Process markdown with AST-based custom content injection
- * @param {string} content - Raw markdown content
+ * Process tokens recursively to build AST tree
+ * @param {Array} tokens - markdown-it tokens
  * @param {Array} customContentItems - Array of custom content metadata
- * @returns {string} - Rendered HTML with custom content
+ * @param {PositionTracker} tracker - Position tracker instance
+ * @returns {Array} - Array of AST nodes
  */
-export function processMarkdownAST(content, customContentItems = []) {
-  if (!content) return ''
+function processTokens(tokens, customContentItems, tracker) {
+  const ast = []
+  const stack = []
 
-  // Create position tracker
-  const tracker = new PositionTracker()
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i]
 
-  // Initialize markdown-it with sensible defaults
-  const md = new MarkdownIt({
-    html: false, // Disable raw HTML for security
-    breaks: true, // Convert \n to <br>
-    linkify: true, // Auto-convert URLs to links
-    typographer: true // Enable smart quotes and other typography
-  })
+    // Track positions for text tokens
+    if (token.type === 'text' || token.type === 'code_inline') {
+      if (!token.sourceOffset) {
+        token.sourceOffset = tracker.offset
+      }
+      tracker.advance(token.content.length)
+    } else if (token.type === 'softbreak' || token.type === 'hardbreak') {
+      tracker.advance(1)
+    }
 
-  // Register plugins
-  md.use(createPositionTrackingPlugin(tracker))
-  md.use(createCustomContentPlugin(customContentItems, tracker))
+    if (token.markup) {
+      tracker.advance(token.markup.length)
+    }
 
-  // Render markdown to HTML
-  return md.render(content)
-}
+    // Handle children inline tokens
+    if (token.children && token.children.length > 0) {
+      const childrenAST = processTokens(token.children, customContentItems, tracker)
 
-/**
- * Enhanced version that also handles code blocks and math
- * This is a drop-in replacement for the existing processMarkdown function
- */
-export function processMarkdownWithCustomContent(
-  content,
-  customContentItems = [],
-  options = {}
-) {
-  if (!content) return ''
+      // Determine parent node type
+      if (token.type === 'inline') {
+        // For inline tokens, we need to check the parent
+        const parentToken = tokens[i - 1]
+        if (parentToken && parentToken.type === 'heading_open') {
+          const level = parseInt(parentToken.tag.substring(1))
+          const headingNode = { type: 'heading', level, children: childrenAST }
+          ast.push(headingNode)
+        } else if (parentToken && parentToken.type === 'paragraph_open') {
+          // Check if we're inside a list item - if so, add children directly without paragraph wrapper
+          const isInListItem = stack.some(node => node.type === 'list_item')
+          if (isInListItem && stack.length > 0) {
+            const current = stack[stack.length - 1]
+            if (!current.children) {
+              current.children = []
+            }
+            current.children.push(...childrenAST)
+          } else {
+            const paragraphNode = { type: 'paragraph', children: childrenAST }
+            ast.push(paragraphNode)
+          }
+        } else if (parentToken && (parentToken.type === 'th_open' || parentToken.type === 'td_open')) {
+          // For table cells, add children to the current stack item (th or td)
+          if (stack.length > 0) {
+            const current = stack[stack.length - 1]
+            if (!current.children) {
+              current.children = []
+            }
+            current.children.push(...childrenAST)
+          }
+        } else if (stack.length > 0) {
+          // Add to current stack item for other cases
+          const current = stack[stack.length - 1]
+          if (!current.children) {
+            current.children = []
+          }
+          current.children.push(...childrenAST)
+        }
+      }
+      continue
+    }
 
-  // First, extract code blocks and math to prevent them from being processed
-  const { processedContent, extractedBlocks } = extractSpecialBlocks(content)
+    // Handle open/close tokens
+    if (token.type.endsWith('_open')) {
+      const node = tokenToASTNode(token, customContentItems)
+      if (node) {
+        stack.push(node)
+      }
+    } else if (token.type.endsWith('_close')) {
+      // Skip paragraph_close if we're in a list item (since we didn't push paragraph_open)
+      const isInListItem = stack.some(node => node.type === 'list_item')
+      if (token.type === 'paragraph_close' && isInListItem) {
+        // Don't pop anything - we never pushed a paragraph node
+        continue
+      }
 
-  // Process markdown with custom content
-  let html = processMarkdownAST(processedContent, customContentItems)
+      if (stack.length > 0) {
+        const node = stack.pop()
+        if (stack.length > 0) {
+          const parent = stack[stack.length - 1]
+          if (!parent.children) {
+            parent.children = []
+          }
+          parent.children.push(node)
+        } else {
+          ast.push(node)
+        }
+      }
+    } else {
+      // Self-closing tokens
+      const node = tokenToASTNode(token, customContentItems)
+      if (node) {
+        if (Array.isArray(node)) {
+          // Text nodes may be split into multiple nodes
+          if (stack.length > 0) {
+            const parent = stack[stack.length - 1]
+            if (!parent.children) {
+              parent.children = []
+            }
+            parent.children.push(...node)
+          } else {
+            ast.push(...node)
+          }
+        } else {
+          if (stack.length > 0) {
+            const parent = stack[stack.length - 1]
+            if (!parent.children) {
+              parent.children = []
+            }
+            parent.children.push(node)
+          } else {
+            ast.push(node)
+          }
+        }
+      }
+    }
+  }
 
-  // Restore code blocks and math
-  html = restoreSpecialBlocks(html, extractedBlocks)
-
-  return html
+  return ast
 }
 
 /**
@@ -291,9 +403,9 @@ function extractSpecialBlocks(content) {
     const id = `CODEBLOCK${extractedBlocks.length}PLACEHOLDER`
     extractedBlocks.push({
       id,
-      type: 'code',
-      lang: lang || 'text',
-      content: code.trim()
+      type: 'code_block',
+      language: lang || 'text',
+      code: code.trim()
     })
     return `\n${id}\n`
   })
@@ -303,7 +415,7 @@ function extractSpecialBlocks(content) {
     const id = `MATHBLOCK${extractedBlocks.length}PLACEHOLDER`
     extractedBlocks.push({
       id,
-      type: 'math',
+      type: 'math_block',
       content: math.trim()
     })
     return `\n${id}\n`
@@ -313,29 +425,87 @@ function extractSpecialBlocks(content) {
 }
 
 /**
- * Restore special blocks in the HTML
- * @param {string} html - Rendered HTML
+ * Restore special blocks in the AST
+ * @param {Array} ast - AST nodes
  * @param {Array} extractedBlocks - Extracted blocks to restore
- * @returns {string} - HTML with blocks restored
+ * @returns {Array} - AST with blocks restored
  */
-function restoreSpecialBlocks(html, extractedBlocks) {
-  let result = html
-
-  extractedBlocks.forEach(block => {
-    let replacement = ''
-
-    if (block.type === 'code') {
-      replacement = `<div class="code-block-wrapper"><pre><code class="language-${block.lang}">${escapeHtml(block.content)}</code></pre></div>`
-    } else if (block.type === 'math') {
-      // Use KaTeX if available
-      const rendered = typeof window !== 'undefined' && window.katex
-        ? window.katex.renderToString(block.content, { displayMode: true, throwOnError: false })
-        : escapeHtml(block.content)
-      replacement = `<div class="math-block-wrapper">${rendered}</div>`
+function restoreSpecialBlocksInAST(ast, extractedBlocks) {
+  return ast.map(node => {
+    if (node.type === 'text' && node.content) {
+      // Check if this text node contains a placeholder
+      for (const block of extractedBlocks) {
+        if (node.content.includes(block.id)) {
+          // Replace with the actual block node
+          return {
+            type: block.type,
+            ...block
+          }
+        }
+      }
     }
 
-    result = result.replace(block.id, replacement)
+    if (node.type === 'paragraph' && node.children) {
+      // Check if paragraph contains only a placeholder
+      const updatedChildren = restoreSpecialBlocksInAST(node.children, extractedBlocks)
+      if (updatedChildren.length === 1 &&
+          (updatedChildren[0].type === 'code_block' || updatedChildren[0].type === 'math_block')) {
+        // Replace paragraph with the block directly
+        return updatedChildren[0]
+      }
+      return { ...node, children: updatedChildren }
+    }
+
+    if (node.children) {
+      return { ...node, children: restoreSpecialBlocksInAST(node.children, extractedBlocks) }
+    }
+
+    return node
+  })
+}
+
+/**
+ * Parse markdown into AST tree with custom content
+ * @param {string} content - Raw markdown content
+ * @param {Array} customContentItems - Array of custom content metadata
+ * @returns {Object} - AST tree
+ */
+export function parseMarkdownToAST(content, customContentItems = []) {
+  if (!content) return { type: 'root', children: [] }
+
+  // Extract special blocks (code, math)
+  const { processedContent, extractedBlocks } = extractSpecialBlocks(content)
+
+  // Create position tracker
+  const tracker = new PositionTracker()
+
+  // Initialize markdown-it with sensible defaults
+  const md = new MarkdownIt({
+    html: false, // Disable raw HTML for security
+    breaks: true, // Convert \n to <br>
+    linkify: true, // Auto-convert URLs to links
+    typographer: true // Enable smart quotes and other typography
   })
 
-  return result
+  // Parse markdown to tokens
+  const tokens = md.parse(processedContent, {})
+
+  // Convert tokens to AST
+  tracker.reset()
+  let children = processTokens(tokens, customContentItems, tracker)
+
+  // Restore special blocks
+  children = restoreSpecialBlocksInAST(children, extractedBlocks)
+
+  return {
+    type: 'root',
+    children
+  }
+}
+
+/**
+ * Alias for backward compatibility
+ */
+export function processMarkdownWithCustomContent(content, customContentItems = []) {
+  return parseMarkdownToAST(content, customContentItems)
 }

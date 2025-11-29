@@ -1,4 +1,4 @@
-<template>
+e<template>
   <div class="code-block">
     <div class="code-header">
       <span>{{ language }}</span>
@@ -14,7 +14,7 @@
 </template>
 
 <script>
-import Button from './Button.vue'
+import Button from '../Button.vue'
 
 export default {
   name: 'CodeBlock',
@@ -53,10 +53,38 @@ export default {
 </script>
 
 <style scoped>
+.code-block {
+  background-color: var(--color-code-block-bg);
+  border-radius: 6px;
+  overflow: hidden;
+  margin: 12px 0;
+  border: 1px solid var(--color-code-block-border);
+}
+
 .code-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 10px 12px;
+  background-color: var(--color-code-block-header-bg);
+  border-bottom: 1px solid var(--color-code-block-border);
+  font-size: 12px;
+  color: var(--color-code-block-header-text);
+  font-weight: 600;
+}
+
+pre {
+  margin: 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  background-color: var(--color-code-block-bg);
+}
+
+pre code {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-code-block-text);
 }
 
 pre.flashing {
@@ -68,7 +96,7 @@ pre.flashing {
     background-color: rgba(212, 212, 212, 0.2);
   }
   100% {
-    background-color: transparent;
+    background-color: var(--color-code-block-bg);
   }
 }
 </style>

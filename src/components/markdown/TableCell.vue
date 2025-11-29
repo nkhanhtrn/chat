@@ -1,0 +1,110 @@
+<template>
+  <span>
+    <template v-for="(node, index) in children" :key="index">
+      <component
+        :is="getComponent(node.type)"
+        v-bind="getNodeProps(node)"
+        @question-link-click="bubbleQuestionLinkClick"
+      >
+        <template v-if="node.children">
+          <TableCell
+            v-for="(child, childIndex) in node.children"
+            :key="childIndex"
+            :children="[child]"
+            @question-link-click="bubbleQuestionLinkClick"
+          />
+        </template>
+        <template v-else-if="node.content">
+          {{ node.content }}
+        </template>
+        <template v-else-if="node.text">
+          {{ node.text }}
+        </template>
+      </component>
+    </template>
+  </span>
+</template>
+
+<script>
+import TextSpan from './TextSpan.vue'
+import HighlightSpan from './HighlightSpan.vue'
+import QuestionLinkSpan from './QuestionLinkSpan.vue'
+import InlineCode from './InlineCode.vue'
+import MarkdownStrong from './MarkdownStrong.vue'
+import MarkdownEmphasis from './MarkdownEmphasis.vue'
+import MarkdownLink from './MarkdownLink.vue'
+
+export default {
+  name: 'TableCell',
+  components: {
+    TextSpan,
+    HighlightSpan,
+    QuestionLinkSpan,
+    InlineCode,
+    MarkdownStrong,
+    MarkdownEmphasis,
+    MarkdownLink
+  },
+  props: {
+    children: {
+      type: Array,
+      required: true
+    }
+  },
+  emits: ['question-link-click'],
+  methods: {
+    getComponent(type) {
+      const map = {
+        'text': TextSpan,
+        'highlight': HighlightSpan,
+        'question-link': QuestionLinkSpan,
+        'code_inline': InlineCode,
+        'strong': MarkdownStrong,
+        'em': MarkdownEmphasis,
+        'link': MarkdownLink
+      }
+      return map[type] || 'span'
+    },
+    getNodeProps(node) {
+      switch (node.type) {
+        case 'text':
+          return {
+            content: node.content,
+            startOffset: node.startOffset,
+            endOffset: node.endOffset
+          }
+        case 'highlight':
+          return {
+            text: node.text,
+            color: node.color,
+            highlightId: node.highlightId,
+            startOffset: node.startOffset,
+            endOffset: node.endOffset
+          }
+        case 'question-link':
+          return {
+            text: node.text,
+            childIndex: node.childIndex,
+            questionId: node.questionId,
+            startOffset: node.startOffset,
+            endOffset: node.endOffset
+          }
+        case 'code_inline':
+          return {
+            content: node.content
+          }
+        case 'link':
+          return {
+            href: node.href,
+            title: node.title
+          }
+        default:
+          return {}
+      }
+    },
+    bubbleQuestionLinkClick(childIndex) {
+      this.$emit('question-link-click', childIndex)
+    }
+  }
+}
+</script>

@@ -1,0 +1,146 @@
+<template>
+  <component
+    :is="componentMap[node.type]"
+    v-bind="getNodeProps(node)"
+    @click="handleClick"
+    @question-link-click="bubbleQuestionLinkClick"
+  >
+    <template v-if="node.children">
+      <ASTNode
+        v-for="(child, index) in node.children"
+        :key="index"
+        :node="child"
+        @question-link-click="bubbleQuestionLinkClick"
+      />
+    </template>
+    <template v-else-if="node.content">
+      {{ node.content }}
+    </template>
+    <template v-else-if="node.text">
+      {{ node.text }}
+    </template>
+  </component>
+</template>
+
+<script setup>
+// Import markdown components
+import MarkdownParagraph from './markdown/MarkdownParagraph.vue'
+import MarkdownHeading from './markdown/MarkdownHeading.vue'
+import MarkdownList from './markdown/MarkdownList.vue'
+import MarkdownListItem from './markdown/MarkdownListItem.vue'
+import MarkdownBlockquote from './markdown/MarkdownBlockquote.vue'
+import MarkdownLink from './markdown/MarkdownLink.vue'
+import MarkdownStrong from './markdown/MarkdownStrong.vue'
+import MarkdownEmphasis from './markdown/MarkdownEmphasis.vue'
+import MarkdownHorizontalRule from './markdown/MarkdownHorizontalRule.vue'
+import MarkdownBreak from './markdown/MarkdownBreak.vue'
+import TextSpan from './markdown/TextSpan.vue'
+import HighlightSpan from './markdown/HighlightSpan.vue'
+import QuestionLinkSpan from './markdown/QuestionLinkSpan.vue'
+import CodeBlock from './markdown/CodeBlock.vue'
+import InlineCode from './markdown/InlineCode.vue'
+import MathBlock from './markdown/MathBlock.vue'
+import MarkdownTable from './markdown/MarkdownTable.vue'
+
+const props = defineProps({
+  node: {
+    type: Object,
+    required: true
+  }
+})
+
+const emit = defineEmits(['question-link-click'])
+
+// Map AST node types to Vue components
+const componentMap = {
+  'paragraph': MarkdownParagraph,
+  'heading': MarkdownHeading,
+  'list': MarkdownList,
+  'list_item': MarkdownListItem,
+  'blockquote': MarkdownBlockquote,
+  'link': MarkdownLink,
+  'strong': MarkdownStrong,
+  'em': MarkdownEmphasis,
+  'hr': MarkdownHorizontalRule,
+  'br': MarkdownBreak,
+  'text': TextSpan,
+  'highlight': HighlightSpan,
+  'question-link': QuestionLinkSpan,
+  'code_block': CodeBlock,
+  'code_inline': InlineCode,
+  'math_block': MathBlock,
+  'table': MarkdownTable
+}
+
+function getNodeProps(node) {
+  switch (node.type) {
+    case 'heading':
+      return { level: node.level }
+
+    case 'list':
+      return { ordered: node.ordered }
+
+    case 'link':
+      return { href: node.href, title: node.title }
+
+    case 'text':
+      return {
+        content: node.content,
+        startOffset: node.startOffset,
+        endOffset: node.endOffset
+      }
+
+    case 'highlight':
+      return {
+        text: node.text,
+        color: node.color,
+        highlightId: node.highlightId,
+        startOffset: node.startOffset,
+        endOffset: node.endOffset
+      }
+
+    case 'question-link':
+      return {
+        text: node.text,
+        childIndex: node.childIndex,
+        questionId: node.questionId,
+        startOffset: node.startOffset,
+        endOffset: node.endOffset
+      }
+
+    case 'code_block':
+      return {
+        language: node.language,
+        code: node.code
+      }
+
+    case 'code_inline':
+      return {
+        content: node.content
+      }
+
+    case 'math_block':
+      return {
+        content: node.content
+      }
+
+    case 'table':
+      return {
+        node: node
+      }
+
+    default:
+      return {}
+  }
+}
+
+function handleClick(childIndex) {
+  if (props.node.type === 'question-link') {
+    emit('question-link-click', childIndex)
+  }
+}
+
+function bubbleQuestionLinkClick(childIndex) {
+  emit('question-link-click', childIndex)
+}
+</script>

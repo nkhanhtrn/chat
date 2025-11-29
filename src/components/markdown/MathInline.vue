@@ -4,11 +4,11 @@
 
 <script>
 import { onMounted, ref, watch } from 'vue'
-import { renderKatex } from '../services/katex'
+import { renderKatex } from '../../services/katex'
 import 'katex/dist/katex.min.css'
 
 export default {
-  name: 'MathBlock',
+  name: 'MathInline',
   props: {
     content: {
       type: String,
@@ -20,7 +20,7 @@ export default {
 
     const renderMath = () => {
       if (mathEl.value) {
-        mathEl.value.innerHTML = renderKatex(props.content, true)
+        mathEl.value.innerHTML = renderKatex(props.content, false)
       }
     }
 
@@ -34,6 +34,6 @@ export default {
 
 <style scoped>
 .katex {
-  font-size: 1.1em;
+  font-size: 1em;
 }
 </style>

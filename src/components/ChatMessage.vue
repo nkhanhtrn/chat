@@ -19,11 +19,11 @@
        </div>
        <div class="message-content" style="position: relative;">
          <MessageNavigation v-if="currentMessage" :current-message="currentMessage" />
-         <div class="assistant-message" @mouseup="showContextMenu" @click="handleResponseClick">
+         <div class="assistant-message" @mouseup="showContextMenu">
            <MarkdownRenderer
              :content="currentResponse"
              :custom-content="currentMessage?.customContent || []"
-             :custom-renderer="customRenderer"
+             @question-link-click="navigateToChild"
            />
            <span v-if="isStreaming" class="cursor">▊</span>
          </div>
@@ -70,14 +70,6 @@ import MessageNavigation from './MessageNavigation.vue'
 import { getQuestionSummary, sendChatMessage } from '../services/api.js'
 import Message from '../stores/Message.js'
 import { getSelectedTextAndPosition as getSelectionWithOffsets } from '../services/DOMSelectionHelper.js'
-import { CustomContentRenderer } from '../services/CustomContentRenderer.js'
-import { HighlightPlugin } from '../services/plugins/HighlightPlugin.js'
-import { QuestionLinkPlugin } from '../services/plugins/QuestionLinkPlugin.js'
-
-// Create custom content renderer instance
-const customRenderer = new CustomContentRenderer()
-customRenderer.register('highlight', HighlightPlugin)
-customRenderer.register('question-link', QuestionLinkPlugin)
 
 
 const props = defineProps({
@@ -298,18 +290,6 @@ async function handleAskQuestion(question) {
 
 function navigateToChild(childIndex) {
   chatStore.navigateToChild(currentMessage.value?.id, childIndex)
-}
-
-function handleResponseClick(event) {
-  // Check if the clicked element is a question link
-  const target = event.target;
-  if (target.tagName === 'A' && target.classList.contains('question-link')) {
-    event.preventDefault();
-    const childIndex = parseInt(target.getAttribute('data-child-index'), 10);
-    if (!isNaN(childIndex)) {
-      navigateToChild(childIndex);
-    }
-  }
 }
 
 function addQuestionLinkToMessage(message, selectedText, childIndex, startOffset, endOffset) {
