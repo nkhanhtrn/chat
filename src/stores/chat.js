@@ -244,6 +244,18 @@ export const useChatStore = defineStore('chat', {
       }
 
       message.customContent.push(content)
+
+      // For question-links, add a backlink to the target message for efficient cleanup
+      if (content.type === 'question-link' && content.targetMessageId) {
+        const targetMessage = this.messagesById[content.targetMessageId]
+        if (targetMessage) {
+          if (!targetMessage.linkedFrom) {
+            targetMessage.linkedFrom = []
+          }
+          targetMessage.linkedFrom.push({ sourceMessageId: messageId, linkId: content.id })
+        }
+      }
+
       this._persistState()
       return content.id
     },
@@ -255,6 +267,21 @@ export const useChatStore = defineStore('chat', {
 
       const index = message.customContent.findIndex(item => item.id === contentId)
       if (index !== -1) {
+        const item = message.customContent[index]
+
+        // If removing a question-link, also remove the backlink from the target message
+        if (item.type === 'question-link' && item.targetMessageId) {
+          const targetMessage = this.messagesById[item.targetMessageId]
+          if (targetMessage?.linkedFrom) {
+            const backLinkIndex = targetMessage.linkedFrom.findIndex(
+              link => link.sourceMessageId === messageId && link.linkId === contentId
+            )
+            if (backLinkIndex !== -1) {
+              targetMessage.linkedFrom.splice(backLinkIndex, 1)
+            }
+          }
+        }
+
         message.customContent.splice(index, 1)
         this._persistState()
       }
@@ -504,6 +531,97 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
+    // Reorder root messages in the current chat
+    reorderRootMessages(newOrder) {
+      const chat = this.chats.find(c => c.id === this.currentChatId)
+      if (!chat) return
+
+      chat.rootMessageIds = newOrder
+      this.rootMessageIds = [...newOrder]
+      this._persistState()
+    },
+
+    // Reorder children of a parent message
+    reorderChildren(parentId, newChildIds) {
+      const parent = this.messagesById[parentId]
+      if (!parent) return
+
+      parent.childIds = newChildIds
+      this._persistState()
+    },
+
+    // Check if potentialDescendantId is a descendant of ancestorId
+    _isDescendantOf(potentialDescendantId, ancestorId) {
+      if (!potentialDescendantId || !ancestorId) return false
+      if (potentialDescendantId === ancestorId) return true
+
+      const ancestor = this.messagesById[ancestorId]
+      if (!ancestor?.childIds?.length) return false
+
+      for (const childId of ancestor.childIds) {
+        if (childId === potentialDescendantId) return true
+        if (this._isDescendantOf(potentialDescendantId, childId)) return true
+      }
+      return false
+    },
+
+    // Move a message to a new parent (or to root level)
+    // targetParentId: null means move to root level
+    // targetIndex: position in the target's children array (or root array)
+    moveMessage(messageId, targetParentId, targetIndex) {
+      const message = this.messagesById[messageId]
+      if (!message) return
+
+      // Prevent circular reference: can't move a message to become a child of its own descendant
+      if (targetParentId && this._isDescendantOf(targetParentId, messageId)) {
+        console.warn('Cannot move a message to become a child of its own descendant')
+        return
+      }
+
+      const currentParentId = message.parentId
+      const chat = this.chats.find(c => c.id === this.currentChatId)
+      if (!chat) return
+
+      // Remove from current location
+      if (currentParentId) {
+        // Remove from parent's childIds
+        const parent = this.messagesById[currentParentId]
+        if (parent?.childIds) {
+          const idx = parent.childIds.indexOf(messageId)
+          if (idx !== -1) {
+            parent.childIds.splice(idx, 1)
+          }
+        }
+      } else {
+        // Remove from root level
+        const idx = chat.rootMessageIds.indexOf(messageId)
+        if (idx !== -1) {
+          chat.rootMessageIds.splice(idx, 1)
+          this.rootMessageIds = [...chat.rootMessageIds]
+        }
+      }
+
+      // Add to new location
+      if (targetParentId) {
+        // Moving to a child position
+        const newParent = this.messagesById[targetParentId]
+        if (!newParent) return
+
+        if (!newParent.childIds) {
+          newParent.childIds = []
+        }
+        newParent.childIds.splice(targetIndex, 0, messageId)
+        message.parentId = targetParentId
+      } else {
+        // Moving to root level
+        chat.rootMessageIds.splice(targetIndex, 0, messageId)
+        this.rootMessageIds = [...chat.rootMessageIds]
+        message.parentId = null
+      }
+
+      this._persistState()
+    },
+
     // Delete a question (root message) from a chat
     deleteQuestion(messageId, chatId) {
       const chat = this.chats.find(c => c.id === chatId)
@@ -522,6 +640,31 @@ export const useChatStore = defineStore('chat', {
       if (isCurrentChat) {
         this.rootMessageIds = [...chat.rootMessageIds]
       }
+
+      // Remove questionLinks that point to any message in the tree being deleted
+      const removeLinksToMessage = (id) => {
+        const msg = this.messagesById[id]
+        if (!msg) return
+
+        // Use backlinks to efficiently find and remove questionLinks pointing to this message
+        if (msg.linkedFrom) {
+          msg.linkedFrom.forEach(({ sourceMessageId, linkId }) => {
+            const sourceMsg = this.messagesById[sourceMessageId]
+            if (sourceMsg?.customContent) {
+              const index = sourceMsg.customContent.findIndex(item => item.id === linkId)
+              if (index !== -1) {
+                sourceMsg.customContent.splice(index, 1)
+              }
+            }
+          })
+        }
+
+        // Process children recursively
+        if (msg.childIds) {
+          msg.childIds.forEach(childId => removeLinksToMessage(childId))
+        }
+      }
+      removeLinksToMessage(messageId)
 
       // Helper to recursively delete a message and all its children
       const deleteMessageTree = (id) => {

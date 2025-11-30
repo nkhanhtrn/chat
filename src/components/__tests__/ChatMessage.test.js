@@ -568,8 +568,8 @@ describe('ChatMessage', () => {
         // Navigate to last visited child using store
         chatStore.navigateToLastVisitedChild('root')
         expect(chatStore.currentMessageId).toBe('child1')
-        // navigateToChild (still exists in ChatMessage for highlighted links)
-        wrapper.vm.navigateToChild(0)
+        // navigateToChild (uses targetMessageId for question links)
+        wrapper.vm.navigateToChild('child1')
         expect(chatStore.currentMessageId).toBe('child1')
       })
       it('should do nothing if no lastVisitedChild exists', async () => {

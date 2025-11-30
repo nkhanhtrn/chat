@@ -150,7 +150,7 @@ function createCustomContentNode(item, text, startOffset, endOffset) {
       return {
         type: 'question-link',
         ...baseNode,
-        childIndex: item.childIndex,
+        targetMessageId: item.targetMessageId,
         questionId: item.id
       }
 
@@ -402,6 +402,19 @@ function processTokens(tokens, customContentItems, tracker) {
 function extractSpecialBlocks(content) {
   const extractedBlocks = []
   let processedContent = content
+
+  // Extract collapsible/hidden blocks ([HIDDEN]...[/HIDDEN])
+  processedContent = processedContent.replace(/\[HIDDEN\]([\s\S]*?)\[\/HIDDEN\]/g, (match, innerContent, index) => {
+    const id = `COLLAPSIBLEBLOCK${extractedBlocks.length}PLACEHOLDER`
+    extractedBlocks.push({
+      id,
+      type: 'collapsible_block',
+      content: innerContent.trim(),
+      originalStart: index,
+      originalEnd: index + match.length
+    })
+    return `\n${id}\n`
+  })
 
   // Extract code blocks (```...```)
   processedContent = processedContent.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code, index) => {

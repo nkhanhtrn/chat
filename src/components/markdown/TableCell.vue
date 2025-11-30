@@ -90,7 +90,7 @@ export default {
         case 'question-link':
           return {
             text: node.text,
-            childIndex: node.childIndex,
+            targetMessageId: node.targetMessageId,
             questionId: node.questionId,
             startOffset: node.startOffset,
             endOffset: node.endOffset
@@ -119,13 +119,13 @@ export default {
           return {}
       }
     },
-    handleClick(node, childIndex) {
+    handleClick(node, targetMessageId) {
       if (node.type === 'question-link') {
-        this.$emit('question-link-click', childIndex)
+        this.$emit('question-link-click', targetMessageId)
       }
     },
-    bubbleQuestionLinkClick(childIndex) {
-      this.$emit('question-link-click', childIndex)
+    bubbleQuestionLinkClick(targetMessageId) {
+      this.$emit('question-link-click', targetMessageId)
     },
     bubbleHighlightClick(data) {
       this.$emit('highlight-click', data)

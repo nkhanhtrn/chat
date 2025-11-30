@@ -334,12 +334,8 @@ async function handleAskQuestion(question) {
   // Add child to store
   chatStore.addChildMessage(parentId, childMsg)
 
-  // Get the child index for the new message
-  const children = chatStore.getChildren(parentId)
-  const childIndex = children.length - 1
-
   // Add clickable question link to the PARENT message, preserving any note from the highlight
-  addQuestionLinkToMessage(parentMessage, selectedText, childIndex, startOffset, endOffset, existingNoteContent)
+  addQuestionLinkToMessage(parentMessage, selectedText, childMsg.id, startOffset, endOffset, existingNoteContent)
 
   state.isChildStreaming = true
   state.error = null
@@ -369,8 +365,8 @@ async function handleAskQuestion(question) {
   }
 }
 
-function navigateToChild(childIndex) {
-  const scrollPos = chatStore.navigateToChild(currentMessage.value?.id, childIndex, getScrollPosition())
+function navigateToChild(targetMessageId) {
+  const scrollPos = chatStore.navigateToMessage(targetMessageId, getScrollPosition())
   setScrollPosition(scrollPos)
 }
 
@@ -402,7 +398,7 @@ function handleRemoveHighlight() {
   closePopup()
 }
 
-function addQuestionLinkToMessage(message, selectedText, childIndex, startOffset, endOffset, noteContent = '') {
+function addQuestionLinkToMessage(message, selectedText, targetMessageId, startOffset, endOffset, noteContent = '') {
   if (!selectedText || !message) return
 
   // Create question link metadata
@@ -411,7 +407,7 @@ function addQuestionLinkToMessage(message, selectedText, childIndex, startOffset
     id: linkId,
     type: 'question-link',
     text: selectedText,
-    childIndex,
+    targetMessageId,
     startOffset,
     endOffset
   }
@@ -445,11 +441,8 @@ async function handleAddChapter(selectedText) {
     response: ''
   })
 
-  // Get the child index for linking (it's a new root, so we use rootMessageIds length - 1)
-  const childIndex = chatStore.rootMessageIds.length - 1
-
   // Add clickable question link to the PARENT message
-  addQuestionLinkToMessage(parentMessage, selectedText, childIndex, startOffset, endOffset)
+  addQuestionLinkToMessage(parentMessage, selectedText, newRootMsg.id, startOffset, endOffset)
 
   state.isChildStreaming = true
   state.error = null

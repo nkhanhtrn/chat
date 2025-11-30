@@ -531,6 +531,136 @@ describe('useChatStore', () => {
       expect(() => chatStore.removeCustomContent('nonexistent', 'h1')).not.toThrow()
     })
 
+    it('addCustomContent creates backlink on target message for question-link', () => {
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Source',
+        response: 'Response with link'
+      })
+      chatStore.addRootMessage({
+        id: 'msg2',
+        question: 'Target',
+        response: 'Target response'
+      })
+
+      chatStore.addCustomContent('msg1', {
+        id: 'link1',
+        type: 'question-link',
+        text: 'link',
+        targetMessageId: 'msg2',
+        startOffset: 14,
+        endOffset: 18
+      })
+
+      // Target message should have a backlink
+      expect(chatStore.messagesById.msg2.linkedFrom).toHaveLength(1)
+      expect(chatStore.messagesById.msg2.linkedFrom[0]).toEqual({
+        sourceMessageId: 'msg1',
+        linkId: 'link1'
+      })
+    })
+
+    it('addCustomContent does not create backlink for non-question-link content', () => {
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Source',
+        response: 'Response'
+      })
+      chatStore.addRootMessage({
+        id: 'msg2',
+        question: 'Target',
+        response: 'Target response'
+      })
+
+      chatStore.addCustomContent('msg1', {
+        id: 'h1',
+        type: 'highlight',
+        text: 'highlight',
+        startOffset: 0,
+        endOffset: 8
+      })
+
+      // No backlink should be created for highlights
+      expect(chatStore.messagesById.msg2.linkedFrom).toBeUndefined()
+    })
+
+    it('removeCustomContent removes backlink from target message for question-link', () => {
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Source',
+        response: 'Response with link'
+      })
+      chatStore.addRootMessage({
+        id: 'msg2',
+        question: 'Target',
+        response: 'Target response'
+      })
+
+      chatStore.addCustomContent('msg1', {
+        id: 'link1',
+        type: 'question-link',
+        text: 'link',
+        targetMessageId: 'msg2',
+        startOffset: 14,
+        endOffset: 18
+      })
+
+      expect(chatStore.messagesById.msg2.linkedFrom).toHaveLength(1)
+
+      chatStore.removeCustomContent('msg1', 'link1')
+
+      // Backlink should be removed
+      expect(chatStore.messagesById.msg2.linkedFrom).toHaveLength(0)
+    })
+
+    it('removeCustomContent handles multiple backlinks correctly', () => {
+      chatStore.addRootMessage({
+        id: 'msg1',
+        question: 'Source 1',
+        response: 'Response one'
+      })
+      chatStore.addRootMessage({
+        id: 'msg2',
+        question: 'Source 2',
+        response: 'Response two'
+      })
+      chatStore.addRootMessage({
+        id: 'msg3',
+        question: 'Target',
+        response: 'Target response'
+      })
+
+      // Add two links pointing to msg3
+      chatStore.addCustomContent('msg1', {
+        id: 'link1',
+        type: 'question-link',
+        text: 'link',
+        targetMessageId: 'msg3',
+        startOffset: 0,
+        endOffset: 4
+      })
+      chatStore.addCustomContent('msg2', {
+        id: 'link2',
+        type: 'question-link',
+        text: 'link',
+        targetMessageId: 'msg3',
+        startOffset: 0,
+        endOffset: 4
+      })
+
+      expect(chatStore.messagesById.msg3.linkedFrom).toHaveLength(2)
+
+      // Remove one link
+      chatStore.removeCustomContent('msg1', 'link1')
+
+      // Only one backlink should remain
+      expect(chatStore.messagesById.msg3.linkedFrom).toHaveLength(1)
+      expect(chatStore.messagesById.msg3.linkedFrom[0]).toEqual({
+        sourceMessageId: 'msg2',
+        linkId: 'link2'
+      })
+    })
+
     it('updateCustomContent updates content properties', () => {
       chatStore.addRootMessage({
         id: 'msg1',
@@ -868,7 +998,7 @@ describe('useChatStore', () => {
         id: 'ql1',
         type: 'question-link',
         text: 'world',
-        childIndex: 0,
+        targetMessageId: 'msg-0',
         startOffset: 6,
         endOffset: 11
       })

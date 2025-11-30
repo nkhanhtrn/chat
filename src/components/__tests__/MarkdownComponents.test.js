@@ -796,7 +796,7 @@ describe('Markdown Components', () => {
       const wrapper = mount(QuestionLinkSpan, {
         props: {
           text: 'question text',
-          childIndex: 0,
+          targetMessageId: 'msg-0',
           questionId: 'q-123',
           startOffset: 0,
           endOffset: 13
@@ -811,23 +811,23 @@ describe('Markdown Components', () => {
       const wrapper = mount(QuestionLinkSpan, {
         props: {
           text: 'text',
-          childIndex: 2,
+          targetMessageId: 'msg-2',
           questionId: 'q-456',
           startOffset: 5,
           endOffset: 10
         }
       })
-      expect(wrapper.attributes('data-child-index')).toBe('2')
+      expect(wrapper.attributes('data-target-message-id')).toBe('msg-2')
       expect(wrapper.attributes('data-question-id')).toBe('q-456')
       expect(wrapper.attributes('data-md-start')).toBe('5')
       expect(wrapper.attributes('data-md-end')).toBe('10')
     })
 
-    it('should emit click event with childIndex', async () => {
+    it('should emit click event with targetMessageId', async () => {
       const wrapper = mount(QuestionLinkSpan, {
         props: {
           text: 'text',
-          childIndex: 3,
+          targetMessageId: 'msg-3',
           questionId: 'q-789',
           startOffset: 0,
           endOffset: 4
@@ -835,14 +835,14 @@ describe('Markdown Components', () => {
       })
       await wrapper.trigger('click')
       expect(wrapper.emitted('click')).toBeTruthy()
-      expect(wrapper.emitted('click')[0]).toEqual([3])
+      expect(wrapper.emitted('click')[0]).toEqual(['msg-3'])
     })
 
     it('should prevent default link behavior', async () => {
       const wrapper = mount(QuestionLinkSpan, {
         props: {
           text: 'text',
-          childIndex: 0,
+          targetMessageId: 'msg-0',
           questionId: 'q-123',
           startOffset: 0,
           endOffset: 4
@@ -1423,7 +1423,7 @@ describe('Markdown Components', () => {
               {
                 type: 'question-link',
                 text: 'question',
-                childIndex: 1,
+                targetMessageId: 'msg-1',
                 questionId: 'q-123',
                 startOffset: 0,
                 endOffset: 8
@@ -1571,7 +1571,7 @@ describe('Markdown Components', () => {
               {
                 type: 'question-link',
                 text: 'question',
-                childIndex: 3,
+                targetMessageId: 'msg-3',
                 questionId: 'q-789',
                 startOffset: 20,
                 endOffset: 28
@@ -1582,7 +1582,7 @@ describe('Markdown Components', () => {
         const questionLink = wrapper.findComponent(QuestionLinkSpan)
         expect(questionLink.exists()).toBe(true)
         expect(questionLink.props('text')).toBe('question')
-        expect(questionLink.props('childIndex')).toBe(3)
+        expect(questionLink.props('targetMessageId')).toBe('msg-3')
         expect(questionLink.props('questionId')).toBe('q-789')
         expect(questionLink.props('startOffset')).toBe(20)
         expect(questionLink.props('endOffset')).toBe(28)
@@ -1724,7 +1724,7 @@ describe('Markdown Components', () => {
               {
                 type: 'question-link',
                 text: 'click me',
-                childIndex: 5,
+                targetMessageId: 'msg-5',
                 questionId: 'q-123',
                 startOffset: 0,
                 endOffset: 8
@@ -1738,11 +1738,11 @@ describe('Markdown Components', () => {
 
         // QuestionLinkSpan emits 'click', which TableCell converts to 'question-link-click'
         expect(questionLink.emitted('click')).toBeTruthy()
-        expect(questionLink.emitted('click')[0]).toEqual([5])
+        expect(questionLink.emitted('click')[0]).toEqual(['msg-5'])
 
         // TableCell should emit question-link-click for navigation
         expect(wrapper.emitted('question-link-click')).toBeTruthy()
-        expect(wrapper.emitted('question-link-click')[0]).toEqual([5])
+        expect(wrapper.emitted('question-link-click')[0]).toEqual(['msg-5'])
       })
 
       it('should bubble question-link-click from nested TableCell children', async () => {
@@ -1755,7 +1755,7 @@ describe('Markdown Components', () => {
                   {
                     type: 'question-link',
                     text: 'nested question',
-                    childIndex: 7,
+                    targetMessageId: 'msg-7',
                     questionId: 'q-456',
                     startOffset: 0,
                     endOffset: 15
@@ -1771,10 +1771,10 @@ describe('Markdown Components', () => {
         // The strong element contains a nested TableCell for its children
         const nestedTableCell = tableCells.find((_cell, index) => index > 0)
         if (nestedTableCell) {
-          nestedTableCell.vm.$emit('question-link-click', 7)
+          nestedTableCell.vm.$emit('question-link-click', 'msg-7')
 
           expect(wrapper.emitted('question-link-click')).toBeTruthy()
-          expect(wrapper.emitted('question-link-click')[0]).toEqual([7])
+          expect(wrapper.emitted('question-link-click')[0]).toEqual(['msg-7'])
         } else {
           // If no nested TableCell, just verify the structure renders
           expect(wrapper.find('strong').exists()).toBe(true)
@@ -1795,7 +1795,7 @@ describe('Markdown Components', () => {
                       {
                         type: 'question-link',
                         text: 'deep question',
-                        childIndex: 9,
+                        targetMessageId: 'msg-9',
                         questionId: 'q-deep',
                         startOffset: 0,
                         endOffset: 13
@@ -1813,10 +1813,10 @@ describe('Markdown Components', () => {
         // Get a nested TableCell (not the root)
         const nestedTableCell = tableCells.find((_cell, index) => index > 0)
         if (nestedTableCell) {
-          nestedTableCell.vm.$emit('question-link-click', 9)
+          nestedTableCell.vm.$emit('question-link-click', 'msg-9')
 
           expect(wrapper.emitted('question-link-click')).toBeTruthy()
-          expect(wrapper.emitted('question-link-click')[0]).toEqual([9])
+          expect(wrapper.emitted('question-link-click')[0]).toEqual(['msg-9'])
         } else {
           // If no nested TableCell, just verify the structure renders
           expect(wrapper.find('a.markdown-link').exists()).toBe(true)
@@ -2171,7 +2171,7 @@ describe('Markdown Components', () => {
         const node = {
           type: 'question-link',
           text: 'question',
-          childIndex: 2,
+          targetMessageId: 'msg-2',
           questionId: 'q-456',
           startOffset: 0,
           endOffset: 8
@@ -2179,7 +2179,7 @@ describe('Markdown Components', () => {
         const wrapper = mount(ASTNode, { props: { node } })
         expect(wrapper.element.tagName).toBe('A')
         expect(wrapper.classes()).toContain('question-link')
-        expect(wrapper.attributes('data-child-index')).toBe('2')
+        expect(wrapper.attributes('data-target-message-id')).toBe('msg-2')
         expect(wrapper.attributes('data-question-id')).toBe('q-456')
       })
 
@@ -2372,7 +2372,7 @@ describe('Markdown Components', () => {
         const node = {
           type: 'question-link',
           text: 'click me',
-          childIndex: 5,
+          targetMessageId: 'msg-5',
           questionId: 'q-789',
           startOffset: 0,
           endOffset: 8
@@ -2381,7 +2381,7 @@ describe('Markdown Components', () => {
         await wrapper.trigger('click')
 
         expect(wrapper.emitted('question-link-click')).toBeTruthy()
-        expect(wrapper.emitted('question-link-click')[0]).toEqual([5])
+        expect(wrapper.emitted('question-link-click')[0]).toEqual(['msg-5'])
       })
 
       it('should bubble question-link-click from nested children', async () => {
@@ -2391,7 +2391,7 @@ describe('Markdown Components', () => {
             {
               type: 'question-link',
               text: 'nested link',
-              childIndex: 3,
+              targetMessageId: 'msg-3',
               questionId: 'q-123',
               startOffset: 0,
               endOffset: 11
@@ -2404,7 +2404,7 @@ describe('Markdown Components', () => {
         await link.trigger('click')
 
         expect(wrapper.emitted('question-link-click')).toBeTruthy()
-        expect(wrapper.emitted('question-link-click')[0]).toEqual([3])
+        expect(wrapper.emitted('question-link-click')[0]).toEqual(['msg-3'])
       })
 
       it('should bubble question-link-click through multiple levels', async () => {
@@ -2420,7 +2420,7 @@ describe('Markdown Components', () => {
                     {
                       type: 'question-link',
                       text: 'deep link',
-                      childIndex: 7,
+                      targetMessageId: 'msg-7',
                       questionId: 'q-deep',
                       startOffset: 0,
                       endOffset: 9
@@ -2437,7 +2437,7 @@ describe('Markdown Components', () => {
         await link.trigger('click')
 
         expect(wrapper.emitted('question-link-click')).toBeTruthy()
-        expect(wrapper.emitted('question-link-click')[0]).toEqual([7])
+        expect(wrapper.emitted('question-link-click')[0]).toEqual(['msg-7'])
       })
 
       it('should not emit question-link-click for other node types', async () => {
@@ -2520,13 +2520,13 @@ describe('Markdown Components', () => {
         const node = {
           type: 'question-link',
           text: 'question text',
-          childIndex: 42,
+          targetMessageId: 'msg-42',
           questionId: 'q-unique',
           startOffset: 20,
           endOffset: 33
         }
         const wrapper = mount(ASTNode, { props: { node } })
-        expect(wrapper.attributes('data-child-index')).toBe('42')
+        expect(wrapper.attributes('data-target-message-id')).toBe('msg-42')
         expect(wrapper.attributes('data-question-id')).toBe('q-unique')
         expect(wrapper.attributes('data-md-start')).toBe('20')
         expect(wrapper.attributes('data-md-end')).toBe('33')

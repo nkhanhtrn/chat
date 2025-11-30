@@ -8,71 +8,55 @@
     </div>
 
     <div class="chat-list">
-      <!-- Root messages as main items -->
-      <div
-        v-for="rootMsg in rootMessages"
-        :key="rootMsg.id"
-        class="root-message-item"
-      >
-        <div
-          :class="['root-header', {
-            active: isInActivePath(rootMsg.id),
-            'is-current-root': rootMsg.id === currentRootId
-          }]"
+      <!-- Root messages as main items - draggable -->
+      <div class="root-messages-container">
+        <DraggableTreeItem
+          v-for="(rootMsg, index) in rootMessages"
+          :key="rootMsg.id"
+          :item="rootMsg"
+          :index="index"
+          :parent-id="null"
+          :is-active="isInActivePath(rootMsg.id)"
+          :is-expanded="isRootExpanded(rootMsg.id) && hasChildren(rootMsg.id) && !isSidebarCollapsed"
+          :draggable="!isSidebarCollapsed"
+          :hide-drop-zones="isSidebarCollapsed"
+          :editable="!isSidebarCollapsed"
+          :show-delete-button="!isSidebarCollapsed"
+          :item-class="{ 'root-header': true, 'is-current-root': rootMsg.id === currentRootId }"
+          @click="handleRootClick"
+          @drop="handleDrop"
+          @rename="handleRename"
+          @delete="handleDeleteRoot"
         >
-          <div
-            v-if="hasChildren(rootMsg.id) && !isSidebarCollapsed"
-            class="expand-icon"
-            @click="toggleRootExpand(rootMsg.id)"
-          >
-            {{ isRootExpanded(rootMsg.id) ? '▾' : '▸' }}
-          </div>
-          <div v-else-if="!isSidebarCollapsed" class="expand-icon-placeholder"></div>
+          <!-- Override default slot only when collapsed -->
+          <template v-if="isSidebarCollapsed" #default>
+            <div
+              class="root-title"
+              :title="rootMsg.questionSummarized || rootMsg.question"
+            >
+              <span class="root-title-collapsed">
+                {{ (rootMsg.questionSummarized || rootMsg.question || 'Q').charAt(0).toUpperCase() }}
+              </span>
+            </div>
+          </template>
 
-          <div
-            v-if="isSidebarCollapsed"
-            class="root-title"
-            @click="handleSelectRoot(rootMsg)"
-            :title="rootMsg.questionSummarized || rootMsg.question"
-          >
-            <span class="root-title-collapsed">
-              {{ (rootMsg.questionSummarized || rootMsg.question || 'Q').charAt(0).toUpperCase() }}
-            </span>
-          </div>
-          <InlineEdit
-            v-else
-            :model-value="rootMsg.questionSummarized || rootMsg.question"
-            text-class="root-title"
-            input-class="root-title-input"
-            @click="handleSelectRoot(rootMsg)"
-            @save="(newText) => $emit('rename-question', rootMsg.id, newText)"
-            @editing-start="editingMessageId = rootMsg.id"
-            @editing-end="editingMessageId = null"
-          >{{ rootMsg.questionSummarized || rootMsg.question }}</InlineEdit>
-          <Button
-            v-show="!isSidebarCollapsed && editingMessageId !== rootMsg.id"
-            class="delete-button"
-            @click.stop="handleDeleteRoot(rootMsg)"
-            title="Delete question"
-            variant="danger"
-          >
-            ×
-          </Button>
-        </div>
-
-        <!-- Children tree - only show if this root is expanded -->
-        <div
-          v-if="hasChildren(rootMsg.id) && isRootExpanded(rootMsg.id) && !isSidebarCollapsed"
-          class="children-tree"
-        >
-          <MessageTree
-            :parent-id="rootMsg.id"
-            :current-message-id="currentMessageId"
-            :expanded-path="expandedPath"
-            @select="handleSelectChild"
-            @toggle-expand="handleToggleExpand"
-          />
-        </div>
+          <!-- Children tree -->
+          <template #children>
+            <MessageTree
+              v-if="!isSidebarCollapsed"
+              :parent-id="rootMsg.id"
+              :current-message-id="currentMessageId"
+              :expanded-path="expandedPath"
+              :editable="!isSidebarCollapsed"
+              :show-delete-button="!isSidebarCollapsed"
+              @select="handleSelectChild"
+              @toggle-expand="handleToggleExpand"
+              @move-to-parent="handleMoveToParent"
+              @rename="handleRename"
+              @delete="handleDeleteChild"
+            />
+          </template>
+        </DraggableTreeItem>
       </div>
 
       <!-- New Question button when there are existing messages -->
@@ -116,11 +100,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, provide } from 'vue'
 import Button from './Button.vue'
-import InlineEdit from './InlineEdit.vue'
 import SettingsModal from './SettingsModal.vue'
 import MessageTree from './MessageTree.vue'
+import DraggableTreeItem from './DraggableTreeItem.vue'
 import { useChatStore } from '../stores/chat.js'
 
 const props = defineProps({
@@ -149,7 +133,6 @@ const chatStore = useChatStore()
 const SIDEBAR_COLLAPSED_KEY = 'chatSidebarCollapsed'
 
 const isSidebarCollapsed = ref(false)
-const editingMessageId = ref(null)
 const showSettings = ref(false)
 
 // Track which root message tree is expanded (only one at a time)
@@ -157,6 +140,13 @@ const expandedRootId = ref(null)
 
 // Track the expanded path within the tree (ancestors of current selection)
 const expandedPath = ref(new Set())
+
+// Drag state - shared with MessageTree via provide
+const draggedItem = ref(null)
+const dropTarget = ref(null)
+
+provide('draggedItem', draggedItem)
+provide('dropTarget', dropTarget)
 
 // Get all root messages from the current chat
 const rootMessages = computed(() => {
@@ -198,46 +188,6 @@ const isRootExpanded = (rootId) => {
   return expandedRootId.value === rootId
 }
 
-// Toggle root expansion
-const toggleRootExpand = (rootId) => {
-  if (expandedRootId.value === rootId) {
-    expandedRootId.value = null
-    expandedPath.value = new Set()
-  } else {
-    expandedRootId.value = rootId
-    // Build expanded path from current message to this root
-    buildExpandedPath(rootId)
-  }
-}
-
-// Build the expanded path from the current message up to the root
-const buildExpandedPath = (rootId) => {
-  const newPath = new Set()
-
-  if (props.currentMessageId) {
-    let msg = chatStore.messagesById[props.currentMessageId]
-
-    // Walk up the tree and check if current message belongs to this root
-    const ancestors = []
-    while (msg) {
-      ancestors.push(msg.id)
-      if (!msg.parentId) break
-      msg = chatStore.messagesById[msg.parentId]
-    }
-
-    // If the root of current message matches, expand the path
-    if (ancestors.length > 0 && ancestors[ancestors.length - 1] === rootId) {
-      ancestors.forEach(id => {
-        if (id !== props.currentMessageId) {
-          newPath.add(id)
-        }
-      })
-    }
-  }
-
-  expandedPath.value = newPath
-}
-
 // Handle toggling expansion within the tree
 const handleToggleExpand = (messageId) => {
   if (expandedPath.value.has(messageId)) {
@@ -264,8 +214,8 @@ const handleToggleExpand = (messageId) => {
   }
 }
 
-// Handle selecting a root message
-const handleSelectRoot = (rootMsg) => {
+// Handle clicking a root message - select and toggle expand
+const handleRootClick = (rootMsg) => {
   const currentChat = props.chats.find(c => c.id === props.currentChatId)
   if (!currentChat) return
 
@@ -274,8 +224,11 @@ const handleSelectRoot = (rootMsg) => {
     emit('select-question', question)
   }
 
-  // Auto-expand if it has children
-  if (hasChildren(rootMsg.id) && expandedRootId.value !== rootMsg.id) {
+  // Toggle expand/collapse
+  if (expandedRootId.value === rootMsg.id) {
+    expandedRootId.value = null
+    expandedPath.value = new Set()
+  } else {
     expandedRootId.value = rootMsg.id
     expandedPath.value = new Set()
   }
@@ -320,6 +273,81 @@ const buildExpandedPathToChild = (childId) => {
 // Handle deleting a root message
 const handleDeleteRoot = (rootMsg) => {
   emit('delete-question', rootMsg.id, props.currentChatId)
+}
+
+// Handle deleting a child message (subquestion)
+const handleDeleteChild = (childMsg) => {
+  const message = chatStore.messagesById[childMsg.id]
+  if (!message) return
+
+  // Remove from parent's childIds
+  if (message.parentId) {
+    const parent = chatStore.messagesById[message.parentId]
+    if (parent?.childIds) {
+      const idx = parent.childIds.indexOf(childMsg.id)
+      if (idx !== -1) {
+        parent.childIds.splice(idx, 1)
+      }
+    }
+  }
+
+  // Remove questionLinks that point to the message being deleted (and its children)
+  const removeLinksToMessage = (id) => {
+    const msg = chatStore.messagesById[id]
+    if (!msg) return
+
+    // Use backlinks to find and remove questionLinks pointing to this message
+    if (msg.linkedFrom) {
+      msg.linkedFrom.forEach(({ sourceMessageId, linkId }) => {
+        const sourceMsg = chatStore.messagesById[sourceMessageId]
+        if (sourceMsg?.customContent) {
+          const index = sourceMsg.customContent.findIndex(item => item.id === linkId)
+          if (index !== -1) {
+            sourceMsg.customContent.splice(index, 1)
+          }
+        }
+      })
+    }
+
+    // Process children recursively
+    if (msg.childIds) {
+      msg.childIds.forEach(childId => removeLinksToMessage(childId))
+    }
+  }
+  removeLinksToMessage(childMsg.id)
+
+  // Recursively delete the message and its children
+  chatStore._removeMessageTree(childMsg.id)
+
+  // If deleted message was current, navigate to parent
+  if (props.currentMessageId === childMsg.id && message.parentId) {
+    emit('select-question', { id: message.parentId })
+  }
+
+  chatStore._persistState()
+}
+
+// Handle renaming a root message
+const handleRename = (item, newText) => {
+  emit('rename-question', item.id, newText)
+}
+
+// Handle drop event from DraggableTreeItem
+const handleDrop = (dropData) => {
+  const { messageId, targetId, position, targetIndex } = dropData
+
+  if (position === 'above') {
+    // Move to root level, before target
+    chatStore.moveMessage(messageId, null, targetIndex)
+  } else {
+    // Move as first child of target
+    chatStore.moveMessage(messageId, targetId, 0)
+  }
+}
+
+// Handle moving a child message to its grandparent (promoting it up)
+const handleMoveToParent = (data) => {
+  chatStore.moveMessage(data.messageId, data.newParentId, data.newIndex)
 }
 
 // Load sidebar collapsed state from localStorage on mount
@@ -398,10 +426,6 @@ const toggleSidebar = () => {
   padding: 1rem 0.5rem;
 }
 
-.root-message-item {
-  margin-bottom: 0.25rem;
-}
-
 .root-header {
   display: flex;
   gap: 0.5rem;
@@ -419,6 +443,10 @@ const toggleSidebar = () => {
 .root-header.active,
 .root-header.is-current-root {
   background-color: var(--color-bg-hover);
+}
+
+.root-header.is-dragging {
+  opacity: 0.5;
 }
 
 .root-title {
@@ -465,65 +493,10 @@ const toggleSidebar = () => {
   flex: none;
 }
 
-.root-title-input {
-  font-weight: 600;
-  color: var(--color-text-strong);
-  font-size: 0.95rem;
-  line-height: 1.4;
-  flex: 1;
-  padding: 0.25rem 0.5rem;
-  background-color: var(--color-bg-base);
-  border: 2px solid var(--color-primary);
-  border-radius: 4px;
-  outline: none;
-  font-family: 'Georgia', serif;
+.root-messages-container {
+  min-height: 20px;
 }
 
-.root-title-input:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px var(--color-primary-subtle, rgba(99, 102, 241, 0.1));
-}
-
-.expand-icon {
-  flex-shrink: 0;
-  width: 1.25rem;
-  height: 1.25rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  transition: color 0.15s;
-}
-
-.expand-icon:hover {
-  color: var(--color-text-strong);
-}
-
-.expand-icon-placeholder {
-  flex-shrink: 0;
-  width: 1.25rem;
-}
-
-.delete-button {
-  flex-shrink: 0;
-  width: 1.25rem;
-  height: 1.25rem;
-  font-size: 1rem;
-  opacity: 0;
-}
-
-.root-header:hover .delete-button {
-  opacity: 1;
-}
-
-.children-tree {
-  padding-left: 1.5rem;
-  margin-left: 0.75rem;
-  border-left: 1px solid var(--color-border-subtle);
-  margin-top: 0.25rem;
-}
 
 .new-question-button {
   display: flex;

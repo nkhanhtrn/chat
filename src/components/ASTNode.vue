@@ -46,6 +46,7 @@ import InlineCode from './markdown/InlineCode.vue'
 import MathBlock from './markdown/MathBlock.vue'
 import MathInline from './markdown/MathInline.vue'
 import MarkdownTable from './markdown/MarkdownTable.vue'
+import CollapsibleBlock from './markdown/CollapsibleBlock.vue'
 
 const props = defineProps({
   node: {
@@ -75,7 +76,8 @@ const componentMap = {
   'code_inline': InlineCode,
   'math_block': MathBlock,
   'math_inline': MathInline,
-  'table': MarkdownTable
+  'table': MarkdownTable,
+  'collapsible_block': CollapsibleBlock
 }
 
 function getNodeProps(node) {
@@ -111,7 +113,7 @@ function getNodeProps(node) {
     case 'question-link':
       return {
         text: node.text,
-        childIndex: node.childIndex,
+        targetMessageId: node.targetMessageId,
         questionId: node.questionId,
         startOffset: node.startOffset,
         endOffset: node.endOffset
@@ -146,14 +148,19 @@ function getNodeProps(node) {
         node: node
       }
 
+    case 'collapsible_block':
+      return {
+        content: node.content
+      }
+
     default:
       return {}
   }
 }
 
-function handleClick(childIndex) {
+function handleClick(targetMessageId) {
   if (props.node.type === 'question-link') {
-    emit('question-link-click', childIndex)
+    emit('question-link-click', targetMessageId)
   }
 }
 </script>

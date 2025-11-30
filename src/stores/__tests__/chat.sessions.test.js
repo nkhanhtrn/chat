@@ -824,6 +824,92 @@ describe('useChatStore - Chat Sessions', () => {
       expect(chatStore.currentMessageId).toBe('msg1')
       expect(chatStore.currentRootIndex).toBe(0)
     })
+
+    it('should remove questionLinks pointing to deleted question', () => {
+      chatStore.createNewChat()
+      const chatId = chatStore.currentChatId
+      chatStore.addRootMessage({ id: 'msg1', question: 'Q1', response: 'Response with link' })
+      chatStore.addRootMessage({ id: 'msg2', question: 'Q2', response: 'R2' })
+
+      // Add a questionLink from msg1 pointing to msg2
+      chatStore.addCustomContent('msg1', {
+        id: 'link1',
+        type: 'question-link',
+        text: 'link',
+        targetMessageId: 'msg2',
+        startOffset: 14,
+        endOffset: 18
+      })
+
+      expect(chatStore.messagesById['msg1'].customContent).toHaveLength(1)
+
+      // Delete msg2 - should also remove the questionLink from msg1
+      chatStore.deleteQuestion('msg2', chatId)
+
+      expect(chatStore.messagesById['msg2']).toBeUndefined()
+      expect(chatStore.messagesById['msg1'].customContent).toHaveLength(0)
+    })
+
+    it('should remove questionLinks pointing to deleted child messages', () => {
+      chatStore.createNewChat()
+      const chatId = chatStore.currentChatId
+      chatStore.addRootMessage({ id: 'msg1', question: 'Q1', response: 'R1' })
+      chatStore.addChildMessage('msg1', { id: 'child1', question: 'C1', response: 'R1' })
+      chatStore.addRootMessage({ id: 'msg2', question: 'Q2', response: 'Response with link' })
+
+      // Add a questionLink from msg2 pointing to child1
+      chatStore.addCustomContent('msg2', {
+        id: 'link1',
+        type: 'question-link',
+        text: 'link',
+        targetMessageId: 'child1',
+        startOffset: 14,
+        endOffset: 18
+      })
+
+      expect(chatStore.messagesById['msg2'].customContent).toHaveLength(1)
+
+      // Delete msg1 (which also deletes child1) - should remove the questionLink from msg2
+      chatStore.deleteQuestion('msg1', chatId)
+
+      expect(chatStore.messagesById['child1']).toBeUndefined()
+      expect(chatStore.messagesById['msg2'].customContent).toHaveLength(0)
+    })
+
+    it('should remove multiple questionLinks pointing to same deleted question', () => {
+      chatStore.createNewChat()
+      const chatId = chatStore.currentChatId
+      chatStore.addRootMessage({ id: 'msg1', question: 'Q1', response: 'Response one' })
+      chatStore.addRootMessage({ id: 'msg2', question: 'Q2', response: 'Response two' })
+      chatStore.addRootMessage({ id: 'msg3', question: 'Q3', response: 'R3' })
+
+      // Add questionLinks from msg1 and msg2 both pointing to msg3
+      chatStore.addCustomContent('msg1', {
+        id: 'link1',
+        type: 'question-link',
+        text: 'link',
+        targetMessageId: 'msg3',
+        startOffset: 0,
+        endOffset: 4
+      })
+      chatStore.addCustomContent('msg2', {
+        id: 'link2',
+        type: 'question-link',
+        text: 'link',
+        targetMessageId: 'msg3',
+        startOffset: 0,
+        endOffset: 4
+      })
+
+      expect(chatStore.messagesById['msg1'].customContent).toHaveLength(1)
+      expect(chatStore.messagesById['msg2'].customContent).toHaveLength(1)
+
+      // Delete msg3 - should remove questionLinks from both msg1 and msg2
+      chatStore.deleteQuestion('msg3', chatId)
+
+      expect(chatStore.messagesById['msg1'].customContent).toHaveLength(0)
+      expect(chatStore.messagesById['msg2'].customContent).toHaveLength(0)
+    })
   })
 
   describe('Edge Cases', () => {

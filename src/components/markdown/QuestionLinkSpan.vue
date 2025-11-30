@@ -2,7 +2,7 @@
   <a
     href="#"
     class="question-link"
-    :data-child-index="childIndex"
+    :data-target-message-id="targetMessageId"
     :data-question-id="questionId"
     :data-md-start="startOffset"
     :data-md-end="endOffset"
@@ -18,8 +18,8 @@ const props = defineProps({
     type: String,
     default: ''
   },
-  childIndex: {
-    type: Number,
+  targetMessageId: {
+    type: String,
     required: true
   },
   questionId: {
@@ -39,7 +39,7 @@ const props = defineProps({
 const emit = defineEmits(['click'])
 
 function handleClick() {
-  emit('click', props.childIndex)
+  emit('click', props.targetMessageId)
 }
 </script>
 

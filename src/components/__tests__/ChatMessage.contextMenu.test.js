@@ -935,7 +935,7 @@ describe('ChatMessage context menu integration', () => {
         id: 'ql1',
         type: 'question-link',
         text: 'world',
-        childIndex: 0,
+        targetMessageId: 'msg-0',
         startOffset: 6,
         endOffset: 11
       }

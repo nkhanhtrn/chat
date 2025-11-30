@@ -134,7 +134,7 @@ describe('ChatSidebar', () => {
         props: { chats, currentChatId: 'chat1' }
       })
 
-      const rootItems = wrapper.findAll('.root-message-item')
+      const rootItems = wrapper.findAll('.tree-item-container')
       expect(rootItems).toHaveLength(3)
     })
 
@@ -157,7 +157,7 @@ describe('ChatSidebar', () => {
         props: { chats, currentChatId: 'chat1' }
       })
 
-      const titles = wrapper.findAll('.root-title')
+      const titles = wrapper.findAll('.tree-item-text')
       expect(titles[0].text()).toBe('My First Question')
       expect(titles[1].text()).toBe('Another Question')
     })
@@ -215,7 +215,7 @@ describe('ChatSidebar', () => {
   })
 
   describe('Tree Expansion', () => {
-    it('should render expand icon for root messages with children', () => {
+    it('should render children tree for root messages with children when expanded', () => {
       setupMessagesInStore([
         { id: 'q1', question: 'Question 1', response: '', childIds: ['child1'] },
         { id: 'child1', question: 'Child Question', response: '', parentId: 'q1' },
@@ -232,14 +232,15 @@ describe('ChatSidebar', () => {
       }]
 
       wrapper = mount(ChatSidebar, {
-        props: { chats, currentChatId: 'chat1' }
+        props: { chats, currentChatId: 'chat1', currentMessageId: 'q1' }
       })
 
-      const expandIcons = wrapper.findAll('.expand-icon')
-      expect(expandIcons).toHaveLength(1) // Only q1 has children
+      // q1 should have children tree (auto-expanded because currentMessageId is q1)
+      const childrenTrees = wrapper.findAll('.tree-children')
+      expect(childrenTrees.length).toBeGreaterThanOrEqual(1)
     })
 
-    it('should toggle tree expansion when clicking expand icon', async () => {
+    it('should toggle tree expansion when clicking root item', async () => {
       setupMessagesInStore([
         { id: 'q1', question: 'Question 1', response: '', childIds: ['child1'] },
         { id: 'child1', question: 'Child Question', response: '', parentId: 'q1' }
@@ -256,15 +257,15 @@ describe('ChatSidebar', () => {
       })
 
       // Initially expanded (because currentMessageId is in this tree)
-      expect(wrapper.find('.children-tree').exists()).toBe(true)
+      expect(wrapper.find('.tree-children').exists()).toBe(true)
 
-      // Click to collapse
-      await wrapper.find('.expand-icon').trigger('click')
-      expect(wrapper.find('.children-tree').exists()).toBe(false)
+      // Click root item to collapse
+      await wrapper.find('.tree-item').trigger('click')
+      expect(wrapper.find('.tree-children').exists()).toBe(false)
 
-      // Click to expand again
-      await wrapper.find('.expand-icon').trigger('click')
-      expect(wrapper.find('.children-tree').exists()).toBe(true)
+      // Click again to expand
+      await wrapper.find('.tree-item').trigger('click')
+      expect(wrapper.find('.tree-children').exists()).toBe(true)
     })
 
     it('should auto-expand tree when current message is a child', () => {
@@ -288,7 +289,7 @@ describe('ChatSidebar', () => {
       })
 
       // Tree should be auto-expanded
-      expect(wrapper.find('.children-tree').exists()).toBe(true)
+      expect(wrapper.find('.tree-children').exists()).toBe(true)
     })
   })
 
@@ -321,7 +322,7 @@ describe('ChatSidebar', () => {
         props: { chats, currentChatId: 'chat1' }
       })
 
-      await wrapper.find('.root-title').trigger('click')
+      await wrapper.find('.tree-item').trigger('click')
 
       expect(wrapper.emitted('select-question')).toBeTruthy()
       expect(wrapper.emitted('select-question')[0][0]).toEqual(
@@ -365,9 +366,9 @@ describe('ChatSidebar', () => {
         props: { chats, currentChatId: 'chat1' }
       })
 
-      // Start editing
-      await wrapper.find('.root-title').trigger('dblclick')
-      const input = wrapper.find('.root-title-input')
+      // Start editing by double-clicking tree item text
+      await wrapper.find('.tree-item-text').trigger('dblclick')
+      const input = wrapper.find('.inline-edit-input')
       await input.setValue('Renamed Question')
       await input.trigger('keydown.enter')
 
@@ -567,12 +568,12 @@ describe('ChatSidebar', () => {
         props: { chats, currentChatId: 'chat1', currentMessageId: 'child1' }
       })
 
-      expect(wrapper.find('.children-tree').exists()).toBe(true)
+      expect(wrapper.find('.tree-children').exists()).toBe(true)
 
       // Collapse sidebar
       await wrapper.find('.collapse-sidebar-button').trigger('click')
 
-      expect(wrapper.find('.children-tree').exists()).toBe(false)
+      expect(wrapper.find('.tree-children').exists()).toBe(false)
     })
   })
 
@@ -775,6 +776,260 @@ describe('ChatSidebar', () => {
     })
   })
 
+  describe('Child Message Inline Edit and Delete', () => {
+    it('should pass editable prop to MessageTree when sidebar is expanded', () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Question 1', response: '', childIds: ['child1'] },
+        { id: 'child1', question: 'Child Question', response: '', parentId: 'q1' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Question 1' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1', currentMessageId: 'q1' }
+      })
+
+      const messageTree = wrapper.findComponent({ name: 'MessageTree' })
+      expect(messageTree.props('editable')).toBe(true)
+    })
+
+    it('should pass showDeleteButton prop to MessageTree when sidebar is expanded', () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Question 1', response: '', childIds: ['child1'] },
+        { id: 'child1', question: 'Child Question', response: '', parentId: 'q1' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Question 1' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1', currentMessageId: 'q1' }
+      })
+
+      const messageTree = wrapper.findComponent({ name: 'MessageTree' })
+      expect(messageTree.props('showDeleteButton')).toBe(true)
+    })
+
+    it('should render delete button for child messages', () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Question 1', response: '', childIds: ['child1'] },
+        { id: 'child1', question: 'Child Question', response: '', parentId: 'q1' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Question 1' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1', currentMessageId: 'q1' }
+      })
+
+      // Should have delete buttons for both root and child
+      const deleteButtons = wrapper.findAll('.delete-button')
+      expect(deleteButtons.length).toBeGreaterThanOrEqual(2)
+    })
+
+    it('should delete child message when delete button is clicked', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Question 1', response: '', childIds: ['child1'] },
+        { id: 'child1', question: 'Child Question', response: '', parentId: 'q1' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Question 1' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1', currentMessageId: 'q1' }
+      })
+
+      // Find the child's delete button (second delete button)
+      const deleteButtons = wrapper.findAll('.delete-button')
+      expect(deleteButtons.length).toBe(2)
+
+      // Click the child's delete button
+      await deleteButtons[1].trigger('click')
+
+      // Child should be removed from store
+      expect(chatStore.messagesById['child1']).toBeUndefined()
+      // Parent's childIds should be updated
+      expect(chatStore.messagesById['q1'].childIds).not.toContain('child1')
+    })
+
+    it('should emit rename-question when child is renamed via inline edit', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Question 1', response: '', childIds: ['child1'] },
+        { id: 'child1', question: 'Child Question', response: '', parentId: 'q1' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Question 1' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1', currentMessageId: 'q1' }
+      })
+
+      // Find child's text and double-click to start editing
+      const treeItemTexts = wrapper.findAll('.tree-item-text')
+      expect(treeItemTexts.length).toBeGreaterThanOrEqual(2)
+
+      // Double-click the child's text (second one)
+      await treeItemTexts[1].trigger('dblclick')
+
+      // Find input in the child tree item
+      const inputs = wrapper.findAll('.inline-edit-input')
+      expect(inputs.length).toBe(1)
+
+      await inputs[0].setValue('Renamed Child')
+      await inputs[0].trigger('keydown.enter')
+
+      expect(wrapper.emitted('rename-question')).toBeTruthy()
+      expect(wrapper.emitted('rename-question')[0]).toEqual(['child1', 'Renamed Child'])
+    })
+
+    it('should navigate to parent when deleting current child message', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Question 1', response: '', childIds: ['child1'] },
+        { id: 'child1', question: 'Child Question', response: '', parentId: 'q1' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Question 1' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1', currentMessageId: 'child1' }
+      })
+
+      // Find the child's delete button (second delete button)
+      const deleteButtons = wrapper.findAll('.delete-button')
+      await deleteButtons[1].trigger('click')
+
+      // Should emit select-question to navigate to parent
+      expect(wrapper.emitted('select-question')).toBeTruthy()
+      expect(wrapper.emitted('select-question').pop()[0]).toEqual({ id: 'q1' })
+    })
+
+    it('should remove questionLinks pointing to deleted child message', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Question 1', response: '', childIds: ['child1'] },
+        { id: 'child1', question: 'Child Question', response: '', parentId: 'q1' },
+        { id: 'q2', question: 'Question 2', response: '', customContent: [
+          { id: 'link1', type: 'questionLink', targetMessageId: 'child1' }
+        ] }
+      ])
+      // Add linkedFrom after setup (since Message class doesn't include it in constructor)
+      chatStore.messagesById['child1'].linkedFrom = [
+        { sourceMessageId: 'q2', linkId: 'link1' }
+      ]
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [
+          { id: 'q1', text: 'Question 1' },
+          { id: 'q2', text: 'Question 2' }
+        ]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1', currentMessageId: 'q1' }
+      })
+
+      // Find and click the child's delete button
+      const deleteButtons = wrapper.findAll('.delete-button')
+      await deleteButtons[1].trigger('click')
+
+      // Child should be deleted
+      expect(chatStore.messagesById['child1']).toBeUndefined()
+      // QuestionLink in q2 should be removed
+      expect(chatStore.messagesById['q2'].customContent).toEqual([])
+    })
+
+    it('should remove questionLinks pointing to descendants of deleted child', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Question 1', response: '', childIds: ['child1'] },
+        { id: 'child1', question: 'Child', response: '', parentId: 'q1', childIds: ['grandchild1'] },
+        { id: 'grandchild1', question: 'Grandchild', response: '', parentId: 'child1' },
+        { id: 'q2', question: 'Question 2', response: '', customContent: [
+          { id: 'link1', type: 'questionLink', targetMessageId: 'grandchild1' }
+        ] }
+      ])
+      // Add linkedFrom after setup
+      chatStore.messagesById['grandchild1'].linkedFrom = [
+        { sourceMessageId: 'q2', linkId: 'link1' }
+      ]
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [
+          { id: 'q1', text: 'Question 1' },
+          { id: 'q2', text: 'Question 2' }
+        ]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1', currentMessageId: 'child1' }
+      })
+
+      // Delete child1 (which also deletes grandchild1)
+      const deleteButtons = wrapper.findAll('.delete-button')
+      await deleteButtons[1].trigger('click')
+
+      // Both should be deleted
+      expect(chatStore.messagesById['child1']).toBeUndefined()
+      expect(chatStore.messagesById['grandchild1']).toBeUndefined()
+      // QuestionLink to grandchild1 in q2 should be removed
+      expect(chatStore.messagesById['q2'].customContent).toEqual([])
+    })
+
+    it('should delete child and all its descendants', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Question 1', response: '', childIds: ['child1'] },
+        { id: 'child1', question: 'Child Question', response: '', parentId: 'q1', childIds: ['grandchild1'] },
+        { id: 'grandchild1', question: 'Grandchild', response: '', parentId: 'child1' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Question 1' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1', currentMessageId: 'child1' }
+      })
+
+      // Click child1's delete button
+      const deleteButtons = wrapper.findAll('.delete-button')
+      await deleteButtons[1].trigger('click')
+
+      // Both child1 and grandchild1 should be deleted
+      expect(chatStore.messagesById['child1']).toBeUndefined()
+      expect(chatStore.messagesById['grandchild1']).toBeUndefined()
+      // q1 should still exist with empty childIds
+      expect(chatStore.messagesById['q1']).toBeDefined()
+      expect(chatStore.messagesById['q1'].childIds).toEqual([])
+    })
+  })
+
   describe('Edge Cases', () => {
     it('should handle root message with empty question', () => {
       setupMessagesInStore([
@@ -791,7 +1046,7 @@ describe('ChatSidebar', () => {
         props: { chats, currentChatId: 'chat1' }
       })
 
-      const title = wrapper.find('.root-title')
+      const title = wrapper.find('.tree-item-text')
       expect(title.text()).toBe('')
     })
 
