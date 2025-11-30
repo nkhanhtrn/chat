@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import ChatMessage from '../ChatMessage.vue'
 import * as api from '../../services/api.js'
+import * as extraPrompt from '../../services/extraPrompt.js'
 
 // Helper to access state from setup script
 function getState(wrapper) {
@@ -412,6 +413,118 @@ describe('ChatMessage context menu integration', () => {
       // Should log error and not proceed
       expect(consoleSpy).toHaveBeenCalledWith('Invalid selection data')
       consoleSpy.mockRestore()
+    })
+
+    it('handleAskQuestion adds [DEEPDIVE] tag to the question', async () => {
+      const pinia = createPinia()
+
+      const testMessage = {
+        id: 'msg-deepdive',
+        question: 'Q',
+        response: 'some text to select',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-deepdive'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'text to select'
+      state.popup.startOffset = 5
+      state.popup.endOffset = 19
+
+      // Spy on getMainPrompts to capture the question passed
+      const getMainPromptsSpy = vi.spyOn(extraPrompt, 'getMainPrompts')
+      vi.spyOn(api, 'sendChatMessage').mockResolvedValue(undefined)
+
+      await wrapper.vm.handleAskQuestion('Explain this concept')
+
+      // Verify getMainPrompts was called with [DEEPDIVE] tag
+      expect(getMainPromptsSpy).toHaveBeenCalled()
+      const callArgs = getMainPromptsSpy.mock.calls[0]
+      expect(callArgs[0]).toBe('[DEEPDIVE] Explain this concept')
+
+      getMainPromptsSpy.mockRestore()
+    })
+  })
+
+  describe('Add Chapter (New Topic) Behavior', () => {
+    it('handleAddChapter adds [NEWTOPIC] tag to the question', async () => {
+      const pinia = createPinia()
+
+      const testMessage = {
+        id: 'msg-newtopic',
+        question: 'Q',
+        response: 'some text for new topic',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-newtopic'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'text for new topic'
+      state.popup.startOffset = 5
+      state.popup.endOffset = 23
+
+      // Spy on getMainPrompts to capture the question passed
+      const getMainPromptsSpy = vi.spyOn(extraPrompt, 'getMainPrompts')
+      vi.spyOn(api, 'sendChatMessage').mockResolvedValue(undefined)
+
+      await wrapper.vm.handleAddChapter('text for new topic')
+
+      // Verify getMainPrompts was called with [NEWTOPIC] tag
+      expect(getMainPromptsSpy).toHaveBeenCalled()
+      const callArgs = getMainPromptsSpy.mock.calls[0]
+      expect(callArgs[0]).toBe('[NEWTOPIC] text for new topic')
+
+      getMainPromptsSpy.mockRestore()
+    })
+
+    it('handleAddChapter creates a new root message', async () => {
+      const pinia = createPinia()
+
+      const testMessage = {
+        id: 'msg-chapter',
+        question: 'Q',
+        response: 'create new chapter here',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-chapter'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'new chapter'
+      state.popup.startOffset = 7
+      state.popup.endOffset = 18
+
+      vi.spyOn(api, 'sendChatMessage').mockResolvedValue(undefined)
+
+      const initialRootCount = wrapper.vm.chatStore.rootMessageIds.length
+
+      await wrapper.vm.handleAddChapter('new chapter')
+
+      // Should have added a new root message
+      expect(wrapper.vm.chatStore.rootMessageIds.length).toBe(initialRootCount + 1)
     })
   })
 

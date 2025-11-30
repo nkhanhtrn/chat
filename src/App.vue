@@ -89,7 +89,7 @@ import { sendChatMessage, fetchModels } from './services/api.js'
 import { useChatStore } from './stores/chat.js'
 import DevToolbar from './components/DevToolbar.vue'
 import { getIsDev, getDefaultQuestions } from './composables/useEnvironment.js'
-import { getInitialPrompts, getNextPrompts } from './services/extraPrompt.js'
+import { getMainPrompts } from './services/extraPrompt.js'
 
 const error = ref(null)
 const messagesContainer = ref(null)
@@ -181,12 +181,17 @@ const handleSendMessage = async (userMessage) => {
 
   chatStore.setIsStreaming(true)
 
+  // Build previous messages for context (all root messages except the current one)
+  const previousMessages = chatStore.rootMessages
+    .slice(0, -1) // Exclude the current message we just added
+    .map(m => ({ question: m.question }));
+
   // check if this is the first message in the chat to set as summary
   let messages;
   if (chatStore.rootMessageIds.length === 1) {
-    messages = getInitialPrompts(msg.question)
+    messages = getMainPrompts(`[NEWTOPIC] ${msg.question}`)
   } else {
-    messages = getNextPrompts(msg.question);
+    messages = getMainPrompts(`[DEEPDIVE] ${msg.question}`, previousMessages);
   }
   console.log("Final message to send:", messages);
   try {

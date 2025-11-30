@@ -74,7 +74,7 @@ import ContextMenu from './ContextMenu.vue'
 import Note from './Note.vue'
 import MessageNavigation from './MessageNavigation.vue'
 import { sendChatMessage } from '../services/api.js'
-import { getShortenContentPrompts, getExplainPrompts, getInitialPrompts, getQuickExplainPrompts } from '../services/extraPrompt.js'
+import { getShortenContentPrompts, getMainPrompts, getQuickExplainPrompts } from '../services/extraPrompt.js'
 import Message from '../stores/Message.js'
 import { getSelectedTextAndPosition as getSelectionWithOffsets } from '../services/DOMSelectionHelper.js'
 
@@ -295,6 +295,17 @@ function keepHighlight(colorIndex) {
   closePopup()
 }
 
+// Build conversation history from root to current message (questions only)
+function buildConversationChain(messageId) {
+  const chain = []
+  let msg = chatStore.messagesById[messageId]
+  while (msg) {
+    chain.unshift({ question: msg.question })
+    msg = msg.parentId ? chatStore.messagesById[msg.parentId] : null
+  }
+  return chain
+}
+
 async function handleAskQuestion(question) {
   if (!question || state.isChildStreaming) return
 
@@ -333,12 +344,15 @@ async function handleAskQuestion(question) {
   state.isChildStreaming = true
   state.error = null
 
+  // Build conversation history from root to parent for context
+  const previousMessages = buildConversationChain(parentId)
+
   try {
     // Get the explanation response (streaming)
-    const explainMessages = getExplainPrompts(question);
+    const messages = getMainPrompts(`[DEEPDIVE] ${question}`, previousMessages);
     await sendChatMessage(
       chatStore.currentModel,
-      explainMessages,
+      messages,
       (chunk) => {
         chatStore.appendToResponse(childMsg.id, chunk)
       }
@@ -441,8 +455,7 @@ async function handleAddChapter(selectedText) {
   state.error = null
 
   try {
-    // Use getInitialPrompts for the new chapter
-    const messages = getInitialPrompts(selectedText)
+    const messages = getMainPrompts(`[NEWTOPIC] ${selectedText}`)
     await sendChatMessage(
       chatStore.currentModel,
       messages,
@@ -539,9 +552,12 @@ async function handleQuickExplain(customPrompt = null) {
   state.isChildStreaming = true
   state.error = null
 
+  // Build conversation history for context
+  const previousMessages = buildConversationChain(currentMessage.value?.id)
+
   try {
     // Get the quick explanation from API with streaming
-    const messages = getQuickExplainPrompts(promptText)
+    const messages = getQuickExplainPrompts(promptText, previousMessages)
     await sendChatMessage(
       chatStore.currentModel,
       messages,
