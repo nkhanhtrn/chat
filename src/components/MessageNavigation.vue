@@ -14,7 +14,6 @@
             >
               <svg v-if="!msg.parentId" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M3 12l9-9 9 9"/><path d="M5 10v10a1 1 0 001 1h12a1 1 0 001-1V10"/></svg>
               <template v-else>{{ msg.questionSummarized }}</template>
-              <span v-if="msg.id === currentMessage.id" class="children-indicator">{{ getChildren(msg).length }}</span>
             </Button>
             <!-- Children popup -->
             <div
@@ -133,19 +132,6 @@ function truncateQuestion(question) {
 
 .breadcrumb-item-wrapper {
   position: relative;
-}
-
-.children-indicator {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.2em;
-  height: 1.2em;
-  font-size: 0.75em;
-  background: var(--color-bg-accent-muted);
-  color: var(--color-text-strong);
-  border-radius: 50%;
-  margin-left: 0.3em;
 }
 
 .children-popup {

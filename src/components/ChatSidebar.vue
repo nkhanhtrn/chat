@@ -8,77 +8,86 @@
     </div>
 
     <div class="chat-list">
+      <!-- Root messages as main items -->
       <div
-        v-for="chat in chats"
-        :key="chat.id"
-        :class="['chat-thread', { active: chat.id === currentChatId }]"
+        v-for="rootMsg in rootMessages"
+        :key="rootMsg.id"
+        class="root-message-item"
       >
-        <div class="chat-header">
-          <div class="collapse-icon" @click="toggleCollapse(chat.id)" v-if="chat.questions.length > 0 && !isSidebarCollapsed">
-            {{ isCollapsed(chat.id) ? '▸' : '▾' }}
+        <div
+          :class="['root-header', {
+            active: isInActivePath(rootMsg.id),
+            'is-current-root': rootMsg.id === currentRootId
+          }]"
+        >
+          <div
+            v-if="hasChildren(rootMsg.id) && !isSidebarCollapsed"
+            class="expand-icon"
+            @click="toggleRootExpand(rootMsg.id)"
+          >
+            {{ isRootExpanded(rootMsg.id) ? '▾' : '▸' }}
           </div>
+          <div v-else-if="!isSidebarCollapsed" class="expand-icon-placeholder"></div>
+
           <div
             v-if="isSidebarCollapsed"
-            class="chat-title"
-            @click="$emit('select-chat', chat.id)"
-            :title="chat.title"
+            class="root-title"
+            @click="handleSelectRoot(rootMsg)"
+            :title="rootMsg.questionSummarized || rootMsg.question"
           >
-            <span class="chat-title-collapsed">
-              {{ chat.title.charAt(0).toUpperCase() }}
+            <span class="root-title-collapsed">
+              {{ (rootMsg.questionSummarized || rootMsg.question || 'Q').charAt(0).toUpperCase() }}
             </span>
           </div>
           <InlineEdit
             v-else
-            :model-value="chat.title"
-            text-class="chat-title"
-            input-class="chat-title-input"
-            @click="$emit('select-chat', chat.id)"
-            @save="(newTitle) => $emit('rename-chat', chat.id, newTitle)"
-            @editing-start="editingChatId = chat.id"
-            @editing-end="editingChatId = null"
-          >{{ chat.title }}</InlineEdit>
-          <Button v-show="!isSidebarCollapsed && editingChatId !== chat.id" class="delete-button" @click.stop="$emit('delete-chat', chat.id)" title="Delete chat" variant="danger">
+            :model-value="rootMsg.questionSummarized || rootMsg.question"
+            text-class="root-title"
+            input-class="root-title-input"
+            @click="handleSelectRoot(rootMsg)"
+            @save="(newText) => $emit('rename-question', rootMsg.id, newText)"
+            @editing-start="editingMessageId = rootMsg.id"
+            @editing-end="editingMessageId = null"
+          >{{ rootMsg.questionSummarized || rootMsg.question }}</InlineEdit>
+          <Button
+            v-show="!isSidebarCollapsed && editingMessageId !== rootMsg.id"
+            class="delete-button"
+            @click.stop="handleDeleteRoot(rootMsg)"
+            title="Delete question"
+            variant="danger"
+          >
             ×
           </Button>
         </div>
 
+        <!-- Children tree - only show if this root is expanded -->
         <div
-          v-if="(chat.questions.length > 0 || chat.id === currentChatId) && !isCollapsed(chat.id) && !isSidebarCollapsed"
-          class="question-list"
+          v-if="hasChildren(rootMsg.id) && isRootExpanded(rootMsg.id) && !isSidebarCollapsed"
+          class="children-tree"
         >
-          <div
-            v-for="question in chat.questions"
-            :key="question.id"
-            @click="$emit('select-question', question)"
-            :class="['question-item', { active: question.id === currentMessageId }]"
-          >
-            <InlineEdit
-              :model-value="question.text"
-              text-class="question-text"
-              input-class="question-text-input"
-              @save="(newText) => $emit('rename-question', question.id, newText)"
-              @editing-start="editingQuestionId = question.id"
-              @editing-end="editingQuestionId = null"
-            >{{ question.text }}</InlineEdit>
-            <Button v-show="editingQuestionId !== question.id" class="delete-button question-delete" @click.stop="$emit('delete-question', question.id, chat.id)" title="Delete question" variant="danger">
-              ×
-            </Button>
-          </div>
-          <!-- New Question button -->
-          <div
-            v-if="chat.id === currentChatId"
-            @click="$emit('new-question')"
-            :class="['question-item', 'new-question-item', { active: isAddingNewQuestion }]"
-          >
-            <span class="new-question-icon">+</span>
-            <span class="question-text">Add new</span>
-          </div>
+          <MessageTree
+            :parent-id="rootMsg.id"
+            :current-message-id="currentMessageId"
+            :expanded-path="expandedPath"
+            @select="handleSelectChild"
+            @toggle-expand="handleToggleExpand"
+          />
         </div>
       </div>
 
-      <div v-if="chats.length === 0 && !isSidebarCollapsed" class="empty-state">
-        <p>No chats yet</p>
-        <p class="empty-hint">Click "New Chat" to start</p>
+      <!-- New Question button when there are existing messages -->
+      <div
+        v-if="rootMessages.length > 0 && !isSidebarCollapsed"
+        @click="$emit('new-question')"
+        :class="['new-question-button', { active: isAddingNewQuestion }]"
+      >
+        <span class="new-question-icon">+</span>
+        <span class="new-question-text">Add new question</span>
+      </div>
+
+      <div v-if="rootMessages.length === 0 && !isSidebarCollapsed" class="empty-state">
+        <p>No questions yet</p>
+        <p class="empty-hint">Ask a question to start</p>
       </div>
     </div>
 
@@ -107,12 +116,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import Button from './Button.vue'
 import InlineEdit from './InlineEdit.vue'
 import SettingsModal from './SettingsModal.vue'
+import MessageTree from './MessageTree.vue'
+import { useChatStore } from '../stores/chat.js'
 
-defineProps({
+const props = defineProps({
   chats: {
     type: Array,
     required: true
@@ -131,15 +142,185 @@ defineProps({
   }
 })
 
-const emit = defineEmits(['new-chat', 'select-chat', 'select-question', 'delete-chat', 'delete-question', 'rename-chat', 'rename-question', 'new-question'])
+const emit = defineEmits(['new-chat', 'select-question', 'delete-question', 'rename-question', 'new-question'])
+
+const chatStore = useChatStore()
 
 const SIDEBAR_COLLAPSED_KEY = 'chatSidebarCollapsed'
 
-const collapsedChats = ref(new Set())
 const isSidebarCollapsed = ref(false)
-const editingChatId = ref(null)
-const editingQuestionId = ref(null)
+const editingMessageId = ref(null)
 const showSettings = ref(false)
+
+// Track which root message tree is expanded (only one at a time)
+const expandedRootId = ref(null)
+
+// Track the expanded path within the tree (ancestors of current selection)
+const expandedPath = ref(new Set())
+
+// Get all root messages from the current chat
+const rootMessages = computed(() => {
+  const currentChat = props.chats.find(c => c.id === props.currentChatId)
+  if (!currentChat) return []
+
+  return currentChat.questions.map(q => {
+    const msg = chatStore.messagesById[q.id]
+    return msg || { id: q.id, question: q.text, questionSummarized: q.text }
+  })
+})
+
+// Get the current root message ID (the root of the currently viewed message)
+const currentRootId = computed(() => {
+  if (!props.currentMessageId) return null
+
+  let msg = chatStore.messagesById[props.currentMessageId]
+  while (msg?.parentId) {
+    msg = chatStore.messagesById[msg.parentId]
+  }
+  return msg?.id || null
+})
+
+// Check if a message is in the active path (from root to current message)
+const isInActivePath = (messageId) => {
+  if (messageId === props.currentMessageId) return true
+  if (messageId === currentRootId.value) return true
+  return expandedPath.value.has(messageId)
+}
+
+// Check if a message has children
+const hasChildren = (messageId) => {
+  const msg = chatStore.messagesById[messageId]
+  return msg?.childIds?.length > 0
+}
+
+// Check if a root is expanded
+const isRootExpanded = (rootId) => {
+  return expandedRootId.value === rootId
+}
+
+// Toggle root expansion
+const toggleRootExpand = (rootId) => {
+  if (expandedRootId.value === rootId) {
+    expandedRootId.value = null
+    expandedPath.value = new Set()
+  } else {
+    expandedRootId.value = rootId
+    // Build expanded path from current message to this root
+    buildExpandedPath(rootId)
+  }
+}
+
+// Build the expanded path from the current message up to the root
+const buildExpandedPath = (rootId) => {
+  const newPath = new Set()
+
+  if (props.currentMessageId) {
+    let msg = chatStore.messagesById[props.currentMessageId]
+
+    // Walk up the tree and check if current message belongs to this root
+    const ancestors = []
+    while (msg) {
+      ancestors.push(msg.id)
+      if (!msg.parentId) break
+      msg = chatStore.messagesById[msg.parentId]
+    }
+
+    // If the root of current message matches, expand the path
+    if (ancestors.length > 0 && ancestors[ancestors.length - 1] === rootId) {
+      ancestors.forEach(id => {
+        if (id !== props.currentMessageId) {
+          newPath.add(id)
+        }
+      })
+    }
+  }
+
+  expandedPath.value = newPath
+}
+
+// Handle toggling expansion within the tree
+const handleToggleExpand = (messageId) => {
+  if (expandedPath.value.has(messageId)) {
+    // Collapse: remove this node and all its descendants from path
+    const newPath = new Set(expandedPath.value)
+    newPath.delete(messageId)
+
+    // Also remove any descendants
+    const removeDescendants = (id) => {
+      const msg = chatStore.messagesById[id]
+      if (msg?.childIds) {
+        msg.childIds.forEach(childId => {
+          newPath.delete(childId)
+          removeDescendants(childId)
+        })
+      }
+    }
+    removeDescendants(messageId)
+
+    expandedPath.value = newPath
+  } else {
+    // Expand: add this node to path
+    expandedPath.value = new Set([...expandedPath.value, messageId])
+  }
+}
+
+// Handle selecting a root message
+const handleSelectRoot = (rootMsg) => {
+  const currentChat = props.chats.find(c => c.id === props.currentChatId)
+  if (!currentChat) return
+
+  const question = currentChat.questions.find(q => q.id === rootMsg.id)
+  if (question) {
+    emit('select-question', question)
+  }
+
+  // Auto-expand if it has children
+  if (hasChildren(rootMsg.id) && expandedRootId.value !== rootMsg.id) {
+    expandedRootId.value = rootMsg.id
+    expandedPath.value = new Set()
+  }
+}
+
+// Handle selecting a child message
+const handleSelectChild = (childMsg) => {
+  // Emit selection with chat context
+  const currentChat = props.chats.find(c => c.id === props.currentChatId)
+  if (currentChat) {
+    // Find the root of this child
+    let msg = childMsg
+    while (msg?.parentId) {
+      msg = chatStore.messagesById[msg.parentId]
+    }
+    const rootIndex = currentChat.questions.findIndex(q => q.id === msg?.id)
+
+    emit('select-question', {
+      id: childMsg.id,
+      chatId: currentChat.id,
+      rootIndex: rootIndex >= 0 ? rootIndex : 0
+    })
+
+    // Rebuild expanded path to show full tree to selected child
+    buildExpandedPathToChild(childMsg.id)
+  }
+}
+
+// Build expanded path from root to a specific child
+const buildExpandedPathToChild = (childId) => {
+  const newPath = new Set()
+  let msg = chatStore.messagesById[childId]
+
+  while (msg?.parentId) {
+    newPath.add(msg.parentId)
+    msg = chatStore.messagesById[msg.parentId]
+  }
+
+  expandedPath.value = newPath
+}
+
+// Handle deleting a root message
+const handleDeleteRoot = (rootMsg) => {
+  emit('delete-question', rootMsg.id, props.currentChatId)
+}
 
 // Load sidebar collapsed state from localStorage on mount
 onMounted(() => {
@@ -154,17 +335,22 @@ watch(isSidebarCollapsed, (newValue) => {
   localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(newValue))
 })
 
-const toggleCollapse = (chatId) => {
-  if (collapsedChats.value.has(chatId)) {
-    collapsedChats.value.delete(chatId)
-  } else {
-    collapsedChats.value.add(chatId)
-  }
-}
+// Watch for current message changes to update expanded state
+watch(() => props.currentMessageId, (newId) => {
+  if (newId) {
+    // Find the root of the current message
+    let msg = chatStore.messagesById[newId]
+    while (msg?.parentId) {
+      msg = chatStore.messagesById[msg.parentId]
+    }
 
-const isCollapsed = (chatId) => {
-  return collapsedChats.value.has(chatId)
-}
+    if (msg) {
+      // Auto-expand the root that contains the current message
+      expandedRootId.value = msg.id
+      buildExpandedPathToChild(newId)
+    }
+  }
+}, { immediate: true })
 
 const toggleSidebar = () => {
   isSidebarCollapsed.value = !isSidebarCollapsed.value
@@ -212,49 +398,53 @@ const toggleSidebar = () => {
   padding: 1rem 0.5rem;
 }
 
-.chat-thread {
-  margin-bottom: 0;
+.root-message-item {
+  margin-bottom: 0.25rem;
 }
 
-.chat-thread.active {
-}
-
-.chat-header {
+.root-header {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.5rem;
   align-items: flex-start;
   padding: 0.5rem 0.75rem;
   transition: all 0.15s;
   user-select: none;
+  border-radius: 4px;
 }
 
-.chat-header:hover {
+.root-header:hover {
   background-color: var(--color-bg-hover);
 }
 
-.chat-thread.active .chat-header {
+.root-header.active,
+.root-header.is-current-root {
   background-color: var(--color-bg-hover);
 }
 
-.chat-title {
+.root-title {
   font-weight: 500;
   color: var(--color-text-secondary);
-  font-size: 1rem;
+  font-size: 0.95rem;
   line-height: 1.4;
   flex: 1;
   cursor: pointer;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-.chat-thread.active .chat-title {
+.root-header.active .root-title,
+.root-header.is-current-root .root-title {
   color: var(--color-text-strong);
   font-weight: 600;
 }
 
-.chat-title:hover {
+.root-title:hover {
   color: var(--color-text-strong);
 }
 
-.chat-title-collapsed {
+.root-title-collapsed {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -266,16 +456,16 @@ const toggleSidebar = () => {
   background-color: var(--color-bg-hover);
 }
 
-.chat-sidebar.collapsed .chat-header {
+.chat-sidebar.collapsed .root-header {
   justify-content: center;
   padding: 0.5rem;
 }
 
-.chat-sidebar.collapsed .chat-title {
+.chat-sidebar.collapsed .root-title {
   flex: none;
 }
 
-.chat-title-input {
+.root-title-input {
   font-weight: 600;
   color: var(--color-text-strong);
   font-size: 0.95rem;
@@ -289,9 +479,31 @@ const toggleSidebar = () => {
   font-family: 'Georgia', serif;
 }
 
-.chat-title-input:focus {
+.root-title-input:focus {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 2px var(--color-primary-subtle, rgba(99, 102, 241, 0.1));
+}
+
+.expand-icon {
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.expand-icon:hover {
+  color: var(--color-text-strong);
+}
+
+.expand-icon-placeholder {
+  flex-shrink: 0;
+  width: 1.25rem;
 }
 
 .delete-button {
@@ -302,104 +514,43 @@ const toggleSidebar = () => {
   opacity: 0;
 }
 
-.chat-header:hover .delete-button {
+.root-header:hover .delete-button {
   opacity: 1;
 }
 
-.collapse-icon {
-  font-size: 1.1rem;
-  color: var(--color-text-muted);
-  transition: all 0.15s;
-  flex-shrink: 0;
-  width: 1.5rem;
-  height: 1.5rem;
-  text-align: center;
-  font-family: system-ui, -apple-system, sans-serif;
-  cursor: pointer;
+.children-tree {
+  padding-left: 1.5rem;
+  margin-left: 0.75rem;
+  border-left: 1px solid var(--color-border-subtle);
+  margin-top: 0.25rem;
+}
+
+.new-question-button {
   display: flex;
   align-items: center;
-  justify-content: center;
-}
-
-.collapse-icon:hover {
-  color: var(--color-text-strong);
-}
-
-.question-list {
-  padding-left: 1.25rem;
-  margin-left: 0.5rem;
-  border-left: 1px solid var(--color-border-subtle);
-}
-
-.question-item {
-  display: flex;
-  padding: 0.4rem 0.75rem;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  margin-top: 0.5rem;
   cursor: pointer;
   transition: all 0.15s;
-}
-
-.question-item:hover {
-  background-color: var(--color-bg-hover);
-}
-
-.question-item.active {
-  background-color: var(--color-bg-hover);
-}
-
-.question-item:hover .question-delete {
-  opacity: 1;
-}
-
-.question-delete {
-  flex-shrink: 0;
-}
-
-.question-text {
-  font-size: 0.95rem;
-  color: var(--color-text-muted);
-  line-height: 1.5;
-  flex: 1;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.question-item.active .question-text {
-  color: var(--color-text-secondary);
-}
-
-.question-text-input {
-  font-size: 0.9rem;
-  color: var(--color-text-secondary);
-  line-height: 1.5;
-  flex: 1;
-  padding: 0.2rem 0.4rem;
-  width: 100%;
-}
-
-.new-question-item {
   opacity: 0.6;
-  transition: opacity 0.15s;
+  border-radius: 4px;
 }
 
-.new-question-item:hover,
-.new-question-item.active {
+.new-question-button:hover,
+.new-question-button.active {
   opacity: 1;
-}
-
-.new-question-item.active {
   background-color: var(--color-bg-hover);
-}
-
-.new-question-item.active .question-text {
-  color: var(--color-text-secondary);
 }
 
 .new-question-icon {
   font-size: 1rem;
   font-weight: bold;
-  margin-right: 0.5rem;
+  color: var(--color-text-muted);
+}
+
+.new-question-text {
+  font-size: 0.9rem;
   color: var(--color-text-muted);
 }
 

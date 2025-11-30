@@ -6,11 +6,8 @@
       :current-message-id="isAddingNewQuestion ? null : chatStore.currentMessageId"
       :is-adding-new-question="isAddingNewQuestion"
       @new-chat="handleNewChat"
-      @select-chat="handleSelectChat"
       @select-question="handleSelectQuestion"
-      @delete-chat="handleDeleteChat"
       @delete-question="handleDeleteQuestion"
-      @rename-chat="handleRenameChat"
       @rename-question="handleRenameQuestion"
       @new-question="handleNewQuestion"
     />
@@ -222,11 +219,6 @@ const handleNewChat = () => {
   error.value = null
 }
 
-const handleSelectChat = (chatId) => {
-  chatStore.switchToChat(chatId)
-  scrollToBottom()
-}
-
 const handleSelectQuestion = (question) => {
   isAddingNewQuestion.value = false
 
@@ -245,15 +237,6 @@ const handleSelectQuestion = (question) => {
   // Navigate to the message and restore scroll position
   const scrollPos = chatStore.navigateToMessage(question.id)
   setScrollPosition(scrollPos)
-}
-
-const handleDeleteChat = (chatId) => {
-  chatStore.deleteChat(chatId)
-  scrollToBottom()
-}
-
-const handleRenameChat = (chatId, newTitle) => {
-  chatStore.renameChat(chatId, newTitle)
 }
 
 const handleRenameQuestion = (messageId, newSummary) => {

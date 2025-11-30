@@ -145,7 +145,7 @@ describe('MessageNavigation', () => {
       const wrapper = mountComponent('2')
       const items = wrapper.findAll('.breadcrumb-item')
       expect(items.length).toBe(2)
-      // Second item (idx=1) shows questionSummarized + children count
+      // Second item (idx=1) shows questionSummarized
       expect(items[1].text()).toContain('Child')
     })
 
@@ -172,39 +172,12 @@ describe('MessageNavigation', () => {
       expect(items[2].text()).toContain('Last')
     })
 
-    it('should render breadcrumb for root message with children indicator', () => {
+    it('should render breadcrumb for root message', () => {
       const wrapper = mountComponent('1')
-      // Breadcrumb is rendered even for root (to show children indicator)
+      // Breadcrumb is rendered even for root
       expect(wrapper.find('.breadcrumb-nav').exists()).toBe(true)
       const items = wrapper.findAll('.breadcrumb-item')
       expect(items.length).toBe(1)
-      // Should show children indicator
-      expect(wrapper.find('.children-indicator').exists()).toBe(true)
-    })
-  })
-
-  describe('Children Indicator', () => {
-    it('should show children count indicator on current message', () => {
-      // msg2 has one child (msg3)
-      const wrapper = mountComponent('2')
-      const indicator = wrapper.find('.children-indicator')
-      expect(indicator.exists()).toBe(true)
-      expect(indicator.text()).toBe('1')
-    })
-
-    it('should show 0 when current message has no children', () => {
-      // msg3 has no children
-      const wrapper = mountComponent('3')
-      const indicator = wrapper.find('.children-indicator')
-      expect(indicator.exists()).toBe(true)
-      expect(indicator.text()).toBe('0')
-    })
-
-    it('should only show indicator on current message breadcrumb', () => {
-      const wrapper = mountComponent('3')
-      const indicators = wrapper.findAll('.children-indicator')
-      // Only one indicator should exist (on current message)
-      expect(indicators.length).toBe(1)
     })
   })
 
