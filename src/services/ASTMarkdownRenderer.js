@@ -134,13 +134,16 @@ function createCustomContentNode(item, text, startOffset, endOffset) {
 
   switch (item.type) {
     case 'highlight':
+      // isLastSegment is true when this segment ends at the highlight's actual end
+      const isLastSegment = endOffset >= item.endOffset
       return {
         type: 'highlight',
         ...baseNode,
         colorIndex: item.colorIndex ?? 0,
         highlightId: item.id,
         noteContent: item.noteContent || '',
-        hasNote: !!item.hasNote
+        hasNote: !!item.hasNote,
+        isLastSegment
       }
 
     case 'question-link':

@@ -63,7 +63,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       expect(findInBody('.modal-header')).toBeTruthy()
-      expect(findInBody('.modal-header h2').textContent).toBe('Settings')
+      expect(findInBody('.modal-title').textContent).toBe('Settings')
     })
 
     it('should render close button', () => {
@@ -73,7 +73,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
-      expect(findInBody('.modal-header .btn-danger')).toBeTruthy()
+      expect(findInBody('.modal-close-btn')).toBeTruthy()
     })
 
     it('should render modal body', () => {
@@ -235,7 +235,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
-      findInBody('.modal-header .btn-danger').click()
+      findInBody('.modal-close-btn').click()
       await wrapper.vm.$nextTick()
       expect(wrapper.emitted('update:modelValue')).toBeTruthy()
       expect(wrapper.emitted('update:modelValue')[0]).toEqual([false])
@@ -426,7 +426,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
-      expect(findInBody('.modal-header .btn-danger').textContent).toBe('×')
+      expect(findInBody('.modal-close-btn').textContent).toBe('×')
     })
 
     it('should have semantic header element', () => {
@@ -436,7 +436,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
-      expect(findInBody('h2')).toBeTruthy()
+      expect(findInBody('.modal-title')).toBeTruthy()
     })
 
     it('should have theme options in a labeled group', () => {
@@ -481,7 +481,7 @@ describe('SettingsModal', () => {
       darkButton.click()
       await wrapper.vm.$nextTick()
 
-      findInBody('.btn-danger').click()
+      findInBody('.modal-close-btn').click()
       await wrapper.vm.$nextTick()
 
       // Theme should remain as dark (instant save, no revert)
@@ -576,7 +576,7 @@ describe('SettingsModal', () => {
       await wrapper.vm.$nextTick()
 
       // Close modal via X button
-      findInBody('.btn-danger').click()
+      findInBody('.modal-close-btn').click()
       await wrapper.vm.$nextTick()
 
       // Theme should remain as dark (no revert)

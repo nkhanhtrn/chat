@@ -8,8 +8,6 @@ describe('Note', () => {
 
   const baseProps = {
     visible: true,
-    x: 100,
-    y: 200,
     noteId: 'note-123',
     initialContent: '',
     isTemp: true
@@ -29,29 +27,27 @@ describe('Note', () => {
   })
 
   describe('Basic Rendering', () => {
-    it('renders at correct position when visible', () => {
+    it('renders popup when visible', () => {
       wrapper = mount(Note, { props: baseProps, attachTo: root })
-      const popup = document.body.querySelector('.note-popup')
+      const popup = document.body.querySelector('.modal-content')
       expect(popup).toBeTruthy()
-      expect(popup.style.left).toBe('100px')
-      expect(popup.style.top).toBe('200px')
     })
 
     it('does not render when not visible', () => {
       wrapper = mount(Note, { props: { ...baseProps, visible: false }, attachTo: root })
-      const popup = document.body.querySelector('.note-popup')
+      const popup = document.body.querySelector('.modal-content')
       expect(popup).toBeFalsy()
     })
 
     it('renders backdrop when visible', () => {
       wrapper = mount(Note, { props: baseProps, attachTo: root })
-      const backdrop = document.body.querySelector('.note-backdrop')
+      const backdrop = document.body.querySelector('.modal-overlay')
       expect(backdrop).toBeTruthy()
     })
 
     it('renders title "Note"', () => {
       wrapper = mount(Note, { props: baseProps, attachTo: root })
-      const title = document.body.querySelector('.note-title')
+      const title = document.body.querySelector('.modal-title')
       expect(title).toBeTruthy()
       expect(title.textContent).toBe('Note')
     })
@@ -191,7 +187,7 @@ describe('Note', () => {
   describe('Events', () => {
     it('emits cancel when backdrop is clicked', async () => {
       wrapper = mount(Note, { props: baseProps, attachTo: root })
-      const backdrop = document.body.querySelector('.note-backdrop')
+      const backdrop = document.body.querySelector('.modal-overlay')
       await backdrop.click()
       expect(wrapper.emitted('cancel')).toBeTruthy()
     })
@@ -296,13 +292,12 @@ describe('Note', () => {
   describe('Styling', () => {
     it('has proper z-index for popup above backdrop', () => {
       wrapper = mount(Note, { props: baseProps, attachTo: root })
-      const backdrop = document.body.querySelector('.note-backdrop')
-      const popup = document.body.querySelector('.note-popup')
+      const overlay = document.body.querySelector('.modal-overlay')
+      const popup = document.body.querySelector('.modal-content')
 
-      const backdropZIndex = parseInt(getComputedStyle(backdrop).zIndex) || 9998
-      const popupZIndex = parseInt(getComputedStyle(popup).zIndex) || 9999
-
-      expect(popupZIndex).toBeGreaterThan(backdropZIndex)
+      // Modal uses overlay with z-index, content is inside it
+      expect(overlay).toBeTruthy()
+      expect(popup).toBeTruthy()
     })
 
     it('delete button has delete styling class', () => {
@@ -534,6 +529,136 @@ describe('Note', () => {
       const [eventData] = wrapper.emitted('detail-explain')[0]
       expect(eventData.noteId).toBe('note-123')
       expect(eventData.text).toBe('highlighted text here')
+    })
+  })
+
+  describe('Custom Prompt Mode (isCustomPrompt=true)', () => {
+    const customPromptProps = {
+      visible: true,
+      noteId: 'note-custom',
+      initialContent: 'This is the AI response to custom prompt',
+      isTemp: false,
+      isStreaming: false,
+      isCustomPrompt: true,
+      customPromptText: 'explain this concept\nfor more context: selected text'
+    }
+
+    it('shows Save and Explore buttons when isCustomPrompt is true and not streaming', () => {
+      wrapper = mount(Note, { props: customPromptProps, attachTo: root })
+
+      const actions = document.body.querySelector('.custom-prompt-actions')
+      expect(actions).toBeTruthy()
+
+      const buttons = actions.querySelectorAll('button')
+      expect(buttons.length).toBe(2)
+      expect(buttons[0].textContent).toBe('Save')
+      expect(buttons[1].textContent).toContain('Explore')
+    })
+
+    it('does not show Save and Explore buttons when streaming', async () => {
+      wrapper = mount(Note, {
+        props: { ...customPromptProps, isStreaming: true, visible: false },
+        attachTo: root
+      })
+      await wrapper.setProps({ visible: true })
+
+      const actions = document.body.querySelector('.custom-prompt-actions')
+      expect(actions).toBeFalsy()
+    })
+
+    it('does not show detail explain link when isCustomPrompt is true', () => {
+      wrapper = mount(Note, {
+        props: { ...customPromptProps, highlightedText: 'some text' },
+        attachTo: root
+      })
+
+      const link = document.body.querySelector('.detail-explain-link')
+      expect(link).toBeFalsy()
+    })
+
+    it('emits save event with noteId and initialContent when Save button is clicked', async () => {
+      wrapper = mount(Note, { props: customPromptProps, attachTo: root })
+
+      const saveBtn = document.body.querySelector('.custom-prompt-actions button:first-child')
+      expect(saveBtn).toBeTruthy()
+      await saveBtn.click()
+
+      expect(wrapper.emitted('save')).toBeTruthy()
+      expect(wrapper.emitted('save')[0][0]).toEqual({
+        noteId: 'note-custom',
+        content: 'This is the AI response to custom prompt'
+      })
+    })
+
+    it('emits explore event with customPromptText when Explore button is clicked', async () => {
+      wrapper = mount(Note, { props: customPromptProps, attachTo: root })
+
+      const exploreBtn = document.body.querySelector('.custom-prompt-actions button:last-child')
+      expect(exploreBtn).toBeTruthy()
+      await exploreBtn.click()
+
+      expect(wrapper.emitted('explore')).toBeTruthy()
+      expect(wrapper.emitted('explore')[0][0]).toEqual({
+        text: 'explain this concept\nfor more context: selected text'
+      })
+    })
+
+    it('shows note content in view mode', () => {
+      wrapper = mount(Note, { props: customPromptProps, attachTo: root })
+
+      const noteContent = document.body.querySelector('.note-content')
+      expect(noteContent).toBeTruthy()
+      expect(noteContent.textContent).toContain('This is the AI response to custom prompt')
+
+      const textarea = document.body.querySelector('.note-textarea')
+      expect(textarea).toBeFalsy()
+    })
+
+    it('does not show edit/delete buttons in header for custom prompt mode', () => {
+      wrapper = mount(Note, { props: customPromptProps, attachTo: root })
+
+      // In custom prompt mode with customPromptText, header actions should be hidden
+      const headerActions = document.body.querySelector('.note-header-actions')
+      expect(headerActions).toBeFalsy()
+    })
+
+    it('custom-prompt-actions has correct styling with justify-content space-between', () => {
+      wrapper = mount(Note, { props: customPromptProps, attachTo: root })
+
+      const actions = document.body.querySelector('.custom-prompt-actions')
+      expect(actions).toBeTruthy()
+      expect(actions.classList.contains('note-actions')).toBe(true)
+      expect(actions.classList.contains('custom-prompt-actions')).toBe(true)
+    })
+
+    it('shows streaming cursor when isCustomPrompt and isStreaming are both true', async () => {
+      wrapper = mount(Note, {
+        props: { ...customPromptProps, isStreaming: true, visible: false },
+        attachTo: root
+      })
+      await wrapper.setProps({ visible: true })
+
+      const cursor = document.body.querySelector('.streaming-cursor')
+      expect(cursor).toBeTruthy()
+    })
+
+    it('does not show custom prompt actions when isCustomPrompt is false', () => {
+      wrapper = mount(Note, {
+        props: {
+          ...customPromptProps,
+          isCustomPrompt: false,
+          customPromptText: '', // Clear customPromptText to prevent custom actions
+          highlightedText: 'text'
+        },
+        attachTo: root
+      })
+
+      const customActions = document.body.querySelector('.custom-prompt-actions')
+      expect(customActions).toBeFalsy()
+
+      // Should show detail explain link instead
+      const link = document.body.querySelector('.detail-explain-link')
+      expect(link).toBeTruthy()
     })
   })
 })

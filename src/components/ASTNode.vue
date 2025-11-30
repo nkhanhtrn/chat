@@ -104,7 +104,8 @@ function getNodeProps(node) {
         startOffset: node.startOffset,
         endOffset: node.endOffset,
         noteContent: node.noteContent || '',
-        hasNote: !!node.hasNote
+        hasNote: !!node.hasNote,
+        isLastSegment: node.isLastSegment !== false
       }
 
     case 'question-link':

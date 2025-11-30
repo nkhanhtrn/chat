@@ -43,21 +43,23 @@
            @add-chapter="handleAddChapter"
            @add-note="handleAddNote"
            @quick-explain="handleQuickExplain"
+           @custom-prompt="handleCustomPrompt"
          />
          <Note
            :visible="state.popup.mode === 'note'"
-           :x="state.popup.x"
-           :y="state.popup.y"
            :note-id="state.popup.highlightId"
            :initial-content="state.popup.noteContent"
            :highlighted-text="state.popup.selectedText"
            :is-temp="state.popup.isNewNote"
            :start-in-edit-mode="state.popup.startInEditMode"
            :is-streaming="state.popup.isStreaming"
+           :is-custom-prompt="state.popup.isCustomPrompt"
+           :custom-prompt-text="state.popup.customPromptText"
            @save="handleNoteSave"
            @cancel="handleNoteCancel"
            @delete="handleNoteDelete"
            @detail-explain="handleNoteDetailExplain"
+           @explore="handleNoteExplore"
          />
        </div>
      </div>
@@ -111,7 +113,9 @@ const state = reactive({
     noteContent: '',
     isNewNote: false, // true when creating a new note (temp)
     startInEditMode: false, // true when opened via context menu (add/edit note)
-    isStreaming: false // true when streaming content into note
+    isStreaming: false, // true when streaming content into note
+    isCustomPrompt: false, // true when showing custom prompt result
+    customPromptText: '' // the custom prompt text for explore action
   },
   tempHighlight: null
 })
@@ -238,6 +242,8 @@ function closePopup() {
   state.popup.isNewNote = false
   state.popup.startInEditMode = false
   state.popup.isStreaming = false
+  state.popup.isCustomPrompt = false
+  state.popup.customPromptText = ''
   state.tempHighlight = null
 }
 
@@ -488,13 +494,19 @@ function handleAddNote() {
   }
 }
 
-async function handleQuickExplain() {
+async function handleQuickExplain(customPrompt = null) {
   const { selectedText, startOffset, endOffset, colorIndex, highlightId } = state.popup
+  const isCustomPrompt = !!customPrompt
 
   if (!selectedText || startOffset === undefined || endOffset === undefined) {
     console.error('Invalid selection data for quick explain')
     return
   }
+
+  // For custom prompt, build the full prompt with context
+  const promptText = isCustomPrompt
+    ? `${customPrompt}\nfor more context: ${selectedText}`
+    : selectedText
 
   // Check if we're updating an existing highlight or creating a new one
   const existingHighlightId = highlightId
@@ -507,6 +519,8 @@ async function handleQuickExplain() {
   state.popup.isNewNote = false
   state.popup.startInEditMode = false
   state.popup.isStreaming = true
+  state.popup.isCustomPrompt = isCustomPrompt
+  state.popup.customPromptText = promptText
 
   // Only create temp highlight if there's no existing one
   if (!existingHighlightId) {
@@ -527,7 +541,7 @@ async function handleQuickExplain() {
 
   try {
     // Get the quick explanation from API with streaming
-    const messages = getQuickExplainPrompts(selectedText)
+    const messages = getQuickExplainPrompts(promptText)
     await sendChatMessage(
       chatStore.currentModel,
       messages,
@@ -537,27 +551,7 @@ async function handleQuickExplain() {
       }
     )
 
-    if (existingHighlightId) {
-      // Update existing highlight's note content
-      chatStore.updateCustomContent(currentMessage.value.id, existingHighlightId, {
-        hasNote: true,
-        noteContent: state.popup.noteContent
-      })
-    } else {
-      // Create permanent highlight with the complete explanation
-      const highlight = {
-        id: targetHighlightId,
-        type: 'highlight',
-        text: selectedText,
-        colorIndex: colorIndex || 0,
-        startOffset,
-        endOffset,
-        hasNote: true,
-        noteContent: state.popup.noteContent
-      }
-      chatStore.addCustomContent(currentMessage.value.id, highlight)
-      state.tempHighlight = null
-    }
+    // Don't save automatically - let user decide via Save/Explore buttons
   } catch (err) {
     state.error = err.message
     closePopup()
@@ -565,6 +559,10 @@ async function handleQuickExplain() {
     state.isChildStreaming = false
     state.popup.isStreaming = false
   }
+}
+
+function handleCustomPrompt(customPrompt) {
+  handleQuickExplain(customPrompt)
 }
 
 function handleNoteClick(noteData) {
@@ -581,7 +579,27 @@ function handleNoteClick(noteData) {
 }
 
 function handleNoteSave({ noteId, content }) {
-  if (state.popup.isNewNote) {
+  // Streamed content mode (quick explain or custom prompt): save temp highlight with streamed content
+  if (state.popup.customPromptText && state.tempHighlight) {
+    const highlight = {
+      id: crypto.randomUUID(),
+      type: 'highlight',
+      text: state.tempHighlight.text,
+      colorIndex: state.tempHighlight.colorIndex || 0,
+      startOffset: state.tempHighlight.startOffset,
+      endOffset: state.tempHighlight.endOffset,
+      hasNote: true,
+      noteContent: content
+    }
+    chatStore.addCustomContent(currentMessage.value.id, highlight)
+    state.tempHighlight = null
+  } else if (state.popup.customPromptText && state.popup.highlightId) {
+    // Streamed content on existing highlight: update the highlight's note
+    chatStore.updateCustomContent(currentMessage.value.id, state.popup.highlightId, {
+      hasNote: true,
+      noteContent: content
+    })
+  } else if (state.popup.isNewNote) {
     if (state.tempHighlight) {
       // Convert temp highlight with note to permanent
       const highlight = {
@@ -611,7 +629,7 @@ function handleNoteSave({ noteId, content }) {
 }
 
 function handleNoteCancel() {
-  if (state.popup.isNewNote && state.tempHighlight) {
+  if ((state.popup.isNewNote || state.popup.customPromptText) && state.tempHighlight) {
     state.tempHighlight = null
   }
   closePopup()
@@ -627,6 +645,11 @@ function handleNoteDelete({ noteId }) {
 
 function handleNoteDetailExplain({ text }) {
   // Trigger the detail explanation flow using the highlighted text
+  handleAskQuestion(text)
+}
+
+function handleNoteExplore({ text }) {
+  // Trigger the question flow using the custom prompt text (already includes context)
   handleAskQuestion(text)
 }
 

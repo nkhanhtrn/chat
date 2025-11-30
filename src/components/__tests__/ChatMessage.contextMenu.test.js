@@ -1216,11 +1216,13 @@ describe('ChatMessage context menu integration', () => {
 
       await wrapper.vm.handleQuickExplain()
 
-      // Should update existing highlight's note
+      // Should stream content to popup.noteContent (not auto-save)
+      expect(state.popup.noteContent).toBe('New explanation')
+      expect(state.popup.mode).toBe('note')
+
+      // Original highlight should not be updated until user saves
       const storeMessage = wrapper.vm.chatStore.messagesById['msg-quick-update']
-      expect(storeMessage.customContent.length).toBe(1)
-      expect(storeMessage.customContent[0].id).toBe('h-update')
-      expect(storeMessage.customContent[0].noteContent).toBe('New explanation')
+      expect(storeMessage.customContent[0].noteContent).toBe('Old note')
     })
 
     it('handleQuickExplain creates new highlight with note for new selection', async () => {
@@ -1257,13 +1259,18 @@ describe('ChatMessage context menu integration', () => {
 
       await wrapper.vm.handleQuickExplain()
 
-      // Should create new highlight with note
+      // Should stream content to popup.noteContent (not auto-save to store)
+      expect(state.popup.noteContent).toBe('New explanation')
+      expect(state.popup.mode).toBe('note')
+
+      // Should create temp highlight for display (not saved yet)
+      expect(state.tempHighlight).toBeTruthy()
+      expect(state.tempHighlight.text).toBe('brand new')
+      expect(state.tempHighlight.colorIndex).toBe(1)
+
+      // Store should NOT have the highlight yet (requires user to click Save)
       const storeMessage = wrapper.vm.chatStore.messagesById['msg-quick-new']
-      expect(storeMessage.customContent.length).toBe(1)
-      expect(storeMessage.customContent[0].text).toBe('brand new')
-      expect(storeMessage.customContent[0].hasNote).toBe(true)
-      expect(storeMessage.customContent[0].noteContent).toBe('New explanation')
-      expect(storeMessage.customContent[0].colorIndex).toBe(1)
+      expect(storeMessage.customContent.length).toBe(0)
     })
 
     it('handleQuickExplain sets isStreaming to false after completion', async () => {
@@ -1486,6 +1493,340 @@ describe('ChatMessage context menu integration', () => {
       expect(state.popup.mode).toBe(null)
       // Verify streaming was started
       expect(state.isChildStreaming).toBe(true)
+    })
+  })
+
+  describe('Custom Prompt Behavior', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('handleCustomPrompt calls handleQuickExplain with the custom prompt', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-custom',
+        question: 'Q',
+        response: 'text to query',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-custom'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'text to query'
+      state.popup.startOffset = 0
+      state.popup.endOffset = 13
+      state.popup.colorIndex = 0
+      state.popup.mode = 'context-menu'
+
+      vi.spyOn(api, 'sendChatMessage').mockResolvedValue('Custom response')
+
+      const promise = wrapper.vm.handleCustomPrompt('explain this in simple terms')
+
+      // Should be in note mode with streaming
+      expect(state.popup.mode).toBe('note')
+      expect(state.popup.isStreaming).toBe(true)
+      expect(state.popup.isCustomPrompt).toBe(true)
+
+      await promise
+    })
+
+    it('handleCustomPrompt sets isCustomPrompt flag to true', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-custom-flag',
+        question: 'Q',
+        response: 'selected text here',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-custom-flag'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'selected text'
+      state.popup.startOffset = 0
+      state.popup.endOffset = 13
+      state.popup.mode = 'context-menu'
+
+      vi.spyOn(api, 'sendChatMessage').mockResolvedValue('Response')
+
+      const promise = wrapper.vm.handleCustomPrompt('custom query')
+
+      expect(state.popup.isCustomPrompt).toBe(true)
+
+      await promise
+    })
+
+    it('handleCustomPrompt sets customPromptText with combined prompt and context', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-custom-text',
+        question: 'Q',
+        response: 'some context text',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-custom-text'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'context text'
+      state.popup.startOffset = 5
+      state.popup.endOffset = 17
+      state.popup.mode = 'context-menu'
+
+      vi.spyOn(api, 'sendChatMessage').mockResolvedValue('Response')
+
+      const promise = wrapper.vm.handleCustomPrompt('what does this mean')
+
+      expect(state.popup.customPromptText).toBe('what does this mean\nfor more context: context text')
+
+      await promise
+    })
+
+    it('handleCustomPrompt does NOT auto-save highlight after streaming completes', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-no-autosave',
+        question: 'Q',
+        response: 'text for custom',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-no-autosave'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'text for custom'
+      state.popup.startOffset = 0
+      state.popup.endOffset = 15
+      state.popup.highlightId = null
+      state.popup.mode = 'context-menu'
+
+      vi.spyOn(api, 'sendChatMessage').mockImplementation((_model, _messages, callback) => {
+        if (callback) callback('Custom explanation')
+        return Promise.resolve('Custom explanation')
+      })
+
+      await wrapper.vm.handleCustomPrompt('explain this')
+
+      // Custom prompt should NOT auto-save - customContent should remain empty
+      const storeMessage = wrapper.vm.chatStore.messagesById['msg-no-autosave']
+      expect(storeMessage.customContent.length).toBe(0)
+
+      // Temp highlight should still exist (not saved)
+      expect(state.tempHighlight).not.toBe(null)
+    })
+
+    it('handleNoteSave saves custom prompt result when isCustomPrompt is true', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-save-custom',
+        question: 'Q',
+        response: 'text to save',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-save-custom'] = testMessage
+
+      const state = getState(wrapper)
+
+      // Simulate state after custom prompt streaming completed
+      state.popup.mode = 'note'
+      state.popup.isCustomPrompt = true
+      state.popup.customPromptText = 'custom prompt\nfor more context: text to save' // Required for handleNoteSave to save
+      state.popup.noteContent = 'AI generated explanation'
+      state.popup.highlightId = 'temp-id'
+      state.tempHighlight = {
+        id: 'temp-id',
+        type: 'highlight',
+        text: 'text to save',
+        colorIndex: 0,
+        startOffset: 0,
+        endOffset: 12,
+        hasNote: true,
+        noteContent: ''
+      }
+
+      // Call handleNoteSave (simulating user clicking Save button)
+      wrapper.vm.handleNoteSave({
+        noteId: 'temp-id',
+        content: 'AI generated explanation'
+      })
+
+      // Should create permanent highlight
+      const storeMessage = wrapper.vm.chatStore.messagesById['msg-save-custom']
+      expect(storeMessage.customContent.length).toBe(1)
+      expect(storeMessage.customContent[0].text).toBe('text to save')
+      expect(storeMessage.customContent[0].noteContent).toBe('AI generated explanation')
+      expect(storeMessage.customContent[0].hasNote).toBe(true)
+
+      // Temp highlight should be cleared
+      expect(state.tempHighlight).toBe(null)
+
+      // Popup should be closed
+      expect(state.popup.mode).toBe(null)
+    })
+
+    it('handleNoteExplore triggers handleAskQuestion with customPromptText', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-explore',
+        question: 'Q',
+        response: 'explore this text',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-explore'] = testMessage
+
+      const state = getState(wrapper)
+
+      // Set up state as if custom prompt note is open
+      state.popup.mode = 'note'
+      state.popup.isCustomPrompt = true
+      state.popup.customPromptText = 'detailed question\nfor more context: explore this'
+      state.popup.selectedText = 'explore this'
+      state.popup.startOffset = 0
+      state.popup.endOffset = 12
+
+      // Call handleNoteExplore
+      wrapper.vm.handleNoteExplore({ text: 'detailed question\nfor more context: explore this' })
+
+      // Should have started child streaming (handleAskQuestion was called)
+      expect(state.isChildStreaming).toBe(true)
+
+      // Popup should be closed
+      expect(state.popup.mode).toBe(null)
+    })
+
+    it('closePopup resets isCustomPrompt and customPromptText', () => {
+      const state = getState(wrapper)
+
+      state.popup.mode = 'note'
+      state.popup.isCustomPrompt = true
+      state.popup.customPromptText = 'some prompt text'
+      state.popup.isStreaming = false
+
+      wrapper.vm.closePopup()
+
+      expect(state.popup.isCustomPrompt).toBe(false)
+      expect(state.popup.customPromptText).toBe('')
+    })
+
+    it('handleQuickExplain without custom prompt does NOT set isCustomPrompt', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-quick-no-custom',
+        question: 'Q',
+        response: 'quick explain text',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-quick-no-custom'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'quick explain'
+      state.popup.startOffset = 0
+      state.popup.endOffset = 13
+      state.popup.mode = 'context-menu'
+
+      vi.spyOn(api, 'sendChatMessage').mockResolvedValue('Explanation')
+
+      const promise = wrapper.vm.handleQuickExplain() // No argument = not custom prompt
+
+      expect(state.popup.isCustomPrompt).toBe(false)
+      // customPromptText is set to the selectedText for the Save/Explore buttons
+      expect(state.popup.customPromptText).toBe('quick explain')
+
+      await promise
+    })
+
+    it('handleQuickExplain does not auto-save - requires user to click Save', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-quick-autosave',
+        question: 'Q',
+        response: 'auto save text',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-quick-autosave'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'auto save'
+      state.popup.startOffset = 0
+      state.popup.endOffset = 9
+      state.popup.highlightId = null
+      state.popup.mode = 'context-menu'
+
+      vi.spyOn(api, 'sendChatMessage').mockImplementation((_model, _messages, callback) => {
+        if (callback) callback('Quick explanation')
+        return Promise.resolve('Quick explanation')
+      })
+
+      await wrapper.vm.handleQuickExplain() // No argument = regular quick explain
+
+      // Quick explain does NOT auto-save - shows note popup for user to save
+      const storeMessage = wrapper.vm.chatStore.messagesById['msg-quick-autosave']
+      expect(storeMessage.customContent.length).toBe(0)
+
+      // Content should be streamed to popup
+      expect(state.popup.noteContent).toBe('Quick explanation')
+      expect(state.popup.mode).toBe('note')
     })
   })
 })

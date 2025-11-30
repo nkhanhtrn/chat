@@ -16,7 +16,8 @@
       "Bash(git mv:*)",
       "Bash(mv:*)",
       "Bash(node:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(tree:*)"
     ],
     "deny": [],
     "ask": []

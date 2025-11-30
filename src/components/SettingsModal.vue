@@ -1,109 +1,100 @@
 <template>
-  <Teleport to="body">
-    <Transition name="modal">
-      <div v-if="modelValue" class="modal-overlay" @click.self="close">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h2>Settings</h2>
-            <Button variant="danger" @click="close">&times;</Button>
-          </div>
-          <div class="modal-body">
-            <div class="setting-item">
-              <label class="setting-label">Theme</label>
-              <div class="button-group">
-                <button
-                  :class="['toggle-button theme-button theme-button-light', { active: currentTheme === 'light' }]"
-                  @click="setTheme('light')"
-                >
-                  Light
-                </button>
-                <button
-                  :class="['toggle-button theme-button theme-button-sepia', { active: currentTheme === 'sepia' }]"
-                  @click="setTheme('sepia')"
-                >
-                  Sepia
-                </button>
-                <button
-                  :class="['toggle-button theme-button theme-button-dark', { active: currentTheme === 'dark' }]"
-                  @click="setTheme('dark')"
-                >
-                  Dark
-                </button>
-              </div>
-            </div>
-            <div class="setting-item setting-item-vertical">
-              <label class="setting-label">Font</label>
-              <div class="font-grid">
-                <Button
-                  v-for="font in fonts"
-                  :key="font.value"
-                  variant="secondary"
-                  :class="['font-button', { active: fontFamily === font.value }]"
-                  @click="setFontFamily(font.value)"
-                >
-                  <span class="font-button-content">
-                    <span class="font-preview" :style="{ fontFamily: font.value }">Aa</span>
-                    <span class="font-name">{{ font.label }}</span>
-                  </span>
-                </Button>
-              </div>
-            </div>
-            <div class="setting-item">
-              <label class="setting-label">Size</label>
-              <div class="slider-wrapper">
-                <span class="slider-label small">A</span>
-                <input
-                  type="range"
-                  v-model="fontSize"
-                  min="14"
-                  max="24"
-                  step="1"
-                  class="font-slider"
-                  @input="updateFontSize"
-                />
-                <span class="slider-label large">A</span>
-                <span class="font-size-value">{{ fontSize }}</span>
-              </div>
-            </div>
-            <div class="setting-item">
-              <label class="setting-label">Line Height</label>
-              <div class="slider-wrapper">
-                <span class="slider-label small">≡</span>
-                <input
-                  type="range"
-                  v-model="lineHeight"
-                  min="1.4"
-                  max="2.2"
-                  step="0.1"
-                  class="font-slider"
-                  @input="updateLineHeight"
-                />
-                <span class="slider-label large">≡</span>
-                <span class="font-size-value">{{ lineHeight }}</span>
-              </div>
-            </div>
-            <div class="setting-item">
-              <label class="setting-label">Width</label>
-              <div class="button-group">
-                <button
-                  v-for="option in widthOptions"
-                  :key="option.value"
-                  :class="['toggle-button', { active: contentWidth === option.value }]"
-                  @click="setContentWidth(option.value)"
-                >
-                  {{ option.label }}
-                </button>
-              </div>
-            </div>
-          </div>
+  <Modal :visible="modelValue" title="Settings" @close="close">
+    <div class="settings-body">
+      <div class="setting-item">
+        <label class="setting-label">Theme</label>
+        <div class="button-group">
+          <button
+            :class="['toggle-button theme-button theme-button-light', { active: currentTheme === 'light' }]"
+            @click="setTheme('light')"
+          >
+            Light
+          </button>
+          <button
+            :class="['toggle-button theme-button theme-button-sepia', { active: currentTheme === 'sepia' }]"
+            @click="setTheme('sepia')"
+          >
+            Sepia
+          </button>
+          <button
+            :class="['toggle-button theme-button theme-button-dark', { active: currentTheme === 'dark' }]"
+            @click="setTheme('dark')"
+          >
+            Dark
+          </button>
         </div>
       </div>
-    </Transition>
-  </Teleport>
+      <div class="setting-item setting-item-vertical">
+        <label class="setting-label">Font</label>
+        <div class="font-grid">
+          <Button
+            v-for="font in fonts"
+            :key="font.value"
+            variant="secondary"
+            :class="['font-button', { active: fontFamily === font.value }]"
+            @click="setFontFamily(font.value)"
+          >
+            <span class="font-button-content">
+              <span class="font-preview" :style="{ fontFamily: font.value }">Aa</span>
+              <span class="font-name">{{ font.label }}</span>
+            </span>
+          </Button>
+        </div>
+      </div>
+      <div class="setting-item">
+        <label class="setting-label">Size</label>
+        <div class="slider-wrapper">
+          <span class="slider-label small">A</span>
+          <input
+            type="range"
+            v-model="fontSize"
+            min="14"
+            max="24"
+            step="1"
+            class="font-slider"
+            @input="updateFontSize"
+          />
+          <span class="slider-label large">A</span>
+          <span class="font-size-value">{{ fontSize }}</span>
+        </div>
+      </div>
+      <div class="setting-item">
+        <label class="setting-label">Line Height</label>
+        <div class="slider-wrapper">
+          <span class="slider-label small">≡</span>
+          <input
+            type="range"
+            v-model="lineHeight"
+            min="1.4"
+            max="2.2"
+            step="0.1"
+            class="font-slider"
+            @input="updateLineHeight"
+          />
+          <span class="slider-label large">≡</span>
+          <span class="font-size-value">{{ lineHeight }}</span>
+        </div>
+      </div>
+      <div class="setting-item">
+        <label class="setting-label">Width</label>
+        <div class="button-group">
+          <button
+            v-for="option in widthOptions"
+            :key="option.value"
+            :class="['toggle-button', { active: contentWidth === option.value }]"
+            @click="setContentWidth(option.value)"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Modal>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted } from 'vue'
+import Modal from './Modal.vue'
 import Button from './Button.vue'
 
 const props = defineProps({
@@ -134,12 +125,6 @@ const widthOptions = [
   { label: 'Wide', value: 'wide' }
 ]
 
-const handleKeydown = (e) => {
-  if (e.key === 'Escape') {
-    close()
-  }
-}
-
 onMounted(() => {
   currentTheme.value = window.__getTheme?.() || 'light'
   const savedFontSize = localStorage.getItem('messageFontSize')
@@ -162,18 +147,6 @@ onMounted(() => {
     contentWidth.value = savedContentWidth
     applyContentWidth(savedContentWidth)
   }
-})
-
-watch(() => props.modelValue, (isOpen) => {
-  if (isOpen) {
-    document.addEventListener('keydown', handleKeydown)
-  } else {
-    document.removeEventListener('keydown', handleKeydown)
-  }
-})
-
-onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeydown)
 })
 
 const setTheme = (theme) => {
@@ -231,45 +204,8 @@ const close = () => {
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background-color: var(--color-bg-elevated);
-  border-radius: 4px;
-  width: 90%;
-  max-width: 340px;
-  border: 1px solid var(--color-border-base);
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--color-border-subtle);
-}
-
-.modal-header h2 {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 500;
-  color: var(--color-text-strong);
-  font-family: 'Georgia', serif;
-}
-
-.modal-body {
-  padding: 1.25rem;
+.settings-body {
+  padding: 0.25rem 0;
 }
 
 .setting-item {
@@ -465,26 +401,5 @@ const close = () => {
   color: var(--color-text-muted);
   font-family: system-ui, -apple-system, sans-serif;
   text-align: right;
-}
-
-/* Modal transitions */
-.modal-enter-active,
-.modal-leave-active {
-  transition: opacity 0.15s ease;
-}
-
-.modal-enter-active .modal-content,
-.modal-leave-active .modal-content {
-  transition: transform 0.15s ease;
-}
-
-.modal-enter-from,
-.modal-leave-to {
-  opacity: 0;
-}
-
-.modal-enter-from .modal-content,
-.modal-leave-to .modal-content {
-  transform: translateY(-10px);
 }
 </style>

@@ -7,27 +7,30 @@
         :style="{ left: `${x}px`, top: `${y}px`, display: visible ? 'block' : 'none' }"
         @mousedown.stop
       >
-        <div class="context-menu-row">
-          <Button class="context-menu-btn" @click="onHighlightAction" variant="tertiary">{{ hasExistingHighlight ? 'Remove' : 'Highlight' }}</Button>
+        <div class="context-menu-row highlight-row">
+          <Button class="context-menu-btn highlight-btn" @click="onHighlightAction" variant="tertiary">{{ hasExistingHighlight ? 'Remove' : 'Highlight' }}</Button>
           <div class="color-picker">
             <button
               v-for="(color, index) in highlightColors"
               :key="index"
               class="color-circle"
               :class="{ selected: selectedColorIndex === index }"
-              :style="{ backgroundColor: color }"su
+              :style="{ backgroundColor: color }"
               @click="selectColor(index)"
             ></button>
           </div>
         </div>
-        <Button class="context-menu-btn" @click="onCopy" variant="tertiary">Copy</Button>
         <div class="context-menu-row">
-          <Button class="context-menu-btn" @click="onAddNote" variant="tertiary">{{ hasExistingNote ? 'Edit Note' : 'Add Note' }}</Button>
-          <span class="separator">|</span>
-          <Button class="context-menu-btn" @click="onQuickExplain" :disabled="isStreaming" variant="tertiary">Quick Explain</Button>
+          <Button class="context-menu-btn" @click="onCopy" variant="tertiary">Copy</Button>
         </div>
-        <Button class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming" variant="tertiary">Details Explain</Button>
-        <Button class="context-menu-btn" @click="onAddChapter" :disabled="isStreaming" variant="tertiary">New chapter from this</Button>
+        <div class="context-menu-row">
+          <Button class="context-menu-btn" @click="onAddNote" variant="tertiary">{{ hasExistingNote ? 'Edit Note' : 'Note' }}</Button>
+          <Button class="context-menu-btn" @click="onQuickExplain" :disabled="isStreaming" variant="tertiary">Explain</Button>
+        </div>
+        <div class="context-menu-row">
+          <Button class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming" variant="tertiary">Deep Dive</Button>
+          <Button class="context-menu-btn" @click="onAddChapter" :disabled="isStreaming" variant="tertiary">New Chapter</Button>
+        </div>
         <PromptInput
           placeholder="Custom prompt..."
           :disabled="isStreaming"
@@ -66,7 +69,7 @@ const props = defineProps({
     default: false
   }
 })
-const emit = defineEmits(['close', 'keep-highlight', 'ask-question', 'change-color', 'remove-highlight', 'add-chapter', 'add-note', 'quick-explain'])
+const emit = defineEmits(['close', 'keep-highlight', 'ask-question', 'change-color', 'remove-highlight', 'add-chapter', 'add-note', 'quick-explain', 'custom-prompt'])
 
 const selectedColorIndex = ref(0)
 
@@ -111,8 +114,7 @@ function onQuickExplain() {
 }
 
 function onSendCustomPrompt(customPrompt) {
-  const prompt = `${customPrompt}\nfor more context: ${props.highlightedText}`
-  emit('ask-question', prompt)
+  emit('custom-prompt', customPrompt)
 }
 
 function onClickOutside() {
@@ -153,7 +155,7 @@ onUnmounted(() => {
 <style scoped>
 .context-menu {
   position: absolute;
-  width: 300px;
+  width: 250px;
   background: var(--color-bg-context-menu);
   border: 1px solid var(--color-border-context);
   box-shadow: 0 4px 12px var(--shadow-md);
@@ -183,16 +185,26 @@ onUnmounted(() => {
 }
 
 .context-menu-row {
+  padding: 0.5rem 0.5rem;
+  border-bottom: 1px solid var(--color-border-context);
+}
+
+.highlight-row {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: space-between;
+}
+
+.highlight-btn {
+  width: auto;
+  flex-shrink: 0;
 }
 
 .color-picker {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.25rem;
+  padding: 0;
 }
 
 .color-circle {

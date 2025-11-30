@@ -68,6 +68,13 @@
         :autofocus="isAddingNewQuestion"
       />
     </div>
+
+    <!-- Scratchpad for taking notes while reading -->
+    <Scratchpad
+      v-if="chatStore.rootMessages.length > 0"
+      :content="chatStore.currentScratchpad"
+      @update:content="handleScratchpadUpdate"
+    />
   </div>
 </template>
 
@@ -77,6 +84,7 @@ import ChatMessage from './components/ChatMessage.vue'
 import ChatInput from './components/ChatInput.vue'
 import ChatSidebar from './components/ChatSidebar.vue'
 import MessageNavigation from './components/MessageNavigation.vue'
+import Scratchpad from './components/Scratchpad.vue'
 import { sendChatMessage, fetchModels } from './services/api.js'
 import { useChatStore } from './stores/chat.js'
 import DevToolbar from './components/DevToolbar.vue'
@@ -253,6 +261,10 @@ const handleDeleteQuestion = (messageId, chatId) => {
 
 const handleNewQuestion = () => {
   isAddingNewQuestion.value = true
+}
+
+const handleScratchpadUpdate = (content) => {
+  chatStore.updateScratchpad(content)
 }
 
 </script>

@@ -110,6 +110,12 @@ export const useChatStore = defineStore('chat', {
       }
       return null
     },
+
+    // Get current chat's scratchpad
+    currentScratchpad: (state) => {
+      const chat = state.chats.find(c => c.id === state.currentChatId)
+      return chat?.scratchpad || ''
+    },
   },
 
   actions: {
@@ -275,6 +281,15 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
+    // Update scratchpad content for current chat
+    updateScratchpad(content) {
+      const chat = this.chats.find(c => c.id === this.currentChatId)
+      if (chat) {
+        chat.scratchpad = content
+        this._persistState()
+      }
+    },
+
     // Navigation actions
     // Returns the scroll position of the target message
     navigateToMessage(messageId, currentScrollPosition = null) {
@@ -406,7 +421,8 @@ export const useChatStore = defineStore('chat', {
       const chatId = crypto.randomUUID()
       this.chats.push({
         id: chatId,
-        rootMessageIds: []
+        rootMessageIds: [],
+        scratchpad: ''
       })
       this.currentChatId = chatId
       this.rootMessageIds = []

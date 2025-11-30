@@ -11,7 +11,7 @@
       <slot>{{ text }}</slot>
     </mark>
     <button
-      v-if="hasNote"
+      v-if="hasNote && isLastSegment"
       class="note-button"
       :data-note-id="highlightId"
       @click.stop="handleNoteClick"
@@ -54,6 +54,10 @@ const props = defineProps({
   hasNote: {
     type: Boolean,
     default: false
+  },
+  isLastSegment: {
+    type: Boolean,
+    default: true
   }
 })
 
