@@ -1,5 +1,20 @@
 <template>
   <div class="scratchpad-container">
+    <!-- Streaming Indicator Button (above scratchpad toggle) -->
+    <Transition name="streaming-fade">
+      <button
+        v-if="isStreaming"
+        class="streaming-toggle"
+        @click="$emit('stop-streaming')"
+        title="Stop generating"
+      >
+        <svg class="streaming-spinner" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <rect x="9" y="9" width="6" height="6" fill="currentColor" stroke="none"></rect>
+        </svg>
+      </button>
+    </Transition>
+
     <!-- Toggle Button -->
     <Transition name="button-fade" @after-leave="showPanel = true">
       <button
@@ -64,10 +79,14 @@ const props = defineProps({
   content: {
     type: String,
     default: ''
+  },
+  isStreaming: {
+    type: Boolean,
+    default: false
   }
 })
 
-const emit = defineEmits(['update:content'])
+const emit = defineEmits(['update:content', 'stop-streaming'])
 
 const isOpen = ref(false)
 const showButton = ref(true)
@@ -193,6 +212,9 @@ const handleInput = () => {
   bottom: 24px;
   right: 24px;
   z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
 }
 
 .scratchpad-toggle {
@@ -213,6 +235,52 @@ const handleInput = () => {
 .scratchpad-toggle:hover {
   transform: scale(1.05);
   opacity: 0.85;
+}
+
+.streaming-toggle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: var(--color-primary, #4a90a4);
+  color: var(--color-bg-page, #ffffff);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px var(--shadow-md, rgba(0, 0, 0, 0.12));
+  transition: transform 0.2s, background-color 0.2s;
+  margin-bottom: 12px;
+}
+
+.streaming-toggle:hover {
+  transform: scale(1.05);
+  background-color: var(--color-error-border, #c0392b);
+}
+
+.streaming-spinner {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Streaming button fade transition */
+.streaming-fade-enter-active,
+.streaming-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.streaming-fade-enter-from,
+.streaming-fade-leave-to {
+  opacity: 0;
+  transform: scale(0.8);
 }
 
 .scratchpad-panel {

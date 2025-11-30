@@ -20,6 +20,7 @@ export const useChatStore = defineStore('chat', {
         currentMessageId: savedState.currentMessageId || null,
         currentRootIndex: savedState.currentRootIndex || 0,
         isStreaming: false,
+        streamAbortController: null,
         error: null,
         currentModel: savedState.currentModel || null,
         chats: savedState.chats || [],
@@ -41,6 +42,7 @@ export const useChatStore = defineStore('chat', {
 
       // App state
       isStreaming: false,
+      streamAbortController: null,
       error: null,
       currentModel: null,
 
@@ -415,9 +417,27 @@ export const useChatStore = defineStore('chat', {
       delete this.messagesById[messageId]
     },
 
+    // Streaming control actions
+    startStreaming() {
+      this.streamAbortController = new AbortController()
+      this.isStreaming = true
+      return this.streamAbortController.signal
+    },
+
+    stopStreaming() {
+      if (this.streamAbortController) {
+        this.streamAbortController.abort()
+        this.streamAbortController = null
+      }
+      this.isStreaming = false
+    },
+
     // Legacy actions for compatibility
     setIsStreaming(val) {
       this.isStreaming = val
+      if (!val) {
+        this.streamAbortController = null
+      }
     },
 
     setError(err) {

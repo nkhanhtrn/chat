@@ -67,6 +67,22 @@ describe('Scratchpad', () => {
 
       expect(wrapper.props('content')).toBe('')
     })
+
+    it('should accept isStreaming prop', () => {
+      wrapper = mount(Scratchpad, {
+        props: {
+          isStreaming: true
+        }
+      })
+
+      expect(wrapper.props('isStreaming')).toBe(true)
+    })
+
+    it('should default isStreaming to false', () => {
+      wrapper = mount(Scratchpad)
+
+      expect(wrapper.props('isStreaming')).toBe(false)
+    })
   })
 
   describe('Opening and closing', () => {
@@ -428,6 +444,104 @@ describe('Scratchpad', () => {
       expect(removeEventListenerSpy).toHaveBeenCalledWith('mouseup', expect.any(Function))
 
       removeEventListenerSpy.mockRestore()
+    })
+  })
+
+  describe('Streaming indicator button', () => {
+    it('should not show streaming button when isStreaming is false', () => {
+      wrapper = mount(Scratchpad, {
+        props: {
+          isStreaming: false
+        }
+      })
+
+      expect(wrapper.find('.streaming-toggle').exists()).toBe(false)
+    })
+
+    it('should show streaming button when isStreaming is true', () => {
+      wrapper = mount(Scratchpad, {
+        props: {
+          isStreaming: true
+        }
+      })
+
+      expect(wrapper.find('.streaming-toggle').exists()).toBe(true)
+    })
+
+    it('should emit stop-streaming event when streaming button is clicked', async () => {
+      wrapper = mount(Scratchpad, {
+        props: {
+          isStreaming: true
+        }
+      })
+
+      await wrapper.find('.streaming-toggle').trigger('click')
+
+      expect(wrapper.emitted('stop-streaming')).toBeTruthy()
+      expect(wrapper.emitted('stop-streaming')).toHaveLength(1)
+    })
+
+    it('should have correct title attribute on streaming button', () => {
+      wrapper = mount(Scratchpad, {
+        props: {
+          isStreaming: true
+        }
+      })
+
+      const streamingButton = wrapper.find('.streaming-toggle')
+      expect(streamingButton.attributes('title')).toBe('Stop generating')
+    })
+
+    it('should show streaming button alongside scratchpad toggle button', () => {
+      wrapper = mount(Scratchpad, {
+        props: {
+          isStreaming: true
+        }
+      })
+
+      expect(wrapper.find('.streaming-toggle').exists()).toBe(true)
+      expect(wrapper.find('.scratchpad-toggle').exists()).toBe(true)
+    })
+
+    it('should hide streaming button when isStreaming changes to false', async () => {
+      wrapper = mount(Scratchpad, {
+        props: {
+          isStreaming: true
+        }
+      })
+
+      expect(wrapper.find('.streaming-toggle').exists()).toBe(true)
+
+      await wrapper.setProps({ isStreaming: false })
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('.streaming-toggle').exists()).toBe(false)
+    })
+
+    it('should show streaming button when isStreaming changes to true', async () => {
+      wrapper = mount(Scratchpad, {
+        props: {
+          isStreaming: false
+        }
+      })
+
+      expect(wrapper.find('.streaming-toggle').exists()).toBe(false)
+
+      await wrapper.setProps({ isStreaming: true })
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('.streaming-toggle').exists()).toBe(true)
+    })
+
+    it('should contain SVG icon in streaming button', () => {
+      wrapper = mount(Scratchpad, {
+        props: {
+          isStreaming: true
+        }
+      })
+
+      const streamingButton = wrapper.find('.streaming-toggle')
+      expect(streamingButton.find('svg').exists()).toBe(true)
     })
   })
 })

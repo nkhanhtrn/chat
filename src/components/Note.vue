@@ -28,7 +28,7 @@
       <!-- Show Save and Explore buttons when viewing streamed content (custom prompt or quick explain) -->
       <div v-if="customPromptText && !isStreaming" class="note-actions custom-prompt-actions">
         <Button variant="secondary" @click="onSaveCustomPrompt">Save</Button>
-        <Button variant="secondary" @click="onExplore">Explore →</Button>
+        <Button variant="secondary" @click="onExplore">Deep Dive →</Button>
       </div>
 
       <!-- Detail explain link (shown in view mode for saved notes with highlighted text) -->

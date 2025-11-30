@@ -50,6 +50,11 @@
             :message="chatStore.currentRootMessage"
             :is-app-streaming="chatStore.isStreaming && chatStore.currentRootIndex === chatStore.rootMessages.length - 1"
           />
+          <div v-if="chatStore.isStreaming" class="stop-streaming-container">
+            <button class="stop-streaming-button" @click="handleStopStreaming">
+              Stop generating
+            </button>
+          </div>
         </div>
 
         <div v-if="error" class="error-message">
@@ -70,7 +75,9 @@
     <Scratchpad
       v-if="chatStore.rootMessages.length > 0"
       :content="chatStore.currentScratchpad"
+      :is-streaming="chatStore.isStreaming"
       @update:content="handleScratchpadUpdate"
+      @stop-streaming="handleStopStreaming"
     />
   </div>
 </template>
@@ -254,7 +261,7 @@ const handleSendMessage = async (userMessage) => {
 
   scrollToBottom()
 
-  chatStore.setIsStreaming(true)
+  const signal = chatStore.startStreaming()
 
   // Build previous messages for context (all root messages except the current one)
   const previousMessages = chatStore.rootMessages
@@ -276,16 +283,21 @@ const handleSendMessage = async (userMessage) => {
       (chunk) => {
         // Update the message response through the store
         chatStore.appendToResponse(msg.id, chunk)
-      }
+      },
+      signal
     )
   } catch (err) {
     error.value = err.message
     // Remove message from store on error
     chatStore.removeRootMessage(msg.id)
   } finally {
-    chatStore.setIsStreaming(false)
+    chatStore.stopStreaming()
     scrollToBottom()
   }
+}
+
+const handleStopStreaming = () => {
+  chatStore.stopStreaming()
 }
 
 const handleExampleClick = (question) => {
@@ -483,6 +495,30 @@ const handleScratchpadUpdate = (content) => {
   position: relative;
   max-width: var(--content-max-width, 800px);
   margin: 0 auto;
+}
+
+.stop-streaming-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.stop-streaming-button {
+  padding: 0.5rem 1.25rem;
+  background-color: var(--color-bg-page);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border-base);
+  border-radius: 2px;
+  font-family: 'Georgia', serif;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.stop-streaming-button:hover {
+  background-color: var(--color-bg-hover);
+  color: var(--color-text-base);
+  border-color: var(--color-border-strong);
 }
 
 /* Fixed Navigation Header */

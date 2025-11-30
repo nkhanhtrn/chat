@@ -61,43 +61,57 @@ export const sendChatMessageFull = async (model, messages, deps = defaultDeps) =
   }
 };
 
-export const processSSEStream = async (reader, onChunk) => {
+export const processSSEStream = async (reader, onChunk, signal = null) => {
   const decoder = new TextDecoder();
   let buffer = '';
   let fullContent = '';
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  try {
+    while (true) {
+      // Check if aborted before reading
+      if (signal?.aborted) {
+        break;
+      }
 
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    for (const line of lines) {
-      const trimmedLine = line.trim();
-      if (trimmedLine === '' || trimmedLine === 'data: [DONE]') continue;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
 
-      if (trimmedLine.startsWith('data: ')) {
-        try {
-          const jsonStr = trimmedLine.slice(6);
-          const data = JSON.parse(jsonStr);
-          if (data.choices && data.choices[0].delta && data.choices[0].delta.content) {
-            const chunk = data.choices[0].delta.content;
-            fullContent += chunk;
-            onChunk(chunk);
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (trimmedLine === '' || trimmedLine === 'data: [DONE]') continue;
+
+        if (trimmedLine.startsWith('data: ')) {
+          try {
+            const jsonStr = trimmedLine.slice(6);
+            const data = JSON.parse(jsonStr);
+            if (data.choices && data.choices[0].delta && data.choices[0].delta.content) {
+              const chunk = data.choices[0].delta.content;
+              fullContent += chunk;
+              onChunk(chunk);
+            }
+          } catch (e) {
+            console.warn('Failed to parse SSE data:', trimmedLine, e);
           }
-        } catch (e) {
-          console.warn('Failed to parse SSE data:', trimmedLine, e);
         }
       }
+    }
+  } finally {
+    // Always cancel the reader to release resources
+    try {
+      await reader.cancel();
+    } catch (e) {
+      // Ignore cancel errors
     }
   }
 
   return fullContent;
 };
 
-export const sendChatMessageStreaming = async (model, messages, onChunk, deps = defaultDeps) => {
+export const sendChatMessageStreaming = async (model, messages, onChunk, signal = null, deps = defaultDeps) => {
   const { fetchFn, getBaseUrl } = deps;
 
   const response = await fetchFn(`${getBaseUrl()}/v1/chat/completions`, {
@@ -111,7 +125,8 @@ export const sendChatMessageStreaming = async (model, messages, onChunk, deps = 
       temperature: 0.7,
       max_tokens: -1,
       stream: true
-    })
+    }),
+    signal
   });
 
   if (!response.ok) {
@@ -119,16 +134,20 @@ export const sendChatMessageStreaming = async (model, messages, onChunk, deps = 
   }
 
   const reader = response.body.getReader();
-  return processSSEStream(reader, onChunk);
+  return processSSEStream(reader, onChunk, signal);
 };
 
-export const sendChatMessage = async (model, messages, onChunk = null, deps = defaultDeps) => {
+export const sendChatMessage = async (model, messages, onChunk = null, signal = null, deps = defaultDeps) => {
   try {
     if (!onChunk) {
       return await sendChatMessageFull(model, messages, deps);
     }
-    return await sendChatMessageStreaming(model, messages, onChunk, deps);
+    return await sendChatMessageStreaming(model, messages, onChunk, signal, deps);
   } catch (error) {
+    // Don't treat abort as an error
+    if (error.name === 'AbortError') {
+      return null;
+    }
     if (error.message === 'No response from model') throw error;
     if (error.code === 'ERR_NETWORK' || error.name === 'TypeError') throw new Error('Cannot connect to LM Studio server');
     throw new Error(error.response?.data?.error?.message || 'Failed to get chat response');

@@ -312,6 +312,79 @@ describe('useChatStore', () => {
     })
   })
 
+  describe('Streaming control', () => {
+    it('startStreaming should set isStreaming to true and create AbortController', () => {
+      expect(chatStore.isStreaming).toBe(false)
+      expect(chatStore.streamAbortController).toBeNull()
+
+      const signal = chatStore.startStreaming()
+
+      expect(chatStore.isStreaming).toBe(true)
+      expect(chatStore.streamAbortController).toBeInstanceOf(AbortController)
+      expect(signal).toBe(chatStore.streamAbortController.signal)
+    })
+
+    it('startStreaming should return the abort signal', () => {
+      const signal = chatStore.startStreaming()
+
+      expect(signal).toBeDefined()
+      expect(signal.aborted).toBe(false)
+    })
+
+    it('stopStreaming should set isStreaming to false and abort the controller', () => {
+      chatStore.startStreaming()
+      const controller = chatStore.streamAbortController
+
+      expect(chatStore.isStreaming).toBe(true)
+      expect(controller.signal.aborted).toBe(false)
+
+      chatStore.stopStreaming()
+
+      expect(chatStore.isStreaming).toBe(false)
+      expect(chatStore.streamAbortController).toBeNull()
+      expect(controller.signal.aborted).toBe(true)
+    })
+
+    it('stopStreaming should handle case when no streaming is active', () => {
+      expect(chatStore.isStreaming).toBe(false)
+      expect(chatStore.streamAbortController).toBeNull()
+
+      // Should not throw
+      chatStore.stopStreaming()
+
+      expect(chatStore.isStreaming).toBe(false)
+      expect(chatStore.streamAbortController).toBeNull()
+    })
+
+    it('setIsStreaming should clear streamAbortController when set to false', () => {
+      chatStore.startStreaming()
+      expect(chatStore.streamAbortController).not.toBeNull()
+
+      chatStore.setIsStreaming(false)
+
+      expect(chatStore.isStreaming).toBe(false)
+      expect(chatStore.streamAbortController).toBeNull()
+    })
+
+    it('setIsStreaming(true) should set isStreaming without creating controller', () => {
+      chatStore.setIsStreaming(true)
+
+      expect(chatStore.isStreaming).toBe(true)
+      expect(chatStore.streamAbortController).toBeNull()
+    })
+
+    it('multiple startStreaming calls should create new controllers', () => {
+      const signal1 = chatStore.startStreaming()
+      const controller1 = chatStore.streamAbortController
+
+      const signal2 = chatStore.startStreaming()
+      const controller2 = chatStore.streamAbortController
+
+      expect(controller1).not.toBe(controller2)
+      expect(signal1).not.toBe(signal2)
+    })
+  })
+
   describe('End-to-end persistence of all Message properties', () => {
     let saveChatStateSpy
 
