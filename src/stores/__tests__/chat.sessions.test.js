@@ -3,7 +3,6 @@ import { vi } from 'vitest'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useChatStore } from '../chat.js'
-import Message from '../Message.js'
 
 describe('useChatStore - Chat Sessions', () => {
   let chatStore
@@ -270,104 +269,7 @@ describe('useChatStore - Chat Sessions', () => {
     })
   })
 
-  describe('chatList getter', () => {
-    it('should return empty array when no chats', () => {
-      expect(chatStore.chatList).toEqual([])
-    })
-
-    it('should return chat with title from first message', () => {
-      chatStore.createNewChat()
-      chatStore.addRootMessage({ id: 'msg1', question: 'First Question', response: 'R1' })
-
-      const chatList = chatStore.chatList
-      expect(chatList).toHaveLength(1)
-      expect(chatList[0].title).toBe('First Question')
-    })
-
-    it('should return "New Chat" for chat without messages', () => {
-      chatStore.createNewChat()
-
-      const chatList = chatStore.chatList
-      expect(chatList).toHaveLength(1)
-      expect(chatList[0].title).toBe('New Chat')
-    })
-
-    it('should include all questions in chat', () => {
-      chatStore.createNewChat()
-      chatStore.addRootMessage({ id: 'msg1', question: 'Q1', response: 'R1' })
-      chatStore.addRootMessage({ id: 'msg2', question: 'Q2', response: 'R2' })
-      chatStore.addRootMessage({ id: 'msg3', question: 'Q3', response: 'R3' })
-
-      const chatList = chatStore.chatList
-      expect(chatList[0].questions).toHaveLength(3)
-      expect(chatList[0].questions[0].text).toBe('Q1')
-      expect(chatList[0].questions[1].text).toBe('Q2')
-      expect(chatList[0].questions[2].text).toBe('Q3')
-    })
-
-    it('should include question IDs', () => {
-      chatStore.createNewChat()
-      chatStore.addRootMessage({ id: 'msg1', question: 'Q1', response: 'R1' })
-
-      const chatList = chatStore.chatList
-      expect(chatList[0].questions[0].id).toBe('msg1')
-    })
-
-    it('should include message count', () => {
-      chatStore.createNewChat()
-      chatStore.addRootMessage({ id: 'msg1', question: 'Q1', response: 'R1' })
-      chatStore.addRootMessage({ id: 'msg2', question: 'Q2', response: 'R2' })
-
-      const chatList = chatStore.chatList
-      expect(chatList[0].messageCount).toBe(2)
-    })
-
-    it('should handle multiple chats', () => {
-      // Chat 1
-      chatStore.createNewChat()
-      chatStore.addRootMessage({ id: 'msg1', question: 'Chat 1 Q1', response: 'R1' })
-
-      // Chat 2
-      chatStore.createNewChat()
-      chatStore.addRootMessage({ id: 'msg2', question: 'Chat 2 Q1', response: 'R2' })
-
-      const chatList = chatStore.chatList
-      expect(chatList).toHaveLength(2)
-      expect(chatList[0].title).toBe('Chat 1 Q1')
-      expect(chatList[1].title).toBe('Chat 2 Q1')
-    })
-
-    it('should filter out deleted messages', () => {
-      chatStore.createNewChat()
-      const chat = chatStore.chats[0]
-
-      chatStore.addRootMessage({ id: 'msg1', question: 'Q1', response: 'R1' })
-      chatStore.addRootMessage({ id: 'msg2', question: 'Q2', response: 'R2' })
-
-      // Manually remove a message from messagesById but leave ID in rootMessageIds
-      delete chatStore.messagesById['msg2']
-
-      const chatList = chatStore.chatList
-      expect(chatList[0].questions).toHaveLength(1)
-      expect(chatList[0].questions[0].text).toBe('Q1')
-    })
-
-    it('should use "Untitled" for messages without question text', () => {
-      chatStore.createNewChat()
-      chatStore.addRootMessage({ id: 'msg1', question: '', response: 'R1' })
-
-      const chatList = chatStore.chatList
-      expect(chatList[0].questions[0].text).toBe('Untitled')
-    })
-
-    it('should preserve chat IDs', () => {
-      chatStore.createNewChat()
-      const chatId = chatStore.currentChatId
-
-      const chatList = chatStore.chatList
-      expect(chatList[0].id).toBe(chatId)
-    })
-  })
+  // Note: chatList getter tests are in chat.getters.test.js
 
   describe('Integration: Chat Sessions with Messages', () => {
     it('should maintain separate message trees for different chats', () => {

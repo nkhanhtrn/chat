@@ -17,7 +17,8 @@
       "Bash(mv:*)",
       "Bash(node:*)",
       "Bash(cat:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(wc:*)"
     ],
     "deny": [],
     "ask": []

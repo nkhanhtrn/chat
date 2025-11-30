@@ -248,7 +248,9 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
-      findInBody('.modal-overlay').click()
+      // Modal uses @mousedown.self on overlay, so we need to dispatch mousedown event
+      const overlay = findInBody('.modal-overlay')
+      overlay.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
       await wrapper.vm.$nextTick()
       expect(wrapper.emitted('update:modelValue')).toBeTruthy()
       expect(wrapper.emitted('update:modelValue')[0]).toEqual([false])

@@ -1,10 +1,21 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia } from 'pinia'
-import App from '../App.vue'
+import ChatView from '../views/ChatView.vue'
 import ChatMessage from '../components/ChatMessage.vue'
 import ChatInput from '../components/ChatInput.vue'
 import DevToolbar from '../components/DevToolbar.vue'
+
+// Mock vue-router
+const mockPush = vi.fn()
+vi.mock('vue-router', () => ({
+  useRoute: () => ({
+    params: { id: 'test-chat-id' }
+  }),
+  useRouter: () => ({
+    push: mockPush
+  })
+}))
 
 // Mock the API module
 vi.mock('../services/api.js', () => ({
@@ -28,14 +39,34 @@ vi.mock('../services/storage.js', async (importOriginal) => {
 vi.mock('../composables/useEnvironment.js')
 
 import { getIsDev, getDefaultQuestions } from '../composables/useEnvironment.js'
+import { setActivePinia } from 'pinia'
+import { useChatStore } from '../stores/chat.js'
 
-describe('App', () => {
+// Helper to create a pinia with a chat that matches the route's test-chat-id
+const createPiniaWithTestChat = () => {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  const chatStore = useChatStore(pinia)
+  // Manually add a chat with the test-chat-id that matches the route mock
+  chatStore.chats.push({
+    id: 'test-chat-id',
+    rootMessageIds: [],
+    scratchpad: ''
+  })
+  chatStore.currentChatId = 'test-chat-id'
+  return pinia
+}
+
+describe('ChatView', () => {
   let wrapper
 
   beforeEach(() => {
     if (wrapper) {
       wrapper.unmount()
     }
+
+    // Clear localStorage before each test
+    localStorage.clear()
 
     // Reset mocks
     vi.clearAllMocks()
@@ -74,7 +105,7 @@ describe('App', () => {
 
   describe('Initial Rendering', () => {
     it('should render the app container', () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -88,7 +119,7 @@ describe('App', () => {
     })
 
     it('should render messages container', () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -102,7 +133,7 @@ describe('App', () => {
     })
 
     it('should render ChatInput component', () => {
-      wrapper = mount(App,{ 
+      wrapper = mount(ChatView,{ 
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -116,7 +147,7 @@ describe('App', () => {
     })
 
     it('should show welcome message when no messages', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -133,7 +164,7 @@ describe('App', () => {
     })
 
     it('should show example prompts', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -152,9 +183,9 @@ describe('App', () => {
 
   describe('Model Loading', () => {
     it('should fetch models on mount', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
-          plugins: [createPinia()],
+          plugins: [createPiniaWithTestChat()],
           stubs: {
             ChatMessage: true,
             ChatInput: true
@@ -173,9 +204,10 @@ describe('App', () => {
         { id: 'model-b' }
       ])
 
-      wrapper = mount(App, {
+      const pinia = createPiniaWithTestChat()
+      wrapper = mount(ChatView, {
         global: {
-          plugins: [createPinia()],
+          plugins: [pinia],
           stubs: {
             ChatMessage: true,
             ChatInput: true
@@ -185,18 +217,17 @@ describe('App', () => {
 
       await flushPromises()
 
-      // Check the chatStore instead of vm.currentModel
-      const { useChatStore } = await import('../stores/chat.js')
-      const chatStore = useChatStore()
+      // Check the chatStore
+      const chatStore = useChatStore(pinia)
       expect(chatStore.currentModel).toBe('model-a')
     })
 
     it('should show error when no models available', async () => {
       fetchModels.mockResolvedValue([])
 
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
-          plugins: [createPinia()],
+          plugins: [createPiniaWithTestChat()],
           stubs: {
             ChatMessage: true,
             ChatInput: true
@@ -213,9 +244,9 @@ describe('App', () => {
     it('should show error when fetchModels fails', async () => {
       fetchModels.mockRejectedValue(new Error('Network error'))
 
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
-          plugins: [createPinia()],
+          plugins: [createPiniaWithTestChat()],
           stubs: {
             ChatMessage: true,
             ChatInput: true
@@ -241,7 +272,7 @@ describe('App', () => {
         })
       })
 
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()]
         }
@@ -275,7 +306,7 @@ describe('App', () => {
     it('should display error message when sendChatMessage fails', async () => {
       sendChatMessage.mockRejectedValue(new Error('API Error'))
 
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -300,7 +331,7 @@ describe('App', () => {
       sendChatMessage.mockRejectedValueOnce(new Error('First error'))
         .mockResolvedValueOnce('Success')
 
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -327,7 +358,7 @@ describe('App', () => {
 
   describe('Message Display', () => {
     it('should hide welcome message when messages exist', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -348,7 +379,7 @@ describe('App', () => {
     })
 
     it('should render ChatMessage for each message', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()]
         }
@@ -365,7 +396,7 @@ describe('App', () => {
     })
 
     it('should pass correct props to ChatMessage components', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()]
         }
@@ -386,7 +417,7 @@ describe('App', () => {
 
   describe('ChatInput Props', () => {
     it('should pass disabled prop bound to isStreaming', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()]
         }
@@ -416,7 +447,7 @@ describe('App', () => {
     })
 
     it('should pass isLoading prop bound to isStreaming', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()]
         }
@@ -450,7 +481,7 @@ describe('App', () => {
     it('should render DevToolbar in development mode', () => {
       getIsDev.mockReturnValue(true)
 
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -467,7 +498,7 @@ describe('App', () => {
     it('should not render DevToolbar in production mode', () => {
       getIsDev.mockReturnValue(false)
 
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -491,7 +522,7 @@ describe('App', () => {
         'give me 100 random words',
       ])
 
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -519,7 +550,7 @@ describe('App', () => {
         'Teach me about the French Revolution',
       ])
 
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -544,7 +575,7 @@ describe('App', () => {
     })
 
     it('should send message when example prompt is clicked', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()]
         }
@@ -564,7 +595,7 @@ describe('App', () => {
     })
 
     it('should render all prepopulated questions', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -592,7 +623,7 @@ describe('App', () => {
         'give me 100 random words',
       ])
 
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -620,7 +651,7 @@ describe('App', () => {
         'Teach me about the French Revolution',
       ])
 
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -643,7 +674,7 @@ describe('App', () => {
 
   describe('handleExampleClick', () => {
     it('should trigger handleSendMessage with the clicked question', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()]
         }
@@ -671,7 +702,7 @@ describe('App', () => {
         })
       })
 
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()]
         }
@@ -697,7 +728,7 @@ describe('App', () => {
     })
 
     it('should return false when message is empty', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()]
         }
@@ -716,7 +747,7 @@ describe('App', () => {
     })
 
     it('should return false when message is only whitespace', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()]
         }
@@ -735,7 +766,7 @@ describe('App', () => {
     })
 
     it('should prevent multiple messages during streaming', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()]
         }
@@ -774,9 +805,9 @@ describe('App', () => {
 
   describe('Fixed Navigation Header', () => {
     it('should not show fixed nav header initially (scroll position 0)', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
-          plugins: [createPinia()],
+          plugins: [createPiniaWithTestChat()],
           stubs: {
             ChatMessage: true,
             ChatInput: true
@@ -790,9 +821,9 @@ describe('App', () => {
     })
 
     it('should not show fixed nav header when no root message exists', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
-          plugins: [createPinia()],
+          plugins: [createPiniaWithTestChat()],
           stubs: {
             ChatMessage: true,
             ChatInput: true
@@ -816,9 +847,9 @@ describe('App', () => {
     })
 
     it('should show fixed nav header when scrolled past threshold with messages', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
-          plugins: [createPinia()],
+          plugins: [createPiniaWithTestChat()],
           stubs: {
             ChatMessage: true,
             ChatInput: true,
@@ -847,9 +878,9 @@ describe('App', () => {
     })
 
     it('should hide fixed nav header when scrolled back to top', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
-          plugins: [createPinia()],
+          plugins: [createPiniaWithTestChat()],
           stubs: {
             ChatMessage: true,
             ChatInput: true,
@@ -891,9 +922,9 @@ describe('App', () => {
     })
 
     it('should add scroll listener on mount', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
-          plugins: [createPinia()],
+          plugins: [createPiniaWithTestChat()],
           stubs: {
             ChatMessage: true,
             ChatInput: true
@@ -905,9 +936,9 @@ describe('App', () => {
 
       // Unmount and re-mount to verify scroll listener works
       wrapper.unmount()
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
-          plugins: [createPinia()],
+          plugins: [createPiniaWithTestChat()],
           stubs: {
             ChatMessage: true,
             ChatInput: true
@@ -932,7 +963,7 @@ describe('App', () => {
 
   describe('Add New Question Mode', () => {
     it('should initialize with isAddingNewQuestion as false', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -948,7 +979,7 @@ describe('App', () => {
     })
 
     it('should set isAddingNewQuestion to true when handleNewQuestion is called', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -965,7 +996,7 @@ describe('App', () => {
     })
 
     it('should show ChatInput when isAddingNewQuestion is true even with existing messages', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()]
         }
@@ -990,7 +1021,7 @@ describe('App', () => {
     })
 
     it('should hide current message when isAddingNewQuestion is true', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()]
         }
@@ -1015,7 +1046,7 @@ describe('App', () => {
     })
 
     it('should show "Ask a new question" heading when isAddingNewQuestion is true', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -1047,7 +1078,7 @@ describe('App', () => {
     })
 
     it('should reset isAddingNewQuestion to false when sending a message', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()]
         }
@@ -1068,7 +1099,7 @@ describe('App', () => {
     })
 
     it('should reset isAddingNewQuestion to false when selecting a question', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -1103,7 +1134,7 @@ describe('App', () => {
     })
 
     it('should pass isAddingNewQuestion to ChatSidebar', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -1128,7 +1159,7 @@ describe('App', () => {
     })
 
     it('should pass null as currentMessageId to ChatSidebar when isAddingNewQuestion is true', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -1166,7 +1197,7 @@ describe('App', () => {
     })
 
     it('should pass autofocus prop to ChatInput when isAddingNewQuestion is true', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()]
         }
@@ -1183,7 +1214,7 @@ describe('App', () => {
     })
 
     it('should not hide example prompts in initial welcome state', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -1200,7 +1231,7 @@ describe('App', () => {
     })
 
     it('should hide example prompts when isAddingNewQuestion is true', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -1231,7 +1262,7 @@ describe('App', () => {
 
   describe('Question Selection from Sidebar', () => {
     it('should switch to correct chat when selecting question from different chat', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -1278,7 +1309,7 @@ describe('App', () => {
     })
 
     it('should set correct rootIndex when selecting question', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -1327,7 +1358,7 @@ describe('App', () => {
     })
 
     it('should not switch chat when selecting question from current chat', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {
@@ -1371,7 +1402,7 @@ describe('App', () => {
     })
 
     it('should navigate to message and set correct currentMessageId', async () => {
-      wrapper = mount(App, {
+      wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
           stubs: {

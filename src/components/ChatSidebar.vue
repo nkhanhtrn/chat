@@ -1,9 +1,14 @@
 <template>
   <div :class="['chat-sidebar', { collapsed: isSidebarCollapsed }]">
     <div class="sidebar-header">
-      <Button @click="$emit('new-chat')" class="new-chat-button" variant="primary">
-        <span class="icon">+</span>
-        <span v-show="!isSidebarCollapsed" class="button-text">New Chat</span>
+      <Button @click="$emit('back-home')" class="back-home-button" variant="secondary">
+        <span v-if="isSidebarCollapsed" class="icon">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        </span>
+        <template v-else>
+          <span class="icon">←</span>
+          <span class="button-text">Notebooks</span>
+        </template>
       </Button>
     </div>
 
@@ -126,7 +131,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['new-chat', 'select-question', 'delete-question', 'rename-question', 'new-question'])
+const emit = defineEmits(['back-home', 'select-question', 'delete-question', 'rename-question', 'new-question'])
 
 const chatStore = useChatStore()
 
@@ -411,12 +416,12 @@ const toggleSidebar = () => {
   padding: 0.4rem 0.75rem;
 }
 
-.new-chat-button {
+.back-home-button {
   width: 100%;
 }
 
-.new-chat-button .icon {
-  font-size: 1.5rem;
+.back-home-button .icon {
+  font-size: 1.2rem;
   line-height: 1;
 }
 

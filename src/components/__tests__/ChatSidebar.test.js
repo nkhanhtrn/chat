@@ -61,15 +61,15 @@ describe('ChatSidebar', () => {
       expect(wrapper.find('.sidebar-header').exists()).toBe(true)
     })
 
-    it('should render new chat button', () => {
+    it('should render back home button', () => {
       wrapper = mount(ChatSidebar, {
         props: {
           chats: []
         }
       })
-      const button = wrapper.find('.new-chat-button')
+      const button = wrapper.find('.back-home-button')
       expect(button.exists()).toBe(true)
-      expect(button.text()).toContain('New Chat')
+      expect(button.text()).toContain('Notebooks')
     })
 
     it('should render chat list container', () => {
@@ -294,17 +294,17 @@ describe('ChatSidebar', () => {
   })
 
   describe('Events', () => {
-    it('should emit new-chat when new chat button clicked', async () => {
+    it('should emit back-home when back home button clicked', async () => {
       wrapper = mount(ChatSidebar, {
         props: {
           chats: []
         }
       })
 
-      await wrapper.find('.new-chat-button').trigger('click')
+      await wrapper.find('.back-home-button').trigger('click')
 
-      expect(wrapper.emitted('new-chat')).toBeTruthy()
-      expect(wrapper.emitted('new-chat')).toHaveLength(1)
+      expect(wrapper.emitted('back-home')).toBeTruthy()
+      expect(wrapper.emitted('back-home')).toHaveLength(1)
     })
 
     it('should emit select-question when root message clicked', async () => {

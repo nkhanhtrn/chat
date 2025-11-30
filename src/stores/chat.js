@@ -446,15 +446,17 @@ export const useChatStore = defineStore('chat', {
     // Create a new chat session
     createNewChat() {
       const chatId = crypto.randomUUID()
-      this.chats.push({
+      const newChat = {
         id: chatId,
         rootMessageIds: [],
         scratchpad: ''
-      })
+      }
+      this.chats.push(newChat)
       this.currentChatId = chatId
       this.rootMessageIds = []
       this.currentMessageId = null
       this._persistState()
+      return newChat
     },
 
     // Switch to a different chat

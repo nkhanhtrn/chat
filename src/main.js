@@ -6,6 +6,7 @@ import './theme/colors-dark.css'
 import './theme/colors-sepia.css'
 import { createPinia } from 'pinia'
 import { useChatStore } from './stores/chat.js'
+import router from './router'
 
 // Theme switching via data attribute
 const setTheme = (theme) => {
@@ -36,6 +37,7 @@ window.__getTheme = () => localStorage.getItem('theme') || 'light'
 const app = createApp(App)
 const pinia = createPinia()
 app.use(pinia)
+app.use(router)
 
 // Set up automatic persistence for chat store
 const chatStore = useChatStore(pinia)
