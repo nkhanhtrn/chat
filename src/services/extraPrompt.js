@@ -113,7 +113,7 @@ Otherwise, follow the above guidelines to provide comprehensive educational cont
 
 const mainPrompt = contextSettingPrompt + exercisePrompt + deepDivePrompt + newTopicPrompt + otherPrompt;
 const summaryPrompt = `Provide a concise 2-5 word summary of the following content: `;
-const quickExplainPrompt = `Provide a short explanation of the following concept or text. Be concise but informative. You can divide into a few paragraphs if needed. You can use simple markdown elements (no block elements) to format the explanation if needed. Here's the content to explain: `;
+const quickExplainPrompt = `Provide a very short and concise explanation of the following concept or text. Be concise but informative. You can divide into a few paragraphs if needed. You can use simple markdown elements (no block elements) to format the explanation if needed. Here's the content to explain: `;
 
 export const getMainPrompts = (textToExplain, previousMessages = []) => {
   const messages = [];

@@ -113,15 +113,56 @@ onUnmounted(() => {
 const isDev = getIsDev()
 const prepopulatedQuestions = ref(getDefaultQuestions())
 
+// Helper to navigate to a question by ID within current notebook
+const navigateToQuestion = (questionId) => {
+  const chat = chatStore.chats.find(c => c.id === chatStore.currentChatId)
+  if (!chat) return false
+
+  const rootIndex = chat.rootMessageIds.indexOf(questionId)
+  if (rootIndex !== -1) {
+    // It's a root message
+    chatStore.currentRootIndex = rootIndex
+    chatStore.navigateToMessage(questionId)
+    return true
+  }
+
+  // Check if it's a child message - find its root
+  const message = chatStore.messagesById[questionId]
+  if (!message) return false
+
+  let rootMsg = message
+  while (rootMsg.parentId) {
+    rootMsg = chatStore.messagesById[rootMsg.parentId]
+  }
+
+  const rootIdx = chat.rootMessageIds.indexOf(rootMsg.id)
+  if (rootIdx !== -1) {
+    chatStore.currentRootIndex = rootIdx
+    chatStore.navigateToMessage(questionId)
+    return true
+  }
+
+  return false
+}
+
 onMounted(async () => {
   // Get notebook ID from route
   const notebookId = route.params.id
+  const questionId = route.params.questionId
 
   // Switch to the specified notebook if it exists
   if (notebookId) {
     const chatExists = chatStore.chats.some(c => c.id === notebookId)
     if (chatExists) {
       chatStore.switchToChat(notebookId)
+
+      // If a question ID is specified, navigate to it
+      if (questionId) {
+        if (!navigateToQuestion(questionId)) {
+          // Question doesn't exist, redirect to notebook
+          router.replace({ name: 'notebook', params: { id: notebookId } })
+        }
+      }
     } else {
       // Notebook doesn't exist, redirect to home
       router.push({ name: 'home' })
@@ -147,17 +188,26 @@ onMounted(async () => {
   }
 })
 
-// Watch for route changes to switch notebooks
-watch(() => route.params.id, (newId) => {
+// Watch for route changes to switch notebooks and questions
+watch(() => route.params, (newParams) => {
+  const { id: newId, questionId } = newParams
+
   if (newId && chatStore.currentChatId !== newId) {
     const chatExists = chatStore.chats.some(c => c.id === newId)
     if (chatExists) {
       chatStore.switchToChat(newId)
+      // Navigate to question if specified
+      if (questionId) {
+        navigateToQuestion(questionId)
+      }
     } else {
       router.push({ name: 'home' })
     }
+  } else if (newId && questionId) {
+    // Same notebook, different question
+    navigateToQuestion(questionId)
   }
-})
+}, { deep: true })
 
 const scrollToBottom = () => {
   nextTick(() => {
@@ -194,6 +244,12 @@ const handleSendMessage = async (userMessage) => {
     id: crypto.randomUUID(),
     question: userMessage,
     response: ''
+  })
+
+  // Update URL to reflect the new question
+  router.replace({
+    name: 'question',
+    params: { id: chatStore.currentChatId, questionId: msg.id }
   })
 
   scrollToBottom()
@@ -249,16 +305,19 @@ const handleSelectQuestion = (question) => {
     chatStore.saveScrollPosition(chatStore.currentMessageId, currentScrollPos)
   }
 
-  // Switch to the chat containing this question if not already on it
-  if (chatStore.currentChatId !== question.chatId) {
-    chatStore.switchToChat(question.chatId)
-    router.push({ name: 'notebook', params: { id: question.chatId } })
-  }
-  // Set the root index to display this question
-  chatStore.currentRootIndex = question.rootIndex
-  // Navigate to the message and restore scroll position
-  const scrollPos = chatStore.navigateToMessage(question.id)
-  setScrollPosition(scrollPos)
+  const chatId = question.chatId || chatStore.currentChatId
+
+  // Navigate via router - this will trigger the watch that handles the actual navigation
+  router.push({
+    name: 'question',
+    params: { id: chatId, questionId: question.id }
+  })
+
+  // Restore scroll position after navigation
+  nextTick(() => {
+    const scrollPos = chatStore.messagesById[question.id]?.scrollPosition || 0
+    setScrollPosition(scrollPos)
+  })
 }
 
 const handleRenameQuestion = (messageId, newSummary) => {

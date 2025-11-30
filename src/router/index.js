@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 import HomePage from '../views/HomePage.vue'
 import ChatView from '../views/ChatView.vue'
 
@@ -12,11 +12,16 @@ const routes = [
     path: '/notebook/:id',
     name: 'notebook',
     component: ChatView
+  },
+  {
+    path: '/notebook/:id/q/:questionId',
+    name: 'question',
+    component: ChatView
   }
 ]
 
 const router = createRouter({
-  history: createWebHistory('/chat/'),
+  history: createWebHashHistory('/chat/'),
   routes
 })
 

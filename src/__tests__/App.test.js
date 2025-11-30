@@ -8,12 +8,14 @@ import DevToolbar from '../components/DevToolbar.vue'
 
 // Mock vue-router
 const mockPush = vi.fn()
+const mockReplace = vi.fn()
 vi.mock('vue-router', () => ({
   useRoute: () => ({
     params: { id: 'test-chat-id' }
   }),
   useRouter: () => ({
-    push: mockPush
+    push: mockPush,
+    replace: mockReplace
   })
 }))
 
@@ -1261,7 +1263,11 @@ describe('ChatView', () => {
   })
 
   describe('Question Selection from Sidebar', () => {
-    it('should switch to correct chat when selecting question from different chat', async () => {
+    beforeEach(() => {
+      mockPush.mockClear()
+    })
+
+    it('should navigate to question route when selecting question from different chat', async () => {
       wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
@@ -1302,13 +1308,14 @@ describe('ChatView', () => {
       const question = { id: 'chat1-msg1', chatId: chat1Id, rootIndex: 0 }
       await wrapper.vm.handleSelectQuestion(question)
 
-      // Should switch to chat1
-      expect(chatStore.currentChatId).toBe(chat1Id)
-      expect(chatStore.currentRootIndex).toBe(0)
-      expect(chatStore.currentMessageId).toBe('chat1-msg1')
+      // Should navigate via router to the question
+      expect(mockPush).toHaveBeenCalledWith({
+        name: 'question',
+        params: { id: chat1Id, questionId: 'chat1-msg1' }
+      })
     })
 
-    it('should set correct rootIndex when selecting question', async () => {
+    it('should navigate to question route with correct params', async () => {
       wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
@@ -1346,18 +1353,17 @@ describe('ChatView', () => {
         response: 'Response 3'
       })
 
-      // Currently on last message (index 2)
-      expect(chatStore.currentRootIndex).toBe(2)
-
       // Select second question (index 1)
       const question = { id: 'msg2', chatId: chatId, rootIndex: 1 }
       await wrapper.vm.handleSelectQuestion(question)
 
-      expect(chatStore.currentRootIndex).toBe(1)
-      expect(chatStore.currentMessageId).toBe('msg2')
+      expect(mockPush).toHaveBeenCalledWith({
+        name: 'question',
+        params: { id: chatId, questionId: 'msg2' }
+      })
     })
 
-    it('should not switch chat when selecting question from current chat', async () => {
+    it('should use current chatId when selecting question without chatId', async () => {
       wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
@@ -1389,19 +1395,18 @@ describe('ChatView', () => {
         response: 'Response 2'
       })
 
-      // Spy on switchToChat to verify it's not called unnecessarily
-      const switchToChatSpy = vi.spyOn(chatStore, 'switchToChat')
-
-      // Select question from same chat
-      const question = { id: 'msg1', chatId: chatId, rootIndex: 0 }
+      // Select question without explicit chatId
+      const question = { id: 'msg1', rootIndex: 0 }
       await wrapper.vm.handleSelectQuestion(question)
 
-      // Should not call switchToChat since we're already on the correct chat
-      expect(switchToChatSpy).not.toHaveBeenCalled()
-      expect(chatStore.currentRootIndex).toBe(0)
+      // Should use current chatId
+      expect(mockPush).toHaveBeenCalledWith({
+        name: 'question',
+        params: { id: chatId, questionId: 'msg1' }
+      })
     })
 
-    it('should navigate to message and set correct currentMessageId', async () => {
+    it('should reset isAddingNewQuestion when selecting a question', async () => {
       wrapper = mount(ChatView, {
         global: {
           plugins: [createPinia()],
@@ -1426,17 +1431,15 @@ describe('ChatView', () => {
         response: 'Response 1'
       })
 
-      chatStore.addRootMessage({
-        id: 'msg2',
-        question: 'Question 2',
-        response: 'Response 2'
-      })
+      // Set adding new question state
+      wrapper.vm.isAddingNewQuestion = true
+      expect(wrapper.vm.isAddingNewQuestion).toBe(true)
 
-      // Select first question
+      // Select a question
       const question = { id: 'msg1', chatId: chatId, rootIndex: 0 }
       await wrapper.vm.handleSelectQuestion(question)
 
-      expect(chatStore.currentMessageId).toBe('msg1')
+      expect(wrapper.vm.isAddingNewQuestion).toBe(false)
     })
   })
 })

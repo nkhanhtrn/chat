@@ -15,17 +15,23 @@ describe('Router Configuration', () => {
       expect(notebookRoute.path).toBe('/notebook/:id')
     })
 
+    it('should have question route with notebook and question id parameters', () => {
+      const questionRoute = router.getRoutes().find(r => r.name === 'question')
+      expect(questionRoute).toBeDefined()
+      expect(questionRoute.path).toBe('/notebook/:id/q/:questionId')
+    })
+
     it('should have correct number of routes', () => {
       const routes = router.getRoutes()
-      expect(routes.length).toBe(2)
+      expect(routes.length).toBe(3)
     })
   })
 
   describe('Base Path', () => {
-    it('should use /chat as base path', () => {
-      // The router history base is set during creation
-      // Vue Router normalizes the base path without trailing slash
-      expect(router.options.history.base).toBe('/chat')
+    it('should use /chat as base path with hash history', () => {
+      // The router uses hash history for GitHub Pages compatibility
+      // Hash history base includes the # symbol
+      expect(router.options.history.base).toBe('/chat/#')
     })
   })
 
@@ -49,6 +55,18 @@ describe('Router Configuration', () => {
     it('should resolve home route by name', () => {
       const resolved = router.resolve({ name: 'home' })
       expect(resolved.fullPath).toBe('/')
+    })
+
+    it('should resolve question route with notebook and question id', () => {
+      const resolved = router.resolve('/notebook/test-notebook/q/test-question')
+      expect(resolved.name).toBe('question')
+      expect(resolved.params.id).toBe('test-notebook')
+      expect(resolved.params.questionId).toBe('test-question')
+    })
+
+    it('should resolve question route by name with params', () => {
+      const resolved = router.resolve({ name: 'question', params: { id: 'my-notebook', questionId: 'my-question' } })
+      expect(resolved.fullPath).toBe('/notebook/my-notebook/q/my-question')
     })
   })
 })
