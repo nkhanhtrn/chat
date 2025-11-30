@@ -149,9 +149,7 @@ function getNodeProps(node) {
       }
 
     case 'collapsible_block':
-      return {
-        content: node.content
-      }
+      return {}
 
     default:
       return {}

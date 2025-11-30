@@ -10,7 +10,7 @@
       <span class="collapse-label">{{ isCollapsed ? 'Show hidden content' : 'Hide content' }}</span>
     </div>
     <div v-show="!isCollapsed" class="collapsible-content">
-      <slot>{{ content }}</slot>
+      <slot></slot>
     </div>
   </div>
 </template>
@@ -18,12 +18,6 @@
 <script>
 export default {
   name: 'CollapsibleBlock',
-  props: {
-    content: {
-      type: String,
-      default: ''
-    }
-  },
   data() {
     return {
       isCollapsed: true
@@ -40,23 +34,25 @@ export default {
 <style scoped>
 .collapsible-block-wrapper {
   margin: 12px 0;
-  border: 1px solid var(--color-border, #e0e0e0);
+  border: 1px solid var(--color-code-block-border);
   border-radius: 6px;
   overflow: hidden;
+  background-color: var(--color-code-block-bg);
 }
 
 .collapsible-header {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 12px;
-  background-color: var(--color-bg-secondary, #f5f5f5);
+  padding: 10px 12px;
+  background-color: var(--color-code-block-header-bg);
+  border-bottom: 1px solid var(--color-code-block-border);
   cursor: pointer;
   user-select: none;
 }
 
 .collapsible-header:hover {
-  background-color: var(--color-bg-hover, #ebebeb);
+  background-color: var(--color-bg-hover);
 }
 
 .collapse-btn {
@@ -67,18 +63,23 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-text-muted, #888);
-  transition: color 0.2s;
+  color: var(--color-text-muted);
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+
+.collapse-btn:hover {
+  opacity: 1;
 }
 
 .collapse-label {
-  font-size: 13px;
-  color: var(--color-text-muted, #888);
-  font-style: italic;
+  font-size: 12px;
+  color: var(--color-code-block-header-text);
+  font-weight: 600;
 }
 
 .collapsible-content {
   padding: 12px 16px;
-  background-color: var(--color-bg, #fff);
+  background-color: var(--color-code-block-bg);
 }
 </style>

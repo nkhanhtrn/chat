@@ -16,6 +16,7 @@ import HighlightSpan from '../markdown/HighlightSpan.vue'
 import QuestionLinkSpan from '../markdown/QuestionLinkSpan.vue'
 import TextSpan from '../markdown/TextSpan.vue'
 import MarkdownTable from '../markdown/MarkdownTable.vue'
+import CollapsibleBlock from '../markdown/CollapsibleBlock.vue'
 
 describe('Markdown Components', () => {
   describe('MarkdownParagraph', () => {
@@ -2613,6 +2614,153 @@ describe('Markdown Components', () => {
         const wrapper = mount(ASTNode, { props: { node } })
         expect(wrapper.find('.inline-code').exists()).toBe(true)
       })
+    })
+  })
+
+  describe('CollapsibleBlock', () => {
+    it('should render collapsible block wrapper', () => {
+      const wrapper = mount(CollapsibleBlock, {
+        slots: {
+          default: 'Hidden content'
+        }
+      })
+      expect(wrapper.find('.collapsible-block-wrapper').exists()).toBe(true)
+    })
+
+    it('should render header with collapse button', () => {
+      const wrapper = mount(CollapsibleBlock, {
+        slots: {
+          default: 'Hidden content'
+        }
+      })
+      expect(wrapper.find('.collapsible-header').exists()).toBe(true)
+      expect(wrapper.find('.collapse-btn').exists()).toBe(true)
+    })
+
+    it('should start in collapsed state', () => {
+      const wrapper = mount(CollapsibleBlock, {
+        slots: {
+          default: 'Hidden content'
+        }
+      })
+      expect(wrapper.vm.isCollapsed).toBe(true)
+      expect(wrapper.find('.collapse-label').text()).toBe('Show hidden content')
+    })
+
+    it('should hide content when collapsed', () => {
+      const wrapper = mount(CollapsibleBlock, {
+        slots: {
+          default: 'Hidden content'
+        }
+      })
+      // Content should be hidden (v-show="!isCollapsed")
+      const content = wrapper.find('.collapsible-content')
+      expect(content.exists()).toBe(true)
+      // v-show sets display: none
+      expect(content.element.style.display).toBe('none')
+    })
+
+    it('should expand when header is clicked', async () => {
+      const wrapper = mount(CollapsibleBlock, {
+        slots: {
+          default: 'Hidden content'
+        }
+      })
+
+      await wrapper.find('.collapsible-header').trigger('click')
+
+      expect(wrapper.vm.isCollapsed).toBe(false)
+      expect(wrapper.find('.collapse-label').text()).toBe('Hide content')
+      // v-show removes display: none when expanded
+      expect(wrapper.find('.collapsible-content').element.style.display).not.toBe('none')
+    })
+
+    it('should collapse when header is clicked again', async () => {
+      const wrapper = mount(CollapsibleBlock, {
+        slots: {
+          default: 'Hidden content'
+        }
+      })
+
+      // Expand first
+      await wrapper.find('.collapsible-header').trigger('click')
+      expect(wrapper.vm.isCollapsed).toBe(false)
+
+      // Collapse
+      await wrapper.find('.collapsible-header').trigger('click')
+      expect(wrapper.vm.isCollapsed).toBe(true)
+      expect(wrapper.find('.collapse-label').text()).toBe('Show hidden content')
+    })
+
+    it('should expand when collapse button is clicked', async () => {
+      const wrapper = mount(CollapsibleBlock, {
+        slots: {
+          default: 'Hidden content'
+        }
+      })
+
+      await wrapper.find('.collapse-btn').trigger('click')
+
+      expect(wrapper.vm.isCollapsed).toBe(false)
+    })
+
+    it('should render slot content', async () => {
+      const wrapper = mount(CollapsibleBlock, {
+        slots: {
+          default: '<p>Slot content here</p>'
+        }
+      })
+
+      // Expand to see content
+      await wrapper.find('.collapsible-header').trigger('click')
+
+      expect(wrapper.find('.collapsible-content').text()).toContain('Slot content here')
+    })
+
+    it('should render nested components in slot', async () => {
+      const wrapper = mount(CollapsibleBlock, {
+        slots: {
+          default: '<strong>Bold</strong> and <em>italic</em>'
+        }
+      })
+
+      await wrapper.find('.collapsible-header').trigger('click')
+
+      expect(wrapper.find('.collapsible-content strong').exists()).toBe(true)
+      expect(wrapper.find('.collapsible-content em').exists()).toBe(true)
+    })
+
+    it('should toggle arrow direction when expanded/collapsed', async () => {
+      const wrapper = mount(CollapsibleBlock, {
+        slots: {
+          default: 'Content'
+        }
+      })
+
+      // Check collapsed arrow (points down: 6 9 12 15 18 9)
+      let polyline = wrapper.find('.collapse-btn polyline')
+      expect(polyline.attributes('points')).toBe('6 9 12 15 18 9')
+
+      // Expand
+      await wrapper.find('.collapsible-header').trigger('click')
+
+      // Check expanded arrow (points up: 18 15 12 9 6 15)
+      polyline = wrapper.find('.collapse-btn polyline')
+      expect(polyline.attributes('points')).toBe('18 15 12 9 6 15')
+    })
+
+    it('should have correct CSS classes for styling', () => {
+      const wrapper = mount(CollapsibleBlock, {
+        slots: {
+          default: 'Content'
+        }
+      })
+
+      expect(wrapper.find('.collapsible-block-wrapper').exists()).toBe(true)
+      expect(wrapper.find('.collapsible-header').exists()).toBe(true)
+      expect(wrapper.find('.collapse-btn').exists()).toBe(true)
+      expect(wrapper.find('.collapse-label').exists()).toBe(true)
+      expect(wrapper.find('.collapsible-content').exists()).toBe(true)
     })
   })
 })

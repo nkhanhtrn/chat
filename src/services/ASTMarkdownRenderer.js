@@ -599,6 +599,13 @@ function restoreSpecialBlocksInAST(ast, extractedBlocks, customContentItems = []
           }
         }
 
+        // For collapsible blocks, parse the content into children
+        if (foundBlock.type === 'collapsible_block' && foundBlock.content) {
+          const parsedInner = parseMarkdownToAST(foundBlock.content)
+          blockNode.children = parsedInner.children
+          delete blockNode.content
+        }
+
         result.push(blockNode)
 
         // Continue with text after placeholder

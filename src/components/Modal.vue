@@ -1,8 +1,8 @@
 <template>
   <Teleport to="body">
     <Transition name="modal">
-      <div v-if="visible" class="modal-overlay" @click.self="onClose">
-        <div class="modal-content" :class="sizeClass">
+      <div v-if="visible" class="modal-overlay" @mousedown.self="onClose">
+        <div class="modal-content" :class="sizeClass" :style="contentStyle">
           <div v-if="title || $slots.header" class="modal-header">
             <slot name="header">
               <span class="modal-title">{{ title }}</span>
@@ -40,6 +40,14 @@ const props = defineProps({
     type: String,
     default: 'small',
     validator: (value) => ['small', 'medium', 'large'].includes(value)
+  },
+  contentStyle: {
+    type: Object,
+    default: () => ({})
+  },
+  preventClose: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -48,6 +56,7 @@ const emit = defineEmits(['close'])
 const sizeClass = computed(() => `modal-content--${props.size}`)
 
 function onClose() {
+  if (props.preventClose) return
   emit('close')
 }
 
@@ -85,6 +94,9 @@ onUnmounted(() => {
 }
 
 .modal-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
   background-color: var(--color-bg-context-menu, #fff);
   border: 1px solid var(--color-border-context, #ddd);
   box-shadow: 0 4px 16px var(--shadow-lg, rgba(0, 0, 0, 0.15));
@@ -149,6 +161,11 @@ onUnmounted(() => {
 
 .modal-body {
   padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .modal-footer {

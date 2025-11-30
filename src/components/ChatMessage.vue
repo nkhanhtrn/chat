@@ -602,12 +602,14 @@ function handleNoteSave({ noteId, content }) {
     }
     chatStore.addCustomContent(currentMessage.value.id, highlight)
     state.tempHighlight = null
+    closePopup()
   } else if (state.popup.customPromptText && state.popup.highlightId) {
     // Streamed content on existing highlight: update the highlight's note
     chatStore.updateCustomContent(currentMessage.value.id, state.popup.highlightId, {
       hasNote: true,
       noteContent: content
     })
+    closePopup()
   } else if (state.popup.isNewNote) {
     if (state.tempHighlight) {
       // Convert temp highlight with note to permanent
@@ -623,18 +625,21 @@ function handleNoteSave({ noteId, content }) {
       }
       chatStore.addCustomContent(currentMessage.value.id, highlight)
       state.tempHighlight = null
+      closePopup()
     } else {
       // Adding note to existing highlight
       chatStore.updateCustomContent(currentMessage.value.id, noteId, {
         hasNote: true,
         noteContent: content
       })
+      closePopup()
     }
   } else {
-    // Update existing note
+    // Update existing note - keep modal open
     chatStore.updateCustomContent(currentMessage.value.id, noteId, { noteContent: content })
+    // Update the popup's noteContent to reflect the saved content
+    state.popup.noteContent = content
   }
-  closePopup()
 }
 
 function handleNoteCancel() {

@@ -225,6 +225,104 @@ Done.`
     })
   })
 
+  describe('Collapsible Block Extraction', () => {
+    it('should extract [HIDDEN]...[/HIDDEN] blocks', () => {
+      const content = 'Before [HIDDEN]secret content[/HIDDEN] after'
+      const ast = parseMarkdownToAST(content)
+
+      const collapsibleBlocks = findNodesByType(ast, 'collapsible_block')
+      expect(collapsibleBlocks.length).toBe(1)
+      expect(collapsibleBlocks[0].children).toBeDefined()
+    })
+
+    it('should parse markdown content inside hidden blocks', () => {
+      const content = '[HIDDEN]**bold** and *italic*[/HIDDEN]'
+      const ast = parseMarkdownToAST(content)
+
+      const collapsibleBlocks = findNodesByType(ast, 'collapsible_block')
+      expect(collapsibleBlocks.length).toBe(1)
+
+      // Check that children contain parsed markdown (strong and em nodes)
+      const strongNodes = findNodesByType(collapsibleBlocks[0], 'strong')
+      const emNodes = findNodesByType(collapsibleBlocks[0], 'em')
+      expect(strongNodes.length).toBe(1)
+      expect(emNodes.length).toBe(1)
+    })
+
+    it('should handle multiline hidden blocks', () => {
+      const content = `Some text
+[HIDDEN]
+- Item 1
+- Item 2
+- Item 3
+[/HIDDEN]
+More text`
+      const ast = parseMarkdownToAST(content)
+
+      const collapsibleBlocks = findNodesByType(ast, 'collapsible_block')
+      expect(collapsibleBlocks.length).toBe(1)
+
+      // Check that list is parsed inside
+      const listNodes = findNodesByType(collapsibleBlocks[0], 'list')
+      expect(listNodes.length).toBe(1)
+    })
+
+    it('should handle code blocks inside hidden blocks', () => {
+      const content = `[HIDDEN]
+\`\`\`javascript
+const x = 5;
+\`\`\`
+[/HIDDEN]`
+      const ast = parseMarkdownToAST(content)
+
+      const collapsibleBlocks = findNodesByType(ast, 'collapsible_block')
+      expect(collapsibleBlocks.length).toBe(1)
+
+      const codeBlocks = findNodesByType(collapsibleBlocks[0], 'code_block')
+      expect(codeBlocks.length).toBe(1)
+      expect(codeBlocks[0].language).toBe('javascript')
+      expect(codeBlocks[0].code).toBe('const x = 5;')
+    })
+
+    it('should handle multiple hidden blocks', () => {
+      const content = '[HIDDEN]first[/HIDDEN] middle [HIDDEN]second[/HIDDEN]'
+      const ast = parseMarkdownToAST(content)
+
+      const collapsibleBlocks = findNodesByType(ast, 'collapsible_block')
+      expect(collapsibleBlocks.length).toBe(2)
+    })
+
+    it('should handle nested hidden blocks', () => {
+      const content = '[HIDDEN]outer [HIDDEN]inner[/HIDDEN] content[/HIDDEN]'
+      const ast = parseMarkdownToAST(content)
+
+      // The outer block should contain another collapsible block as a child
+      const collapsibleBlocks = findNodesByType(ast, 'collapsible_block')
+      expect(collapsibleBlocks.length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('should preserve text around hidden blocks', () => {
+      const content = 'Before [HIDDEN]hidden[/HIDDEN] after'
+      const ast = parseMarkdownToAST(content)
+
+      const textNodes = findNodesByType(ast, 'text')
+      expect(textNodes.some(n => n.content && n.content.includes('Before'))).toBe(true)
+      expect(textNodes.some(n => n.content && n.content.includes('after'))).toBe(true)
+    })
+
+    it('should handle math inside hidden blocks', () => {
+      const content = '[HIDDEN]The formula $x^2 + y^2 = z^2$ is important[/HIDDEN]'
+      const ast = parseMarkdownToAST(content)
+
+      const collapsibleBlocks = findNodesByType(ast, 'collapsible_block')
+      expect(collapsibleBlocks.length).toBe(1)
+
+      const mathInlines = findNodesByType(collapsibleBlocks[0], 'math_inline')
+      expect(mathInlines.length).toBe(1)
+      expect(mathInlines[0].content).toBe('x^2 + y^2 = z^2')
+    })
+  })
+
   describe('Edge Cases', () => {
     it('should handle empty content', () => {
       const ast = parseMarkdownToAST('')

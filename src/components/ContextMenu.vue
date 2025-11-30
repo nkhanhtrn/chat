@@ -29,7 +29,7 @@
         </div>
         <div class="context-menu-row">
           <Button class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming" variant="tertiary">Deep Dive</Button>
-          <Button class="context-menu-btn" @click="onAddChapter" :disabled="isStreaming" variant="tertiary">New Chapter</Button>
+          <Button class="context-menu-btn" @click="onAddChapter" :disabled="isStreaming" variant="tertiary">New Topic</Button>
         </div>
         <PromptInput
           placeholder="Custom prompt..."

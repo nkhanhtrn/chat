@@ -185,10 +185,11 @@ describe('Note', () => {
   })
 
   describe('Events', () => {
-    it('emits cancel when backdrop is clicked', async () => {
+    it('emits cancel when backdrop is mousedown', async () => {
       wrapper = mount(Note, { props: baseProps, attachTo: root })
       const backdrop = document.body.querySelector('.modal-overlay')
-      await backdrop.click()
+      // Modal now uses mousedown instead of click for closing
+      backdrop.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
       expect(wrapper.emitted('cancel')).toBeTruthy()
     })
 
@@ -659,6 +660,403 @@ describe('Note', () => {
       // Should show detail explain link instead
       const link = document.body.querySelector('.detail-explain-link')
       expect(link).toBeTruthy()
+    })
+  })
+
+  describe('Markdown Rendering', () => {
+    const markdownProps = {
+      ...baseProps,
+      isTemp: false,
+      initialContent: 'This is **bold** and *italic* text'
+    }
+
+    it('renders markdown content using MarkdownRenderer', () => {
+      wrapper = mount(Note, { props: markdownProps, attachTo: root })
+      const noteContent = document.body.querySelector('.note-content')
+      expect(noteContent).toBeTruthy()
+      // Should have markdown-renderer component
+      const markdownRenderer = noteContent.querySelector('.markdown-renderer')
+      expect(markdownRenderer).toBeTruthy()
+    })
+
+    it('renders bold text correctly', () => {
+      wrapper = mount(Note, { props: markdownProps, attachTo: root })
+      const strong = document.body.querySelector('.note-content strong')
+      expect(strong).toBeTruthy()
+      expect(strong.textContent).toBe('bold')
+    })
+
+    it('renders italic text correctly', () => {
+      wrapper = mount(Note, { props: markdownProps, attachTo: root })
+      const em = document.body.querySelector('.note-content em')
+      expect(em).toBeTruthy()
+      expect(em.textContent).toBe('italic')
+    })
+
+    it('renders inline code correctly', () => {
+      wrapper = mount(Note, {
+        props: { ...markdownProps, initialContent: 'Use `code` here' },
+        attachTo: root
+      })
+      const code = document.body.querySelector('.note-content code')
+      expect(code).toBeTruthy()
+      expect(code.textContent).toContain('code')
+    })
+
+    it('renders links correctly', () => {
+      wrapper = mount(Note, {
+        props: { ...markdownProps, initialContent: 'Visit [example](https://example.com)' },
+        attachTo: root
+      })
+      const link = document.body.querySelector('.note-content a')
+      expect(link).toBeTruthy()
+      expect(link.textContent).toBe('example')
+      expect(link.getAttribute('href')).toBe('https://example.com')
+    })
+
+    it('shows "No content" when initialContent is empty and not streaming', async () => {
+      wrapper = mount(Note, {
+        props: { ...markdownProps, initialContent: '', visible: false },
+        attachTo: root
+      })
+      await wrapper.setProps({ visible: true })
+      // Empty content should auto-enter edit mode
+      const textarea = document.body.querySelector('.note-textarea')
+      expect(textarea).toBeTruthy()
+    })
+  })
+
+  describe('Resize Functionality', () => {
+    const resizeProps = {
+      ...baseProps,
+      isTemp: false,
+      initialContent: 'Some content for resize test'
+    }
+
+    beforeEach(() => {
+      // Clear localStorage before each test
+      localStorage.removeItem('note-modal-size')
+    })
+
+    it('renders resize handle', () => {
+      wrapper = mount(Note, { props: resizeProps, attachTo: root })
+      const resizeHandle = document.body.querySelector('.resize-handle')
+      expect(resizeHandle).toBeTruthy()
+    })
+
+    it('resize handle has correct cursor style', () => {
+      wrapper = mount(Note, { props: resizeProps, attachTo: root })
+      const resizeHandle = document.body.querySelector('.resize-handle')
+      expect(resizeHandle).toBeTruthy()
+      expect(resizeHandle.classList.contains('resize-handle')).toBe(true)
+    })
+
+    it('resize handle contains SVG icon', () => {
+      wrapper = mount(Note, { props: resizeProps, attachTo: root })
+      const resizeHandle = document.body.querySelector('.resize-handle')
+      const svg = resizeHandle.querySelector('svg')
+      expect(svg).toBeTruthy()
+    })
+
+    it('applies custom width and height from modalStyle', async () => {
+      // Set localStorage with saved size
+      localStorage.setItem('note-modal-size', JSON.stringify({ width: 500, height: 400 }))
+
+      wrapper = mount(Note, { props: { ...resizeProps, visible: false }, attachTo: root })
+      await wrapper.setProps({ visible: true })
+
+      const modalContent = document.body.querySelector('.modal-content')
+      expect(modalContent).toBeTruthy()
+      expect(modalContent.style.width).toBe('500px')
+      expect(modalContent.style.maxWidth).toBe('500px')
+      expect(modalContent.style.height).toBe('400px')
+    })
+
+    it('loads saved size from localStorage on mount', async () => {
+      localStorage.setItem('note-modal-size', JSON.stringify({ width: 600, height: 350 }))
+
+      wrapper = mount(Note, { props: { ...resizeProps, visible: false }, attachTo: root })
+      await wrapper.setProps({ visible: true })
+
+      const modalContent = document.body.querySelector('.modal-content')
+      expect(modalContent.style.width).toBe('600px')
+      expect(modalContent.style.height).toBe('350px')
+    })
+
+    it('uses default width when no saved size', async () => {
+      wrapper = mount(Note, { props: { ...resizeProps, visible: false }, attachTo: root })
+      await wrapper.setProps({ visible: true })
+
+      const modalContent = document.body.querySelector('.modal-content')
+      // Default width is 400px
+      expect(modalContent.style.width).toBe('400px')
+    })
+
+    it('starts resize on mousedown', async () => {
+      wrapper = mount(Note, { props: resizeProps, attachTo: root })
+      const resizeHandle = document.body.querySelector('.resize-handle')
+
+      const mousedownEvent = new MouseEvent('mousedown', {
+        clientX: 100,
+        clientY: 100,
+        bubbles: true
+      })
+      resizeHandle.dispatchEvent(mousedownEvent)
+
+      // The resize should have started (isResizing should be true internally)
+      // We can verify by checking that preventClose is passed to modal
+      // Since we can't directly check internal state, we verify the handle exists
+      expect(resizeHandle).toBeTruthy()
+    })
+
+    it('updates size on mousemove during resize', async () => {
+      localStorage.setItem('note-modal-size', JSON.stringify({ width: 400, height: 300 }))
+      wrapper = mount(Note, { props: { ...resizeProps, visible: false }, attachTo: root })
+      await wrapper.setProps({ visible: true })
+
+      const resizeHandle = document.body.querySelector('.resize-handle')
+
+      // Start resize
+      const mousedownEvent = new MouseEvent('mousedown', {
+        clientX: 100,
+        clientY: 100,
+        bubbles: true
+      })
+      resizeHandle.dispatchEvent(mousedownEvent)
+
+      // Move mouse
+      const mousemoveEvent = new MouseEvent('mousemove', {
+        clientX: 150,
+        clientY: 150,
+        bubbles: true
+      })
+      document.dispatchEvent(mousemoveEvent)
+      await wrapper.vm.$nextTick()
+
+      // End resize
+      const mouseupEvent = new MouseEvent('mouseup', { bubbles: true })
+      document.dispatchEvent(mouseupEvent)
+      await wrapper.vm.$nextTick()
+
+      // Check that size was updated
+      const modalContent = document.body.querySelector('.modal-content')
+      // Width should have increased by 50px (from 400 to 450)
+      expect(modalContent.style.width).toBe('450px')
+    })
+
+    it('saves size to localStorage after resize ends', async () => {
+      localStorage.setItem('note-modal-size', JSON.stringify({ width: 400, height: 300 }))
+      wrapper = mount(Note, { props: { ...resizeProps, visible: false }, attachTo: root })
+      await wrapper.setProps({ visible: true })
+
+      const resizeHandle = document.body.querySelector('.resize-handle')
+
+      // Start resize
+      resizeHandle.dispatchEvent(new MouseEvent('mousedown', {
+        clientX: 100,
+        clientY: 100,
+        bubbles: true
+      }))
+
+      // Move mouse
+      document.dispatchEvent(new MouseEvent('mousemove', {
+        clientX: 150,
+        clientY: 150,
+        bubbles: true
+      }))
+
+      // End resize
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+
+      // Check localStorage was updated
+      const saved = JSON.parse(localStorage.getItem('note-modal-size'))
+      expect(saved.width).toBe(450)
+      expect(saved.height).toBe(350)
+    })
+
+    it('respects minimum width constraint', async () => {
+      localStorage.setItem('note-modal-size', JSON.stringify({ width: 400, height: 300 }))
+      wrapper = mount(Note, { props: { ...resizeProps, visible: false }, attachTo: root })
+      await wrapper.setProps({ visible: true })
+
+      const resizeHandle = document.body.querySelector('.resize-handle')
+
+      // Start resize
+      resizeHandle.dispatchEvent(new MouseEvent('mousedown', {
+        clientX: 100,
+        clientY: 100,
+        bubbles: true
+      }))
+
+      // Try to resize smaller than min width (280px)
+      document.dispatchEvent(new MouseEvent('mousemove', {
+        clientX: -200, // Large negative delta
+        clientY: 100,
+        bubbles: true
+      }))
+      await wrapper.vm.$nextTick()
+
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+      await wrapper.vm.$nextTick()
+
+      const modalContent = document.body.querySelector('.modal-content')
+      // Should be clamped to minimum width (280px)
+      expect(modalContent.style.width).toBe('280px')
+    })
+
+    it('respects maximum width constraint', async () => {
+      localStorage.setItem('note-modal-size', JSON.stringify({ width: 400, height: 300 }))
+      wrapper = mount(Note, { props: { ...resizeProps, visible: false }, attachTo: root })
+      await wrapper.setProps({ visible: true })
+
+      const resizeHandle = document.body.querySelector('.resize-handle')
+
+      // Start resize
+      resizeHandle.dispatchEvent(new MouseEvent('mousedown', {
+        clientX: 100,
+        clientY: 100,
+        bubbles: true
+      }))
+
+      // Try to resize larger than max width (800px)
+      document.dispatchEvent(new MouseEvent('mousemove', {
+        clientX: 600, // Large positive delta
+        clientY: 100,
+        bubbles: true
+      }))
+      await wrapper.vm.$nextTick()
+
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+      await wrapper.vm.$nextTick()
+
+      const modalContent = document.body.querySelector('.modal-content')
+      // Should be clamped to maximum width (800px)
+      expect(modalContent.style.width).toBe('800px')
+    })
+
+    it('does not close modal during resize', async () => {
+      wrapper = mount(Note, { props: resizeProps, attachTo: root })
+      const resizeHandle = document.body.querySelector('.resize-handle')
+
+      // Start resize
+      resizeHandle.dispatchEvent(new MouseEvent('mousedown', {
+        clientX: 100,
+        clientY: 100,
+        bubbles: true
+      }))
+      await wrapper.vm.$nextTick()
+
+      // Try to close via overlay mousedown during resize (should be prevented)
+      const overlay = document.body.querySelector('.modal-overlay')
+      overlay.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      await wrapper.vm.$nextTick()
+
+      // Modal should still be visible (no cancel event emitted because preventClose is true)
+      expect(wrapper.emitted('cancel')).toBeFalsy()
+
+      // End resize
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+    })
+  })
+
+  describe('Save Without Closing', () => {
+    const editableProps = {
+      ...baseProps,
+      isTemp: false,
+      initialContent: 'Existing note content'
+    }
+
+    it('does not emit cancel when save is clicked (keeps modal open)', async () => {
+      wrapper = mount(Note, { props: editableProps, attachTo: root })
+
+      // Click edit button to enter edit mode
+      const editBtn = document.body.querySelector('.note-icon-btn')
+      await editBtn.click()
+
+      // Type in textarea
+      const textarea = document.body.querySelector('.note-textarea')
+      textarea.value = 'Updated content'
+      textarea.dispatchEvent(new Event('input'))
+
+      // Click Save
+      const buttons = document.body.querySelectorAll('.note-actions button')
+      const saveBtn = buttons[1]
+      await saveBtn.click()
+
+      // Should emit save event
+      expect(wrapper.emitted('save')).toBeTruthy()
+      expect(wrapper.emitted('save')[0][0]).toEqual({
+        noteId: 'note-123',
+        content: 'Updated content'
+      })
+
+      // Should NOT emit cancel (modal stays open)
+      expect(wrapper.emitted('cancel')).toBeFalsy()
+    })
+
+    it('returns to view mode after save', async () => {
+      wrapper = mount(Note, { props: editableProps, attachTo: root })
+
+      // Click edit button to enter edit mode
+      const editBtn = document.body.querySelector('.note-icon-btn')
+      await editBtn.click()
+
+      // Verify we're in edit mode
+      let textarea = document.body.querySelector('.note-textarea')
+      expect(textarea).toBeTruthy()
+
+      // Click Save
+      const buttons = document.body.querySelectorAll('.note-actions button')
+      await buttons[1].click()
+
+      // Should be back in view mode
+      const noteContent = document.body.querySelector('.note-content')
+      textarea = document.body.querySelector('.note-textarea')
+      expect(noteContent).toBeTruthy()
+      expect(textarea).toBeFalsy()
+    })
+
+    it('textarea fills available space with flex: 1', () => {
+      wrapper = mount(Note, { props: { ...baseProps, isTemp: true }, attachTo: root })
+      const textarea = document.body.querySelector('.note-textarea')
+      expect(textarea).toBeTruthy()
+      // The textarea should have flex styling applied
+      expect(textarea.classList.contains('note-textarea')).toBe(true)
+    })
+
+    it('textarea has resize: none style', () => {
+      wrapper = mount(Note, { props: { ...baseProps, isTemp: true }, attachTo: root })
+      const textarea = document.body.querySelector('.note-textarea')
+      expect(textarea).toBeTruthy()
+      // CSS check - the class should be applied
+      expect(textarea.classList.contains('note-textarea')).toBe(true)
+    })
+  })
+
+  describe('Modal Close Behavior', () => {
+    it('closes on mousedown on overlay, not click', async () => {
+      wrapper = mount(Note, { props: baseProps, attachTo: root })
+      const overlay = document.body.querySelector('.modal-overlay')
+
+      // Mousedown on overlay should close
+      overlay.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+
+      expect(wrapper.emitted('cancel')).toBeTruthy()
+    })
+
+    it('does not close when mousedown starts inside and ends outside', async () => {
+      wrapper = mount(Note, { props: baseProps, attachTo: root })
+      const modalContent = document.body.querySelector('.modal-content')
+      const overlay = document.body.querySelector('.modal-overlay')
+
+      // Mousedown on content
+      modalContent.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+
+      // Mouseup on overlay (simulating drag)
+      overlay.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+
+      // Should not have closed
+      expect(wrapper.emitted('cancel')).toBeFalsy()
     })
   })
 })

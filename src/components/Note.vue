@@ -1,5 +1,5 @@
 <template>
-  <Modal :visible="visible" title="Note" @close="onCancel">
+  <Modal :visible="visible" title="Note" @close="onCancel" :content-style="modalStyle" :prevent-close="isResizing">
     <template #header-actions>
       <div v-if="!isEditing && !isTemp && !customPromptText" class="note-header-actions">
         <button class="note-icon-btn" @click="startEditing" title="Edit note">
@@ -19,10 +19,10 @@
       </div>
     </template>
 
-    <!-- View mode: show text content -->
+    <!-- View mode: show text content with inline markdown -->
     <template v-if="!isEditing && !isTemp">
       <div class="note-content">
-        {{ initialContent || (isStreaming ? '' : 'No content') }}<span v-if="isStreaming" class="streaming-cursor">▊</span>
+        <MarkdownRenderer v-if="initialContent" :content="initialContent" /><span v-else-if="!isStreaming">No content</span><span v-if="isStreaming" class="streaming-cursor">▊</span>
       </div>
 
       <!-- Show Save and Explore buttons when viewing streamed content (custom prompt or quick explain) -->
@@ -56,13 +56,29 @@
         <Button variant="secondary" @click="onSave">Save</Button>
       </div>
     </template>
+
+    <!-- Resize handle -->
+    <div class="resize-handle" @mousedown="startResize">
+      <svg width="10" height="10" viewBox="0 0 10 10">
+        <path d="M9 1L1 9M9 5L5 9M9 9L9 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </div>
   </Modal>
 </template>
 
 <script setup>
-import { ref, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import Modal from './Modal.vue'
 import Button from './Button.vue'
+import MarkdownRenderer from './MarkdownRenderer.vue'
+
+const STORAGE_KEY = 'note-modal-size'
+const DEFAULT_WIDTH = 400
+const DEFAULT_HEIGHT = null
+const MIN_WIDTH = 280
+const MIN_HEIGHT = 150
+const MAX_WIDTH = 800
+const MAX_HEIGHT = 600
 
 const props = defineProps({
   visible: {
@@ -164,6 +180,77 @@ function onSaveCustomPrompt() {
 function onExplore() {
   emit('explore', { text: props.customPromptText })
 }
+
+// Resize functionality
+const modalWidth = ref(DEFAULT_WIDTH)
+const modalHeight = ref(DEFAULT_HEIGHT)
+const isResizing = ref(false)
+
+function loadSavedSize() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved) {
+      const { width, height } = JSON.parse(saved)
+      if (width) modalWidth.value = width
+      if (height) modalHeight.value = height
+    }
+  } catch (e) {
+    // Ignore errors
+  }
+}
+
+function saveSize() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      width: modalWidth.value,
+      height: modalHeight.value
+    }))
+  } catch (e) {
+    // Ignore errors
+  }
+}
+
+function startResize(e) {
+  e.preventDefault()
+  isResizing.value = true
+  const startX = e.clientX
+  const startY = e.clientY
+  const startWidth = modalWidth.value
+  const startHeight = modalHeight.value || 200
+
+  function onMouseMove(e) {
+    const deltaX = e.clientX - startX
+    const deltaY = e.clientY - startY
+    modalWidth.value = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + deltaX))
+    modalHeight.value = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, startHeight + deltaY))
+  }
+
+  function onMouseUp() {
+    isResizing.value = false
+    document.removeEventListener('mousemove', onMouseMove)
+    document.removeEventListener('mouseup', onMouseUp)
+    saveSize()
+  }
+
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
+}
+
+const modalStyle = computed(() => {
+  const style = {}
+  if (modalWidth.value) {
+    style.width = `${modalWidth.value}px`
+    style.maxWidth = `${modalWidth.value}px`
+  }
+  if (modalHeight.value) {
+    style.height = `${modalHeight.value}px`
+  }
+  return style
+})
+
+onMounted(() => {
+  loadSavedSize()
+})
 </script>
 
 <style scoped>
@@ -200,8 +287,31 @@ function onExplore() {
   letter-spacing: 0.01em;
   padding: 0 0.5rem;
   color: var(--color-text-base, #333);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.note-content :deep(.markdown-renderer) {
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.note-content :deep(p) {
+  margin: 0 0 0.5em 0;
+}
+
+.note-content :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.note-content :deep(pre),
+.note-content :deep(code) {
   white-space: pre-wrap;
   word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .note-textarea {
@@ -213,9 +323,10 @@ function onExplore() {
   line-height: 1.5;
   border: 1px solid var(--color-border-input, #ddd);
   border-radius: 4px;
-  resize: vertical;
+  resize: none;
   background: var(--color-bg-input, #fff);
   color: var(--color-text-base, #333);
+  flex: 1;
 }
 
 .note-textarea:focus {
@@ -264,5 +375,24 @@ function onExplore() {
 
 .detail-explain-link:hover {
   text-decoration: underline;
+}
+
+.resize-handle {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted, #999);
+  opacity: 0.5;
+  transition: opacity 0.15s ease;
+}
+
+.resize-handle:hover {
+  opacity: 1;
 }
 </style>
