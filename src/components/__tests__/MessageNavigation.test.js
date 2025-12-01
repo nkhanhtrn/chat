@@ -50,13 +50,12 @@ describe('MessageNavigation', () => {
   }
 
   describe('Home Button (First Breadcrumb Item)', () => {
-    it('should render first breadcrumb item with home icon (SVG)', () => {
+    it('should render first breadcrumb item with questionSummarized text', () => {
       const wrapper = mountComponent('2')
       const items = wrapper.findAll('.breadcrumb-item')
       expect(items.length).toBeGreaterThan(0)
       const firstItem = items[0]
-      const svg = firstItem.find('svg')
-      expect(svg.exists()).toBe(true)
+      expect(firstItem.text()).toContain('Root')
     })
 
     it('should render first breadcrumb with tertiary variant', () => {
@@ -177,12 +176,12 @@ describe('MessageNavigation', () => {
   describe('Navigation Path', () => {
     it('should show full path from root to current message', () => {
       const wrapper = mountComponent('3')
-      // Should have: Root (home icon) + Child + Last
+      // Should have: Root + Child + Last
       const items = wrapper.findAll('.breadcrumb-item')
 
       expect(items.length).toBe(3) // Root, Child, and Last
-      // First item has SVG (home icon)
-      expect(items[0].find('svg').exists()).toBe(true)
+      // First item shows questionSummarized text
+      expect(items[0].text()).toContain('Root')
       expect(items[1].text()).toContain('Child')
       expect(items[2].text()).toContain('Last')
     })

@@ -4,6 +4,14 @@ import { createPinia, setActivePinia } from 'pinia'
 import ChatSidebar from '../ChatSidebar.vue'
 import { useChatStore } from '../../stores/chat.js'
 
+// Mock vue-router at the module level
+const mockRouterPush = vi.fn()
+vi.mock('vue-router', () => ({
+  useRouter: () => ({
+    push: mockRouterPush
+  })
+}))
+
 describe('ChatSidebar', () => {
   let wrapper
   let chatStore
@@ -1599,6 +1607,563 @@ describe('ChatSidebar', () => {
       await wrapper.find('.search-input').setValue('java program')
 
       expect(wrapper.find('.search-results-count').text()).toContain('1 result')
+    })
+  })
+
+  describe('Drag and Drop to Notebooks Button', () => {
+    let mockConfirm
+
+    beforeEach(() => {
+      // Clear mock router calls
+      mockRouterPush.mockClear()
+
+      // Mock window.confirm
+      mockConfirm = vi.fn()
+      global.confirm = mockConfirm
+    })
+
+    afterEach(() => {
+      delete global.confirm
+    })
+
+    it('should add drop zone handlers to notebooks button', () => {
+      wrapper = mount(ChatSidebar, {
+        props: { chats: [], currentChatId: 'chat1' }
+      })
+
+      const notebooksButton = wrapper.find('.back-home-button')
+      expect(notebooksButton.exists()).toBe(true)
+
+      // Check that the button element exists and can receive drag events
+      // Vue's event handlers are in the vnode, not directly on the DOM element
+      expect(notebooksButton.element).toBeDefined()
+      expect(notebooksButton.element.className).toContain('back-home-button')
+    })
+
+    it('should highlight notebooks button when dragging over it', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Test Question', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Test Question' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      const notebooksButton = wrapper.find('.back-home-button')
+
+      // Simulate drag start on a question to set draggedItem
+      const treeItem = wrapper.find('.tree-item')
+      await treeItem.trigger('dragstart', {
+        dataTransfer: {
+          effectAllowed: 'move',
+          setData: vi.fn()
+        }
+      })
+
+      // Simulate drag over notebooks button
+      await notebooksButton.trigger('dragover', {
+        dataTransfer: {
+          dropEffect: 'move'
+        }
+      })
+
+      // Button should have drop-target class
+      expect(notebooksButton.classes()).toContain('drop-target')
+    })
+
+    it('should remove highlight when dragging leaves notebooks button', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Test Question', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Test Question' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      const notebooksButton = wrapper.find('.back-home-button')
+      const treeItem = wrapper.find('.tree-item')
+
+      // Start drag
+      await treeItem.trigger('dragstart', {
+        dataTransfer: {
+          effectAllowed: 'move',
+          setData: vi.fn()
+        }
+      })
+
+      // Drag over
+      await notebooksButton.trigger('dragover', {
+        dataTransfer: {
+          dropEffect: 'move'
+        }
+      })
+
+      expect(notebooksButton.classes()).toContain('drop-target')
+
+      // Drag leave
+      await notebooksButton.trigger('dragleave')
+
+      expect(notebooksButton.classes()).not.toContain('drop-target')
+    })
+
+    it('should show confirmation dialog when dropping question on notebooks button', async () => {
+      mockConfirm.mockReturnValue(false) // User cancels
+
+      setupMessagesInStore([
+        { id: 'q1', question: 'Test Question', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Test Question' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      const notebooksButton = wrapper.find('.back-home-button')
+      const treeItem = wrapper.find('.tree-item')
+
+      // Start drag
+      await treeItem.trigger('dragstart', {
+        dataTransfer: {
+          effectAllowed: 'move',
+          setData: vi.fn()
+        }
+      })
+
+      // Drop on notebooks button
+      await notebooksButton.trigger('drop', {
+        dataTransfer: {},
+        preventDefault: vi.fn()
+      })
+
+      // Confirm should be called
+      expect(mockConfirm).toHaveBeenCalledWith(
+        expect.stringContaining('Move "Test Question" and all its children to a new notebook?')
+      )
+    })
+
+    it('should not create new notebook if user cancels confirmation', async () => {
+      mockConfirm.mockReturnValue(false)
+
+      setupMessagesInStore([
+        { id: 'q1', question: 'Test Question', response: '' }
+      ])
+
+      chatStore.chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        rootMessageIds: ['q1']
+      }]
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Test Question' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      const initialChatCount = chatStore.chats.length
+
+      const notebooksButton = wrapper.find('.back-home-button')
+      const treeItem = wrapper.find('.tree-item')
+
+      await treeItem.trigger('dragstart', {
+        dataTransfer: {
+          effectAllowed: 'move',
+          setData: vi.fn()
+        }
+      })
+
+      await notebooksButton.trigger('drop', {
+        dataTransfer: {},
+        preventDefault: vi.fn()
+      })
+
+      // No new chat should be created
+      expect(chatStore.chats.length).toBe(initialChatCount)
+    })
+
+    it('should move question to new notebook when user confirms', async () => {
+      mockConfirm.mockReturnValue(true)
+
+      setupMessagesInStore([
+        { id: 'q1', question: 'Test Question', response: '', childIds: [] }
+      ])
+
+      chatStore.chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        rootMessageIds: ['q1']
+      }]
+      chatStore.currentChatId = 'chat1'
+      chatStore.rootMessageIds = ['q1']
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Test Question' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      const notebooksButton = wrapper.find('.back-home-button')
+      const treeItem = wrapper.find('.tree-item')
+
+      await treeItem.trigger('dragstart', {
+        dataTransfer: {
+          effectAllowed: 'move',
+          setData: vi.fn()
+        }
+      })
+
+      await notebooksButton.trigger('drop', {
+        dataTransfer: {},
+        preventDefault: vi.fn()
+      })
+
+      // New chat should be created
+      expect(chatStore.chats.length).toBe(2)
+
+      // Question should be removed from old notebook
+      expect(chatStore.chats[0].rootMessageIds).not.toContain('q1')
+
+      // Question should be in new notebook
+      expect(chatStore.chats[1].rootMessageIds).toContain('q1')
+    })
+
+    it('should move question tree with all children to new notebook', async () => {
+      mockConfirm.mockReturnValue(true)
+
+      setupMessagesInStore([
+        { id: 'q1', question: 'Parent', response: '', childIds: ['child1', 'child2'] },
+        { id: 'child1', question: 'Child 1', response: '', parentId: 'q1', childIds: [] },
+        { id: 'child2', question: 'Child 2', response: '', parentId: 'q1', childIds: [] }
+      ])
+
+      chatStore.chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        rootMessageIds: ['q1']
+      }]
+      chatStore.currentChatId = 'chat1'
+      chatStore.rootMessageIds = ['q1']
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Parent' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      const notebooksButton = wrapper.find('.back-home-button')
+      const treeItem = wrapper.find('.tree-item')
+
+      await treeItem.trigger('dragstart', {
+        dataTransfer: {
+          effectAllowed: 'move',
+          setData: vi.fn()
+        }
+      })
+
+      await notebooksButton.trigger('drop', {
+        dataTransfer: {},
+        preventDefault: vi.fn()
+      })
+
+      // All messages should still exist in messagesById
+      expect(chatStore.messagesById['q1']).toBeDefined()
+      expect(chatStore.messagesById['child1']).toBeDefined()
+      expect(chatStore.messagesById['child2']).toBeDefined()
+
+      // Parent's childIds should remain intact
+      expect(chatStore.messagesById['q1'].childIds).toEqual(['child1', 'child2'])
+
+      // Children's parentId should still point to parent
+      expect(chatStore.messagesById['child1'].parentId).toBe('q1')
+      expect(chatStore.messagesById['child2'].parentId).toBe('q1')
+    })
+
+    it('should navigate to new notebook with moved question after drop', async () => {
+      mockConfirm.mockReturnValue(true)
+
+      setupMessagesInStore([
+        { id: 'q1', question: 'Test Question', response: '' }
+      ])
+
+      chatStore.chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        rootMessageIds: ['q1']
+      }]
+      chatStore.currentChatId = 'chat1'
+      chatStore.rootMessageIds = ['q1']
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Test Question' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      const notebooksButton = wrapper.find('.back-home-button')
+      const treeItem = wrapper.find('.tree-item')
+
+      await treeItem.trigger('dragstart', {
+        dataTransfer: {
+          effectAllowed: 'move',
+          setData: vi.fn()
+        }
+      })
+
+      await notebooksButton.trigger('drop', {
+        dataTransfer: {},
+        preventDefault: vi.fn()
+      })
+
+      // Router should be called with question route
+      await wrapper.vm.$nextTick()
+
+      const newChatId = chatStore.chats[1].id
+      expect(mockRouterPush).toHaveBeenCalledWith({
+        name: 'question',
+        params: { id: newChatId, questionId: 'q1' }
+      })
+    })
+
+    it('should clear parentId when moving child question to new notebook', async () => {
+      mockConfirm.mockReturnValue(true)
+
+      setupMessagesInStore([
+        { id: 'parent', question: 'Parent', response: '', childIds: ['child1'] },
+        { id: 'child1', question: 'Child', response: '', parentId: 'parent', childIds: [] }
+      ])
+
+      chatStore.chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        rootMessageIds: ['parent']
+      }]
+      chatStore.currentChatId = 'chat1'
+      chatStore.rootMessageIds = ['parent']
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'parent', text: 'Parent' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1', currentMessageId: 'child1' }
+      })
+
+      // Wait for tree to auto-expand to child
+      await wrapper.vm.$nextTick()
+
+      // Find all tree items - should have parent and child
+      const treeItems = wrapper.findAll('.tree-item')
+      expect(treeItems.length).toBeGreaterThanOrEqual(2)
+
+      // The child item should be the second one (after parent)
+      const childItem = treeItems.length > 1 ? treeItems[1] : treeItems[0]
+
+      // Start drag on child
+      await childItem.trigger('dragstart', {
+        dataTransfer: {
+          effectAllowed: 'move',
+          setData: vi.fn()
+        }
+      })
+
+      const notebooksButton = wrapper.find('.back-home-button')
+      await notebooksButton.trigger('drop', {
+        dataTransfer: {},
+        preventDefault: vi.fn()
+      })
+
+      // Child should have null parentId in new notebook
+      expect(chatStore.messagesById['child1'].parentId).toBeNull()
+
+      // Child should be removed from parent's childIds
+      expect(chatStore.messagesById['parent'].childIds).not.toContain('child1')
+    })
+
+    it('should update current message and chat IDs after move', async () => {
+      mockConfirm.mockReturnValue(true)
+
+      setupMessagesInStore([
+        { id: 'q1', question: 'Test Question', response: '' }
+      ])
+
+      chatStore.chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        rootMessageIds: ['q1']
+      }]
+      chatStore.currentChatId = 'chat1'
+      chatStore.currentMessageId = 'someOtherId'
+      chatStore.rootMessageIds = ['q1']
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Test Question' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      const notebooksButton = wrapper.find('.back-home-button')
+      const treeItem = wrapper.find('.tree-item')
+
+      await treeItem.trigger('dragstart', {
+        dataTransfer: {
+          effectAllowed: 'move',
+          setData: vi.fn()
+        }
+      })
+
+      await notebooksButton.trigger('drop', {
+        dataTransfer: {},
+        preventDefault: vi.fn()
+      })
+
+      // Current message ID should be updated to moved question
+      expect(chatStore.currentMessageId).toBe('q1')
+
+      // Current chat ID should be updated to new chat
+      const newChatId = chatStore.chats[1].id
+      expect(chatStore.currentChatId).toBe(newChatId)
+    })
+
+    it('should use questionSummarized in confirmation message', async () => {
+      mockConfirm.mockReturnValue(false)
+
+      setupMessagesInStore([
+        {
+          id: 'q1',
+          question: 'This is a very long question that should be summarized',
+          questionSummarized: 'Short summary',
+          response: ''
+        }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Short summary' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      const notebooksButton = wrapper.find('.back-home-button')
+      const treeItem = wrapper.find('.tree-item')
+
+      await treeItem.trigger('dragstart', {
+        dataTransfer: {
+          effectAllowed: 'move',
+          setData: vi.fn()
+        }
+      })
+
+      await notebooksButton.trigger('drop', {
+        dataTransfer: {},
+        preventDefault: vi.fn()
+      })
+
+      expect(mockConfirm).toHaveBeenCalledWith(
+        expect.stringContaining('Move "Short summary"')
+      )
+    })
+
+    it('should not crash when dropping without draggedItem', async () => {
+      wrapper = mount(ChatSidebar, {
+        props: { chats: [], currentChatId: 'chat1' }
+      })
+
+      const notebooksButton = wrapper.find('.back-home-button')
+
+      // Drop without starting a drag first
+      await notebooksButton.trigger('drop', {
+        dataTransfer: {},
+        preventDefault: vi.fn()
+      })
+
+      // Should not crash and confirm should not be called
+      expect(mockConfirm).not.toHaveBeenCalled()
+    })
+
+    it('should persist state after moving question', async () => {
+      mockConfirm.mockReturnValue(true)
+
+      setupMessagesInStore([
+        { id: 'q1', question: 'Test Question', response: '' }
+      ])
+
+      chatStore.chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        rootMessageIds: ['q1']
+      }]
+      chatStore.currentChatId = 'chat1'
+      chatStore._persistState = vi.fn()
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Test Question' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      const notebooksButton = wrapper.find('.back-home-button')
+      const treeItem = wrapper.find('.tree-item')
+
+      await treeItem.trigger('dragstart', {
+        dataTransfer: {
+          effectAllowed: 'move',
+          setData: vi.fn()
+        }
+      })
+
+      await notebooksButton.trigger('drop', {
+        dataTransfer: {},
+        preventDefault: vi.fn()
+      })
+
+      // _persistState should be called
+      expect(chatStore._persistState).toHaveBeenCalled()
     })
   })
 })

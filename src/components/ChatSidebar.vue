@@ -1,7 +1,15 @@
 <template>
   <div :class="['chat-sidebar', { collapsed: isSidebarCollapsed }]">
     <div class="sidebar-header">
-      <button @click="$emit('back-home')" class="back-home-button" title="Back to Notebooks">
+      <button
+        @click="$emit('back-home')"
+        class="back-home-button"
+        :class="{ 'drop-target': isNotebooksDropTarget }"
+        title="Back to Notebooks"
+        @dragover.prevent="handleDragOverNotebooks"
+        @dragleave="handleDragLeaveNotebooks"
+        @drop="handleDropOnNotebooks"
+      >
         <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
         <span v-if="!isSidebarCollapsed" class="button-text">Notebooks</span>
       </button>
@@ -166,6 +174,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch, provide } from 'vue'
+import { useRouter } from 'vue-router'
 import Button from './Button.vue'
 import SettingsModal from './SettingsModal.vue'
 import MessageTree from './MessageTree.vue'
@@ -201,6 +210,7 @@ const SIDEBAR_COLLAPSED_KEY = 'chatSidebarCollapsed'
 const isSidebarCollapsed = ref(false)
 const showSettings = ref(false)
 const searchQuery = ref('')
+const isNotebooksDropTarget = ref(false)
 
 // Track which root message tree is expanded (only one at a time)
 const expandedRootId = ref(null)
@@ -553,6 +563,98 @@ watch(() => props.currentMessageId, (newId) => {
 const toggleSidebar = () => {
   isSidebarCollapsed.value = !isSidebarCollapsed.value
 }
+
+const router = useRouter()
+
+// Handle drag over notebooks button
+const handleDragOverNotebooks = (event) => {
+  if (!draggedItem.value) return
+  isNotebooksDropTarget.value = true
+  event.dataTransfer.dropEffect = 'move'
+}
+
+// Handle drag leave notebooks button
+const handleDragLeaveNotebooks = () => {
+  isNotebooksDropTarget.value = false
+}
+
+// Handle drop on notebooks button - move question tree to new notebook
+const handleDropOnNotebooks = (event) => {
+  event.preventDefault()
+  isNotebooksDropTarget.value = false
+
+  if (!draggedItem.value) return
+
+  const messageId = draggedItem.value.id
+  const message = chatStore.messagesById[messageId]
+  if (!message) return
+
+  // Confirm with user
+  const questionText = message.questionSummarized || message.question || 'this question'
+  const confirmed = confirm(
+    `Move "${questionText}" and all its children to a new notebook?\n\n` +
+    'This action cannot be undone.'
+  )
+
+  if (!confirmed) {
+    draggedItem.value = null
+    return
+  }
+
+  // Create new notebook
+  const newChat = chatStore.createNewChat()
+
+  // Move the message tree to the new notebook
+  moveMessageTreeToNotebook(messageId, newChat.id)
+
+  // Clear drag state
+  draggedItem.value = null
+  dropTarget.value = null
+
+  // Navigate to the new notebook and the moved question
+  router.push({ name: 'question', params: { id: newChat.id, questionId: messageId } })
+}
+
+// Move a message tree to a new notebook
+const moveMessageTreeToNotebook = (messageId, targetChatId) => {
+  const message = chatStore.messagesById[messageId]
+  if (!message) return
+
+  const currentChat = chatStore.chats.find(c => c.id === props.currentChatId)
+  const targetChat = chatStore.chats.find(c => c.id === targetChatId)
+  if (!currentChat || !targetChat) return
+
+  // Remove from current location
+  if (message.parentId) {
+    // Remove from parent's childIds
+    const parent = chatStore.messagesById[message.parentId]
+    if (parent?.childIds) {
+      const idx = parent.childIds.indexOf(messageId)
+      if (idx !== -1) {
+        parent.childIds.splice(idx, 1)
+      }
+    }
+  } else {
+    // Remove from current chat's root messages
+    const idx = currentChat.rootMessageIds.indexOf(messageId)
+    if (idx !== -1) {
+      currentChat.rootMessageIds.splice(idx, 1)
+    }
+  }
+
+  // Clear parentId since it's now a root in the new notebook
+  message.parentId = null
+
+  // Add to target chat's root messages
+  targetChat.rootMessageIds.push(messageId)
+
+  // Update store state
+  chatStore.currentChatId = targetChatId
+  chatStore.currentMessageId = messageId
+  chatStore.rootMessageIds = [...targetChat.rootMessageIds]
+
+  chatStore._persistState()
+}
 </script>
 
 <style scoped>
@@ -599,6 +701,12 @@ const toggleSidebar = () => {
 .back-home-button:hover {
   background-color: var(--color-bg-hover);
   color: var(--color-text-secondary);
+}
+
+.back-home-button.drop-target {
+  background-color: var(--color-primary, #6366f1);
+  color: white;
+  box-shadow: 0 0 0 2px var(--color-primary, #6366f1);
 }
 
 .back-home-button svg {
