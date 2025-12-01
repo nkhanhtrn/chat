@@ -2,8 +2,6 @@
   <component
     :is="componentMap[node.type]"
     v-bind="getNodeProps(node)"
-    @click="handleClick"
-    @question-link-click="$emit('question-link-click', $event)"
     @highlight-click="$emit('highlight-click', $event)"
     @note-click="$emit('note-click', $event)"
   >
@@ -12,7 +10,6 @@
         v-for="(child, index) in node.children"
         :key="index"
         :node="child"
-        @question-link-click="$emit('question-link-click', $event)"
         @highlight-click="$emit('highlight-click', $event)"
         @note-click="$emit('note-click', $event)"
       />
@@ -55,7 +52,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['question-link-click', 'highlight-click', 'note-click'])
+const emit = defineEmits(['highlight-click', 'note-click'])
 
 // Map AST node types to Vue components
 const componentMap = {
@@ -153,12 +150,6 @@ function getNodeProps(node) {
 
     default:
       return {}
-  }
-}
-
-function handleClick(targetMessageId) {
-  if (props.node.type === 'question-link') {
-    emit('question-link-click', targetMessageId)
   }
 }
 </script>

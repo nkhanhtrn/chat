@@ -1,18 +1,20 @@
 <template>
   <a
-    href="#"
+    :href="questionHref"
     class="question-link"
     :data-target-message-id="targetMessageId"
     :data-question-id="questionId"
     :data-md-start="startOffset"
     :data-md-end="endOffset"
-    @click.prevent="handleClick"
   >
     <slot>{{ text }}</slot>
   </a>
 </template>
 
 <script setup>
+import { computed } from 'vue'
+import { useChatStore } from '../../stores/chat.js'
+
 const props = defineProps({
   text: {
     type: String,
@@ -36,10 +38,70 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['click'])
+// Compute the href for the question link
+const questionHref = computed(() => {
+  try {
+    const chatStore = useChatStore()
 
-function handleClick() {
-  emit('click', props.targetMessageId)
+    // Find which notebook contains this message
+    const notebookId = findNotebookForMessage(chatStore, props.targetMessageId)
+
+    if (!notebookId) {
+      return '#'
+    }
+
+    return `/#/notebook/${notebookId}/q/${props.targetMessageId}`
+  } catch {
+    // If store is not available (e.g., in tests), return a fallback
+    return '#'
+  }
+})
+
+// Find which notebook contains a given message
+function findNotebookForMessage(chatStore, messageId) {
+  for (const chat of chatStore.chats) {
+    // Check if message is in this chat's root messages
+    if (chat.rootMessageIds.includes(messageId)) {
+      return chat.id
+    }
+
+    // Check if message is a descendant of any root message in this chat
+    for (const rootId of chat.rootMessageIds) {
+      if (isDescendantOf(chatStore, messageId, rootId)) {
+        return chat.id
+      }
+    }
+  }
+
+  return null
+}
+
+// Check if a message is a descendant of another message
+function isDescendantOf(chatStore, messageId, ancestorId) {
+  const ancestor = chatStore.messagesById[ancestorId]
+  if (!ancestor) return false
+
+  // BFS to check all descendants
+  const queue = [...(ancestor.childIds || [])]
+  const visited = new Set()
+
+  while (queue.length > 0) {
+    const currentId = queue.shift()
+
+    if (visited.has(currentId)) continue
+    visited.add(currentId)
+
+    if (currentId === messageId) {
+      return true
+    }
+
+    const current = chatStore.messagesById[currentId]
+    if (current?.childIds) {
+      queue.push(...current.childIds)
+    }
+  }
+
+  return false
 }
 </script>
 

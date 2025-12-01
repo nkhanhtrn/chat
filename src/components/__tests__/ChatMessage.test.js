@@ -294,59 +294,6 @@ describe('ChatMessage', () => {
     })
   })
 
-  describe('Breadcrumb and Navigation UI', () => {
-    it('should render breadcrumb for assistant message with parent chain', async () => {
-      const pinia = createPinia()
-      // Simulate a message tree: root -> child
-      const rootMsg = {
-        id: 'root',
-        question: 'Root Q',
-        response: 'Root R',
-        childIds: ['child1'],
-        parentId: null
-      }
-      const childMsg = {
-        id: 'child1',
-        question: 'Child Q',
-        response: 'Child R',
-        childIds: [],
-        parentId: 'root'
-      }
-      // Setup store state manually
-      pinia.state.value.chat = {
-        messagesById: { root: rootMsg, child1: childMsg },
-        rootMessageIds: ['root'],
-        currentMessageId: 'child1',
-        currentChatId: 'chat1',
-        isStreaming: false,
-        error: null,
-        currentModel: null
-      }
-      wrapper = mount(ChatMessage, {
-        props: { message: rootMsg },
-        global: {
-          plugins: [pinia],
-          stubs: { MarkdownRenderer: true, ContextMenu: true },
-          provide: {
-            getScrollPosition: () => 0
-          }
-        }
-      })
-      // Should render breadcrumb with items - first item has home icon, second is the child
-      const breadcrumbItems = wrapper.findAll('.breadcrumb-item')
-      expect(breadcrumbItems.length).toBeGreaterThan(0)
-      // First item should have home icon (SVG)
-      expect(breadcrumbItems[0].find('svg').exists()).toBe(true)
-      // Clicking first breadcrumb item should push to router
-      mockPush.mockClear()
-      await breadcrumbItems[0].trigger('click')
-      expect(mockPush).toHaveBeenCalledWith({
-        name: 'question',
-        params: { id: 'chat1', questionId: 'root' }
-      })
-    })
-  })
-
   describe('Error and Streaming UI', () => {
     it('should show error message in assistant message', async () => {
       const pinia = createPinia()
@@ -581,19 +528,13 @@ describe('ChatMessage', () => {
       })
 
 
-      it('should switch to parent/root/last visited child/child', async () => {
+      it('should switch to parent/root/last visited child', async () => {
         // Navigate to parent using store
         chatStore.navigateToParent('child1')
         expect(chatStore.currentMessageId).toBe('root')
         // Navigate to last visited child using store
         chatStore.navigateToLastVisitedChild('root')
         expect(chatStore.currentMessageId).toBe('child1')
-        // navigateToChild (uses targetMessageId for question links) - now pushes to router
-        wrapper.vm.navigateToChild('child1')
-        expect(mockPush).toHaveBeenCalledWith({
-          name: 'question',
-          params: { id: 'chat1', questionId: 'child1' }
-        })
       })
       it('should do nothing if no lastVisitedChild exists', async () => {
         // Remove lastVisitedChild from root

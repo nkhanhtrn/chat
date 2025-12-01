@@ -19,7 +19,6 @@
            <MarkdownRenderer
              :content="currentResponse"
              :custom-content="effectiveCustomContent"
-             @question-link-click="navigateToChild"
              @highlight-click="handleHighlightClick"
              @note-click="handleNoteClick"
            />
@@ -67,8 +66,7 @@
 </template>
 
 <script setup>
-import { reactive, computed, inject } from 'vue'
-import { useRouter } from 'vue-router'
+import { reactive, computed } from 'vue'
 import { useChatStore } from '../stores/chat.js'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import ContextMenu from './ContextMenu.vue'
@@ -95,9 +93,7 @@ const props = defineProps({
   }
 })
 
-const router = useRouter()
 const chatStore = useChatStore()
-const getScrollPosition = inject('getScrollPosition', () => 0)
 
 const state = reactive({
   isChildStreaming: false,
@@ -359,19 +355,6 @@ async function handleAskQuestion(question) {
   } finally {
     state.isChildStreaming = false
   }
-}
-
-function navigateToChild(targetMessageId) {
-  // Save current scroll position before navigating
-  if (chatStore.currentMessageId) {
-    chatStore.saveScrollPosition(chatStore.currentMessageId, getScrollPosition())
-  }
-
-  // Update the router - the router watcher in ChatView will handle updating the store
-  router.push({
-    name: 'question',
-    params: { id: chatStore.currentChatId, questionId: targetMessageId }
-  })
 }
 
 function handleHighlightClick(highlightData) {

@@ -824,22 +824,7 @@ describe('Markdown Components', () => {
       expect(wrapper.attributes('data-md-end')).toBe('10')
     })
 
-    it('should emit click event with targetMessageId', async () => {
-      const wrapper = mount(QuestionLinkSpan, {
-        props: {
-          text: 'text',
-          targetMessageId: 'msg-3',
-          questionId: 'q-789',
-          startOffset: 0,
-          endOffset: 4
-        }
-      })
-      await wrapper.trigger('click')
-      expect(wrapper.emitted('click')).toBeTruthy()
-      expect(wrapper.emitted('click')[0]).toEqual(['msg-3'])
-    })
-
-    it('should prevent default link behavior', async () => {
+    it('should have href attribute with fallback when store is not available', async () => {
       const wrapper = mount(QuestionLinkSpan, {
         props: {
           text: 'text',
@@ -849,6 +834,7 @@ describe('Markdown Components', () => {
           endOffset: 4
         }
       })
+      // When store is not available (like in tests), should return '#' as fallback
       expect(wrapper.attributes('href')).toBe('#')
     })
   })
@@ -1718,7 +1704,7 @@ describe('Markdown Components', () => {
     })
 
     describe('Event Handling', () => {
-      it('should emit question-link-click when QuestionLinkSpan is clicked', async () => {
+      it('should render QuestionLinkSpan with proper href', async () => {
         const wrapper = mount(TableCell, {
           props: {
             children: [
@@ -1735,18 +1721,11 @@ describe('Markdown Components', () => {
         })
 
         const questionLink = wrapper.findComponent(QuestionLinkSpan)
-        await questionLink.trigger('click')
-
-        // QuestionLinkSpan emits 'click', which TableCell converts to 'question-link-click'
-        expect(questionLink.emitted('click')).toBeTruthy()
-        expect(questionLink.emitted('click')[0]).toEqual(['msg-5'])
-
-        // TableCell should emit question-link-click for navigation
-        expect(wrapper.emitted('question-link-click')).toBeTruthy()
-        expect(wrapper.emitted('question-link-click')[0]).toEqual(['msg-5'])
+        expect(questionLink.exists()).toBe(true)
+        expect(questionLink.attributes('href')).toBe('#') // Fallback when store not available
       })
 
-      it('should bubble question-link-click from nested TableCell children', async () => {
+      it('should render nested question-link within strong element', async () => {
         const wrapper = mount(TableCell, {
           props: {
             children: [
@@ -1767,22 +1746,12 @@ describe('Markdown Components', () => {
           }
         })
 
-        // Find the nested TableCell components (the wrapper itself is index 0, nested ones start at 1)
-        const tableCells = wrapper.findAllComponents(TableCell)
-        // The strong element contains a nested TableCell for its children
-        const nestedTableCell = tableCells.find((_cell, index) => index > 0)
-        if (nestedTableCell) {
-          nestedTableCell.vm.$emit('question-link-click', 'msg-7')
-
-          expect(wrapper.emitted('question-link-click')).toBeTruthy()
-          expect(wrapper.emitted('question-link-click')[0]).toEqual(['msg-7'])
-        } else {
-          // If no nested TableCell, just verify the structure renders
-          expect(wrapper.find('strong').exists()).toBe(true)
-        }
+        const questionLink = wrapper.findComponent(QuestionLinkSpan)
+        expect(questionLink.exists()).toBe(true)
+        expect(wrapper.find('strong').exists()).toBe(true)
       })
 
-      it('should bubble question-link-click through multiple nesting levels', async () => {
+      it('should render deeply nested question-link', async () => {
         const wrapper = mount(TableCell, {
           props: {
             children: [
@@ -1809,23 +1778,14 @@ describe('Markdown Components', () => {
           }
         })
 
-        // Find all TableCell components
-        const tableCells = wrapper.findAllComponents(TableCell)
-        // Get a nested TableCell (not the root)
-        const nestedTableCell = tableCells.find((_cell, index) => index > 0)
-        if (nestedTableCell) {
-          nestedTableCell.vm.$emit('question-link-click', 'msg-9')
-
-          expect(wrapper.emitted('question-link-click')).toBeTruthy()
-          expect(wrapper.emitted('question-link-click')[0]).toEqual(['msg-9'])
-        } else {
-          // If no nested TableCell, just verify the structure renders
-          expect(wrapper.find('a.markdown-link').exists()).toBe(true)
-          expect(wrapper.find('strong').exists()).toBe(true)
-        }
+        const questionLink = wrapper.findComponent(QuestionLinkSpan)
+        expect(questionLink.exists()).toBe(true)
+        expect(questionLink.text()).toBe('deep question')
+        expect(wrapper.find('a.markdown-link').exists()).toBe(true)
+        expect(wrapper.find('strong').exists()).toBe(true)
       })
 
-      it('should not emit events for non-question-link clicks', async () => {
+      it('should render regular links without question-link class', async () => {
         const wrapper = mount(TableCell, {
           props: {
             children: [
@@ -1840,9 +1800,9 @@ describe('Markdown Components', () => {
           }
         })
 
-        await wrapper.find('a.markdown-link').trigger('click')
-
-        expect(wrapper.emitted('question-link-click')).toBeFalsy()
+        const link = wrapper.find('a.markdown-link')
+        expect(link.exists()).toBe(true)
+        expect(wrapper.findComponent(QuestionLinkSpan).exists()).toBe(false)
       })
 
       it('should bubble highlight-click event from HighlightSpan', async () => {
@@ -2369,7 +2329,7 @@ describe('Markdown Components', () => {
     })
 
     describe('Event Handling', () => {
-      it('should emit question-link-click when question-link is clicked', async () => {
+      it('should render question-link with proper href', async () => {
         const node = {
           type: 'question-link',
           text: 'click me',
@@ -2379,13 +2339,13 @@ describe('Markdown Components', () => {
           endOffset: 8
         }
         const wrapper = mount(ASTNode, { props: { node } })
-        await wrapper.trigger('click')
 
-        expect(wrapper.emitted('question-link-click')).toBeTruthy()
-        expect(wrapper.emitted('question-link-click')[0]).toEqual(['msg-5'])
+        const link = wrapper.find('a.question-link')
+        expect(link.exists()).toBe(true)
+        expect(link.attributes('href')).toBe('#') // Fallback when store not available
       })
 
-      it('should bubble question-link-click from nested children', async () => {
+      it('should render nested question-link', async () => {
         const node = {
           type: 'paragraph',
           children: [
@@ -2402,13 +2362,11 @@ describe('Markdown Components', () => {
         const wrapper = mount(ASTNode, { props: { node } })
 
         const link = wrapper.find('a.question-link')
-        await link.trigger('click')
-
-        expect(wrapper.emitted('question-link-click')).toBeTruthy()
-        expect(wrapper.emitted('question-link-click')[0]).toEqual(['msg-3'])
+        expect(link.exists()).toBe(true)
+        expect(link.text()).toBe('nested link')
       })
 
-      it('should bubble question-link-click through multiple levels', async () => {
+      it('should render deeply nested question-link', async () => {
         const node = {
           type: 'blockquote',
           children: [
@@ -2435,24 +2393,9 @@ describe('Markdown Components', () => {
         const wrapper = mount(ASTNode, { props: { node } })
 
         const link = wrapper.find('a.question-link')
-        await link.trigger('click')
-
-        expect(wrapper.emitted('question-link-click')).toBeTruthy()
-        expect(wrapper.emitted('question-link-click')[0]).toEqual(['msg-7'])
+        expect(link.exists()).toBe(true)
+        expect(link.text()).toBe('deep link')
       })
-
-      it('should not emit question-link-click for other node types', async () => {
-        const node = {
-          type: 'link',
-          href: 'https://example.com',
-          children: [{ type: 'text', content: 'regular link', startOffset: 0, endOffset: 12 }]
-        }
-        const wrapper = mount(ASTNode, { props: { node } })
-        await wrapper.trigger('click')
-
-        expect(wrapper.emitted('question-link-click')).toBeFalsy()
-      })
-
     })
 
     describe('Props Binding', () => {
