@@ -1,5 +1,30 @@
 <template>
-  <div class="chat-input-container">
+  <div
+    class="chat-input-container"
+    :class="{ 'drag-over': isDragOver }"
+    @dragover.prevent="handleDragOver"
+    @dragleave="handleDragLeave"
+    @drop.prevent="handleDrop"
+  >
+    <!-- Context questions display -->
+    <div v-if="contextQuestions.length > 0" class="context-questions">
+      <div class="context-label">Context from:</div>
+      <div class="context-items">
+        <div
+          v-for="ctx in contextQuestions"
+          :key="ctx.id"
+          class="context-item"
+        >
+          <span class="context-text">{{ ctx.questionSummarized || ctx.question }}</span>
+          <button
+            class="context-remove"
+            @click="removeContext(ctx.id)"
+            title="Remove from context"
+          >×</button>
+        </div>
+      </div>
+    </div>
+
     <div class="input-wrapper">
       <textarea
         ref="inputRef"
@@ -21,7 +46,7 @@
       </Button>
     </div>
     <div class="input-hint">
-      Press Enter to send • Shift + Enter for new line
+      Press Enter to send • Shift + Enter for new line • Drag questions here to add context
     </div>
   </div>
 </template>
@@ -29,6 +54,7 @@
 <script setup>
 import { ref, nextTick, onMounted, watch } from 'vue'
 import Button from './Button.vue'
+import { useChatStore } from '../stores/chat.js'
 
 const props = defineProps({
   disabled: {
@@ -47,8 +73,11 @@ const props = defineProps({
 
 const emit = defineEmits(['send'])
 
+const chatStore = useChatStore()
 const inputText = ref('')
 const inputRef = ref(null)
+const contextQuestions = ref([])
+const isDragOver = ref(false)
 
 const focus = () => {
   nextTick(() => {
@@ -70,7 +99,7 @@ watch(() => props.autofocus, (newVal) => {
   }
 })
 
-defineExpose({ focus })
+defineExpose({ focus, clearContext })
 
 const adjustHeight = () => {
   nextTick(() => {
@@ -81,10 +110,63 @@ const adjustHeight = () => {
   })
 }
 
+// Drag and drop handlers
+const handleDragOver = (event) => {
+  // Check if the drag contains question context data
+  if (event.dataTransfer.types.includes('application/x-question-context')) {
+    isDragOver.value = true
+    event.dataTransfer.dropEffect = 'copy'
+  }
+}
+
+const handleDragLeave = (event) => {
+  // Only set to false if we're actually leaving the container
+  const rect = event.currentTarget.getBoundingClientRect()
+  const { clientX: x, clientY: y } = event
+  if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+    isDragOver.value = false
+  }
+}
+
+const handleDrop = (event) => {
+  isDragOver.value = false
+
+  const contextData = event.dataTransfer.getData('application/x-question-context')
+  if (!contextData) return
+
+  try {
+    const { messageId } = JSON.parse(contextData)
+    const message = chatStore.messagesById[messageId]
+
+    if (message && !contextQuestions.value.some(ctx => ctx.id === messageId)) {
+      contextQuestions.value.push({
+        id: message.id,
+        question: message.question,
+        questionSummarized: message.questionSummarized,
+        response: message.response
+      })
+    }
+  } catch (e) {
+    console.error('Failed to parse drop data:', e)
+  }
+}
+
+const removeContext = (id) => {
+  const index = contextQuestions.value.findIndex(ctx => ctx.id === id)
+  if (index !== -1) {
+    contextQuestions.value.splice(index, 1)
+  }
+}
+
+function clearContext() {
+  contextQuestions.value = []
+}
+
 const handleSend = () => {
   if (inputText.value.trim() && !props.disabled) {
-    emit('send', inputText.value)
+    emit('send', inputText.value, [...contextQuestions.value])
     inputText.value = ''
+    contextQuestions.value = []
     nextTick(() => {
       if (inputRef.value) {
         inputRef.value.style.height = 'auto'
@@ -102,6 +184,78 @@ const handleSend = () => {
   box-shadow: 0 -4px 20px var(--shadow-primary);
   margin: 0;
   border-radius: 0;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.chat-input-container.drag-over {
+  border-top-color: var(--color-primary, #6366f1);
+  background-color: var(--color-bg-primary-subtle, rgba(99, 102, 241, 0.05));
+}
+
+/* Context questions section */
+.context-questions {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  background-color: var(--color-bg-hover);
+  border-radius: 4px;
+  border: 1px solid var(--color-border-base);
+}
+
+.context-label {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+  margin-bottom: 0.5rem;
+  font-family: 'Georgia', serif;
+}
+
+.context-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.context-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem 0.35rem 0.75rem;
+  background-color: var(--color-bg-page);
+  border: 1px solid var(--color-border-base);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: var(--color-text-base);
+  font-family: 'Georgia', serif;
+  max-width: 250px;
+}
+
+.context-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context-remove {
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s;
+  padding: 0;
+}
+
+.context-remove:hover {
+  color: var(--color-text-strong);
+  background-color: var(--color-bg-hover);
 }
 
 .input-wrapper {

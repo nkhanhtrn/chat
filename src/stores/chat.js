@@ -66,10 +66,9 @@ export const useChatStore = defineStore('chat', {
             rootIndex: chat.rootMessageIds.indexOf(msg.id)
           }))
 
-        const firstMsg = state.messagesById[chat.rootMessageIds[0]]
         return {
           id: chat.id,
-          title: firstMsg?.question || 'New Chat',
+          title: chat.name || 'New Chat',
           messageCount: chat.rootMessageIds.length,
           questions
         }
@@ -130,6 +129,13 @@ export const useChatStore = defineStore('chat', {
       this.rootMessageIds.push(message.id)
       this.currentMessageId = message.id
       this.currentRootIndex = this.rootMessageIds.length - 1 // Navigate to new message
+
+      // Set chat name from first question if not already set
+      const chat = this.chats.find(c => c.id === this.currentChatId)
+      if (chat && !chat.name && message.question) {
+        chat.name = message.question
+      }
+
       this._syncCurrentChat()
       this._persistState()
       return message
@@ -468,6 +474,7 @@ export const useChatStore = defineStore('chat', {
       const chatId = crypto.randomUUID()
       const newChat = {
         id: chatId,
+        name: '',
         rootMessageIds: [],
         scratchpad: ''
       }
@@ -542,15 +549,10 @@ export const useChatStore = defineStore('chat', {
     // Rename a chat session
     renameChat(chatId, newTitle) {
       const chat = this.chats.find(c => c.id === chatId)
-      if (!chat || !chat.rootMessageIds.length) return
+      if (!chat) return
 
-      // Update the first message's question to change the chat title
-      const firstMessageId = chat.rootMessageIds[0]
-      const firstMessage = this.messagesById[firstMessageId]
-      if (firstMessage) {
-        firstMessage.question = newTitle
-        this._persistState()
-      }
+      chat.name = newTitle
+      this._persistState()
     },
 
     // Reorder root messages in the current chat

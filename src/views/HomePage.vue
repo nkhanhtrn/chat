@@ -25,12 +25,17 @@
       <div v-if="searchResults.length > 0" class="results-list">
         <div
           v-for="result in searchResults"
-          :key="result.id"
+          :key="result.type + '-' + result.id"
           class="result-item"
-          @click="openQuestion(result)"
+          :class="{ 'result-notebook-item': result.type === 'notebook' }"
+          @click="result.type === 'notebook' ? openNotebook(result.chatId) : openQuestion(result)"
         >
-          <div class="result-question">{{ result.text }}</div>
-          <div class="result-notebook">{{ result.notebookTitle }}</div>
+          <div class="result-type-icon">{{ result.type === 'notebook' ? '📓' : '💬' }}</div>
+          <div class="result-content">
+            <div class="result-question">{{ result.text }}</div>
+            <div v-if="result.type === 'question'" class="result-notebook">{{ result.notebookTitle }}</div>
+            <div v-else class="result-notebook">Notebook</div>
+          </div>
         </div>
       </div>
       <div v-else class="no-results">
@@ -103,7 +108,8 @@ const searchResults = computed(() => {
         chatId: chat.id,
         rootId,
         rootIndex,
-        notebookTitle: chat.title || 'Untitled Notebook'
+        notebookTitle: chat.title || 'Untitled Notebook',
+        type: 'question'
       })
     }
 
@@ -116,6 +122,19 @@ const searchResults = computed(() => {
   }
 
   for (const chat of chatStore.chatList) {
+    // Search notebook title
+    const notebookTitle = chat.title || 'Untitled Notebook'
+    if (notebookTitle.toLowerCase().includes(query)) {
+      results.push({
+        id: chat.id,
+        text: notebookTitle,
+        chatId: chat.id,
+        notebookTitle,
+        type: 'notebook'
+      })
+    }
+
+    // Search questions within notebook
     for (const question of chat.questions) {
       searchMessageTree(question.id, chat, question.id, question.rootIndex)
     }
@@ -230,6 +249,9 @@ const deleteNotebook = (id) => {
 }
 
 .result-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
   padding: 1rem;
   background-color: var(--color-bg-page);
   border: 1px solid var(--color-border-base);
@@ -243,11 +265,24 @@ const deleteNotebook = (id) => {
   box-shadow: 0 2px 8px var(--shadow-primary);
 }
 
+.result-type-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.result-content {
+  flex: 1;
+  min-width: 0;
+}
+
 .result-question {
   font-family: 'Georgia', serif;
   font-size: 1rem;
   color: var(--color-text-message);
   margin-bottom: 0.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .result-notebook {

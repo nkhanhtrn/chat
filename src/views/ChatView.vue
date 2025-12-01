@@ -18,9 +18,6 @@
       <!-- Fixed Navigation Header -->
       <Transition name="slide-down">
         <div v-if="isScrolledDown && chatStore.currentRootMessage" class="fixed-nav-header">
-          <div class="fixed-question-summary">
-            {{ chatStore.currentRootMessage.questionSummarized }}
-          </div>
           <div class="fixed-nav-content">
             <MessageNavigation
               v-if="chatStore.currentMessage"
@@ -240,7 +237,7 @@ const setScrollPosition = (position) => {
 provide('getScrollPosition', getScrollPosition)
 provide('setScrollPosition', setScrollPosition)
 
-const handleSendMessage = async (userMessage) => {
+const handleSendMessage = async (userMessage, contextQuestions = []) => {
   if (!userMessage.trim() || chatStore.isStreaming) return false
 
   error.value = null
@@ -271,9 +268,9 @@ const handleSendMessage = async (userMessage) => {
   // check if this is the first message in the chat to set as summary
   let messages;
   if (chatStore.rootMessageIds.length === 1) {
-    messages = getMainPrompts(`[NEWTOPIC] ${msg.question}`)
+    messages = getMainPrompts(`[NEWTOPIC] ${msg.question}`, [], contextQuestions)
   } else {
-    messages = getMainPrompts(`[DEEPDIVE] ${msg.question}`, previousMessages);
+    messages = getMainPrompts(`[DEEPDIVE] ${msg.question}`, previousMessages, contextQuestions);
   }
   console.log("Final message to send:", messages);
   try {

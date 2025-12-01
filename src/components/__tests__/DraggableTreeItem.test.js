@@ -208,8 +208,42 @@ describe('DraggableTreeItem', () => {
       await wrapper.find('.tree-item').trigger('dragstart', { dataTransfer })
 
       expect(provide.draggedItem.value).toEqual({ id: 'item1', parentId: 'parent1' })
-      expect(dataTransfer.effectAllowed).toBe('move')
+      expect(dataTransfer.effectAllowed).toBe('copyMove')
       expect(dataTransfer.setData).toHaveBeenCalledWith('text/plain', 'item1')
+    })
+
+    it('should set question context data on dragstart', async () => {
+      const provide = createProvide()
+      wrapper = mount(DraggableTreeItem, {
+        props: defaultProps,
+        global: createGlobalConfig(provide)
+      })
+
+      const dataTransfer = { effectAllowed: '', setData: vi.fn() }
+      await wrapper.find('.tree-item').trigger('dragstart', { dataTransfer })
+
+      expect(dataTransfer.setData).toHaveBeenCalledWith(
+        'application/x-question-context',
+        JSON.stringify({ messageId: 'item1' })
+      )
+    })
+
+    it('should set both text/plain and application/x-question-context on dragstart', async () => {
+      const provide = createProvide()
+      wrapper = mount(DraggableTreeItem, {
+        props: defaultProps,
+        global: createGlobalConfig(provide)
+      })
+
+      const dataTransfer = { effectAllowed: '', setData: vi.fn() }
+      await wrapper.find('.tree-item').trigger('dragstart', { dataTransfer })
+
+      expect(dataTransfer.setData).toHaveBeenCalledTimes(2)
+      expect(dataTransfer.setData).toHaveBeenCalledWith('text/plain', 'item1')
+      expect(dataTransfer.setData).toHaveBeenCalledWith(
+        'application/x-question-context',
+        expect.any(String)
+      )
     })
 
     it('should clear draggedItem and dropTarget on dragend', async () => {

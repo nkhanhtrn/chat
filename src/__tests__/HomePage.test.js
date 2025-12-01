@@ -480,7 +480,7 @@ describe('HomePage', () => {
       expect(wrapper.find('.result-count').text()).toBe('(2)')
     })
 
-    it('should display notebook title for each result', async () => {
+    it('should display notebook title for each question result', async () => {
       const newChat = chatStore.createNewChat()
       chatStore.messagesById['msg1'] = {
         id: 'msg1',
@@ -489,7 +489,9 @@ describe('HomePage', () => {
         response: '',
         childIds: []
       }
-      chatStore.chats.find(c => c.id === newChat.id).rootMessageIds = ['msg1']
+      const chat = chatStore.chats.find(c => c.id === newChat.id)
+      chat.rootMessageIds = ['msg1']
+      chat.name = 'My Test Notebook'
 
       wrapper = mount(HomePage, {
         global: {
@@ -497,9 +499,13 @@ describe('HomePage', () => {
         }
       })
 
-      await wrapper.find('.search-input').setValue('testing')
+      // Search for something that only matches the question, not the notebook title
+      await wrapper.find('.search-input').setValue('first question')
 
-      expect(wrapper.find('.result-notebook').text()).toBe('First question about testing')
+      // Should find only the question result and show its notebook title
+      const results = wrapper.findAll('.result-item')
+      expect(results.length).toBe(1)
+      expect(wrapper.find('.result-notebook').text()).toBe('My Test Notebook')
     })
 
     it('should search child questions in the tree', async () => {
@@ -721,6 +727,151 @@ describe('HomePage', () => {
 
       expect(wrapper.find('.search-results').exists()).toBe(false)
       expect(wrapper.find('.notebooks-grid').exists()).toBe(true)
+    })
+
+    it('should find notebooks by title', async () => {
+      const newChat = chatStore.createNewChat()
+      const chat = chatStore.chats.find(c => c.id === newChat.id)
+      chat.name = 'My JavaScript Notes'
+
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      await wrapper.find('.search-input').setValue('javascript')
+
+      const results = wrapper.findAll('.result-item')
+      expect(results.length).toBe(1)
+      expect(wrapper.find('.result-question').text()).toBe('My JavaScript Notes')
+    })
+
+    it('should show notebook icon for notebook results', async () => {
+      const newChat = chatStore.createNewChat()
+      const chat = chatStore.chats.find(c => c.id === newChat.id)
+      chat.name = 'Test Notebook'
+
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      await wrapper.find('.search-input').setValue('test notebook')
+
+      const typeIcon = wrapper.find('.result-type-icon')
+      expect(typeIcon.text()).toBe('📓')
+    })
+
+    it('should show question icon for question results', async () => {
+      const newChat = chatStore.createNewChat()
+      chatStore.messagesById['msg1'] = {
+        id: 'msg1',
+        question: 'Test question',
+        questionSummarized: 'Test question',
+        response: '',
+        childIds: []
+      }
+      chatStore.chats.find(c => c.id === newChat.id).rootMessageIds = ['msg1']
+
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      await wrapper.find('.search-input').setValue('test question')
+
+      const typeIcon = wrapper.find('.result-type-icon')
+      expect(typeIcon.text()).toBe('💬')
+    })
+
+    it('should navigate to notebook when notebook result is clicked', async () => {
+      const newChat = chatStore.createNewChat()
+      const chat = chatStore.chats.find(c => c.id === newChat.id)
+      chat.name = 'Clickable Notebook'
+
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      await wrapper.find('.search-input').setValue('clickable notebook')
+
+      const resultItem = wrapper.find('.result-item')
+      await resultItem.trigger('click')
+
+      expect(mockPush).toHaveBeenCalledWith({
+        name: 'notebook',
+        params: { id: newChat.id }
+      })
+    })
+
+    it('should find both notebooks and questions matching the query', async () => {
+      const chat1 = chatStore.createNewChat()
+      const c1 = chatStore.chats.find(c => c.id === chat1.id)
+      c1.name = 'Python Tutorial'
+
+      const chat2 = chatStore.createNewChat()
+      chatStore.messagesById['msg1'] = {
+        id: 'msg1',
+        question: 'How to install Python',
+        questionSummarized: 'How to install Python',
+        response: '',
+        childIds: []
+      }
+      chatStore.chats.find(c => c.id === chat2.id).rootMessageIds = ['msg1']
+
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      await wrapper.find('.search-input').setValue('python')
+
+      const results = wrapper.findAll('.result-item')
+      expect(results.length).toBe(2)
+
+      const icons = wrapper.findAll('.result-type-icon')
+      const iconTexts = icons.map(i => i.text())
+      expect(iconTexts).toContain('📓')
+      expect(iconTexts).toContain('💬')
+    })
+
+    it('should show "Notebook" label for notebook results', async () => {
+      const newChat = chatStore.createNewChat()
+      const chat = chatStore.chats.find(c => c.id === newChat.id)
+      chat.name = 'My Notes'
+
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      await wrapper.find('.search-input').setValue('my notes')
+
+      expect(wrapper.find('.result-notebook').text()).toBe('Notebook')
+    })
+
+    it('should find notebook by title case-insensitively', async () => {
+      const newChat = chatStore.createNewChat()
+      const chat = chatStore.chats.find(c => c.id === newChat.id)
+      chat.name = 'UPPERCASE NOTEBOOK'
+
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      await wrapper.find('.search-input').setValue('uppercase')
+
+      const results = wrapper.findAll('.result-item')
+      expect(results.length).toBe(1)
     })
   })
 })

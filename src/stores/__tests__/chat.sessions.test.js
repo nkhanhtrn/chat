@@ -491,14 +491,17 @@ describe('useChatStore - Chat Sessions', () => {
   })
 
   describe('renameChat', () => {
-    it('should rename a chat by updating first message question', () => {
+    it('should rename a chat by updating the name field', () => {
       chatStore.createNewChat()
       const chatId = chatStore.currentChatId
       chatStore.addRootMessage({ id: 'msg1', question: 'Original Title', response: 'R1' })
 
       chatStore.renameChat(chatId, 'New Title')
 
-      expect(chatStore.messagesById['msg1'].question).toBe('New Title')
+      const chat = chatStore.chats.find(c => c.id === chatId)
+      expect(chat.name).toBe('New Title')
+      // Message should remain unchanged
+      expect(chatStore.messagesById['msg1'].question).toBe('Original Title')
     })
 
     it('should update chat title in chatList getter', () => {
@@ -512,23 +515,25 @@ describe('useChatStore - Chat Sessions', () => {
       expect(chatList[0].title).toBe('Renamed Chat')
     })
 
-    it('should do nothing when chat has no messages', () => {
+    it('should rename chat even when it has no messages', () => {
       chatStore.createNewChat()
       const chatId = chatStore.currentChatId
 
       chatStore.renameChat(chatId, 'New Title')
 
       const chatList = chatStore.chatList
-      expect(chatList[0].title).toBe('New Chat')
+      expect(chatList[0].title).toBe('New Title')
     })
 
     it('should do nothing when chat does not exist', () => {
       chatStore.createNewChat()
+      const chatId = chatStore.currentChatId
       chatStore.addRootMessage({ id: 'msg1', question: 'Title', response: 'R1' })
 
       chatStore.renameChat('nonexistent-id', 'New Title')
 
-      expect(chatStore.messagesById['msg1'].question).toBe('Title')
+      const chat = chatStore.chats.find(c => c.id === chatId)
+      expect(chat.name).toBe('Title')
     })
 
     it('should persist state after renaming chat', () => {
@@ -540,7 +545,8 @@ describe('useChatStore - Chat Sessions', () => {
 
       expect(saveChatStateSpy).toHaveBeenCalled()
       const savedState = saveChatStateSpy.mock.calls[saveChatStateSpy.mock.calls.length - 1][0]
-      expect(savedState.messagesById['msg1'].question).toBe('New Name')
+      const chat = savedState.chats.find(c => c.id === chatId)
+      expect(chat.name).toBe('New Name')
     })
 
     it('should only rename the first message, not other messages', () => {
@@ -552,7 +558,10 @@ describe('useChatStore - Chat Sessions', () => {
 
       chatStore.renameChat(chatId, 'Renamed')
 
-      expect(chatStore.messagesById['msg1'].question).toBe('Renamed')
+      const chat = chatStore.chats.find(c => c.id === chatId)
+      expect(chat.name).toBe('Renamed')
+      // Messages should remain unchanged
+      expect(chatStore.messagesById['msg1'].question).toBe('First')
       expect(chatStore.messagesById['msg2'].question).toBe('Second')
       expect(chatStore.messagesById['msg3'].question).toBe('Third')
     })
@@ -569,8 +578,10 @@ describe('useChatStore - Chat Sessions', () => {
       chatStore.renameChat(chat1Id, 'Renamed Chat 1')
       chatStore.renameChat(chat2Id, 'Renamed Chat 2')
 
-      expect(chatStore.messagesById['msg1'].question).toBe('Renamed Chat 1')
-      expect(chatStore.messagesById['msg2'].question).toBe('Renamed Chat 2')
+      const chat1 = chatStore.chats.find(c => c.id === chat1Id)
+      const chat2 = chatStore.chats.find(c => c.id === chat2Id)
+      expect(chat1.name).toBe('Renamed Chat 1')
+      expect(chat2.name).toBe('Renamed Chat 2')
     })
 
     it('should handle renaming a chat that is not currently active', () => {
@@ -585,7 +596,8 @@ describe('useChatStore - Chat Sessions', () => {
       // Rename chat1 while chat2 is active
       chatStore.renameChat(chat1Id, 'Updated Chat 1')
 
-      expect(chatStore.messagesById['msg1'].question).toBe('Updated Chat 1')
+      const chat1 = chatStore.chats.find(c => c.id === chat1Id)
+      expect(chat1.name).toBe('Updated Chat 1')
       expect(chatStore.currentChatId).toBe(chat2Id)
     })
   })

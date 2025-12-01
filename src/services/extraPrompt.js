@@ -115,9 +115,30 @@ const mainPrompt = contextSettingPrompt + exercisePrompt + deepDivePrompt + newT
 const summaryPrompt = `Provide a concise 2-5 word summary of the following content: `;
 const quickExplainPrompt = `Provide a very short and concise explanation of the following concept or text. Be concise but informative. You can divide into a few paragraphs if needed. You can use simple markdown elements (no block elements) to format the explanation if needed. Here's the content to explain: `;
 
-export const getMainPrompts = (textToExplain, previousMessages = []) => {
+/**
+ * Build context from referenced questions (dragged into input)
+ * @param {Array} contextQuestions - Array of {id, question, response} objects
+ * @returns {Array} Array of message objects with role and content
+ */
+const buildContextFromQuestions = (contextQuestions = []) => {
+  if (!contextQuestions || contextQuestions.length === 0) {
+    return [];
+  }
+
+  const contextContent = contextQuestions.map((ctx, i) => {
+    return `--- Reference ${i + 1}: "${ctx.questionSummarized || ctx.question}" ---\n${ctx.response}\n`;
+  }).join('\n');
+
+  return [{
+    role: 'system',
+    content: `The user has provided the following previous Q&A exchanges as reference context for their new question. Use this information to inform your response:\n\n${contextContent}\n\nPlease consider this context when answering the user's new question below.`
+  }];
+};
+
+export const getMainPrompts = (textToExplain, previousMessages = [], contextQuestions = []) => {
   const messages = [];
   messages.push({ role: 'system', content: mainPrompt });
+  messages.push(...buildContextFromQuestions(contextQuestions));
   messages.push(...buildConversationHistory(previousMessages));
   messages.push({ role: 'user', content: textToExplain });
   return messages;

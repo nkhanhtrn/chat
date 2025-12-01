@@ -143,4 +143,106 @@ describe('extraPrompt', () => {
       expect(content).toMatch(/short|concise|paragraph|sentence/)
     })
   })
+
+  describe('getMainPrompts with context questions', () => {
+    const mockContextQuestions = [
+      {
+        id: 'ctx1',
+        question: 'What is JavaScript?',
+        questionSummarized: 'JavaScript basics',
+        response: 'JavaScript is a programming language used for web development...'
+      },
+      {
+        id: 'ctx2',
+        question: 'What are closures?',
+        questionSummarized: 'Closures explained',
+        response: 'Closures are functions that have access to variables from outer scope...'
+      }
+    ]
+
+    it('should accept context questions as third parameter', () => {
+      const messages = getMainPrompts('New question', [], mockContextQuestions)
+      expect(Array.isArray(messages)).toBe(true)
+    })
+
+    it('should include context questions as system message', () => {
+      const messages = getMainPrompts('New question', [], mockContextQuestions)
+      // Should have: system prompt, context message, user message
+      expect(messages.length).toBe(3)
+      expect(messages[1].role).toBe('system')
+    })
+
+    it('should include question content in context message', () => {
+      const messages = getMainPrompts('New question', [], mockContextQuestions)
+      const contextMessage = messages[1]
+      expect(contextMessage.content).toContain('JavaScript basics')
+      expect(contextMessage.content).toContain('Closures explained')
+    })
+
+    it('should include response content in context message', () => {
+      const messages = getMainPrompts('New question', [], mockContextQuestions)
+      const contextMessage = messages[1]
+      expect(contextMessage.content).toContain('JavaScript is a programming language')
+      expect(contextMessage.content).toContain('Closures are functions')
+    })
+
+    it('should use question text when questionSummarized is not available', () => {
+      const contextWithoutSummary = [{
+        id: 'ctx1',
+        question: 'What is JavaScript?',
+        questionSummarized: null,
+        response: 'JavaScript is...'
+      }]
+      const messages = getMainPrompts('New question', [], contextWithoutSummary)
+      const contextMessage = messages[1]
+      expect(contextMessage.content).toContain('What is JavaScript?')
+    })
+
+    it('should number multiple context references', () => {
+      const messages = getMainPrompts('New question', [], mockContextQuestions)
+      const contextMessage = messages[1]
+      expect(contextMessage.content).toContain('Reference 1')
+      expect(contextMessage.content).toContain('Reference 2')
+    })
+
+    it('should not include context message when contextQuestions is empty', () => {
+      const messages = getMainPrompts('New question', [], [])
+      expect(messages.length).toBe(2)
+    })
+
+    it('should not include context message when contextQuestions is undefined', () => {
+      const messages = getMainPrompts('New question', [])
+      expect(messages.length).toBe(2)
+    })
+
+    it('should include both context and conversation history when both provided', () => {
+      const previousMessages = [{ question: 'Previous question' }]
+      const messages = getMainPrompts('New question', previousMessages, mockContextQuestions)
+      // Should have: system prompt, context message, conversation history, user message
+      expect(messages.length).toBe(4)
+      expect(messages[1].content).toContain('Reference 1')
+      expect(messages[2].content).toContain('Previous questions')
+    })
+
+    it('should preserve user message as last message with context', () => {
+      const messages = getMainPrompts('My new question', [], mockContextQuestions)
+      const lastMessage = messages[messages.length - 1]
+      expect(lastMessage.role).toBe('user')
+      expect(lastMessage.content).toBe('My new question')
+    })
+
+    it('should include instruction to consider context', () => {
+      const messages = getMainPrompts('New question', [], mockContextQuestions)
+      const contextMessage = messages[1]
+      expect(contextMessage.content.toLowerCase()).toContain('context')
+    })
+
+    it('should handle single context question', () => {
+      const singleContext = [mockContextQuestions[0]]
+      const messages = getMainPrompts('New question', [], singleContext)
+      expect(messages.length).toBe(3)
+      expect(messages[1].content).toContain('Reference 1')
+      expect(messages[1].content).not.toContain('Reference 2')
+    })
+  })
 })

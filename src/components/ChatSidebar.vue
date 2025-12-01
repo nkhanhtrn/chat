@@ -1,15 +1,19 @@
 <template>
   <div :class="['chat-sidebar', { collapsed: isSidebarCollapsed }]">
     <div class="sidebar-header">
-      <Button @click="$emit('back-home')" class="back-home-button" variant="secondary">
-        <span v-if="isSidebarCollapsed" class="icon">
-          <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
-        </span>
-        <template v-else>
-          <span class="icon">←</span>
-          <span class="button-text">Notebooks</span>
-        </template>
-      </Button>
+      <button @click="$emit('back-home')" class="back-home-button" title="Back to Notebooks">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        <span v-if="!isSidebarCollapsed" class="button-text">Notebooks</span>
+      </button>
+      <!-- Notebook title -->
+      <div v-if="!isSidebarCollapsed && currentNotebook" class="notebook-title-container">
+        <InlineEdit
+          :model-value="currentNotebook.title"
+          text-class="notebook-title"
+          input-class="notebook-title-input"
+          @save="handleNotebookRename"
+        />
+      </div>
       <!-- Search input -->
       <div v-if="!isSidebarCollapsed" class="search-container">
         <input
@@ -166,6 +170,7 @@ import Button from './Button.vue'
 import SettingsModal from './SettingsModal.vue'
 import MessageTree from './MessageTree.vue'
 import DraggableTreeItem from './DraggableTreeItem.vue'
+import InlineEdit from './InlineEdit.vue'
 import { useChatStore } from '../stores/chat.js'
 
 const props = defineProps({
@@ -209,6 +214,11 @@ const dropTarget = ref(null)
 
 provide('draggedItem', draggedItem)
 provide('dropTarget', dropTarget)
+
+// Get current notebook
+const currentNotebook = computed(() => {
+  return props.chats.find(c => c.id === props.currentChatId)
+})
 
 // Get all root messages from the current chat
 const rootMessages = computed(() => {
@@ -481,6 +491,13 @@ const handleRename = (item, newText) => {
   emit('rename-question', item.id, newText)
 }
 
+// Handle renaming the notebook
+const handleNotebookRename = (newTitle) => {
+  if (props.currentChatId) {
+    chatStore.renameChat(props.currentChatId, newTitle)
+  }
+}
+
 // Handle drop event from DraggableTreeItem
 const handleDrop = (dropData) => {
   const { messageId, targetId, position, targetIndex } = dropData
@@ -561,12 +578,66 @@ const toggleSidebar = () => {
 }
 
 .back-home-button {
-  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
 }
 
-.back-home-button .icon {
-  font-size: 1.2rem;
-  line-height: 1;
+.back-home-button:hover {
+  background-color: var(--color-bg-hover);
+  color: var(--color-text-secondary);
+}
+
+.back-home-button svg {
+  flex-shrink: 0;
+}
+
+.back-home-button .button-text {
+  font-weight: 500;
+}
+
+.chat-sidebar.collapsed .back-home-button {
+  justify-content: center;
+  padding: 0.5rem;
+}
+
+/* Notebook title */
+.notebook-title-container {
+  margin: 1rem 0;
+  padding: 0;
+  text-align: center;
+}
+
+.notebook-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text-strong);
+  display: inline-block;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.notebook-title:hover {
+  color: var(--color-primary);
+}
+
+:deep(.notebook-title-input) {
+  width: 100%;
+  padding: 0.25rem 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
 }
 
 .chat-list {

@@ -118,8 +118,12 @@ const treeItemRef = ref(null)
 
 const handleDragStart = (event) => {
   draggedItem.value = { id: props.item.id, parentId: props.parentId }
-  event.dataTransfer.effectAllowed = 'move'
+  event.dataTransfer.effectAllowed = 'copyMove'
   event.dataTransfer.setData('text/plain', props.item.id)
+  // Also set custom data for dropping into ChatInput as context
+  event.dataTransfer.setData('application/x-question-context', JSON.stringify({
+    messageId: props.item.id
+  }))
 }
 
 const handleDragEnd = () => {
