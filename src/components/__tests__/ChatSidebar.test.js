@@ -1073,4 +1073,400 @@ describe('ChatSidebar', () => {
       expect(rootHeaders[0].classes()).not.toContain('is-current-root')
     })
   })
+
+  describe('Search Functionality', () => {
+    it('should render search input when sidebar is expanded', () => {
+      wrapper = mount(ChatSidebar, {
+        props: { chats: [], currentChatId: 'chat1' }
+      })
+
+      expect(wrapper.find('.search-input').exists()).toBe(true)
+      expect(wrapper.find('.search-input').attributes('placeholder')).toBe('Search questions...')
+    })
+
+    it('should hide search input when sidebar is collapsed', async () => {
+      wrapper = mount(ChatSidebar, {
+        props: { chats: [], currentChatId: 'chat1' }
+      })
+
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+
+      expect(wrapper.find('.search-input').exists()).toBe(false)
+    })
+
+    it('should show search results when typing a query', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'How to use JavaScript', response: '' },
+        { id: 'q2', question: 'Python basics', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [
+          { id: 'q1', text: 'How to use JavaScript' },
+          { id: 'q2', text: 'Python basics' }
+        ]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      await wrapper.find('.search-input').setValue('JavaScript')
+
+      expect(wrapper.find('.search-results-container').exists()).toBe(true)
+      expect(wrapper.find('.search-results-count').text()).toContain('1 result')
+    })
+
+    it('should hide normal tree view when searching', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'How to use JavaScript', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'How to use JavaScript' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      await wrapper.find('.search-input').setValue('JavaScript')
+
+      expect(wrapper.find('.root-messages-container').exists()).toBe(false)
+      expect(wrapper.find('.search-results-container').exists()).toBe(true)
+    })
+
+    it('should search case-insensitively', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'JAVASCRIPT basics', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'JAVASCRIPT basics' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      await wrapper.find('.search-input').setValue('javascript')
+
+      expect(wrapper.find('.search-results-count').text()).toContain('1 result')
+    })
+
+    it('should search through child questions', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Parent Question', response: '', childIds: ['child1'] },
+        { id: 'child1', question: 'Child about JavaScript', response: '', parentId: 'q1' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Parent Question' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      await wrapper.find('.search-input').setValue('JavaScript')
+
+      expect(wrapper.find('.search-results-count').text()).toContain('1 result')
+      expect(wrapper.find('.search-result-question').text()).toBe('Child about JavaScript')
+    })
+
+    it('should display ancestor path for child results', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Parent Question', questionSummarized: 'Parent Question', response: '', childIds: ['child1'] },
+        { id: 'child1', question: 'Child about JavaScript', response: '', parentId: 'q1' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Parent Question' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      await wrapper.find('.search-input').setValue('JavaScript')
+
+      expect(wrapper.find('.search-result-path').exists()).toBe(true)
+      expect(wrapper.find('.path-text').text()).toBe('Parent Question')
+    })
+
+    it('should display full ancestor path for deeply nested results', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Root', questionSummarized: 'Root', response: '', childIds: ['child1'] },
+        { id: 'child1', question: 'Level 1', questionSummarized: 'Level 1', response: '', parentId: 'q1', childIds: ['child2'] },
+        { id: 'child2', question: 'Deep JavaScript question', response: '', parentId: 'child1' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Root' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      await wrapper.find('.search-input').setValue('JavaScript')
+
+      const pathTexts = wrapper.findAll('.path-text')
+      expect(pathTexts).toHaveLength(2)
+      expect(pathTexts[0].text()).toBe('Root')
+      expect(pathTexts[1].text()).toBe('Level 1')
+    })
+
+    it('should not show ancestor path for root-level results', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'JavaScript basics', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'JavaScript basics' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      await wrapper.find('.search-input').setValue('JavaScript')
+
+      expect(wrapper.find('.search-result-path').exists()).toBe(false)
+      expect(wrapper.find('.search-result-question').classes()).toContain('is-root')
+    })
+
+    it('should show "No questions found" when no results match', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Python basics', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Python basics' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      await wrapper.find('.search-input').setValue('JavaScript')
+
+      expect(wrapper.find('.search-no-results').exists()).toBe(true)
+      expect(wrapper.find('.search-no-results').text()).toBe('No questions found')
+    })
+
+    it('should emit select-question when clicking a search result', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'JavaScript basics', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'JavaScript basics' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      await wrapper.find('.search-input').setValue('JavaScript')
+      await wrapper.find('.search-result-item').trigger('click')
+
+      expect(wrapper.emitted('select-question')).toBeTruthy()
+      expect(wrapper.emitted('select-question')[0][0]).toMatchObject({
+        id: 'q1',
+        chatId: 'chat1'
+      })
+    })
+
+    it('should clear search and show tree when clicking a search result', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'JavaScript basics', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'JavaScript basics' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      await wrapper.find('.search-input').setValue('JavaScript')
+      expect(wrapper.find('.search-results-container').exists()).toBe(true)
+
+      await wrapper.find('.search-result-item').trigger('click')
+
+      expect(wrapper.find('.search-input').element.value).toBe('')
+      expect(wrapper.find('.search-results-container').exists()).toBe(false)
+      expect(wrapper.find('.root-messages-container').exists()).toBe(true)
+    })
+
+    it('should show clear button when search has text', async () => {
+      wrapper = mount(ChatSidebar, {
+        props: { chats: [], currentChatId: 'chat1' }
+      })
+
+      expect(wrapper.find('.search-clear-btn').exists()).toBe(false)
+
+      await wrapper.find('.search-input').setValue('test')
+
+      expect(wrapper.find('.search-clear-btn').exists()).toBe(true)
+    })
+
+    it('should clear search when clicking clear button', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Test question', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Test question' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      await wrapper.find('.search-input').setValue('test')
+      expect(wrapper.find('.search-results-container').exists()).toBe(true)
+
+      await wrapper.find('.search-clear-btn').trigger('click')
+
+      expect(wrapper.find('.search-input').element.value).toBe('')
+      expect(wrapper.find('.search-results-container').exists()).toBe(false)
+    })
+
+    it('should clear search when pressing Escape', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Test question', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Test question' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      await wrapper.find('.search-input').setValue('test')
+      await wrapper.find('.search-input').trigger('keydown.escape')
+
+      expect(wrapper.find('.search-input').element.value).toBe('')
+    })
+
+    it('should find multiple matching results', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'JavaScript basics', response: '' },
+        { id: 'q2', question: 'Advanced JavaScript', response: '' },
+        { id: 'q3', question: 'Python tutorial', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [
+          { id: 'q1', text: 'JavaScript basics' },
+          { id: 'q2', text: 'Advanced JavaScript' },
+          { id: 'q3', text: 'Python tutorial' }
+        ]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      await wrapper.find('.search-input').setValue('JavaScript')
+
+      expect(wrapper.find('.search-results-count').text()).toContain('2 results')
+      expect(wrapper.findAll('.search-result-item')).toHaveLength(2)
+    })
+
+    it('should use questionSummarized if available for search', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Very long question text', questionSummarized: 'Short JS', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Short JS' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      await wrapper.find('.search-input').setValue('JS')
+
+      expect(wrapper.find('.search-results-count').text()).toContain('1 result')
+    })
+
+    it('should expand tree to selected search result', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Root', response: '', childIds: ['child1'] },
+        { id: 'child1', question: 'JavaScript child', response: '', parentId: 'q1' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Root' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      await wrapper.find('.search-input').setValue('JavaScript')
+      await wrapper.find('.search-result-item').trigger('click')
+
+      // After clicking, tree should be visible and expanded
+      expect(wrapper.find('.tree-children').exists()).toBe(true)
+    })
+
+    it('should not show search results when query is only whitespace', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Test question', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Test question' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      await wrapper.find('.search-input').setValue('   ')
+
+      expect(wrapper.find('.search-results-container').exists()).toBe(false)
+      expect(wrapper.find('.root-messages-container').exists()).toBe(true)
+    })
+  })
 })

@@ -544,7 +544,7 @@ describe('Note', () => {
       customPromptText: 'explain this concept\nfor more context: selected text'
     }
 
-    it('shows Save and Explore buttons when isCustomPrompt is true and not streaming', () => {
+    it('shows Save and Deep Div buttons when isCustomPrompt is true and not streaming', () => {
       wrapper = mount(Note, { props: customPromptProps, attachTo: root })
 
       const actions = document.body.querySelector('.custom-prompt-actions')
@@ -553,10 +553,10 @@ describe('Note', () => {
       const buttons = actions.querySelectorAll('button')
       expect(buttons.length).toBe(2)
       expect(buttons[0].textContent).toBe('Save')
-      expect(buttons[1].textContent).toContain('Explore')
+      expect(buttons[1].textContent).toContain('Deep Dive')
     })
 
-    it('does not show Save and Explore buttons when streaming', async () => {
+    it('does not show Save and Deep Dive buttons when streaming', async () => {
       wrapper = mount(Note, {
         props: { ...customPromptProps, isStreaming: true, visible: false },
         attachTo: root

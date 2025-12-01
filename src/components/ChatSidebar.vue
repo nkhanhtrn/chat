@@ -10,74 +10,130 @@
           <span class="button-text">Notebooks</span>
         </template>
       </Button>
+      <!-- Search input -->
+      <div v-if="!isSidebarCollapsed" class="search-container">
+        <input
+          v-model="searchQuery"
+          type="text"
+          class="search-input"
+          placeholder="Search questions..."
+          @keydown.escape="searchQuery = ''"
+        />
+        <button
+          v-if="searchQuery"
+          class="search-clear-btn"
+          @click="searchQuery = ''"
+          title="Clear search"
+        >×</button>
+      </div>
     </div>
 
     <div class="chat-list">
-      <!-- Root messages as main items - draggable -->
-      <div class="root-messages-container">
-        <DraggableTreeItem
-          v-for="(rootMsg, index) in rootMessages"
-          :key="rootMsg.id"
-          :item="rootMsg"
-          :index="index"
-          :parent-id="null"
-          :is-active="isInActivePath(rootMsg.id)"
-          :is-expanded="isRootExpanded(rootMsg.id) && hasChildren(rootMsg.id) && !isSidebarCollapsed"
-          :draggable="!isSidebarCollapsed"
-          :hide-drop-zones="isSidebarCollapsed"
-          :editable="!isSidebarCollapsed"
-          :show-delete-button="!isSidebarCollapsed"
-          :item-class="{ 'root-header': true, 'is-current-root': rootMsg.id === currentRootId }"
-          @click="handleRootClick"
-          @drop="handleDrop"
-          @rename="handleRename"
-          @delete="handleDeleteRoot"
-        >
-          <!-- Override default slot only when collapsed -->
-          <template v-if="isSidebarCollapsed" #default>
-            <div
-              class="root-title"
-              :title="rootMsg.questionSummarized || rootMsg.question"
-            >
-              <span class="root-title-collapsed">
-                {{ (rootMsg.questionSummarized || rootMsg.question || 'Q').charAt(0).toUpperCase() }}
+      <!-- Search Results View -->
+      <div v-if="searchQuery.trim() && !isSidebarCollapsed" class="search-results-container">
+        <div class="search-results-header">
+          <span class="search-results-count">{{ searchResultsWithPath.length }} result{{ searchResultsWithPath.length !== 1 ? 's' : '' }}</span>
+        </div>
+        <div v-if="searchResultsWithPath.length > 0" class="search-results-list">
+          <div
+            v-for="result in searchResultsWithPath"
+            :key="result.id"
+            class="search-result-item"
+            @click="handleSearchResultClick(result)"
+          >
+            <!-- Ancestor path (breadcrumb) -->
+            <div v-if="result.ancestors.length > 0" class="search-result-path">
+              <span
+                v-for="(ancestor, index) in result.ancestors"
+                :key="ancestor.id"
+                class="path-segment"
+              >
+                <span class="path-text" :title="ancestor.text">{{ ancestor.text }}</span>
+                <span v-if="index < result.ancestors.length - 1" class="path-separator">›</span>
               </span>
             </div>
-          </template>
-
-          <!-- Children tree -->
-          <template #children>
-            <MessageTree
-              v-if="!isSidebarCollapsed"
-              :parent-id="rootMsg.id"
-              :current-message-id="currentMessageId"
-              :expanded-path="expandedPath"
-              :editable="!isSidebarCollapsed"
-              :show-delete-button="!isSidebarCollapsed"
-              @select="handleSelectChild"
-              @toggle-expand="handleToggleExpand"
-              @move-to-parent="handleMoveToParent"
-              @rename="handleRename"
-              @delete="handleDeleteChild"
-            />
-          </template>
-        </DraggableTreeItem>
+            <!-- Matched question -->
+            <div
+              class="search-result-question"
+              :class="{ 'is-root': result.ancestors.length === 0 }"
+            >
+              {{ result.text }}
+            </div>
+          </div>
+        </div>
+        <div v-else class="search-no-results">
+          No questions found
+        </div>
       </div>
 
-      <!-- New Question button when there are existing messages -->
-      <div
-        v-if="rootMessages.length > 0 && !isSidebarCollapsed"
-        @click="$emit('new-question')"
-        :class="['new-question-button', { active: isAddingNewQuestion }]"
-      >
-        <span class="new-question-icon">+</span>
-        <span class="new-question-text">Add new question</span>
-      </div>
+      <!-- Normal Tree View -->
+      <template v-else>
+        <!-- Root messages as main items - draggable -->
+        <div class="root-messages-container">
+          <DraggableTreeItem
+            v-for="(rootMsg, index) in rootMessages"
+            :key="rootMsg.id"
+            :item="rootMsg"
+            :index="index"
+            :parent-id="null"
+            :is-active="isInActivePath(rootMsg.id)"
+            :is-expanded="isRootExpanded(rootMsg.id) && hasChildren(rootMsg.id) && !isSidebarCollapsed"
+            :draggable="!isSidebarCollapsed"
+            :hide-drop-zones="isSidebarCollapsed"
+            :editable="!isSidebarCollapsed"
+            :show-delete-button="!isSidebarCollapsed"
+            :item-class="{ 'root-header': true, 'is-current-root': rootMsg.id === currentRootId }"
+            @click="handleRootClick"
+            @drop="handleDrop"
+            @rename="handleRename"
+            @delete="handleDeleteRoot"
+          >
+            <!-- Override default slot only when collapsed -->
+            <template v-if="isSidebarCollapsed" #default>
+              <div
+                class="root-title"
+                :title="rootMsg.questionSummarized || rootMsg.question"
+              >
+                <span class="root-title-collapsed">
+                  {{ (rootMsg.questionSummarized || rootMsg.question || 'Q').charAt(0).toUpperCase() }}
+                </span>
+              </div>
+            </template>
 
-      <div v-if="rootMessages.length === 0 && !isSidebarCollapsed" class="empty-state">
-        <p>No questions yet</p>
-        <p class="empty-hint">Ask a question to start</p>
-      </div>
+            <!-- Children tree -->
+            <template #children>
+              <MessageTree
+                v-if="!isSidebarCollapsed"
+                :parent-id="rootMsg.id"
+                :current-message-id="currentMessageId"
+                :expanded-path="expandedPath"
+                :editable="!isSidebarCollapsed"
+                :show-delete-button="!isSidebarCollapsed"
+                @select="handleSelectChild"
+                @toggle-expand="handleToggleExpand"
+                @move-to-parent="handleMoveToParent"
+                @rename="handleRename"
+                @delete="handleDeleteChild"
+              />
+            </template>
+          </DraggableTreeItem>
+        </div>
+
+        <!-- New Question button when there are existing messages -->
+        <div
+          v-if="rootMessages.length > 0 && !isSidebarCollapsed"
+          @click="$emit('new-question')"
+          :class="['new-question-button', { active: isAddingNewQuestion }]"
+        >
+          <span class="new-question-icon">+</span>
+          <span class="new-question-text">Add new question</span>
+        </div>
+
+        <div v-if="rootMessages.length === 0 && !isSidebarCollapsed" class="empty-state">
+          <p>No questions yet</p>
+          <p class="empty-hint">Ask a question to start</p>
+        </div>
+      </template>
     </div>
 
     <div class="sidebar-footer">
@@ -139,6 +195,7 @@ const SIDEBAR_COLLAPSED_KEY = 'chatSidebarCollapsed'
 
 const isSidebarCollapsed = ref(false)
 const showSettings = ref(false)
+const searchQuery = ref('')
 
 // Track which root message tree is expanded (only one at a time)
 const expandedRootId = ref(null)
@@ -174,6 +231,93 @@ const currentRootId = computed(() => {
   }
   return msg?.id || null
 })
+
+// Search results with ancestor path
+const searchResultsWithPath = computed(() => {
+  const query = searchQuery.value.trim().toLowerCase()
+  if (!query) return []
+
+  const results = []
+  const currentChat = props.chats.find(c => c.id === props.currentChatId)
+  if (!currentChat) return []
+
+  // Helper to get ancestor path for a message
+  const getAncestorPath = (messageId) => {
+    const ancestors = []
+    let msg = chatStore.messagesById[messageId]
+
+    // Walk up the parent chain
+    while (msg?.parentId) {
+      const parent = chatStore.messagesById[msg.parentId]
+      if (parent) {
+        ancestors.unshift({
+          id: parent.id,
+          text: parent.questionSummarized || parent.question || 'Untitled'
+        })
+      }
+      msg = parent
+    }
+    return ancestors
+  }
+
+  // Recursively search through message tree
+  const searchMessageTree = (messageId, rootIndex) => {
+    const message = chatStore.messagesById[messageId]
+    if (!message) return
+
+    const questionText = message.questionSummarized || message.question || ''
+    if (questionText.toLowerCase().includes(query)) {
+      results.push({
+        id: message.id,
+        text: questionText,
+        rootIndex,
+        ancestors: getAncestorPath(message.id)
+      })
+    }
+
+    // Search children recursively
+    if (message.childIds) {
+      for (const childId of message.childIds) {
+        searchMessageTree(childId, rootIndex)
+      }
+    }
+  }
+
+  // Search through all root questions
+  currentChat.questions.forEach((question, index) => {
+    searchMessageTree(question.id, index)
+  })
+
+  return results
+})
+
+// Handle clicking a search result
+const handleSearchResultClick = (result) => {
+  const currentChat = props.chats.find(c => c.id === props.currentChatId)
+  if (!currentChat) return
+
+  // Find the root of this message
+  let msg = chatStore.messagesById[result.id]
+  while (msg?.parentId) {
+    msg = chatStore.messagesById[msg.parentId]
+  }
+
+  // Emit selection
+  emit('select-question', {
+    id: result.id,
+    chatId: currentChat.id,
+    rootIndex: result.rootIndex
+  })
+
+  // Expand the tree to show the selected message
+  if (msg) {
+    expandedRootId.value = msg.id
+    buildExpandedPathToChild(result.id)
+  }
+
+  // Clear search
+  searchQuery.value = ''
+}
 
 // Check if a message is in the active path (from root to current message)
 const isInActivePath = (messageId) => {
@@ -595,5 +739,141 @@ const toggleSidebar = () => {
 
 .chat-sidebar.collapsed .sidebar-footer {
   justify-content: center;
+}
+
+/* Search styles */
+.search-container {
+  position: relative;
+  margin-top: 0.75rem;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.5rem 2rem 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  background-color: var(--color-bg-page);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 6px;
+  color: var(--color-text-secondary);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--color-border-accent);
+  box-shadow: 0 0 0 2px var(--shadow-primary);
+}
+
+.search-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.search-clear-btn {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: var(--color-bg-hover);
+  color: var(--color-text-muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s;
+}
+
+.search-clear-btn:hover {
+  background-color: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+}
+
+/* Search results */
+.search-results-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.search-results-header {
+  padding: 0 0.25rem;
+}
+
+.search-results-count {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.search-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.search-result-item {
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.search-result-item:hover {
+  background-color: var(--color-bg-hover);
+}
+
+.search-result-path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.path-segment {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.path-text {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  max-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.path-separator {
+  font-size: 0.7rem;
+  color: var(--color-text-disabled);
+}
+
+.search-result-question {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.search-result-question.is-root {
+  font-weight: 500;
+}
+
+.search-no-results {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
 }
 </style>
