@@ -247,6 +247,8 @@ const searchResultsWithPath = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
   if (!query) return []
 
+  // Split query into individual words for multi-word search
+  const searchWords = query.split(/\s+/).filter(w => w.length > 0)
   const results = []
   const currentChat = props.chats.find(c => c.id === props.currentChatId)
   if (!currentChat) return []
@@ -276,7 +278,9 @@ const searchResultsWithPath = computed(() => {
     if (!message) return
 
     const questionText = message.questionSummarized || message.question || ''
-    if (questionText.toLowerCase().includes(query)) {
+    const lowerText = questionText.toLowerCase()
+    // Match if ALL search words are found
+    if (searchWords.every(word => lowerText.includes(word))) {
       results.push({
         id: message.id,
         text: questionText,

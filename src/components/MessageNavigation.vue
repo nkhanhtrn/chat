@@ -45,6 +45,7 @@
 
 <script setup>
 import { computed, inject, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useChatStore } from '../stores/chat.js'
 import Button from './Button.vue'
 
@@ -55,9 +56,9 @@ const props = defineProps({
   }
 })
 
+const router = useRouter()
 const chatStore = useChatStore()
 const getScrollPosition = inject('getScrollPosition', () => 0)
-const setScrollPosition = inject('setScrollPosition', () => {})
 
 const showChildrenPopup = ref(false)
 
@@ -86,15 +87,32 @@ function onBreadcrumbClick(msg) {
       showChildrenPopup.value = !showChildrenPopup.value
     }
   } else {
-    const scrollPos = chatStore.navigateToMessage(msg.id, getScrollPosition())
-    setScrollPosition(scrollPos)
+    // Save current scroll position before navigating
+    if (chatStore.currentMessageId) {
+      chatStore.saveScrollPosition(chatStore.currentMessageId, getScrollPosition())
+    }
+
+    // Update the router - the router watcher in ChatView will handle updating the store
+    router.push({
+      name: 'question',
+      params: { id: chatStore.currentChatId, questionId: msg.id }
+    })
   }
 }
 
 function navigateToChild(id) {
   showChildrenPopup.value = false
-  const scrollPos = chatStore.navigateToMessage(id, getScrollPosition())
-  setScrollPosition(scrollPos)
+
+  // Save current scroll position before navigating
+  if (chatStore.currentMessageId) {
+    chatStore.saveScrollPosition(chatStore.currentMessageId, getScrollPosition())
+  }
+
+  // Update the router - the router watcher in ChatView will handle updating the store
+  router.push({
+    name: 'question',
+    params: { id: chatStore.currentChatId, questionId: id }
+  })
 }
 
 function truncateQuestion(question) {
@@ -105,15 +123,11 @@ function truncateQuestion(question) {
 
 <style scoped>
 /* Breadcrumb styles */
-.breadcrumb-nav {
-  margin-bottom: 0.5em;
-}
-
 .breadcrumb {
   display: flex;
   align-items: center;
   font-size: 0.97em;
-  margin-bottom: 0.2em;
+  margin: 0.2em 0;
   gap: 0.2em;
   user-select: none;
 }

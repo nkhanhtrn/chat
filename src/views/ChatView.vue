@@ -126,7 +126,8 @@ const navigateToQuestion = (questionId) => {
   if (rootIndex !== -1) {
     // It's a root message
     chatStore.currentRootIndex = rootIndex
-    chatStore.navigateToMessage(questionId)
+    const scrollPos = chatStore.navigateToMessage(questionId, getScrollPosition())
+    setScrollPosition(scrollPos)
     return true
   }
 
@@ -142,7 +143,8 @@ const navigateToQuestion = (questionId) => {
   const rootIdx = chat.rootMessageIds.indexOf(rootMsg.id)
   if (rootIdx !== -1) {
     chatStore.currentRootIndex = rootIdx
-    chatStore.navigateToMessage(questionId)
+    const scrollPos = chatStore.navigateToMessage(questionId, getScrollPosition())
+    setScrollPosition(scrollPos)
     return true
   }
 

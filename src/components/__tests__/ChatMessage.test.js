@@ -1,5 +1,5 @@
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 
@@ -9,6 +9,14 @@ import MarkdownRenderer from '../MarkdownRenderer.vue'
 // Mock Message and sendChatMessage modules for handleHighlight tests
 import * as MessageModule from '../../stores/Message.js'
 import * as ApiModule from '../../services/api.js'
+
+// Mock vue-router
+const mockPush = vi.fn()
+vi.mock('vue-router', () => ({
+  useRouter: () => ({
+    push: mockPush
+  })
+}))
 
 describe('ChatMessage', () => {
   let wrapper
@@ -309,6 +317,7 @@ describe('ChatMessage', () => {
         messagesById: { root: rootMsg, child1: childMsg },
         rootMessageIds: ['root'],
         currentMessageId: 'child1',
+        currentChatId: 'chat1',
         isStreaming: false,
         error: null,
         currentModel: null
@@ -317,7 +326,10 @@ describe('ChatMessage', () => {
         props: { message: rootMsg },
         global: {
           plugins: [pinia],
-          stubs: { MarkdownRenderer: true, ContextMenu: true }
+          stubs: { MarkdownRenderer: true, ContextMenu: true },
+          provide: {
+            getScrollPosition: () => 0
+          }
         }
       })
       // Should render breadcrumb with items - first item has home icon, second is the child
@@ -325,10 +337,13 @@ describe('ChatMessage', () => {
       expect(breadcrumbItems.length).toBeGreaterThan(0)
       // First item should have home icon (SVG)
       expect(breadcrumbItems[0].find('svg').exists()).toBe(true)
-      // Clicking first breadcrumb item navigates to root
-      const spy = vi.spyOn(wrapper.vm.chatStore, 'navigateToMessage')
+      // Clicking first breadcrumb item should push to router
+      mockPush.mockClear()
       await breadcrumbItems[0].trigger('click')
-      expect(spy).toHaveBeenCalledWith('root', expect.any(Number))
+      expect(mockPush).toHaveBeenCalledWith({
+        name: 'question',
+        params: { id: 'chat1', questionId: 'root' }
+      })
     })
   })
 
@@ -539,10 +554,14 @@ describe('ChatMessage', () => {
             getSelectedTextAndPosition: undefined // default
           },
           global: {
-            plugins: [pinia]
+            plugins: [pinia],
+            provide: {
+              getScrollPosition: () => 0
+            }
           }
         })
         chatStore = wrapper.vm.chatStore
+        chatStore.currentChatId = 'chat1'
         parentMsg = chatStore.addRootMessage({
           id: 'root',
           question: 'Root?',
@@ -558,6 +577,7 @@ describe('ChatMessage', () => {
           parentId: 'root',
           highlightedText: 'Child'
         })
+        mockPush.mockClear()
       })
 
 
@@ -568,9 +588,12 @@ describe('ChatMessage', () => {
         // Navigate to last visited child using store
         chatStore.navigateToLastVisitedChild('root')
         expect(chatStore.currentMessageId).toBe('child1')
-        // navigateToChild (uses targetMessageId for question links)
+        // navigateToChild (uses targetMessageId for question links) - now pushes to router
         wrapper.vm.navigateToChild('child1')
-        expect(chatStore.currentMessageId).toBe('child1')
+        expect(mockPush).toHaveBeenCalledWith({
+          name: 'question',
+          params: { id: 'chat1', questionId: 'child1' }
+        })
       })
       it('should do nothing if no lastVisitedChild exists', async () => {
         // Remove lastVisitedChild from root

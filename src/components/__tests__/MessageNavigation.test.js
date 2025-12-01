@@ -6,6 +6,13 @@ import { createPinia, setActivePinia } from 'pinia'
 import { useChatStore } from '../../stores/chat.js'
 import Button from '../Button.vue'
 
+// Mock vue-router
+const mockPush = vi.fn()
+vi.mock('vue-router', () => ({
+  useRouter: () => ({
+    push: mockPush
+  })
+}))
 
 describe('MessageNavigation', () => {
   let chatStore
@@ -13,6 +20,7 @@ describe('MessageNavigation', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     chatStore = useChatStore()
+    chatStore.currentChatId = 'chat1'
     const Message = require('../../stores/Message.js').default
     // Use Message class instances for correct property behavior
     const msg1 = new Message({ id: '1', question: 'Root', response: '', parentId: null, childIds: ['2'] })
@@ -24,19 +32,18 @@ describe('MessageNavigation', () => {
       '2': msg2,
       '3': msg3
     }
-    chatStore.navigateToMessage = vi.fn().mockReturnValue(0)
-    chatStore.navigateToParent = vi.fn().mockReturnValue(0)
-    chatStore.navigateToLastVisitedChild = vi.fn().mockReturnValue(0)
+    chatStore.saveScrollPosition = vi.fn()
+    mockPush.mockClear()
   })
 
   function mountComponent(currentMessageId = '1') {
     const currentMessage = chatStore.messagesById[currentMessageId]
+    chatStore.currentMessageId = currentMessageId
     return mount(MessageNavigation, {
       props: { currentMessage },
       global: {
         provide: {
-          getScrollPosition: () => 0,
-          setScrollPosition: () => {}
+          getScrollPosition: () => 0
         }
       }
     })
@@ -70,7 +77,11 @@ describe('MessageNavigation', () => {
       const wrapper = mountComponent('2')
       const items = wrapper.findAll('.breadcrumb-item')
       await items[0].trigger('click')
-      expect(chatStore.navigateToMessage).toHaveBeenCalledWith('1', expect.any(Number))
+      expect(mockPush).toHaveBeenCalledWith({
+        name: 'question',
+        params: { id: 'chat1', questionId: '1' }
+      })
+      expect(chatStore.saveScrollPosition).toHaveBeenCalledWith('2', 0)
     })
 
     it('should render breadcrumb even for root message', () => {
@@ -137,8 +148,12 @@ describe('MessageNavigation', () => {
       const childItem = items[1] // 'Child' which is not active
       expect(childItem.classes()).not.toContain('active')
       await childItem.trigger('click')
-      // navigateToMessage is called with messageId and current scroll position
-      expect(chatStore.navigateToMessage).toHaveBeenCalledWith('2', expect.any(Number))
+      // Router push is called with the question route
+      expect(mockPush).toHaveBeenCalledWith({
+        name: 'question',
+        params: { id: 'chat1', questionId: '2' }
+      })
+      expect(chatStore.saveScrollPosition).toHaveBeenCalledWith('3', 0)
     })
 
     it('breadcrumb items should have questionSummarized text', () => {
@@ -262,7 +277,11 @@ describe('MessageNavigation', () => {
       const popupItems = wrapper.findAll('.children-popup-item')
       await popupItems[0].trigger('click')
 
-      expect(chatStore.navigateToMessage).toHaveBeenCalledWith('3', expect.any(Number))
+      expect(mockPush).toHaveBeenCalledWith({
+        name: 'question',
+        params: { id: 'chat1', questionId: '3' }
+      })
+      expect(chatStore.saveScrollPosition).toHaveBeenCalledWith('2', 0)
     })
 
     it('should close popup after navigating to child', async () => {

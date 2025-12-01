@@ -350,8 +350,8 @@ describe('HomePage', () => {
       })
 
       const title = wrapper.find('.notebook-title')
-      // chatList getter returns 'New Chat' as default title for empty notebooks
-      expect(title.text()).toBe('New Chat')
+      // chatList getter returns 'New Subject' as default title for empty notebooks
+      expect(title.text()).toBe('New Subject')
     })
   })
 
@@ -869,6 +869,158 @@ describe('HomePage', () => {
       })
 
       await wrapper.find('.search-input').setValue('uppercase')
+
+      const results = wrapper.findAll('.result-item')
+      expect(results.length).toBe(1)
+    })
+
+    it('should find results with multi-word search (AND logic)', async () => {
+      const newChat = chatStore.createNewChat()
+      chatStore.messagesById['msg1'] = {
+        id: 'msg1',
+        question: 'How to learn JavaScript programming',
+        questionSummarized: 'How to learn JavaScript programming',
+        response: '',
+        childIds: []
+      }
+      chatStore.messagesById['msg2'] = {
+        id: 'msg2',
+        question: 'Python programming basics',
+        questionSummarized: 'Python programming basics',
+        response: '',
+        childIds: []
+      }
+      chatStore.chats.find(c => c.id === newChat.id).rootMessageIds = ['msg1', 'msg2']
+
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      // Search for "javascript programming" - should only match msg1
+      await wrapper.find('.search-input').setValue('javascript programming')
+
+      const results = wrapper.findAll('.result-item')
+      expect(results.length).toBe(1)
+      expect(wrapper.find('.result-question').text()).toBe('How to learn JavaScript programming')
+    })
+
+    it('should match words in any order', async () => {
+      const newChat = chatStore.createNewChat()
+      chatStore.messagesById['msg1'] = {
+        id: 'msg1',
+        question: 'Advanced JavaScript tutorials',
+        questionSummarized: 'Advanced JavaScript tutorials',
+        response: '',
+        childIds: []
+      }
+      chatStore.chats.find(c => c.id === newChat.id).rootMessageIds = ['msg1']
+
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      // Search for "tutorials javascript" (reversed order) - should still match
+      await wrapper.find('.search-input').setValue('tutorials javascript')
+
+      const results = wrapper.findAll('.result-item')
+      expect(results.length).toBe(1)
+      expect(wrapper.find('.result-question').text()).toBe('Advanced JavaScript tutorials')
+    })
+
+    it('should not require exact phrase match', async () => {
+      const newChat = chatStore.createNewChat()
+      chatStore.messagesById['msg1'] = {
+        id: 'msg1',
+        question: 'How to build a React application',
+        questionSummarized: 'How to build a React application',
+        response: '',
+        childIds: []
+      }
+      chatStore.chats.find(c => c.id === newChat.id).rootMessageIds = ['msg1']
+
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      // Search for "react build" (words not adjacent in original) - should match
+      await wrapper.find('.search-input').setValue('react build')
+
+      const results = wrapper.findAll('.result-item')
+      expect(results.length).toBe(1)
+    })
+
+    it('should not match if any word is missing', async () => {
+      const newChat = chatStore.createNewChat()
+      chatStore.messagesById['msg1'] = {
+        id: 'msg1',
+        question: 'JavaScript basics',
+        questionSummarized: 'JavaScript basics',
+        response: '',
+        childIds: []
+      }
+      chatStore.chats.find(c => c.id === newChat.id).rootMessageIds = ['msg1']
+
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      // Search for "javascript advanced" - "advanced" is not in the text
+      await wrapper.find('.search-input').setValue('javascript advanced')
+
+      expect(wrapper.find('.no-results').exists()).toBe(true)
+    })
+
+    it('should handle multiple spaces between words', async () => {
+      const newChat = chatStore.createNewChat()
+      chatStore.messagesById['msg1'] = {
+        id: 'msg1',
+        question: 'Vue component testing',
+        questionSummarized: 'Vue component testing',
+        response: '',
+        childIds: []
+      }
+      chatStore.chats.find(c => c.id === newChat.id).rootMessageIds = ['msg1']
+
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      // Search with multiple spaces
+      await wrapper.find('.search-input').setValue('vue    testing')
+
+      const results = wrapper.findAll('.result-item')
+      expect(results.length).toBe(1)
+    })
+
+    it('should match partial words', async () => {
+      const newChat = chatStore.createNewChat()
+      chatStore.messagesById['msg1'] = {
+        id: 'msg1',
+        question: 'JavaScript programming fundamentals',
+        questionSummarized: 'JavaScript programming fundamentals',
+        response: '',
+        childIds: []
+      }
+      chatStore.chats.find(c => c.id === newChat.id).rootMessageIds = ['msg1']
+
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      // Search for "java program" (partial words) - should match
+      await wrapper.find('.search-input').setValue('java program')
 
       const results = wrapper.findAll('.result-item')
       expect(results.length).toBe(1)

@@ -68,13 +68,14 @@
 
 <script setup>
 import { reactive, computed, inject } from 'vue'
+import { useRouter } from 'vue-router'
 import { useChatStore } from '../stores/chat.js'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import ContextMenu from './ContextMenu.vue'
 import Note from './Note.vue'
 import MessageNavigation from './MessageNavigation.vue'
 import { sendChatMessage } from '../services/api.js'
-import { getShortenContentPrompts, getMainPrompts, getQuickExplainPrompts } from '../services/extraPrompt.js'
+import { getMainPrompts, getQuickExplainPrompts } from '../services/extraPrompt.js'
 import Message from '../stores/Message.js'
 import { getSelectedTextAndPosition as getSelectionWithOffsets } from '../services/DOMSelectionHelper.js'
 
@@ -94,9 +95,9 @@ const props = defineProps({
   }
 })
 
+const router = useRouter()
 const chatStore = useChatStore()
 const getScrollPosition = inject('getScrollPosition', () => 0)
-const setScrollPosition = inject('setScrollPosition', () => {})
 
 const state = reactive({
   isChildStreaming: false,
@@ -353,11 +354,6 @@ async function handleAskQuestion(question) {
         chatStore.appendToResponse(childMsg.id, chunk)
       }
     )
-
-    // Get a short summary for the question label
-    const summaryMessages = getShortenContentPrompts(question);
-    const summary = await sendChatMessage(chatStore.currentModel, summaryMessages)
-    chatStore.setQuestionSummarized(childMsg.id, summary)
   } catch (err) {
     state.error = err.message
   } finally {
@@ -366,8 +362,16 @@ async function handleAskQuestion(question) {
 }
 
 function navigateToChild(targetMessageId) {
-  const scrollPos = chatStore.navigateToMessage(targetMessageId, getScrollPosition())
-  setScrollPosition(scrollPos)
+  // Save current scroll position before navigating
+  if (chatStore.currentMessageId) {
+    chatStore.saveScrollPosition(chatStore.currentMessageId, getScrollPosition())
+  }
+
+  // Update the router - the router watcher in ChatView will handle updating the store
+  router.push({
+    name: 'question',
+    params: { id: chatStore.currentChatId, questionId: targetMessageId }
+  })
 }
 
 function handleHighlightClick(highlightData) {
@@ -456,11 +460,6 @@ async function handleAddChapter(selectedText) {
         chatStore.appendToResponse(newRootMsg.id, chunk)
       }
     )
-
-    // Get a short summary for the question label
-    const summaryMessages = getShortenContentPrompts(selectedText)
-    const summary = await sendChatMessage(chatStore.currentModel, summaryMessages)
-    chatStore.setQuestionSummarized(newRootMsg.id, summary)
   } catch (err) {
     state.error = err.message
   } finally {

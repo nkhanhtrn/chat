@@ -93,6 +93,8 @@ const searchResults = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
   if (!query) return []
 
+  // Split query into individual words for multi-word search
+  const searchWords = query.split(/\s+/).filter(w => w.length > 0)
   const results = []
 
   // Helper to recursively search through message tree
@@ -101,7 +103,9 @@ const searchResults = computed(() => {
     if (!message) return
 
     const questionText = message.questionSummarized || message.question || ''
-    if (questionText.toLowerCase().includes(query)) {
+    const lowerText = questionText.toLowerCase()
+    // Match if ALL search words are found
+    if (searchWords.every(word => lowerText.includes(word))) {
       results.push({
         id: message.id,
         text: questionText,
@@ -124,7 +128,9 @@ const searchResults = computed(() => {
   for (const chat of chatStore.chatList) {
     // Search notebook title
     const notebookTitle = chat.title || 'Untitled Notebook'
-    if (notebookTitle.toLowerCase().includes(query)) {
+    const lowerTitle = notebookTitle.toLowerCase()
+    // Match if ALL search words are found
+    if (searchWords.every(word => lowerTitle.includes(word))) {
       results.push({
         id: chat.id,
         text: notebookTitle,
@@ -159,9 +165,11 @@ const openNotebook = (id) => {
 }
 
 const openQuestion = (result) => {
-  chatStore.switchToChat(result.chatId)
-  chatStore.currentRootIndex = result.rootIndex
-  chatStore.navigateToMessage(result.id)
+  // Switch to the chat first (this doesn't navigate to a specific message)
+  if (chatStore.currentChatId !== result.chatId) {
+    chatStore.switchToChat(result.chatId)
+  }
+  // Let the router handle the rest - the router watcher in ChatView will update the store
   router.push({ name: 'question', params: { id: result.chatId, questionId: result.id } })
 }
 

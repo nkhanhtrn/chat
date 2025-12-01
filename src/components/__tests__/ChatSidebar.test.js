@@ -1468,5 +1468,137 @@ describe('ChatSidebar', () => {
       expect(wrapper.find('.search-results-container').exists()).toBe(false)
       expect(wrapper.find('.root-messages-container').exists()).toBe(true)
     })
+
+    it('should find results with multi-word search (AND logic)', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'How to learn JavaScript programming', response: '' },
+        { id: 'q2', question: 'Python programming basics', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [
+          { id: 'q1', text: 'How to learn JavaScript programming' },
+          { id: 'q2', text: 'Python programming basics' }
+        ]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      // Search for "javascript programming" - should only match q1
+      await wrapper.find('.search-input').setValue('javascript programming')
+
+      expect(wrapper.find('.search-results-count').text()).toContain('1 result')
+      expect(wrapper.find('.search-result-question').text()).toBe('How to learn JavaScript programming')
+    })
+
+    it('should match words in any order', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Advanced JavaScript tutorials', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Advanced JavaScript tutorials' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      // Search for "tutorials javascript" (reversed order) - should still match
+      await wrapper.find('.search-input').setValue('tutorials javascript')
+
+      expect(wrapper.find('.search-results-count').text()).toContain('1 result')
+      expect(wrapper.find('.search-result-question').text()).toBe('Advanced JavaScript tutorials')
+    })
+
+    it('should not require exact phrase match', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'How to build a React application', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'How to build a React application' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      // Search for "react build" (words not adjacent in original) - should match
+      await wrapper.find('.search-input').setValue('react build')
+
+      expect(wrapper.find('.search-results-count').text()).toContain('1 result')
+    })
+
+    it('should not match if any word is missing', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'JavaScript basics', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'JavaScript basics' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      // Search for "javascript advanced" - "advanced" is not in the text
+      await wrapper.find('.search-input').setValue('javascript advanced')
+
+      expect(wrapper.find('.search-no-results').exists()).toBe(true)
+    })
+
+    it('should handle multiple spaces between words', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Vue component testing', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Vue component testing' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      // Search with multiple spaces
+      await wrapper.find('.search-input').setValue('vue    testing')
+
+      expect(wrapper.find('.search-results-count').text()).toContain('1 result')
+    })
+
+    it('should match partial words', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'JavaScript programming fundamentals', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'JavaScript programming fundamentals' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      // Search for "java program" (partial words) - should match
+      await wrapper.find('.search-input').setValue('java program')
+
+      expect(wrapper.find('.search-results-count').text()).toContain('1 result')
+    })
   })
 })

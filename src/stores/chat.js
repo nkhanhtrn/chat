@@ -68,7 +68,7 @@ export const useChatStore = defineStore('chat', {
 
         return {
           id: chat.id,
-          title: chat.name || 'New Chat',
+          title: chat.name || 'New Subject',
           messageCount: chat.rootMessageIds.length,
           questions
         }
