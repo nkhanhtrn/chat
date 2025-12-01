@@ -7,7 +7,38 @@
       </Button>
     </div>
 
-    <div class="notebooks-grid">
+    <div class="search-container">
+      <input
+        v-model="searchQuery"
+        type="text"
+        class="search-input"
+        placeholder="Search questions..."
+      />
+    </div>
+
+    <!-- Search Results -->
+    <div v-if="searchQuery.trim()" class="search-results">
+      <h2 class="search-results-title">
+        Search Results
+        <span class="result-count">({{ searchResults.length }})</span>
+      </h2>
+      <div v-if="searchResults.length > 0" class="results-list">
+        <div
+          v-for="result in searchResults"
+          :key="result.id"
+          class="result-item"
+          @click="openQuestion(result)"
+        >
+          <div class="result-question">{{ result.text }}</div>
+          <div class="result-notebook">{{ result.notebookTitle }}</div>
+        </div>
+      </div>
+      <div v-else class="no-results">
+        No questions found matching "{{ searchQuery }}"
+      </div>
+    </div>
+
+    <div v-else class="notebooks-grid">
       <div
         v-for="chat in chatStore.chatList"
         :key="chat.id"
@@ -43,13 +74,54 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useChatStore } from '../stores/chat.js'
 import Button from '../components/Button.vue'
 
 const router = useRouter()
 const chatStore = useChatStore()
+
+const searchQuery = ref('')
+
+const searchResults = computed(() => {
+  const query = searchQuery.value.trim().toLowerCase()
+  if (!query) return []
+
+  const results = []
+
+  // Helper to recursively search through message tree
+  const searchMessageTree = (messageId, chat, rootId, rootIndex) => {
+    const message = chatStore.getMessageById(messageId)
+    if (!message) return
+
+    const questionText = message.questionSummarized || message.question || ''
+    if (questionText.toLowerCase().includes(query)) {
+      results.push({
+        id: message.id,
+        text: questionText,
+        chatId: chat.id,
+        rootId,
+        rootIndex,
+        notebookTitle: chat.title || 'Untitled Notebook'
+      })
+    }
+
+    // Search children recursively
+    if (message.childIds) {
+      for (const childId of message.childIds) {
+        searchMessageTree(childId, chat, rootId, rootIndex)
+      }
+    }
+  }
+
+  for (const chat of chatStore.chatList) {
+    for (const question of chat.questions) {
+      searchMessageTree(question.id, chat, question.id, question.rootIndex)
+    }
+  }
+  return results
+})
 
 onMounted(() => {
   console.log('HomePage mounted')
@@ -65,6 +137,13 @@ const createNewNotebook = () => {
 const openNotebook = (id) => {
   chatStore.switchToChat(id)
   router.push({ name: 'notebook', params: { id } })
+}
+
+const openQuestion = (result) => {
+  chatStore.switchToChat(result.chatId)
+  chatStore.currentRootIndex = result.rootIndex
+  chatStore.navigateToMessage(result.id)
+  router.push({ name: 'question', params: { id: result.chatId, questionId: result.id } })
 }
 
 const deleteNotebook = (id) => {
@@ -99,6 +178,90 @@ const deleteNotebook = (id) => {
   margin: 0;
 }
 
+.search-container {
+  max-width: 1200px;
+  margin: 0 auto 1.5rem;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  font-family: inherit;
+  background-color: var(--color-bg-page);
+  border: 1px solid var(--color-border-base);
+  border-radius: 8px;
+  color: var(--color-text-message);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--color-border-accent);
+  box-shadow: 0 0 0 3px var(--shadow-primary);
+}
+
+.search-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.search-results {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.search-results-title {
+  font-family: 'Georgia', serif;
+  font-size: 1.25rem;
+  font-weight: 400;
+  color: var(--color-text-message);
+  margin: 0 0 1rem;
+}
+
+.result-count {
+  color: var(--color-text-muted);
+  font-weight: 300;
+}
+
+.results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.result-item {
+  padding: 1rem;
+  background-color: var(--color-bg-page);
+  border: 1px solid var(--color-border-base);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.result-item:hover {
+  border-color: var(--color-border-accent);
+  box-shadow: 0 2px 8px var(--shadow-primary);
+}
+
+.result-question {
+  font-family: 'Georgia', serif;
+  font-size: 1rem;
+  color: var(--color-text-message);
+  margin-bottom: 0.25rem;
+}
+
+.result-notebook {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.no-results {
+  text-align: center;
+  padding: 2rem;
+  color: var(--color-text-muted);
+  font-family: 'Georgia', serif;
+  font-style: italic;
+}
 
 .notebooks-grid {
   display: grid;
