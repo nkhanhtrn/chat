@@ -21,15 +21,16 @@ describe('useChatStore', () => {
 
     let loadChatStateSpy
     beforeEach(() => {
-      loadChatStateSpy = vi.spyOn(storage, 'loadChatState').mockReturnValue(savedState)
+      loadChatStateSpy = vi.spyOn(storage, 'loadChatState').mockResolvedValue({ hasConflict: false, state: savedState })
       setActivePinia(createPinia())
     })
     afterEach(() => {
       loadChatStateSpy.mockRestore()
     })
 
-    it('restores state and reconstructs Message objects', () => {
+    it('restores state and reconstructs Message objects', async () => {
       const store = useChatStore()
+      await store.initializeStore()
       expect(store.messagesById.msg1).toBeInstanceOf(Message)
       expect(store.messagesById.msg2).toBeInstanceOf(Message)
       expect(store.rootMessageIds).toEqual(['msg1'])
@@ -39,7 +40,7 @@ describe('useChatStore', () => {
       expect(store.messagesById.msg2.parentId).toBe('msg1')
     })
 
-    it('restores all Message properties including questionSummarized and lastVisitedChild', () => {
+    it('restores all Message properties including questionSummarized and lastVisitedChild', async () => {
       const savedStateWithAllProps = {
         messagesById: {
           msg1: {
@@ -78,8 +79,9 @@ describe('useChatStore', () => {
         currentModel: 'gpt-4'
       }
 
-      loadChatStateSpy.mockReturnValue(savedStateWithAllProps)
+      loadChatStateSpy.mockResolvedValue({ hasConflict: false, state: savedStateWithAllProps })
       const store = useChatStore()
+      await store.initializeStore()
 
       // Verify msg1 has all properties restored
       expect(store.messagesById.msg1.questionSummarized).toBe('Custom summary for msg1')

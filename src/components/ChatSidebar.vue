@@ -604,6 +604,10 @@ const handleDropOnNotebooks = (event) => {
   // Create new notebook
   const newChat = chatStore.createNewChat()
 
+  // Set the notebook name to the summarized question name
+  const notebookName = message.questionSummarized || message.question || 'New Notebook'
+  chatStore.renameChat(newChat.id, notebookName)
+
   // Move the message tree to the new notebook
   moveMessageTreeToNotebook(messageId, newChat.id)
 

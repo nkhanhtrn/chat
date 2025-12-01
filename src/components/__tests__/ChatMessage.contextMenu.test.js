@@ -7,7 +7,18 @@ import * as extraPrompt from '../../services/extraPrompt.js'
 
 // Helper to access state from setup script
 function getState(wrapper) {
-  return wrapper.vm.$.setupState.state
+  const setupState = wrapper.vm.$.setupState
+  // Vue 3 setup refs are auto-unwrapped when accessed through setupState
+  // But for nested reactive objects (like popup.state), we need to access them directly
+  return {
+    get popup() { return setupState.popup.state },
+    get tempHighlight() { return setupState.tempHighlight },
+    set tempHighlight(val) { setupState.tempHighlight = val },
+    get error() { return setupState.error },
+    set error(val) { setupState.error = val },
+    get isChildStreaming() { return setupState.isChildStreaming },
+    set isChildStreaming(val) { setupState.isChildStreaming = val }
+  }
 }
 
 describe('ChatMessage context menu integration', () => {
@@ -1305,8 +1316,16 @@ describe('ChatMessage context menu integration', () => {
         parentId: null
       }
 
+      // Mock chat service
+      const mockChatService = {
+        sendMessage: vi.fn((_model, _messages, callback) => {
+          if (callback) callback('New explanation')
+          return Promise.resolve('New explanation')
+        })
+      }
+
       wrapper = mount(ChatMessage, {
-        props: { message: testMessage },
+        props: { message: testMessage, chatService: mockChatService },
         global: { plugins: [pinia] }
       })
 
@@ -1320,12 +1339,6 @@ describe('ChatMessage context menu integration', () => {
       state.popup.highlightId = 'h-update'
       state.popup.noteContent = 'Old note'
       state.popup.mode = 'context-menu'
-
-      // Mock with callback to simulate streaming
-      vi.spyOn(api, 'sendChatMessage').mockImplementation((_model, _messages, callback) => {
-        if (callback) callback('New explanation')
-        return Promise.resolve('New explanation')
-      })
 
       await wrapper.vm.handleQuickExplain()
 
@@ -1349,8 +1362,16 @@ describe('ChatMessage context menu integration', () => {
         parentId: null
       }
 
+      // Mock chat service
+      const mockChatService = {
+        sendMessage: vi.fn((_model, _messages, callback) => {
+          if (callback) callback('New explanation')
+          return Promise.resolve('New explanation')
+        })
+      }
+
       wrapper = mount(ChatMessage, {
-        props: { message: testMessage },
+        props: { message: testMessage, chatService: mockChatService },
         global: { plugins: [pinia] }
       })
 
@@ -1363,12 +1384,6 @@ describe('ChatMessage context menu integration', () => {
       state.popup.colorIndex = 1
       state.popup.highlightId = null
       state.popup.mode = 'context-menu'
-
-      // Mock with callback to simulate streaming
-      vi.spyOn(api, 'sendChatMessage').mockImplementation((_model, _messages, callback) => {
-        if (callback) callback('New explanation')
-        return Promise.resolve('New explanation')
-      })
 
       await wrapper.vm.handleQuickExplain()
 
@@ -1443,8 +1458,13 @@ describe('ChatMessage context menu integration', () => {
         parentId: null
       }
 
+      // Create mock chat service that rejects
+      const mockChatService = {
+        sendMessage: vi.fn().mockRejectedValue(new Error('API Error'))
+      }
+
       wrapper = mount(ChatMessage, {
-        props: { message: testMessage },
+        props: { message: testMessage, chatService: mockChatService },
         global: { plugins: [pinia] }
       })
 
@@ -1455,8 +1475,6 @@ describe('ChatMessage context menu integration', () => {
       state.popup.startOffset = 0
       state.popup.endOffset = 5
       state.popup.mode = 'context-menu'
-
-      vi.spyOn(api, 'sendChatMessage').mockRejectedValue(new Error('API Error'))
 
       await wrapper.vm.handleQuickExplain()
 
@@ -1476,8 +1494,17 @@ describe('ChatMessage context menu integration', () => {
         parentId: null
       }
 
+      // Create mock chat service
+      const mockChatService = {
+        sendMessage: vi.fn((model, messages, callback) => {
+          callback('Hello ')
+          callback('World')
+          return Promise.resolve('Hello World')
+        })
+      }
+
       wrapper = mount(ChatMessage, {
-        props: { message: testMessage },
+        props: { message: testMessage, chatService: mockChatService },
         global: { plugins: [pinia] }
       })
 
@@ -1488,20 +1515,6 @@ describe('ChatMessage context menu integration', () => {
       state.popup.startOffset = 0
       state.popup.endOffset = 9
       state.popup.mode = 'context-menu'
-
-      // Mock streaming by capturing the callback
-      let streamCallback
-      vi.spyOn(api, 'sendChatMessage').mockImplementation((model, messages, callback) => {
-        streamCallback = callback
-        return new Promise(resolve => {
-          // Simulate streaming chunks
-          setTimeout(() => {
-            callback('Hello ')
-            callback('World')
-            resolve('Hello World')
-          }, 0)
-        })
-      })
 
       await wrapper.vm.handleQuickExplain()
 
@@ -1912,8 +1925,16 @@ describe('ChatMessage context menu integration', () => {
         parentId: null
       }
 
+      // Create mock chat service
+      const mockChatService = {
+        sendMessage: vi.fn((_model, _messages, callback) => {
+          if (callback) callback('Quick explanation')
+          return Promise.resolve('Quick explanation')
+        })
+      }
+
       wrapper = mount(ChatMessage, {
-        props: { message: testMessage },
+        props: { message: testMessage, chatService: mockChatService },
         global: { plugins: [pinia] }
       })
 
@@ -1925,11 +1946,6 @@ describe('ChatMessage context menu integration', () => {
       state.popup.endOffset = 9
       state.popup.highlightId = null
       state.popup.mode = 'context-menu'
-
-      vi.spyOn(api, 'sendChatMessage').mockImplementation((_model, _messages, callback) => {
-        if (callback) callback('Quick explanation')
-        return Promise.resolve('Quick explanation')
-      })
 
       await wrapper.vm.handleQuickExplain() // No argument = regular quick explain
 

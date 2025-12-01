@@ -4,31 +4,7 @@ import { saveChatState, loadChatState } from '../services/storage.js'
 
 export const useChatStore = defineStore('chat', {
   state: () => {
-    // Try to load saved state from localStorage
-    const savedState = loadChatState()
-
-    if (savedState) {
-      // Reconstruct Message objects from plain objects
-      const messagesById = {}
-      for (const [id, msgData] of Object.entries(savedState.messagesById || {})) {
-        messagesById[id] = new Message(msgData)
-      }
-
-      return {
-        messagesById,
-        rootMessageIds: savedState.rootMessageIds || [],
-        currentMessageId: savedState.currentMessageId || null,
-        currentRootIndex: savedState.currentRootIndex || 0,
-        isStreaming: false,
-        streamAbortController: null,
-        error: null,
-        currentModel: savedState.currentModel || null,
-        chats: savedState.chats || [],
-        currentChatId: savedState.currentChatId || null,
-      }
-    }
-
-    // Default state if nothing is saved
+    // Default state - will be populated by initializeStore()
     return {
       // Normalized storage: flat object keyed by message ID
       messagesById: {}, // { [id]: Message }
@@ -49,6 +25,9 @@ export const useChatStore = defineStore('chat', {
       // Chat sessions
       chats: [], // [{ id, rootMessageIds }]
       currentChatId: null,
+
+      // Initialization state
+      isInitialized: false,
     }
   },
 
@@ -120,6 +99,67 @@ export const useChatStore = defineStore('chat', {
   },
 
   actions: {
+    // Initialize store with saved state from Firestore/localStorage
+    // Returns conflict info if there's a sync conflict
+    async initializeStore() {
+      if (this.isInitialized) {
+        console.log('Store already initialized')
+        return { hasConflict: false }
+      }
+
+      try {
+        const result = await loadChatState()
+
+        // If there's a conflict, return it for the UI to handle
+        if (result.hasConflict) {
+          console.log('Sync conflict detected, waiting for user resolution')
+          return result
+        }
+
+        const savedState = result.state
+        if (savedState) {
+          this._applyState(savedState)
+          console.log('Chat store initialized from saved state')
+        } else {
+          console.log('No saved state found, using default state')
+        }
+
+        this.isInitialized = true
+        return { hasConflict: false }
+      } catch (error) {
+        console.error('Failed to initialize store:', error)
+        this.isInitialized = true // Mark as initialized even on error to prevent retry loops
+        return { hasConflict: false }
+      }
+    },
+
+    // Apply a state object to the store
+    _applyState(savedState) {
+      // Reconstruct Message objects from plain objects
+      const messagesById = {}
+      for (const [id, msgData] of Object.entries(savedState.messagesById || {})) {
+        messagesById[id] = new Message(msgData)
+      }
+
+      // Restore state
+      this.messagesById = messagesById
+      this.rootMessageIds = savedState.rootMessageIds || []
+      this.currentMessageId = savedState.currentMessageId || null
+      this.currentRootIndex = savedState.currentRootIndex || 0
+      this.currentModel = savedState.currentModel || null
+      this.chats = savedState.chats || []
+      this.currentChatId = savedState.currentChatId || null
+    },
+
+    // Resolve a sync conflict and apply the chosen state
+    async resolveConflict(choice, localData, cloudData) {
+      const { resolveConflict } = await import('../services/storage.js')
+      const chosenState = await resolveConflict(choice, localData, cloudData)
+      this._applyState(chosenState)
+      this.isInitialized = true
+      console.log(`Conflict resolved, applied ${choice} data`)
+    },
+
     // Add a new root message
     addRootMessage(message) {
       if (!(message instanceof Message)) {

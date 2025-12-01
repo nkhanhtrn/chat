@@ -213,7 +213,7 @@ describe('scroll position', () => {
   })
 
   describe('scroll position restoration from storage', () => {
-    it('should restore scroll position from persisted state', () => {
+    it('should restore scroll position from persisted state', async () => {
       const savedState = {
         messagesById: {
           msg1: { id: 'msg1', question: 'Q1', response: 'R1', scrollPosition: 789 }
@@ -222,9 +222,10 @@ describe('scroll position', () => {
         currentMessageId: 'msg1'
       }
 
-      const loadChatStateSpy = vi.spyOn(storage, 'loadChatState').mockReturnValue(savedState)
+      const loadChatStateSpy = vi.spyOn(storage, 'loadChatState').mockResolvedValue({ hasConflict: false, state: savedState })
       setActivePinia(createPinia())
       const store = useChatStore()
+      await store.initializeStore()
 
       expect(store.messagesById.msg1.scrollPosition).toBe(789)
 

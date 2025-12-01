@@ -2,9 +2,20 @@
   <div class="homepage">
     <div class="homepage-header">
       <h1>My Notebooks</h1>
-      <Button variant="primary" @click="createNewNotebook">
-        + New Notebook
-      </Button>
+      <div class="header-actions">
+        <div v-if="currentUser" class="user-info">
+          <span class="user-email">{{ currentUser.email }}</span>
+          <button class="sign-out-btn" @click="handleSignOut" title="Sign out">
+            Sign Out
+          </button>
+        </div>
+        <button v-else class="sign-in-btn" @click="showLoginModal = true">
+          🔒 Sign In
+        </button>
+        <Button variant="primary" @click="createNewNotebook">
+          + New Notebook
+        </Button>
+      </div>
     </div>
 
     <div class="search-container">
@@ -75,19 +86,33 @@
         <p class="empty-hint">Create your first notebook to get started</p>
       </div>
     </div>
+
+    <!-- Login Modal -->
+    <LoginModal
+      :visible="showLoginModal"
+      @close="showLoginModal = false"
+      @success="handleLoginSuccess"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useChatStore } from '../stores/chat.js'
 import Button from '../components/Button.vue'
+import LoginModal from '../components/LoginModal.vue'
+import { onAuthChange, signOutUser } from '../services/auth.js'
 
 const router = useRouter()
 const chatStore = useChatStore()
 
 const searchQuery = ref('')
+const showLoginModal = ref(false)
+const currentUser = ref(null)
+
+// Auth state listener
+let unsubscribeAuth = null
 
 const searchResults = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
@@ -152,6 +177,23 @@ onMounted(() => {
   console.log('HomePage mounted')
   console.log('chatStore.chats:', chatStore.chats)
   console.log('chatStore.chatList:', chatStore.chatList)
+
+  // Listen for auth state changes
+  unsubscribeAuth = onAuthChange((user) => {
+    currentUser.value = user
+    if (user) {
+      console.log('User signed in:', user.email)
+    } else {
+      console.log('User signed out')
+    }
+  })
+})
+
+onUnmounted(() => {
+  // Clean up auth listener
+  if (unsubscribeAuth) {
+    unsubscribeAuth()
+  }
 })
 
 const createNewNotebook = () => {
@@ -178,6 +220,22 @@ const deleteNotebook = (id) => {
     chatStore.deleteChat(id)
   }
 }
+
+const handleSignOut = async () => {
+  try {
+    await signOutUser()
+    console.log('Successfully signed out')
+  } catch (error) {
+    console.error('Sign out error:', error)
+    alert('Failed to sign out. Please try again.')
+  }
+}
+
+const handleLoginSuccess = (user) => {
+  console.log('Login successful:', user.email)
+  // The auth state listener will update currentUser automatically
+  // You could add a success message or notification here
+}
 </script>
 
 <style scoped>
@@ -203,6 +261,64 @@ const deleteNotebook = (id) => {
   font-weight: 400;
   color: var(--color-text-message);
   margin: 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-bg-page);
+  border: 1px solid var(--color-border-base);
+  border-radius: 6px;
+}
+
+.user-email {
+  font-size: 0.875rem;
+  color: var(--color-text-base);
+}
+
+.sign-out-btn {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  background: transparent;
+  border: 1px solid var(--color-border-base);
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sign-out-btn:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-base);
+  border-color: var(--color-border-accent);
+}
+
+.sign-in-btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.9375rem;
+  background: var(--color-bg-page);
+  border: 1px solid var(--color-border-base);
+  border-radius: 6px;
+  color: var(--color-text-base);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.sign-in-btn:hover {
+  background: var(--color-accent);
+  color: white;
+  border-color: var(--color-accent);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px var(--shadow-primary);
 }
 
 .search-container {

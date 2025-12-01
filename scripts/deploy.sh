@@ -3,10 +3,7 @@
 # Exit on error
 set -e
 
-echo "🧪 Running tests..."
-npm test -- --run
-
-echo "📊 Generating test coverage..."
+echo "🧪 Running tests with coverage..."
 npm run test:coverage
 
 echo "🏗️  Building application..."

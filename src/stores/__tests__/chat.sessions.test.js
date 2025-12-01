@@ -11,7 +11,7 @@ describe('useChatStore - Chat Sessions', () => {
 
   beforeEach(() => {
     // Mock loadChatState to return null (default state)
-    loadChatStateSpy = vi.spyOn(storage, 'loadChatState').mockReturnValue(null)
+    loadChatStateSpy = vi.spyOn(storage, 'loadChatState').mockResolvedValue({ hasConflict: false, state: null })
 
     setActivePinia(createPinia())
     chatStore = useChatStore()
@@ -304,7 +304,7 @@ describe('useChatStore - Chat Sessions', () => {
       expect(chatStore.messagesById['c2-msg1']).toBeDefined()
     })
 
-    it('should restore state with multiple chats', () => {
+    it('should restore state with multiple chats', async () => {
       const savedState = {
         messagesById: {
           'msg1': { id: 'msg1', question: 'Q1', response: 'R1', parentId: null, childIds: [] },
@@ -320,9 +320,10 @@ describe('useChatStore - Chat Sessions', () => {
         currentChatId: 'chat1'
       }
 
-      const loadChatStateSpy = vi.spyOn(storage, 'loadChatState').mockReturnValue(savedState)
+      const loadChatStateSpy = vi.spyOn(storage, 'loadChatState').mockResolvedValue({ hasConflict: false, state: savedState })
       setActivePinia(createPinia())
       const store = useChatStore()
+      await store.initializeStore()
 
       expect(store.chats).toHaveLength(2)
       expect(store.currentChatId).toBe('chat1')

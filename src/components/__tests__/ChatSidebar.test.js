@@ -2105,6 +2105,105 @@ describe('ChatSidebar', () => {
       )
     })
 
+    it('should name new notebook with questionSummarized when dragging question', async () => {
+      mockConfirm.mockReturnValue(true)
+
+      setupMessagesInStore([
+        {
+          id: 'q1',
+          question: 'This is a very long question that should be summarized',
+          questionSummarized: 'Short Summary',
+          response: ''
+        }
+      ])
+
+      chatStore.chats = [{
+        id: 'chat1',
+        name: 'Chat 1',
+        rootMessageIds: ['q1']
+      }]
+      chatStore.currentChatId = 'chat1'
+      chatStore.rootMessageIds = ['q1']
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Short Summary' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      const notebooksButton = wrapper.find('.back-home-button')
+      const treeItem = wrapper.find('.tree-item')
+
+      await treeItem.trigger('dragstart', {
+        dataTransfer: {
+          effectAllowed: 'move',
+          setData: vi.fn()
+        }
+      })
+
+      await notebooksButton.trigger('drop', {
+        dataTransfer: {},
+        preventDefault: vi.fn()
+      })
+
+      // New chat should be created with the summarized question name
+      expect(chatStore.chats.length).toBe(2)
+      expect(chatStore.chats[1].name).toBe('Short Summary')
+    })
+
+    it('should name new notebook with question text when no questionSummarized exists', async () => {
+      mockConfirm.mockReturnValue(true)
+
+      setupMessagesInStore([
+        {
+          id: 'q1',
+          question: 'Test Question',
+          response: ''
+        }
+      ])
+
+      chatStore.chats = [{
+        id: 'chat1',
+        name: 'Chat 1',
+        rootMessageIds: ['q1']
+      }]
+      chatStore.currentChatId = 'chat1'
+      chatStore.rootMessageIds = ['q1']
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Test Question' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      const notebooksButton = wrapper.find('.back-home-button')
+      const treeItem = wrapper.find('.tree-item')
+
+      await treeItem.trigger('dragstart', {
+        dataTransfer: {
+          effectAllowed: 'move',
+          setData: vi.fn()
+        }
+      })
+
+      await notebooksButton.trigger('drop', {
+        dataTransfer: {},
+        preventDefault: vi.fn()
+      })
+
+      // New chat should be created with the question text as fallback
+      expect(chatStore.chats.length).toBe(2)
+      expect(chatStore.chats[1].name).toBe('Test Question')
+    })
+
     it('should not crash when dropping without draggedItem', async () => {
       wrapper = mount(ChatSidebar, {
         props: { chats: [], currentChatId: 'chat1' }

@@ -49,8 +49,8 @@ const questionHref = computed(() => {
     if (!notebookId) {
       return '#'
     }
-
-    return `/#/notebook/${notebookId}/q/${props.targetMessageId}`
+    // TODO: Update URL structure if production doesn't contain /chat/
+    return `/chat/#/notebook/${notebookId}/q/${props.targetMessageId}`
   } catch {
     // If store is not available (e.g., in tests), return a fallback
     return '#'

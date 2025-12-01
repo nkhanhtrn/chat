@@ -39,10 +39,39 @@ const pinia = createPinia()
 app.use(pinia)
 app.use(router)
 
-// Set up automatic persistence for chat store
-const chatStore = useChatStore(pinia)
-chatStore.$subscribe(() => {
-  chatStore._persistState()
-})
+// Initialize Firebase and load chat state asynchronously
+const initializeApp = async () => {
+  try {
+    // Initialize Firebase (optional - will use default config)
+    const { initializeFirebase } = await import('./services/firebase.js')
+    initializeFirebase()
+    console.log('Firebase initialized')
+  } catch (error) {
+    console.warn('Firebase initialization failed (this is ok if not configured yet):', error)
+  }
 
-app.mount('#app')
+  // Set up chat store and load saved state
+  const chatStore = useChatStore(pinia)
+
+  // Initialize store with saved state (from Firestore or localStorage)
+  const result = await chatStore.initializeStore()
+
+  // Expose conflict info globally for App.vue to handle
+  if (result.hasConflict) {
+    window.__syncConflict = {
+      localData: result.localData,
+      cloudData: result.cloudData
+    }
+  }
+
+  // Set up automatic persistence for chat store
+  chatStore.$subscribe(() => {
+    chatStore._persistState()
+  })
+
+  // Mount the app after initialization
+  app.mount('#app')
+}
+
+// Start the app
+initializeApp()

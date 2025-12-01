@@ -32,9 +32,10 @@
           <Button class="context-menu-btn" @click="onAddChapter" :disabled="isStreaming" variant="tertiary">New Topic</Button>
         </div>
         <PromptInput
-          placeholder="Custom prompt..."
+          placeholder="Ctrl + Enter to deep dive"
           :disabled="isStreaming"
           @submit="onSendCustomPrompt"
+          @ctrlEnterSubmit="onCtrlEnterCustomPrompt"
         />
       </div>
     </template>
@@ -69,7 +70,7 @@ const props = defineProps({
     default: false
   }
 })
-const emit = defineEmits(['close', 'keep-highlight', 'ask-question', 'change-color', 'remove-highlight', 'add-chapter', 'add-note', 'quick-explain', 'custom-prompt'])
+const emit = defineEmits(['close', 'keep-highlight', 'ask-question', 'change-color', 'remove-highlight', 'add-chapter', 'add-note', 'quick-explain', 'custom-prompt', 'custom-prompt-deep-dive'])
 
 const selectedColorIndex = ref(0)
 
@@ -115,6 +116,10 @@ function onQuickExplain() {
 
 function onSendCustomPrompt(customPrompt) {
   emit('custom-prompt', customPrompt)
+}
+
+function onCtrlEnterCustomPrompt(customPrompt) {
+  emit('custom-prompt-deep-dive', customPrompt)
 }
 
 function onClickOutside() {

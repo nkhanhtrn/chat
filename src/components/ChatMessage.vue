@@ -24,17 +24,17 @@
            />
            <span v-if="isStreaming" class="cursor">▊</span>
          </div>
-         <div v-if="state.error" class="error-message">{{ state.error }}</div>
+         <div v-if="error" class="error-message">{{ error }}</div>
          <ContextMenu
-           :visible="state.popup.mode === 'context-menu'"
-           :x="state.popup.x"
-           :y="state.popup.y"
-           :highlighted-text="state.popup.selectedText"
+           :visible="popup.state.mode === 'context-menu'"
+           :x="popup.state.x"
+           :y="popup.state.y"
+           :highlighted-text="popup.state.selectedText"
            :is-streaming="isStreaming"
-           :color-index="state.popup.colorIndex"
-           :has-existing-highlight="!!state.popup.highlightId"
-           :has-existing-note="!!state.popup.noteContent"
-           @close="closePopup"
+           :color-index="popup.state.colorIndex"
+           :has-existing-highlight="!!popup.state.highlightId"
+           :has-existing-note="!!popup.state.noteContent"
+           @close="popup.close"
            @keep-highlight="keepHighlight"
            @ask-question="handleAskQuestion"
            @change-color="handleChangeColor"
@@ -43,17 +43,18 @@
            @add-note="handleAddNote"
            @quick-explain="handleQuickExplain"
            @custom-prompt="handleCustomPrompt"
+           @customPromptDeepDive="handleCustomPromptDeepDive"
          />
          <Note
-           :visible="state.popup.mode === 'note'"
-           :note-id="state.popup.highlightId"
-           :initial-content="state.popup.noteContent"
-           :highlighted-text="state.popup.selectedText"
-           :is-temp="state.popup.isNewNote"
-           :start-in-edit-mode="state.popup.startInEditMode"
-           :is-streaming="state.popup.isStreaming"
-           :is-custom-prompt="state.popup.isCustomPrompt"
-           :custom-prompt-text="state.popup.customPromptText"
+           :visible="popup.state.mode === 'note'"
+           :note-id="popup.state.highlightId"
+           :initial-content="popup.state.noteContent"
+           :highlighted-text="popup.state.selectedText"
+           :is-temp="popup.state.isNewNote"
+           :start-in-edit-mode="popup.state.startInEditMode"
+           :is-streaming="popup.state.isStreaming"
+           :is-custom-prompt="popup.state.isCustomPrompt"
+           :custom-prompt-text="popup.state.customPromptText"
            @save="handleNoteSave"
            @cancel="handleNoteCancel"
            @delete="handleNoteDelete"
@@ -66,7 +67,7 @@
 </template>
 
 <script setup>
-import { reactive, computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useChatStore } from '../stores/chat.js'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import ContextMenu from './ContextMenu.vue'
@@ -76,7 +77,9 @@ import { sendChatMessage } from '../services/api.js'
 import { getMainPrompts, getQuickExplainPrompts } from '../services/extraPrompt.js'
 import Message from '../stores/Message.js'
 import { getSelectedTextAndPosition as getSelectionWithOffsets } from '../services/DOMSelectionHelper.js'
-
+import { usePopupState } from '../composables/usePopupState.js'
+import { useHighlights } from '../composables/useHighlights.js'
+import { buildConversationChain, createTempHighlight, isMessageInTree } from '../utils/highlightUtils.js'
 
 const props = defineProps({
   message: {
@@ -90,50 +93,44 @@ const props = defineProps({
   getSelectedTextAndPosition: {
     type: Function,
     default: undefined
+  },
+  // Injectable store for testing
+  store: {
+    type: Object,
+    default: undefined
+  },
+  // Injectable chat service for testing
+  chatService: {
+    type: Object,
+    default: undefined
   }
 })
 
-const chatStore = useChatStore()
+// Use injected store or default to global store
+const chatStore = props.store || useChatStore()
 
-const state = reactive({
-  isChildStreaming: false,
-  error: null,
-  popup: {
-    mode: null, // 'context-menu' | 'note' | null
-    x: 0,
-    y: 0,
-    selectedText: '',
-    highlightId: null,
-    startOffset: undefined,
-    endOffset: undefined,
-    colorIndex: 0,
-    noteContent: '',
-    isNewNote: false, // true when creating a new note (temp)
-    startInEditMode: false, // true when opened via context menu (add/edit note)
-    isStreaming: false, // true when streaming content into note
-    isCustomPrompt: false, // true when showing custom prompt result
-    customPromptText: '' // the custom prompt text for explore action
-  },
-  tempHighlight: null
-})
+// Use injected chat service or default to real API
+const chatServiceImpl = props.chatService || { sendMessage: sendChatMessage }
+
+// Local state
+const isChildStreaming = ref(false)
+const error = ref(null)
+const tempHighlight = ref(null)
+
+// Use composables
+const popup = usePopupState()
+const highlights = useHighlights(chatStore, () => currentMessage.value)
 
 // Computed property to always get the root/original message (from props)
 const rootMessage = computed(() => props.message)
 
 // Get the currently viewed message from the store, or fall back to root message
 const currentMessage = computed(() => {
-  // If we have a current message in store and it's part of this tree, use it
   if (chatStore.currentMessage) {
-    // Check if current message is this root or a descendant
-    let msg = chatStore.currentMessage
-    while (msg) {
-      if (msg.id === rootMessage.value.id) {
-        return chatStore.currentMessage
-      }
-      msg = msg.parentId ? chatStore.messagesById[msg.parentId] : null
+    if (isMessageInTree(chatStore.messagesById, chatStore.currentMessage.id, rootMessage.value.id)) {
+      return chatStore.currentMessage
     }
   }
-  // Default to root message
   return rootMessage.value
 })
 
@@ -143,170 +140,69 @@ const currentResponse = computed(() => {
 })
 
 // Computed property that merges customContent with temporary highlight
-const effectiveCustomContent = computed(() => {
-  const base = currentMessage.value?.customContent || []
-
-  if (!state.tempHighlight) {
-    return base
-  }
-
-  // Check for overlapping highlights with temp highlight
-  const tempStart = state.tempHighlight.startOffset
-  const tempEnd = state.tempHighlight.endOffset
-
-  const overlapping = base.filter(
-    item => item.type === 'highlight' &&
-      item.startOffset < tempEnd &&
-      item.endOffset > tempStart
-  )
-
-  if (overlapping.length === 0) {
-    return [...base, state.tempHighlight]
-  }
-
-  // Calculate merged range
-  let mergedStart = tempStart
-  let mergedEnd = tempEnd
-  overlapping.forEach(item => {
-    mergedStart = Math.min(mergedStart, item.startOffset)
-    mergedEnd = Math.max(mergedEnd, item.endOffset)
-  })
-
-  // Extract merged text from the response
-  const mergedText = currentMessage.value?.response?.substring(mergedStart, mergedEnd) || state.tempHighlight.text
-
-  // Create merged temp highlight
-  const mergedTempHighlight = {
-    ...state.tempHighlight,
-    startOffset: mergedStart,
-    endOffset: mergedEnd,
-    text: mergedText
-  }
-
-  // Filter out overlapping highlights and add merged temp
-  const result = base.filter(item => !overlapping.includes(item))
-  result.push(mergedTempHighlight)
-  return result
-})
+const effectiveCustomContent = highlights.createEffectiveCustomContent(() => tempHighlight.value)
 
 // Computed property that combines both streaming states
 const isStreaming = computed(() => {
-  return props.isAppStreaming || state.isChildStreaming
+  return props.isAppStreaming || isChildStreaming.value
 })
 
 // Show breadcrumb when there are children or we're viewing a child message
 const hasChildren = computed(() => {
-  // Show if current message has children
   const children = chatStore.getChildren(currentMessage.value?.id)
   if (children && children.length > 0) return true
-  // Show if we're not at the root (navigated deeper)
   return currentMessage.value?.id !== rootMessage.value.id
 })
 
 function showContextMenu(e) {
-  const getSel = props.getSelectedTextAndPosition || getSelectionWithOffsets;
-  const selectionData = getSel();
-  const { selectedText, x, y, visible, startOffset, endOffset } = selectionData;
+  const getSel = props.getSelectedTextAndPosition || getSelectionWithOffsets
+  const selectionData = getSel()
+  const { selectedText, x, y, visible, startOffset, endOffset } = selectionData
 
   if (visible && selectedText && startOffset !== undefined && endOffset !== undefined) {
-    state.popup.mode = 'context-menu'
-    state.popup.selectedText = selectedText
-    state.popup.startOffset = startOffset
-    state.popup.endOffset = endOffset
-    state.popup.x = x
-    state.popup.y = y
-    state.popup.highlightId = null
-    state.popup.colorIndex = 0
-    state.popup.noteContent = ''
-
-    state.tempHighlight = {
-      id: '__temp_highlight__',
-      type: 'highlight',
-      text: selectedText,
-      colorIndex: 0,
+    popup.openContextMenu({
+      x,
+      y,
+      selectedText,
       startOffset,
       endOffset
-    }
+    })
+
+    tempHighlight.value = createTempHighlight({
+      text: selectedText,
+      startOffset,
+      endOffset,
+      colorIndex: 0
+    })
 
     window.getSelection()?.removeAllRanges()
   }
 }
 
 function closePopup() {
-  state.popup.mode = null
-  state.popup.highlightId = null
-  state.popup.noteContent = ''
-  state.popup.isNewNote = false
-  state.popup.startInEditMode = false
-  state.popup.isStreaming = false
-  state.popup.isCustomPrompt = false
-  state.popup.customPromptText = ''
-  state.tempHighlight = null
-}
-
-function addHighlight(selectedText, startOffset, endOffset, colorIndex = 0) {
-  if (!selectedText || !currentMessage.value) return null
-
-  // Validate offsets (provided by DOM selection helper)
-  if (startOffset === undefined || endOffset === undefined) {
-    console.error('Invalid offsets for highlight - DOM selection helper may have failed')
-    return null
-  }
-
-  // Create highlight metadata
-  const highlightId = crypto.randomUUID()
-  const highlight = {
-    id: highlightId,
-    type: 'highlight',
-    text: selectedText,
-    colorIndex,
-    startOffset,
-    endOffset
-  }
-
-  // Use store action to add highlight
-  chatStore.addCustomContent(currentMessage.value.id, highlight)
-
-  return highlightId
-}
-
-function removeHighlight(highlightId) {
-  if (!highlightId || !currentMessage.value) return
-
-  // Use store action to remove highlight
-  chatStore.removeCustomContent(currentMessage.value.id, highlightId)
+  popup.close()
+  tempHighlight.value = null
 }
 
 function keepHighlight(colorIndex) {
-  if (state.popup.highlightId) {
+  if (popup.state.highlightId) {
     handleChangeColor(colorIndex)
     closePopup()
     return
   }
 
-  const { selectedText, startOffset, endOffset } = state.popup
+  const { selectedText, startOffset, endOffset } = popup.state
   if (selectedText && startOffset !== undefined && endOffset !== undefined) {
-    addHighlight(selectedText, startOffset, endOffset, colorIndex)
+    highlights.addHighlight(selectedText, startOffset, endOffset, colorIndex)
   }
 
   closePopup()
 }
 
-// Build conversation history from root to current message (questions only)
-function buildConversationChain(messageId) {
-  const chain = []
-  let msg = chatStore.messagesById[messageId]
-  while (msg) {
-    chain.unshift({ question: msg.question })
-    msg = msg.parentId ? chatStore.messagesById[msg.parentId] : null
-  }
-  return chain
-}
-
 async function handleAskQuestion(question) {
-  if (!question || state.isChildStreaming) return
+  if (!question || isChildStreaming.value) return
 
-  const { selectedText, startOffset, endOffset, highlightId, noteContent } = state.popup
+  const { selectedText, startOffset, endOffset, highlightId, noteContent } = popup.state
   if (!selectedText || startOffset === undefined || endOffset === undefined) {
     console.error('Invalid selection data')
     return
@@ -314,36 +210,33 @@ async function handleAskQuestion(question) {
 
   const parentMessage = currentMessage.value
   const parentId = parentMessage.id
-
-  // Capture note content from existing highlight before removing it
   const existingNoteContent = noteContent || ''
 
-  // Remove existing highlight if present (before closePopup clears highlightId)
   if (highlightId) {
-    removeHighlight(highlightId)
+    highlights.removeHighlight(highlightId)
   }
 
   closePopup()
 
-  // Create new child message with highlighted text
   const childMsg = Message.createChildMessage(parentId, question, selectedText)
-
-  // Add child to store
   chatStore.addChildMessage(parentId, childMsg)
 
-  // Add clickable question link to the PARENT message, preserving any note from the highlight
-  addQuestionLinkToMessage(parentMessage, selectedText, childMsg.id, startOffset, endOffset, existingNoteContent)
+  highlights.addQuestionLink({
+    text: selectedText,
+    targetMessageId: childMsg.id,
+    startOffset,
+    endOffset,
+    noteContent: existingNoteContent
+  })
 
-  state.isChildStreaming = true
-  state.error = null
+  isChildStreaming.value = true
+  error.value = null
 
-  // Build conversation history from root to parent for context
-  const previousMessages = buildConversationChain(parentId)
+  const previousMessages = buildConversationChain(chatStore.messagesById, parentId)
 
   try {
-    // Get the explanation response (streaming)
-    const messages = getMainPrompts(`[DEEPDIVE] ${question}`, previousMessages);
-    await sendChatMessage(
+    const messages = getMainPrompts(`[DEEPDIVE] ${question}`, previousMessages)
+    await chatServiceImpl.sendMessage(
       chatStore.currentModel,
       messages,
       (chunk) => {
@@ -351,9 +244,9 @@ async function handleAskQuestion(question) {
       }
     )
   } catch (err) {
-    state.error = err.message
+    error.value = err.message
   } finally {
-    state.isChildStreaming = false
+    isChildStreaming.value = false
   }
 }
 
@@ -361,82 +254,61 @@ function handleHighlightClick(highlightData) {
   const customContent = currentMessage.value?.customContent || []
   const highlight = customContent.find(item => item.id === highlightData.highlightId)
 
-  state.popup.mode = 'context-menu'
-  state.popup.selectedText = highlightData.text
-  state.popup.startOffset = highlightData.startOffset
-  state.popup.endOffset = highlightData.endOffset
-  state.popup.x = highlightData.x
-  state.popup.y = highlightData.y
-  state.popup.highlightId = highlightData.highlightId
-  state.popup.colorIndex = highlightData.colorIndex ?? 0
-  state.popup.noteContent = highlight?.noteContent ?? ''
+  popup.openContextMenu({
+    x: highlightData.x,
+    y: highlightData.y,
+    selectedText: highlightData.text,
+    startOffset: highlightData.startOffset,
+    endOffset: highlightData.endOffset,
+    highlightId: highlightData.highlightId,
+    colorIndex: highlightData.colorIndex ?? 0,
+    noteContent: highlight?.noteContent ?? ''
+  })
 }
 
 function handleChangeColor(colorIndex) {
-  state.popup.colorIndex = colorIndex
-  if (!state.popup.highlightId || !currentMessage.value) return
-  chatStore.updateCustomContent(currentMessage.value.id, state.popup.highlightId, { colorIndex })
+  popup.updateColorIndex(colorIndex)
+  if (!popup.state.highlightId || !currentMessage.value) return
+  highlights.updateHighlight(popup.state.highlightId, { colorIndex })
 }
 
 function handleRemoveHighlight() {
-  if (state.popup.highlightId) {
-    removeHighlight(state.popup.highlightId)
+  if (popup.state.highlightId) {
+    highlights.removeHighlight(popup.state.highlightId)
   }
   closePopup()
 }
 
-function addQuestionLinkToMessage(message, selectedText, targetMessageId, startOffset, endOffset, noteContent = '') {
-  if (!selectedText || !message) return
-
-  // Create question link metadata
-  const linkId = crypto.randomUUID()
-  const questionLink = {
-    id: linkId,
-    type: 'question-link',
-    text: selectedText,
-    targetMessageId,
-    startOffset,
-    endOffset
-  }
-
-  // Add note if provided
-  if (noteContent) {
-    questionLink.hasNote = true
-    questionLink.noteContent = noteContent
-  }
-
-  // Use store action to add question link
-  chatStore.addCustomContent(message.id, questionLink)
-}
-
 async function handleAddChapter(selectedText) {
-  if (!selectedText || state.isChildStreaming) return
+  if (!selectedText || isChildStreaming.value) return
 
-  const { startOffset, endOffset } = state.popup
+  const { startOffset, endOffset } = popup.state
   if (startOffset === undefined || endOffset === undefined) {
     console.error('Invalid selection data')
     return
   }
 
-  const parentMessage = currentMessage.value
   closePopup()
 
-  // Create a new root message (new chat thread) with the selected text as question
   const newRootMsg = chatStore.addRootMessage({
     id: crypto.randomUUID(),
     question: selectedText,
     response: ''
   })
 
-  // Add clickable question link to the PARENT message
-  addQuestionLinkToMessage(parentMessage, selectedText, newRootMsg.id, startOffset, endOffset)
+  highlights.addQuestionLink({
+    text: selectedText,
+    targetMessageId: newRootMsg.id,
+    startOffset,
+    endOffset
+  })
 
-  state.isChildStreaming = true
-  state.error = null
+  isChildStreaming.value = true
+  error.value = null
 
   try {
     const messages = getMainPrompts(`[NEWTOPIC] ${selectedText}`)
-    await sendChatMessage(
+    await chatServiceImpl.sendMessage(
       chatStore.currentModel,
       messages,
       (chunk) => {
@@ -444,14 +316,14 @@ async function handleAddChapter(selectedText) {
       }
     )
   } catch (err) {
-    state.error = err.message
+    error.value = err.message
   } finally {
-    state.isChildStreaming = false
+    isChildStreaming.value = false
   }
 }
 
 function handleAddNote() {
-  const { selectedText, startOffset, endOffset, highlightId, noteContent, colorIndex } = state.popup
+  const { selectedText, startOffset, endOffset, highlightId, noteContent, colorIndex } = popup.state
 
   if (!selectedText || startOffset === undefined || endOffset === undefined) {
     console.error('Invalid selection data for note')
@@ -459,31 +331,38 @@ function handleAddNote() {
   }
 
   if (highlightId) {
-    // Adding/editing note on existing highlight
-    state.popup.mode = 'note'
-    state.popup.isNewNote = !noteContent
-    state.popup.startInEditMode = true
-  } else {
-    // Create temp highlight with note
-    state.tempHighlight = {
-      id: '__temp_highlight_with_note__',
-      type: 'highlight',
-      text: selectedText,
-      colorIndex: colorIndex || 0,
+    popup.openNote({
+      highlightId,
+      noteContent,
+      selectedText,
       startOffset,
       endOffset,
+      isNewNote: !noteContent,
+      startInEditMode: true
+    })
+  } else {
+    tempHighlight.value = createTempHighlight({
+      text: selectedText,
+      startOffset,
+      endOffset,
+      colorIndex: colorIndex || 0,
       hasNote: true,
       noteContent: ''
-    }
-    state.popup.mode = 'note'
-    state.popup.highlightId = '__temp_highlight_with_note__'
-    state.popup.isNewNote = true
-    state.popup.startInEditMode = true
+    })
+    popup.openNote({
+      highlightId: '__temp_highlight_with_note__',
+      noteContent: '',
+      selectedText,
+      startOffset,
+      endOffset,
+      isNewNote: true,
+      startInEditMode: true
+    })
   }
 }
 
 async function handleQuickExplain(customPrompt = null) {
-  const { selectedText, startOffset, endOffset, colorIndex, highlightId } = state.popup
+  const { selectedText, startOffset, endOffset, colorIndex, highlightId } = popup.state
   const isCustomPrompt = !!customPrompt
 
   if (!selectedText || startOffset === undefined || endOffset === undefined) {
@@ -491,64 +370,54 @@ async function handleQuickExplain(customPrompt = null) {
     return
   }
 
-  // For custom prompt, build the full prompt with context
   const promptText = isCustomPrompt
     ? `${customPrompt}\nfor more context: ${selectedText}`
     : selectedText
 
-  // Check if we're updating an existing highlight or creating a new one
   const existingHighlightId = highlightId
   const targetHighlightId = existingHighlightId || crypto.randomUUID()
 
-  // Switch to note mode immediately with streaming state
-  state.popup.mode = 'note'
-  state.popup.highlightId = targetHighlightId
-  state.popup.noteContent = ''
-  state.popup.isNewNote = false
-  state.popup.startInEditMode = false
-  state.popup.isStreaming = true
-  state.popup.isCustomPrompt = isCustomPrompt
-  state.popup.customPromptText = promptText
+  popup.openNoteForStreaming({
+    highlightId: targetHighlightId,
+    selectedText,
+    startOffset,
+    endOffset,
+    isCustomPrompt,
+    customPromptText: promptText
+  })
 
-  // Only create temp highlight if there's no existing one
   if (!existingHighlightId) {
-    state.tempHighlight = {
-      id: targetHighlightId,
-      type: 'highlight',
+    tempHighlight.value = createTempHighlight({
       text: selectedText,
-      colorIndex: colorIndex || 0,
       startOffset,
       endOffset,
+      colorIndex: colorIndex || 0,
       hasNote: true,
       noteContent: ''
-    }
+    })
+    tempHighlight.value.id = targetHighlightId
   }
 
-  state.isChildStreaming = true
-  state.error = null
+  isChildStreaming.value = true
+  error.value = null
 
-  // Build conversation history for context
-  const previousMessages = buildConversationChain(currentMessage.value?.id)
+  const previousMessages = buildConversationChain(chatStore.messagesById, currentMessage.value?.id)
 
   try {
-    // Get the quick explanation from API with streaming
     const messages = getQuickExplainPrompts(promptText, previousMessages)
-    await sendChatMessage(
+    await chatServiceImpl.sendMessage(
       chatStore.currentModel,
       messages,
       (chunk) => {
-        // Append chunk to note content for live streaming
-        state.popup.noteContent += chunk
+        popup.appendToNoteContent(chunk)
       }
     )
-
-    // Don't save automatically - let user decide via Save/Explore buttons
   } catch (err) {
-    state.error = err.message
+    error.value = err.message
     closePopup()
   } finally {
-    state.isChildStreaming = false
-    state.popup.isStreaming = false
+    isChildStreaming.value = false
+    popup.stopStreaming()
   }
 }
 
@@ -556,83 +425,73 @@ function handleCustomPrompt(customPrompt) {
   handleQuickExplain(customPrompt)
 }
 
+function handleCustomPromptDeepDive(customPrompt) {
+  const fullPrompt = `${customPrompt}\n\nContext: ${popup.state.selectedText}`
+  handleAskQuestion(fullPrompt)
+}
+
 function handleNoteClick(noteData) {
-  state.popup.mode = 'note'
-  state.popup.x = noteData.x
-  state.popup.y = noteData.y
-  state.popup.highlightId = noteData.noteId
-  state.popup.noteContent = noteData.noteContent || ''
-  state.popup.selectedText = noteData.text
-  state.popup.startOffset = noteData.startOffset
-  state.popup.endOffset = noteData.endOffset
-  state.popup.isNewNote = false
-  state.popup.startInEditMode = false
+  popup.openNote({
+    highlightId: noteData.noteId,
+    noteContent: noteData.noteContent || '',
+    selectedText: noteData.text,
+    startOffset: noteData.startOffset,
+    endOffset: noteData.endOffset,
+    isNewNote: false,
+    startInEditMode: false
+  })
 }
 
 function handleNoteSave({ noteId, content }) {
-  // Streamed content mode (quick explain or custom prompt): save temp highlight with streamed content
-  if (state.popup.customPromptText && state.tempHighlight) {
-    const highlight = {
-      id: crypto.randomUUID(),
-      type: 'highlight',
-      text: state.tempHighlight.text,
-      colorIndex: state.tempHighlight.colorIndex || 0,
-      startOffset: state.tempHighlight.startOffset,
-      endOffset: state.tempHighlight.endOffset,
-      hasNote: true,
+  if (popup.state.customPromptText && tempHighlight.value) {
+    highlights.addHighlightWithNote({
+      text: tempHighlight.value.text,
+      startOffset: tempHighlight.value.startOffset,
+      endOffset: tempHighlight.value.endOffset,
+      colorIndex: tempHighlight.value.colorIndex || 0,
       noteContent: content
-    }
-    chatStore.addCustomContent(currentMessage.value.id, highlight)
-    state.tempHighlight = null
+    })
+    tempHighlight.value = null
     closePopup()
-  } else if (state.popup.customPromptText && state.popup.highlightId) {
-    // Streamed content on existing highlight: update the highlight's note
-    chatStore.updateCustomContent(currentMessage.value.id, state.popup.highlightId, {
+  } else if (popup.state.customPromptText && popup.state.highlightId) {
+    highlights.updateHighlight(popup.state.highlightId, {
       hasNote: true,
       noteContent: content
     })
     closePopup()
-  } else if (state.popup.isNewNote) {
-    if (state.tempHighlight) {
-      // Convert temp highlight with note to permanent
-      const highlight = {
-        id: crypto.randomUUID(),
-        type: 'highlight',
-        text: state.tempHighlight.text,
-        colorIndex: state.tempHighlight.colorIndex || 0,
-        startOffset: state.tempHighlight.startOffset,
-        endOffset: state.tempHighlight.endOffset,
-        hasNote: true,
+  } else if (popup.state.isNewNote) {
+    if (tempHighlight.value) {
+      highlights.addHighlightWithNote({
+        text: tempHighlight.value.text,
+        startOffset: tempHighlight.value.startOffset,
+        endOffset: tempHighlight.value.endOffset,
+        colorIndex: tempHighlight.value.colorIndex || 0,
         noteContent: content
-      }
-      chatStore.addCustomContent(currentMessage.value.id, highlight)
-      state.tempHighlight = null
+      })
+      tempHighlight.value = null
       closePopup()
     } else {
-      // Adding note to existing highlight
-      chatStore.updateCustomContent(currentMessage.value.id, noteId, {
+      highlights.updateHighlight(noteId, {
         hasNote: true,
         noteContent: content
       })
       closePopup()
     }
   } else {
-    // Update existing note - keep modal open
-    chatStore.updateCustomContent(currentMessage.value.id, noteId, { noteContent: content })
-    // Update the popup's noteContent to reflect the saved content
-    state.popup.noteContent = content
+    highlights.updateHighlight(noteId, { noteContent: content })
+    popup.state.noteContent = content
   }
 }
 
 function handleNoteCancel() {
-  if ((state.popup.isNewNote || state.popup.customPromptText) && state.tempHighlight) {
-    state.tempHighlight = null
+  if ((popup.state.isNewNote || popup.state.customPromptText) && tempHighlight.value) {
+    tempHighlight.value = null
   }
   closePopup()
 }
 
 function handleNoteDelete({ noteId }) {
-  chatStore.updateCustomContent(currentMessage.value.id, noteId, {
+  highlights.updateHighlight(noteId, {
     hasNote: false,
     noteContent: ''
   })
@@ -640,12 +499,10 @@ function handleNoteDelete({ noteId }) {
 }
 
 function handleNoteDetailExplain({ text }) {
-  // Trigger the detail explanation flow using the highlighted text
   handleAskQuestion(text)
 }
 
 function handleNoteExplore({ text }) {
-  // Trigger the question flow using the custom prompt text (already includes context)
   handleAskQuestion(text)
 }
 

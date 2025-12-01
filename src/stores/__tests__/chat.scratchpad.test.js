@@ -11,7 +11,7 @@ describe('useChatStore - Scratchpad', () => {
 
   beforeEach(() => {
     // Mock loadChatState to return null (default state)
-    loadChatStateSpy = vi.spyOn(storage, 'loadChatState').mockReturnValue(null)
+    loadChatStateSpy = vi.spyOn(storage, 'loadChatState').mockResolvedValue({ hasConflict: false, state: null })
 
     setActivePinia(createPinia())
     chatStore = useChatStore()
@@ -257,7 +257,7 @@ describe('useChatStore - Scratchpad', () => {
   })
 
   describe('Scratchpad state restoration', () => {
-    it('should restore scratchpad from saved state', () => {
+    it('should restore scratchpad from saved state', async () => {
       const savedState = {
         messagesById: {
           'msg1': { id: 'msg1', question: 'Q1', response: 'R1', parentId: null, childIds: [] }
@@ -271,16 +271,17 @@ describe('useChatStore - Scratchpad', () => {
         currentChatId: 'chat1'
       }
 
-      loadChatStateSpy.mockReturnValue(savedState)
+      loadChatStateSpy.mockResolvedValue({ hasConflict: false, state: savedState })
       setActivePinia(createPinia())
       const store = useChatStore()
+      await store.initializeStore()
 
       expect(store.currentScratchpad).toBe('Restored notes')
 
       loadChatStateSpy.mockRestore()
     })
 
-    it('should handle restored state with missing scratchpad property', () => {
+    it('should handle restored state with missing scratchpad property', async () => {
       const savedState = {
         messagesById: {},
         rootMessageIds: [],
@@ -292,9 +293,10 @@ describe('useChatStore - Scratchpad', () => {
         currentChatId: 'chat1'
       }
 
-      loadChatStateSpy.mockReturnValue(savedState)
+      loadChatStateSpy.mockResolvedValue({ hasConflict: false, state: savedState })
       setActivePinia(createPinia())
       const store = useChatStore()
+      await store.initializeStore()
 
       // Should return empty string (falsy value)
       expect(store.currentScratchpad).toBe('')
@@ -302,7 +304,7 @@ describe('useChatStore - Scratchpad', () => {
       loadChatStateSpy.mockRestore()
     })
 
-    it('should restore multiple chats with different scratchpads', () => {
+    it('should restore multiple chats with different scratchpads', async () => {
       const savedState = {
         messagesById: {
           'msg1': { id: 'msg1', question: 'Q1', response: 'R1', parentId: null, childIds: [] },
@@ -318,9 +320,10 @@ describe('useChatStore - Scratchpad', () => {
         currentChatId: 'chat1'
       }
 
-      loadChatStateSpy.mockReturnValue(savedState)
+      loadChatStateSpy.mockResolvedValue({ hasConflict: false, state: savedState })
       setActivePinia(createPinia())
       const store = useChatStore()
+      await store.initializeStore()
 
       expect(store.currentScratchpad).toBe('Chat 1 notes')
 

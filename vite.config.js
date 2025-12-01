@@ -7,6 +7,21 @@ export default defineConfig({
   server: {
     port: 3000
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Vue core and ecosystem
+          'vue-vendor': ['vue', 'vue-router', 'pinia'],
+          // Math rendering library
+          'katex': ['katex'],
+          // Markdown parsing
+          'markdown': ['markdown-it', 'marked']
+        }
+      }
+    },
+    chunkSizeWarningLimit: 600
+  },
   test: {
     globals: true,
     environment: 'happy-dom',

@@ -7,7 +7,9 @@
       type="text"
       :placeholder="placeholder"
       :disabled="disabled"
-      @keydown.enter="onSubmit"
+      @keydown.enter.exact="onSubmit"
+      @keydown.enter.ctrl.exact="handleCtrlEnter"
+      @keydown.enter.meta.exact="handleCtrlEnter"
       @keydown.esc="onCancel"
       @click.stop
     />
@@ -52,7 +54,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['submit', 'cancel'])
+const emit = defineEmits(['submit', 'cancel', 'ctrl-enter-submit'])
 
 const inputValue = ref('')
 const inputRef = ref(null)
@@ -60,6 +62,14 @@ const inputRef = ref(null)
 const onSubmit = () => {
   if (!inputValue.value.trim()) return
   emit('submit', inputValue.value.trim())
+  if (props.clearOnSubmit) {
+    inputValue.value = ''
+  }
+}
+
+const handleCtrlEnter = () => {
+  if (!inputValue.value.trim()) return
+  emit('ctrl-enter-submit', inputValue.value.trim())
   if (props.clearOnSubmit) {
     inputValue.value = ''
   }
