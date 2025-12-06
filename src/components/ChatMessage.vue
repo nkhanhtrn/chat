@@ -44,6 +44,7 @@
            @quick-explain="handleQuickExplain"
            @custom-prompt="handleCustomPrompt"
            @customPromptDeepDive="handleCustomPromptDeepDive"
+           @link-to-question="handleLinkToQuestion"
          />
          <Note
            :visible="popup.state.mode === 'note'"
@@ -61,6 +62,11 @@
            @detail-explain="handleNoteDetailExplain"
            @explore="handleNoteExplore"
          />
+         <QuestionSearchModal
+           :visible="showQuestionSearch"
+           @select="handleQuestionSearchSelect"
+           @cancel="handleQuestionSearchCancel"
+         />
        </div>
      </div>
   </div>
@@ -73,6 +79,7 @@ import MarkdownRenderer from './MarkdownRenderer.vue'
 import ContextMenu from './ContextMenu.vue'
 import Note from './Note.vue'
 import MessageNavigation from './MessageNavigation.vue'
+import QuestionSearchModal from './QuestionSearchModal.vue'
 import { sendChatMessage } from '../services/api.js'
 import { getMainPrompts, getQuickExplainPrompts } from '../services/extraPrompt.js'
 import Message from '../stores/Message.js'
@@ -116,6 +123,8 @@ const chatServiceImpl = props.chatService || { sendMessage: sendChatMessage }
 const isChildStreaming = ref(false)
 const error = ref(null)
 const tempHighlight = ref(null)
+const showQuestionSearch = ref(false)
+const questionSearchContext = ref(null)
 
 // Use composables
 const popup = usePopupState()
@@ -504,6 +513,56 @@ function handleNoteDetailExplain({ text }) {
 
 function handleNoteExplore({ text }) {
   handleAskQuestion(text)
+}
+
+function handleLinkToQuestion() {
+  const { selectedText, startOffset, endOffset, highlightId, noteContent } = popup.state
+  if (!selectedText || startOffset === undefined || endOffset === undefined) {
+    console.error('Invalid selection data for link to question')
+    return
+  }
+
+  // Store context for when user selects a question
+  questionSearchContext.value = {
+    selectedText,
+    startOffset,
+    endOffset,
+    highlightId,
+    noteContent
+  }
+
+  popup.close()
+  showQuestionSearch.value = true
+}
+
+function handleQuestionSearchSelect({ targetMessageId }) {
+  if (!questionSearchContext.value) return
+
+  const { selectedText, startOffset, endOffset, highlightId, noteContent } = questionSearchContext.value
+
+  // Remove existing highlight if converting it to a question link
+  if (highlightId) {
+    highlights.removeHighlight(highlightId)
+  }
+
+  // Create the question link
+  highlights.addQuestionLink({
+    text: selectedText,
+    targetMessageId,
+    startOffset,
+    endOffset,
+    noteContent: noteContent || ''
+  })
+
+  showQuestionSearch.value = false
+  questionSearchContext.value = null
+  tempHighlight.value = null
+}
+
+function handleQuestionSearchCancel() {
+  showQuestionSearch.value = false
+  questionSearchContext.value = null
+  tempHighlight.value = null
 }
 
 </script>

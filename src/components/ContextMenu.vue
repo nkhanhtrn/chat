@@ -31,6 +31,9 @@
           <Button class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming" variant="tertiary">Deep Dive</Button>
           <Button class="context-menu-btn" @click="onAddChapter" :disabled="isStreaming" variant="tertiary">New Topic</Button>
         </div>
+        <div class="context-menu-row">
+          <Button class="context-menu-btn" @click="onLinkToQuestion" variant="tertiary">Link to Question</Button>
+        </div>
         <PromptInput
           placeholder="Ctrl + Enter to deep dive"
           :disabled="isStreaming"
@@ -70,7 +73,7 @@ const props = defineProps({
     default: false
   }
 })
-const emit = defineEmits(['close', 'keep-highlight', 'ask-question', 'change-color', 'remove-highlight', 'add-chapter', 'add-note', 'quick-explain', 'custom-prompt', 'custom-prompt-deep-dive'])
+const emit = defineEmits(['close', 'keep-highlight', 'ask-question', 'change-color', 'remove-highlight', 'add-chapter', 'add-note', 'quick-explain', 'custom-prompt', 'custom-prompt-deep-dive', 'link-to-question'])
 
 const selectedColorIndex = ref(0)
 
@@ -108,6 +111,10 @@ function onAddChapter() {
 
 function onAddNote() {
   emit('add-note')
+}
+
+function onLinkToQuestion() {
+  emit('link-to-question')
 }
 
 function onQuickExplain() {

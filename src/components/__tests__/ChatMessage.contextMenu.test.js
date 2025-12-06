@@ -2012,6 +2012,396 @@ describe('ChatMessage context menu integration', () => {
     })
   })
 
+  describe('Link to Question Behavior', () => {
+    it('handleLinkToQuestion stores selection context and opens search modal', () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-link',
+        question: 'Q',
+        response: 'text to link here',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-link'] = testMessage
+
+      const state = getState(wrapper)
+
+      // Simulate context menu with selection
+      state.popup.selectedText = 'text to link'
+      state.popup.startOffset = 0
+      state.popup.endOffset = 12
+      state.popup.highlightId = null
+      state.popup.noteContent = ''
+      state.popup.mode = 'context-menu'
+
+      wrapper.vm.handleLinkToQuestion()
+
+      // Should store context for later use
+      expect(wrapper.vm.questionSearchContext).toEqual({
+        selectedText: 'text to link',
+        startOffset: 0,
+        endOffset: 12,
+        highlightId: null,
+        noteContent: ''
+      })
+
+      // Should open search modal
+      expect(wrapper.vm.showQuestionSearch).toBe(true)
+
+      // Should close context menu
+      expect(state.popup.mode).toBe(null)
+    })
+
+    it('handleLinkToQuestion validates selection data before proceeding', () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const state = getState(wrapper)
+
+      // Invalid data - missing offsets
+      state.popup.selectedText = 'text'
+      state.popup.startOffset = undefined
+      state.popup.endOffset = undefined
+
+      wrapper.vm.handleLinkToQuestion()
+
+      expect(consoleSpy).toHaveBeenCalledWith('Invalid selection data for link to question')
+      expect(wrapper.vm.showQuestionSearch).toBe(false)
+      consoleSpy.mockRestore()
+    })
+
+    it('handleLinkToQuestion stores existing highlight context', () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-link-existing',
+        question: 'Q',
+        response: 'highlighted text here',
+        customContent: [{
+          id: 'existing-h',
+          type: 'highlight',
+          text: 'highlighted',
+          startOffset: 0,
+          endOffset: 11,
+          colorIndex: 1,
+          hasNote: true,
+          noteContent: 'Some note'
+        }],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-link-existing'] = testMessage
+
+      const state = getState(wrapper)
+
+      // Simulate context menu on existing highlight
+      state.popup.selectedText = 'highlighted'
+      state.popup.startOffset = 0
+      state.popup.endOffset = 11
+      state.popup.highlightId = 'existing-h'
+      state.popup.noteContent = 'Some note'
+      state.popup.mode = 'context-menu'
+
+      wrapper.vm.handleLinkToQuestion()
+
+      // Should store highlight context including ID and note
+      expect(wrapper.vm.questionSearchContext).toEqual({
+        selectedText: 'highlighted',
+        startOffset: 0,
+        endOffset: 11,
+        highlightId: 'existing-h',
+        noteContent: 'Some note'
+      })
+    })
+
+    it('handleQuestionSearchSelect creates question link from new selection', () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-select-new',
+        question: 'Q',
+        response: 'text to link',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-select-new'] = testMessage
+
+      // Set up context as if handleLinkToQuestion was called
+      wrapper.vm.questionSearchContext = {
+        selectedText: 'text to link',
+        startOffset: 0,
+        endOffset: 12,
+        highlightId: null,
+        noteContent: ''
+      }
+      wrapper.vm.showQuestionSearch = true
+
+      wrapper.vm.handleQuestionSearchSelect({ targetMessageId: 'target-msg-123' })
+
+      // Should create question link
+      const storeMessage = wrapper.vm.chatStore.messagesById['msg-select-new']
+      expect(storeMessage.customContent.length).toBe(1)
+      expect(storeMessage.customContent[0].type).toBe('question-link')
+      expect(storeMessage.customContent[0].text).toBe('text to link')
+      expect(storeMessage.customContent[0].targetMessageId).toBe('target-msg-123')
+      expect(storeMessage.customContent[0].startOffset).toBe(0)
+      expect(storeMessage.customContent[0].endOffset).toBe(12)
+
+      // Should close search modal
+      expect(wrapper.vm.showQuestionSearch).toBe(false)
+
+      // Should clear context
+      expect(wrapper.vm.questionSearchContext).toBe(null)
+    })
+
+    it('handleQuestionSearchSelect converts existing highlight to question link', () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-convert',
+        question: 'Q',
+        response: 'highlighted text here',
+        customContent: [{
+          id: 'h-to-convert',
+          type: 'highlight',
+          text: 'highlighted',
+          startOffset: 0,
+          endOffset: 11,
+          colorIndex: 2
+        }],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-convert'] = testMessage
+
+      // Set up context with existing highlight
+      wrapper.vm.questionSearchContext = {
+        selectedText: 'highlighted',
+        startOffset: 0,
+        endOffset: 11,
+        highlightId: 'h-to-convert',
+        noteContent: ''
+      }
+      wrapper.vm.showQuestionSearch = true
+
+      wrapper.vm.handleQuestionSearchSelect({ targetMessageId: 'target-msg-456' })
+
+      // Should have removed highlight and created question link
+      const storeMessage = wrapper.vm.chatStore.messagesById['msg-convert']
+      expect(storeMessage.customContent.length).toBe(1)
+      expect(storeMessage.customContent[0].type).toBe('question-link')
+      expect(storeMessage.customContent[0].targetMessageId).toBe('target-msg-456')
+    })
+
+    it('handleQuestionSearchSelect preserves note content when converting highlight', () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-preserve-note',
+        question: 'Q',
+        response: 'highlighted with note',
+        customContent: [{
+          id: 'h-with-note',
+          type: 'highlight',
+          text: 'highlighted',
+          startOffset: 0,
+          endOffset: 11,
+          colorIndex: 0,
+          hasNote: true,
+          noteContent: 'Important note'
+        }],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-preserve-note'] = testMessage
+
+      // Set up context with note content
+      wrapper.vm.questionSearchContext = {
+        selectedText: 'highlighted',
+        startOffset: 0,
+        endOffset: 11,
+        highlightId: 'h-with-note',
+        noteContent: 'Important note'
+      }
+      wrapper.vm.showQuestionSearch = true
+
+      wrapper.vm.handleQuestionSearchSelect({ targetMessageId: 'target-msg-789' })
+
+      // Should preserve note content
+      const storeMessage = wrapper.vm.chatStore.messagesById['msg-preserve-note']
+      expect(storeMessage.customContent[0].noteContent).toBe('Important note')
+      expect(storeMessage.customContent[0].hasNote).toBe(true)
+    })
+
+    it('handleQuestionSearchSelect does nothing if no context', () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-no-context',
+        question: 'Q',
+        response: 'some text',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-no-context'] = testMessage
+      wrapper.vm.questionSearchContext = null
+
+      wrapper.vm.handleQuestionSearchSelect({ targetMessageId: 'target-123' })
+
+      // Should not create anything
+      const storeMessage = wrapper.vm.chatStore.messagesById['msg-no-context']
+      expect(storeMessage.customContent.length).toBe(0)
+    })
+
+    it('handleQuestionSearchSelect clears temp highlight', () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-clear-temp',
+        question: 'Q',
+        response: 'text to link',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-clear-temp'] = testMessage
+
+      const state = getState(wrapper)
+      state.tempHighlight = {
+        id: '__temp_highlight__',
+        type: 'highlight',
+        text: 'text to link',
+        startOffset: 0,
+        endOffset: 12
+      }
+
+      wrapper.vm.questionSearchContext = {
+        selectedText: 'text to link',
+        startOffset: 0,
+        endOffset: 12,
+        highlightId: null,
+        noteContent: ''
+      }
+      wrapper.vm.showQuestionSearch = true
+
+      wrapper.vm.handleQuestionSearchSelect({ targetMessageId: 'target-123' })
+
+      expect(state.tempHighlight).toBe(null)
+    })
+
+    it('handleQuestionSearchCancel closes modal and clears state', () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-cancel',
+        question: 'Q',
+        response: 'some text',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      const state = getState(wrapper)
+      state.tempHighlight = {
+        id: '__temp_highlight__',
+        type: 'highlight',
+        text: 'some',
+        startOffset: 0,
+        endOffset: 4
+      }
+
+      wrapper.vm.questionSearchContext = {
+        selectedText: 'some',
+        startOffset: 0,
+        endOffset: 4,
+        highlightId: null,
+        noteContent: ''
+      }
+      wrapper.vm.showQuestionSearch = true
+
+      wrapper.vm.handleQuestionSearchCancel()
+
+      expect(wrapper.vm.showQuestionSearch).toBe(false)
+      expect(wrapper.vm.questionSearchContext).toBe(null)
+      expect(state.tempHighlight).toBe(null)
+    })
+
+    it('handleQuestionSearchCancel does not create question link', () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-cancel-no-link',
+        question: 'Q',
+        response: 'some text',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-cancel-no-link'] = testMessage
+
+      wrapper.vm.questionSearchContext = {
+        selectedText: 'some',
+        startOffset: 0,
+        endOffset: 4,
+        highlightId: null,
+        noteContent: ''
+      }
+      wrapper.vm.showQuestionSearch = true
+
+      wrapper.vm.handleQuestionSearchCancel()
+
+      // Should not create any custom content
+      const storeMessage = wrapper.vm.chatStore.messagesById['msg-cancel-no-link']
+      expect(storeMessage.customContent.length).toBe(0)
+    })
+  })
+
   describe('Note Save/Cancel/Delete Behavior', () => {
     it('handleNoteSave creates new highlight with note from tempHighlight when isNewNote', () => {
       const pinia = createPinia()

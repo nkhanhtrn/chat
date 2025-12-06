@@ -369,6 +369,33 @@ describe('ContextMenu', () => {
     })
   })
 
+  describe('Link to Question functionality', () => {
+    const LINK_BTN_INDEX = 6 // Button order: Highlight, Copy, Note, Explain, Deep Dive, New Topic, Link to Question
+
+    it('renders Link to Question button', () => {
+      wrapper = mount(ContextMenu, { props: baseProps, attachTo: root })
+      const buttons = document.body.querySelectorAll('.context-menu-btn')
+      expect(buttons[LINK_BTN_INDEX].textContent).toBe('Link to Question')
+    })
+
+    it('emits link-to-question event when button is clicked', async () => {
+      wrapper = mount(ContextMenu, { props: baseProps, attachTo: root })
+      const buttons = document.body.querySelectorAll('.context-menu-btn')
+
+      await buttons[LINK_BTN_INDEX].click()
+
+      expect(wrapper.emitted('link-to-question')).toBeTruthy()
+      expect(wrapper.emitted('link-to-question')).toHaveLength(1)
+    })
+
+    it('link to question button is always enabled regardless of streaming', () => {
+      wrapper = mount(ContextMenu, { props: { ...baseProps, isStreaming: true }, attachTo: root })
+      const buttons = document.body.querySelectorAll('.context-menu-btn')
+      const linkBtn = buttons[LINK_BTN_INDEX]
+      expect(linkBtn.disabled).toBe(false)
+    })
+  })
+
   describe('Custom prompt functionality', () => {
     it('renders PromptInput component', () => {
       wrapper = mount(ContextMenu, { props: baseProps, attachTo: root })
