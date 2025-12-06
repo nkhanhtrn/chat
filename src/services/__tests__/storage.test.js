@@ -4,7 +4,8 @@ import {
   loadChatState,
   resolveConflict,
   clearAllStorage,
-  setFirestoreSyncEnabled
+  setFirestoreSyncEnabled,
+  _resetThrottleState
 } from '../storage.js'
 import * as firestore from '../firestore.js'
 
@@ -41,6 +42,9 @@ describe('storage.js', () => {
     vi.mocked(firestore.syncChatStateToFirestore).mockReset()
     vi.mocked(firestore.loadChatStateFromFirestore).mockReset()
     vi.mocked(firestore.deleteChatStateFromFirestore).mockReset()
+
+    // Reset throttle state to ensure clean tests
+    _resetThrottleState()
 
     // Enable Firestore sync by default
     setFirestoreSyncEnabled(true)
@@ -365,6 +369,131 @@ describe('storage.js', () => {
       await saveChatState({ messagesById: {}, chats: [], isStreaming: false })
 
       expect(firestore.syncChatStateToFirestore).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Firestore sync throttling', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+      vi.mocked(firestore.syncChatStateToFirestore).mockResolvedValue(undefined)
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('syncs immediately on first call', async () => {
+      const state = { messagesById: {}, chats: [], isStreaming: false }
+
+      await saveChatState(state)
+
+      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+    })
+
+    it('throttles rapid successive calls to once per second', async () => {
+      const state1 = { messagesById: { m1: {} }, chats: [], isStreaming: false }
+      const state2 = { messagesById: { m1: {}, m2: {} }, chats: [], isStreaming: false }
+      const state3 = { messagesById: { m1: {}, m2: {}, m3: {} }, chats: [], isStreaming: false }
+
+      // First call - syncs immediately
+      await saveChatState(state1)
+      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+
+      // Rapid calls within 1 second - should NOT trigger additional syncs
+      await saveChatState(state2)
+      await saveChatState(state3)
+      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+
+      // Advance time by 1 second - pending sync should execute
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(2)
+    })
+
+    it('syncs the latest state when throttle period expires', async () => {
+      const state1 = { messagesById: { m1: {} }, chats: [], isStreaming: false }
+      const state2 = { messagesById: { m1: {}, m2: {} }, chats: [], isStreaming: false }
+      const state3 = { messagesById: { m1: {}, m2: {}, m3: {} }, chats: [], isStreaming: false }
+
+      await saveChatState(state1)
+      await saveChatState(state2)
+      await saveChatState(state3)
+
+      // Advance time to trigger pending sync
+      await vi.advanceTimersByTimeAsync(1000)
+
+      // Should have synced state3 (the latest), not state2
+      const lastCall = vi.mocked(firestore.syncChatStateToFirestore).mock.calls.slice(-1)[0][0]
+      expect(Object.keys(lastCall.messagesById)).toHaveLength(3)
+    })
+
+    it('allows sync after throttle period has passed', async () => {
+      const state1 = { messagesById: { m1: {} }, chats: [], isStreaming: false }
+      const state2 = { messagesById: { m1: {}, m2: {} }, chats: [], isStreaming: false }
+
+      // First call
+      await saveChatState(state1)
+      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+
+      // Wait for throttle period to pass
+      await vi.advanceTimersByTimeAsync(1000)
+
+      // Second call after throttle period - should sync immediately
+      await saveChatState(state2)
+      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not sync during streaming even with throttle', async () => {
+      const streamingState = { messagesById: {}, chats: [], isStreaming: true }
+
+      await saveChatState(streamingState)
+      await vi.advanceTimersByTimeAsync(2000)
+
+      expect(firestore.syncChatStateToFirestore).not.toHaveBeenCalled()
+    })
+
+    it('schedules sync for remaining time in throttle period', async () => {
+      const state1 = { messagesById: { m1: {} }, chats: [], isStreaming: false }
+      const state2 = { messagesById: { m1: {}, m2: {} }, chats: [], isStreaming: false }
+
+      // First call at time 0
+      await saveChatState(state1)
+      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+
+      // Second call at time 300ms
+      await vi.advanceTimersByTimeAsync(300)
+      await saveChatState(state2)
+
+      // Should still be 1 call
+      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+
+      // Advance 700ms more (total 1000ms from first call)
+      await vi.advanceTimersByTimeAsync(700)
+      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not schedule duplicate timers for multiple rapid calls', async () => {
+      const state1 = { messagesById: { m1: {} }, chats: [], isStreaming: false }
+      const state2 = { messagesById: { m2: {} }, chats: [], isStreaming: false }
+      const state3 = { messagesById: { m3: {} }, chats: [], isStreaming: false }
+      const state4 = { messagesById: { m4: {} }, chats: [], isStreaming: false }
+
+      // First call - immediate sync
+      await saveChatState(state1)
+
+      // Multiple rapid calls
+      await saveChatState(state2)
+      await saveChatState(state3)
+      await saveChatState(state4)
+
+      // Advance past throttle period
+      await vi.advanceTimersByTimeAsync(1000)
+
+      // Should only have 2 total syncs: initial + one throttled
+      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(2)
+
+      // The second sync should have the latest state (state4)
+      const lastCall = vi.mocked(firestore.syncChatStateToFirestore).mock.calls[1][0]
+      expect(lastCall.messagesById).toHaveProperty('m4')
     })
   })
 })

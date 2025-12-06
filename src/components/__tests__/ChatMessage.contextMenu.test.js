@@ -980,6 +980,21 @@ describe('ChatMessage context menu integration', () => {
   })
 
   describe('Note Edit Mode Behavior', () => {
+    it('handleAddNote validates selection data before proceeding', () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const state = getState(wrapper)
+
+      // Invalid data - missing offsets
+      state.popup.selectedText = 'text'
+      state.popup.startOffset = undefined
+      state.popup.endOffset = undefined
+
+      wrapper.vm.handleAddNote()
+
+      expect(consoleSpy).toHaveBeenCalledWith('Invalid selection data for note')
+      consoleSpy.mockRestore()
+    })
+
     it('handleNoteClick opens note in view mode (startInEditMode = false)', () => {
       const pinia = createPinia()
       const testMessage = {
@@ -1956,6 +1971,401 @@ describe('ChatMessage context menu integration', () => {
       // Content should be streamed to popup
       expect(state.popup.noteContent).toBe('Quick explanation')
       expect(state.popup.mode).toBe('note')
+    })
+
+    it('handleCustomPromptDeepDive creates child message with full context', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-deepdive-custom',
+        question: 'Q',
+        response: 'some selected context here',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-deepdive-custom'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'selected context'
+      state.popup.startOffset = 5
+      state.popup.endOffset = 21
+      state.popup.mode = 'context-menu'
+
+      // Spy on getMainPrompts to capture the question passed
+      const getMainPromptsSpy = vi.spyOn(extraPrompt, 'getMainPrompts')
+      vi.spyOn(api, 'sendChatMessage').mockResolvedValue(undefined)
+
+      await wrapper.vm.handleCustomPromptDeepDive('explain in detail')
+
+      // Verify getMainPrompts was called with [DEEPDIVE] tag and full context
+      expect(getMainPromptsSpy).toHaveBeenCalled()
+      const callArgs = getMainPromptsSpy.mock.calls[0]
+      expect(callArgs[0]).toBe('[DEEPDIVE] explain in detail\n\nContext: selected context')
+
+      getMainPromptsSpy.mockRestore()
+    })
+  })
+
+  describe('Note Save/Cancel/Delete Behavior', () => {
+    it('handleNoteSave creates new highlight with note from tempHighlight when isNewNote', () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-save-temp-new',
+        question: 'Q',
+        response: 'text to highlight with note',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-save-temp-new'] = testMessage
+
+      const state = getState(wrapper)
+
+      // Simulate new note with temp highlight (from handleAddNote on new selection)
+      state.popup.mode = 'note'
+      state.popup.isNewNote = true
+      state.popup.highlightId = '__temp_highlight_with_note__'
+      state.popup.selectedText = 'to highlight'
+      state.popup.startOffset = 5
+      state.popup.endOffset = 17
+      state.popup.noteContent = ''
+      state.popup.customPromptText = ''
+      state.tempHighlight = {
+        id: '__temp_highlight_with_note__',
+        type: 'highlight',
+        text: 'to highlight',
+        startOffset: 5,
+        endOffset: 17,
+        colorIndex: 2,
+        hasNote: true,
+        noteContent: ''
+      }
+
+      wrapper.vm.handleNoteSave({
+        noteId: '__temp_highlight_with_note__',
+        content: 'My new note'
+      })
+
+      // Should create permanent highlight with note
+      const storeMessage = wrapper.vm.chatStore.messagesById['msg-save-temp-new']
+      expect(storeMessage.customContent.length).toBe(1)
+      expect(storeMessage.customContent[0].text).toBe('to highlight')
+      expect(storeMessage.customContent[0].colorIndex).toBe(2)
+      expect(storeMessage.customContent[0].noteContent).toBe('My new note')
+      expect(storeMessage.customContent[0].hasNote).toBe(true)
+
+      // Temp highlight should be cleared
+      expect(state.tempHighlight).toBe(null)
+
+      // Popup should be closed
+      expect(state.popup.mode).toBe(null)
+    })
+
+    it('handleNoteSave updates existing highlight with note when customPromptText and highlightId exist', () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-save-existing',
+        question: 'Q',
+        response: 'text with highlight',
+        customContent: [{
+          id: 'existing-highlight',
+          type: 'highlight',
+          text: 'with highlight',
+          startOffset: 5,
+          endOffset: 19,
+          colorIndex: 0
+        }],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-save-existing'] = testMessage
+
+      const state = getState(wrapper)
+
+      // Simulate custom prompt on existing highlight (no tempHighlight)
+      state.popup.mode = 'note'
+      state.popup.customPromptText = 'custom prompt text'
+      state.popup.highlightId = 'existing-highlight'
+      state.popup.noteContent = 'Generated explanation'
+      state.tempHighlight = null // No temp highlight
+
+      wrapper.vm.handleNoteSave({
+        noteId: 'existing-highlight',
+        content: 'Generated explanation'
+      })
+
+      // Should update existing highlight with note
+      const storeMessage = wrapper.vm.chatStore.messagesById['msg-save-existing']
+      expect(storeMessage.customContent[0].hasNote).toBe(true)
+      expect(storeMessage.customContent[0].noteContent).toBe('Generated explanation')
+
+      // Popup should be closed
+      expect(state.popup.mode).toBe(null)
+    })
+
+    it('handleNoteSave creates highlight from isNewNote without tempHighlight', () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-save-new-no-temp',
+        question: 'Q',
+        response: 'text to highlight',
+        customContent: [{
+          id: 'highlight-no-note',
+          type: 'highlight',
+          text: 'to highlight',
+          startOffset: 5,
+          endOffset: 17,
+          colorIndex: 0
+        }],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-save-new-no-temp'] = testMessage
+
+      const state = getState(wrapper)
+
+      // Simulate adding note to existing highlight (isNewNote true, no tempHighlight)
+      state.popup.mode = 'note'
+      state.popup.isNewNote = true
+      state.popup.highlightId = 'highlight-no-note'
+      state.popup.noteContent = ''
+      state.popup.customPromptText = ''
+      state.tempHighlight = null
+
+      wrapper.vm.handleNoteSave({
+        noteId: 'highlight-no-note',
+        content: 'New note content'
+      })
+
+      // Should update existing highlight with note
+      const storeMessage = wrapper.vm.chatStore.messagesById['msg-save-new-no-temp']
+      expect(storeMessage.customContent[0].hasNote).toBe(true)
+      expect(storeMessage.customContent[0].noteContent).toBe('New note content')
+
+      // Popup should be closed
+      expect(state.popup.mode).toBe(null)
+    })
+
+    it('handleNoteSave updates note content when editing existing note (not new)', () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-edit-existing-note',
+        question: 'Q',
+        response: 'text with existing note',
+        customContent: [{
+          id: 'note-to-edit',
+          type: 'highlight',
+          text: 'with existing',
+          startOffset: 5,
+          endOffset: 18,
+          colorIndex: 0,
+          hasNote: true,
+          noteContent: 'Original note'
+        }],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-edit-existing-note'] = testMessage
+
+      const state = getState(wrapper)
+
+      // Simulate editing existing note (not new, not custom prompt)
+      state.popup.mode = 'note'
+      state.popup.isNewNote = false
+      state.popup.highlightId = 'note-to-edit'
+      state.popup.noteContent = 'Original note'
+      state.popup.customPromptText = ''
+      state.tempHighlight = null
+
+      wrapper.vm.handleNoteSave({
+        noteId: 'note-to-edit',
+        content: 'Updated note content'
+      })
+
+      // Should update note content without closing popup
+      const storeMessage = wrapper.vm.chatStore.messagesById['msg-edit-existing-note']
+      expect(storeMessage.customContent[0].noteContent).toBe('Updated note content')
+
+      // Should update popup state but NOT close
+      expect(state.popup.noteContent).toBe('Updated note content')
+      expect(state.popup.mode).toBe('note') // Still in note mode
+    })
+
+    it('handleNoteCancel clears tempHighlight when isNewNote is true', () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-cancel-new',
+        question: 'Q',
+        response: 'text here',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      const state = getState(wrapper)
+
+      // Simulate new note with temp highlight
+      state.popup.mode = 'note'
+      state.popup.isNewNote = true
+      state.tempHighlight = {
+        id: '__temp_highlight_with_note__',
+        type: 'highlight',
+        text: 'temp',
+        startOffset: 0,
+        endOffset: 4
+      }
+
+      wrapper.vm.handleNoteCancel()
+
+      // Temp highlight should be cleared
+      expect(state.tempHighlight).toBe(null)
+      // Popup should be closed
+      expect(state.popup.mode).toBe(null)
+    })
+
+    it('handleNoteCancel clears tempHighlight when customPromptText exists', () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-cancel-custom',
+        question: 'Q',
+        response: 'text here',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      const state = getState(wrapper)
+
+      // Simulate custom prompt note with temp highlight
+      state.popup.mode = 'note'
+      state.popup.isNewNote = false
+      state.popup.customPromptText = 'some custom prompt'
+      state.tempHighlight = {
+        id: 'temp-id',
+        type: 'highlight',
+        text: 'temp',
+        startOffset: 0,
+        endOffset: 4
+      }
+
+      wrapper.vm.handleNoteCancel()
+
+      // Temp highlight should be cleared
+      expect(state.tempHighlight).toBe(null)
+      // Popup should be closed
+      expect(state.popup.mode).toBe(null)
+    })
+
+    it('handleNoteCancel does not clear tempHighlight when editing existing note', () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-cancel-existing',
+        question: 'Q',
+        response: 'text here',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      const state = getState(wrapper)
+
+      // Simulate editing existing note (not new, no custom prompt)
+      state.popup.mode = 'note'
+      state.popup.isNewNote = false
+      state.popup.customPromptText = ''
+      state.tempHighlight = null // No temp highlight for existing notes
+
+      wrapper.vm.handleNoteCancel()
+
+      // Should just close popup
+      expect(state.popup.mode).toBe(null)
+    })
+
+    it('handleNoteDelete removes note from highlight', () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-delete-note',
+        question: 'Q',
+        response: 'text with note to delete',
+        customContent: [{
+          id: 'note-to-delete',
+          type: 'highlight',
+          text: 'with note',
+          startOffset: 5,
+          endOffset: 14,
+          colorIndex: 0,
+          hasNote: true,
+          noteContent: 'Note to be deleted'
+        }],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-delete-note'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.mode = 'note'
+      state.popup.highlightId = 'note-to-delete'
+
+      wrapper.vm.handleNoteDelete({ noteId: 'note-to-delete' })
+
+      // Note should be removed from highlight
+      const storeMessage = wrapper.vm.chatStore.messagesById['msg-delete-note']
+      expect(storeMessage.customContent[0].hasNote).toBe(false)
+      expect(storeMessage.customContent[0].noteContent).toBe('')
+
+      // Popup should be closed
+      expect(state.popup.mode).toBe(null)
     })
   })
 })

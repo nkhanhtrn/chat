@@ -7,6 +7,24 @@ const STORAGE_KEY_CHAT_STATE = 'chat-state'
 // Configuration flag - set to false to disable Firestore sync
 let ENABLE_FIRESTORE_SYNC = true
 
+// Throttle configuration for Firestore writes (1 second = 1000ms)
+const FIRESTORE_SYNC_THROTTLE_MS = 1000
+let lastFirestoreSyncTime = 0
+let pendingFirestoreSync = null
+let pendingState = null
+
+/**
+ * Reset throttle state (for testing purposes)
+ */
+export const _resetThrottleState = () => {
+  lastFirestoreSyncTime = 0
+  if (pendingFirestoreSync) {
+    clearTimeout(pendingFirestoreSync)
+  }
+  pendingFirestoreSync = null
+  pendingState = null
+}
+
 /**
  * Enable or disable Firestore synchronization
  * @param {boolean} enabled - Whether to enable Firestore sync
@@ -24,6 +42,50 @@ export const setFirestoreSyncEnabled = (enabled) => {
 const serializeState = (state) => {
   // Use JSON parse/stringify to deep clone and convert Message instances to plain objects
   return JSON.parse(JSON.stringify(state))
+}
+
+/**
+ * Throttled Firestore sync - ensures writes happen at most once per FIRESTORE_SYNC_THROTTLE_MS
+ * @param {Object} serializedState - The serialized state to sync
+ */
+const throttledFirestoreSync = (serializedState) => {
+  // Store the latest state to sync
+  pendingState = serializedState
+
+  const now = Date.now()
+  const timeSinceLastSync = now - lastFirestoreSyncTime
+
+  // If enough time has passed, sync immediately
+  if (timeSinceLastSync >= FIRESTORE_SYNC_THROTTLE_MS) {
+    performFirestoreSync()
+    return
+  }
+
+  // Otherwise, schedule a sync if not already scheduled
+  if (!pendingFirestoreSync) {
+    const delay = FIRESTORE_SYNC_THROTTLE_MS - timeSinceLastSync
+    pendingFirestoreSync = setTimeout(() => {
+      performFirestoreSync()
+    }, delay)
+  }
+}
+
+/**
+ * Perform the actual Firestore sync
+ */
+const performFirestoreSync = async () => {
+  if (!pendingState) return
+
+  const stateToSync = pendingState
+  pendingState = null
+  pendingFirestoreSync = null
+  lastFirestoreSyncTime = Date.now()
+
+  try {
+    await syncChatStateToFirestore(stateToSync)
+  } catch (firestoreError) {
+    console.warn('Firestore sync failed:', firestoreError)
+  }
 }
 
 /**
@@ -46,13 +108,9 @@ export const saveChatState = async (state) => {
     }
 
     // Optionally sync to Firestore if enabled and user is authenticated
+    // Uses throttling to limit writes to once per second
     if (ENABLE_FIRESTORE_SYNC) {
-      try {
-        await syncChatStateToFirestore(serializedState)
-      } catch (firestoreError) {
-        // Don't block localStorage save if Firestore fails
-        console.warn('Firestore sync failed, but localStorage saved successfully:', firestoreError)
-      }
+      throttledFirestoreSync(serializedState)
     }
   } catch (error) {
     console.error('Failed to save chat state to localStorage:', error)

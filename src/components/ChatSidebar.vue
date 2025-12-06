@@ -173,7 +173,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, provide } from 'vue'
+import { ref, computed, provide, toRef } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from './Button.vue'
 import SettingsModal from './SettingsModal.vue'
@@ -181,6 +181,9 @@ import MessageTree from './MessageTree.vue'
 import DraggableTreeItem from './DraggableTreeItem.vue'
 import InlineEdit from './InlineEdit.vue'
 import { useChatStore } from '../stores/chat.js'
+import { useSidebarCollapse } from '../composables/useSidebarCollapse.js'
+import { useTreeExpansion } from '../composables/useTreeExpansion.js'
+import { useSidebarSearch } from '../composables/useSidebarSearch.js'
 
 const props = defineProps({
   chats: {
@@ -204,19 +207,44 @@ const props = defineProps({
 const emit = defineEmits(['back-home', 'select-question', 'delete-question', 'rename-question', 'new-question'])
 
 const chatStore = useChatStore()
+const router = useRouter()
 
-const SIDEBAR_COLLAPSED_KEY = 'chatSidebarCollapsed'
+// Use composables
+const { isCollapsed: isSidebarCollapsed, toggle: toggleSidebar } = useSidebarCollapse('chatSidebarCollapsed')
 
-const isSidebarCollapsed = ref(false)
+const {
+  expandedRootId,
+  expandedPath,
+  buildPathToChild: buildExpandedPathToChild,
+  findRootId,
+  isInActivePath: treeIsInActivePath,
+  isRootExpanded,
+  toggleExpand: handleToggleExpand,
+  toggleRoot,
+  expandToMessage
+} = useTreeExpansion({
+  getMessageById: (id) => chatStore.messagesById[id],
+  currentMessageId: toRef(props, 'currentMessageId')
+})
+
+// Chat questions computed for search
+const chatQuestions = computed(() => {
+  const currentChat = props.chats.find(c => c.id === props.currentChatId)
+  return currentChat?.questions || []
+})
+
+const {
+  query: searchQuery,
+  results: searchResultsWithPath,
+  isSearchActive,
+  clear: clearSearch
+} = useSidebarSearch({
+  getMessageById: (id) => chatStore.messagesById[id],
+  chatQuestions
+})
+
 const showSettings = ref(false)
-const searchQuery = ref('')
 const isNotebooksDropTarget = ref(false)
-
-// Track which root message tree is expanded (only one at a time)
-const expandedRootId = ref(null)
-
-// Track the expanded path within the tree (ancestors of current selection)
-const expandedPath = ref(new Set())
 
 // Drag state - shared with MessageTree via provide
 const draggedItem = ref(null)
@@ -243,88 +271,24 @@ const rootMessages = computed(() => {
 
 // Get the current root message ID (the root of the currently viewed message)
 const currentRootId = computed(() => {
-  if (!props.currentMessageId) return null
-
-  let msg = chatStore.messagesById[props.currentMessageId]
-  while (msg?.parentId) {
-    msg = chatStore.messagesById[msg.parentId]
-  }
-  return msg?.id || null
+  return props.currentMessageId ? findRootId(props.currentMessageId) : null
 })
 
-// Search results with ancestor path
-const searchResultsWithPath = computed(() => {
-  const query = searchQuery.value.trim().toLowerCase()
-  if (!query) return []
+// Check if a message is in the active path (wrapper for composable)
+const isInActivePath = (messageId) => {
+  return treeIsInActivePath(messageId, props.currentMessageId)
+}
 
-  // Split query into individual words for multi-word search
-  const searchWords = query.split(/\s+/).filter(w => w.length > 0)
-  const results = []
-  const currentChat = props.chats.find(c => c.id === props.currentChatId)
-  if (!currentChat) return []
-
-  // Helper to get ancestor path for a message
-  const getAncestorPath = (messageId) => {
-    const ancestors = []
-    let msg = chatStore.messagesById[messageId]
-
-    // Walk up the parent chain
-    while (msg?.parentId) {
-      const parent = chatStore.messagesById[msg.parentId]
-      if (parent) {
-        ancestors.unshift({
-          id: parent.id,
-          text: parent.questionSummarized || parent.question || 'Untitled'
-        })
-      }
-      msg = parent
-    }
-    return ancestors
-  }
-
-  // Recursively search through message tree
-  const searchMessageTree = (messageId, rootIndex) => {
-    const message = chatStore.messagesById[messageId]
-    if (!message) return
-
-    const questionText = message.questionSummarized || message.question || ''
-    const lowerText = questionText.toLowerCase()
-    // Match if ALL search words are found
-    if (searchWords.every(word => lowerText.includes(word))) {
-      results.push({
-        id: message.id,
-        text: questionText,
-        rootIndex,
-        ancestors: getAncestorPath(message.id)
-      })
-    }
-
-    // Search children recursively
-    if (message.childIds) {
-      for (const childId of message.childIds) {
-        searchMessageTree(childId, rootIndex)
-      }
-    }
-  }
-
-  // Search through all root questions
-  currentChat.questions.forEach((question, index) => {
-    searchMessageTree(question.id, index)
-  })
-
-  return results
-})
+// Check if a message has children
+const hasChildren = (messageId) => {
+  const msg = chatStore.messagesById[messageId]
+  return msg?.childIds?.length > 0
+}
 
 // Handle clicking a search result
 const handleSearchResultClick = (result) => {
   const currentChat = props.chats.find(c => c.id === props.currentChatId)
   if (!currentChat) return
-
-  // Find the root of this message
-  let msg = chatStore.messagesById[result.id]
-  while (msg?.parentId) {
-    msg = chatStore.messagesById[msg.parentId]
-  }
 
   // Emit selection
   emit('select-question', {
@@ -334,57 +298,10 @@ const handleSearchResultClick = (result) => {
   })
 
   // Expand the tree to show the selected message
-  if (msg) {
-    expandedRootId.value = msg.id
-    buildExpandedPathToChild(result.id)
-  }
+  expandToMessage(result.id)
 
   // Clear search
-  searchQuery.value = ''
-}
-
-// Check if a message is in the active path (from root to current message)
-const isInActivePath = (messageId) => {
-  if (messageId === props.currentMessageId) return true
-  if (messageId === currentRootId.value) return true
-  return expandedPath.value.has(messageId)
-}
-
-// Check if a message has children
-const hasChildren = (messageId) => {
-  const msg = chatStore.messagesById[messageId]
-  return msg?.childIds?.length > 0
-}
-
-// Check if a root is expanded
-const isRootExpanded = (rootId) => {
-  return expandedRootId.value === rootId
-}
-
-// Handle toggling expansion within the tree
-const handleToggleExpand = (messageId) => {
-  if (expandedPath.value.has(messageId)) {
-    // Collapse: remove this node and all its descendants from path
-    const newPath = new Set(expandedPath.value)
-    newPath.delete(messageId)
-
-    // Also remove any descendants
-    const removeDescendants = (id) => {
-      const msg = chatStore.messagesById[id]
-      if (msg?.childIds) {
-        msg.childIds.forEach(childId => {
-          newPath.delete(childId)
-          removeDescendants(childId)
-        })
-      }
-    }
-    removeDescendants(messageId)
-
-    expandedPath.value = newPath
-  } else {
-    // Expand: add this node to path
-    expandedPath.value = new Set([...expandedPath.value, messageId])
-  }
+  clearSearch()
 }
 
 // Handle clicking a root message - select and toggle expand
@@ -397,27 +314,16 @@ const handleRootClick = (rootMsg) => {
     emit('select-question', question)
   }
 
-  // Toggle expand/collapse
-  if (expandedRootId.value === rootMsg.id) {
-    expandedRootId.value = null
-    expandedPath.value = new Set()
-  } else {
-    expandedRootId.value = rootMsg.id
-    expandedPath.value = new Set()
-  }
+  // Toggle expand/collapse using composable
+  toggleRoot(rootMsg.id)
 }
 
 // Handle selecting a child message
 const handleSelectChild = (childMsg) => {
-  // Emit selection with chat context
   const currentChat = props.chats.find(c => c.id === props.currentChatId)
   if (currentChat) {
-    // Find the root of this child
-    let msg = childMsg
-    while (msg?.parentId) {
-      msg = chatStore.messagesById[msg.parentId]
-    }
-    const rootIndex = currentChat.questions.findIndex(q => q.id === msg?.id)
+    const rootId = findRootId(childMsg.id)
+    const rootIndex = currentChat.questions.findIndex(q => q.id === rootId)
 
     emit('select-question', {
       id: childMsg.id,
@@ -430,74 +336,17 @@ const handleSelectChild = (childMsg) => {
   }
 }
 
-// Build expanded path from root to a specific child
-const buildExpandedPathToChild = (childId) => {
-  const newPath = new Set()
-  let msg = chatStore.messagesById[childId]
-
-  while (msg?.parentId) {
-    newPath.add(msg.parentId)
-    msg = chatStore.messagesById[msg.parentId]
-  }
-
-  expandedPath.value = newPath
-}
-
 // Handle deleting a root message
 const handleDeleteRoot = (rootMsg) => {
   emit('delete-question', rootMsg.id, props.currentChatId)
 }
 
-// Handle deleting a child message (subquestion)
+// Handle deleting a child message (subquestion) - uses store action
 const handleDeleteChild = (childMsg) => {
-  const message = chatStore.messagesById[childMsg.id]
-  if (!message) return
-
-  // Remove from parent's childIds
-  if (message.parentId) {
-    const parent = chatStore.messagesById[message.parentId]
-    if (parent?.childIds) {
-      const idx = parent.childIds.indexOf(childMsg.id)
-      if (idx !== -1) {
-        parent.childIds.splice(idx, 1)
-      }
-    }
+  const { navigateTo } = chatStore.deleteChildMessage(childMsg.id)
+  if (navigateTo) {
+    emit('select-question', { id: navigateTo })
   }
-
-  // Remove questionLinks that point to the message being deleted (and its children)
-  const removeLinksToMessage = (id) => {
-    const msg = chatStore.messagesById[id]
-    if (!msg) return
-
-    // Use backlinks to find and remove questionLinks pointing to this message
-    if (msg.linkedFrom) {
-      msg.linkedFrom.forEach(({ sourceMessageId, linkId }) => {
-        const sourceMsg = chatStore.messagesById[sourceMessageId]
-        if (sourceMsg?.customContent) {
-          const index = sourceMsg.customContent.findIndex(item => item.id === linkId)
-          if (index !== -1) {
-            sourceMsg.customContent.splice(index, 1)
-          }
-        }
-      })
-    }
-
-    // Process children recursively
-    if (msg.childIds) {
-      msg.childIds.forEach(childId => removeLinksToMessage(childId))
-    }
-  }
-  removeLinksToMessage(childMsg.id)
-
-  // Recursively delete the message and its children
-  chatStore._removeMessageTree(childMsg.id)
-
-  // If deleted message was current, navigate to parent
-  if (props.currentMessageId === childMsg.id && message.parentId) {
-    emit('select-question', { id: message.parentId })
-  }
-
-  chatStore._persistState()
 }
 
 // Handle renaming a root message
@@ -529,42 +378,6 @@ const handleDrop = (dropData) => {
 const handleMoveToParent = (data) => {
   chatStore.moveMessage(data.messageId, data.newParentId, data.newIndex)
 }
-
-// Load sidebar collapsed state from localStorage on mount
-onMounted(() => {
-  const savedState = localStorage.getItem(SIDEBAR_COLLAPSED_KEY)
-  if (savedState !== null) {
-    isSidebarCollapsed.value = savedState === 'true'
-  }
-})
-
-// Watch for changes to sidebar collapsed state and save to localStorage
-watch(isSidebarCollapsed, (newValue) => {
-  localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(newValue))
-})
-
-// Watch for current message changes to update expanded state
-watch(() => props.currentMessageId, (newId) => {
-  if (newId) {
-    // Find the root of the current message
-    let msg = chatStore.messagesById[newId]
-    while (msg?.parentId) {
-      msg = chatStore.messagesById[msg.parentId]
-    }
-
-    if (msg) {
-      // Auto-expand the root that contains the current message
-      expandedRootId.value = msg.id
-      buildExpandedPathToChild(newId)
-    }
-  }
-}, { immediate: true })
-
-const toggleSidebar = () => {
-  isSidebarCollapsed.value = !isSidebarCollapsed.value
-}
-
-const router = useRouter()
 
 // Handle drag over notebooks button
 const handleDragOverNotebooks = (event) => {
@@ -601,63 +414,17 @@ const handleDropOnNotebooks = (event) => {
     return
   }
 
-  // Create new notebook
-  const newChat = chatStore.createNewChat()
-
-  // Set the notebook name to the summarized question name
-  const notebookName = message.questionSummarized || message.question || 'New Notebook'
-  chatStore.renameChat(newChat.id, notebookName)
-
-  // Move the message tree to the new notebook
-  moveMessageTreeToNotebook(messageId, newChat.id)
+  // Use store action to move message to new notebook
+  const result = chatStore.moveMessageToNewNotebook(messageId, props.currentChatId)
 
   // Clear drag state
   draggedItem.value = null
   dropTarget.value = null
 
   // Navigate to the new notebook and the moved question
-  router.push({ name: 'question', params: { id: newChat.id, questionId: messageId } })
-}
-
-// Move a message tree to a new notebook
-const moveMessageTreeToNotebook = (messageId, targetChatId) => {
-  const message = chatStore.messagesById[messageId]
-  if (!message) return
-
-  const currentChat = chatStore.chats.find(c => c.id === props.currentChatId)
-  const targetChat = chatStore.chats.find(c => c.id === targetChatId)
-  if (!currentChat || !targetChat) return
-
-  // Remove from current location
-  if (message.parentId) {
-    // Remove from parent's childIds
-    const parent = chatStore.messagesById[message.parentId]
-    if (parent?.childIds) {
-      const idx = parent.childIds.indexOf(messageId)
-      if (idx !== -1) {
-        parent.childIds.splice(idx, 1)
-      }
-    }
-  } else {
-    // Remove from current chat's root messages
-    const idx = currentChat.rootMessageIds.indexOf(messageId)
-    if (idx !== -1) {
-      currentChat.rootMessageIds.splice(idx, 1)
-    }
+  if (result) {
+    router.push({ name: 'question', params: { id: result.newChatId, questionId: result.messageId } })
   }
-
-  // Clear parentId since it's now a root in the new notebook
-  message.parentId = null
-
-  // Add to target chat's root messages
-  targetChat.rootMessageIds.push(messageId)
-
-  // Update store state
-  chatStore.currentChatId = targetChatId
-  chatStore.currentMessageId = messageId
-  chatStore.rootMessageIds = [...targetChat.rootMessageIds]
-
-  chatStore._persistState()
 }
 </script>
 

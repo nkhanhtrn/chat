@@ -921,6 +921,9 @@ describe('ChatSidebar', () => {
         questions: [{ id: 'q1', text: 'Question 1' }]
       }]
 
+      // Set store's currentMessageId so deleteChildMessage knows to navigate
+      chatStore.currentMessageId = 'child1'
+
       wrapper = mount(ChatSidebar, {
         props: { chats, currentChatId: 'chat1', currentMessageId: 'child1' }
       })
@@ -1035,6 +1038,170 @@ describe('ChatSidebar', () => {
       // q1 should still exist with empty childIds
       expect(chatStore.messagesById['q1']).toBeDefined()
       expect(chatStore.messagesById['q1'].childIds).toEqual([])
+    })
+  })
+
+  describe('Notebook Rename', () => {
+    it('should rename notebook via InlineEdit when currentChatId is set', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Question 1', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Original Title',
+        questions: [{ id: 'q1', text: 'Question 1' }]
+      }]
+
+      chatStore.chats = chats
+      chatStore.renameChat = vi.fn()
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      // Find the notebook title InlineEdit and trigger save
+      const notebookTitleContainer = wrapper.find('.notebook-title-container')
+      expect(notebookTitleContainer.exists()).toBe(true)
+
+      const inlineEdit = notebookTitleContainer.findComponent({ name: 'InlineEdit' })
+      expect(inlineEdit.exists()).toBe(true)
+
+      // Trigger save event
+      await inlineEdit.vm.$emit('save', 'New Notebook Title')
+
+      expect(chatStore.renameChat).toHaveBeenCalledWith('chat1', 'New Notebook Title')
+    })
+
+    it('should not rename notebook when currentChatId is null', async () => {
+      wrapper = mount(ChatSidebar, {
+        props: { chats: [], currentChatId: null }
+      })
+
+      chatStore.renameChat = vi.fn()
+
+      // Notebook title container should not exist when no current chat
+      const notebookTitleContainer = wrapper.find('.notebook-title-container')
+      expect(notebookTitleContainer.exists()).toBe(false)
+    })
+
+    it('should display current notebook title in InlineEdit', () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Question 1', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'My Notebook',
+        questions: [{ id: 'q1', text: 'Question 1' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      const inlineEdit = wrapper.find('.notebook-title-container').findComponent({ name: 'InlineEdit' })
+      expect(inlineEdit.props('modelValue')).toBe('My Notebook')
+    })
+  })
+
+  describe('Drop Handler (Reordering)', () => {
+    it('should move message to root level when position is "above"', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Question 1', response: '' },
+        { id: 'q2', question: 'Question 2', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [
+          { id: 'q1', text: 'Question 1' },
+          { id: 'q2', text: 'Question 2' }
+        ]
+      }]
+
+      chatStore.moveMessage = vi.fn()
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      // Find DraggableTreeItem and emit drop event with position 'above'
+      const draggableItem = wrapper.findComponent({ name: 'DraggableTreeItem' })
+      await draggableItem.vm.$emit('drop', {
+        messageId: 'q2',
+        targetId: 'q1',
+        position: 'above',
+        targetIndex: 0
+      })
+
+      expect(chatStore.moveMessage).toHaveBeenCalledWith('q2', null, 0)
+    })
+
+    it('should move message as child when position is not "above"', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Question 1', response: '' },
+        { id: 'q2', question: 'Question 2', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [
+          { id: 'q1', text: 'Question 1' },
+          { id: 'q2', text: 'Question 2' }
+        ]
+      }]
+
+      chatStore.moveMessage = vi.fn()
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      // Find DraggableTreeItem and emit drop event with position 'inside'
+      const draggableItem = wrapper.findComponent({ name: 'DraggableTreeItem' })
+      await draggableItem.vm.$emit('drop', {
+        messageId: 'q2',
+        targetId: 'q1',
+        position: 'inside',
+        targetIndex: 0
+      })
+
+      expect(chatStore.moveMessage).toHaveBeenCalledWith('q2', 'q1', 0)
+    })
+  })
+
+  describe('Move to Parent (Promoting Child)', () => {
+    it('should move child message to grandparent when move-to-parent is emitted', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Question 1', response: '', childIds: ['child1'] },
+        { id: 'child1', question: 'Child', response: '', parentId: 'q1', childIds: ['grandchild1'] },
+        { id: 'grandchild1', question: 'Grandchild', response: '', parentId: 'child1' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Question 1' }]
+      }]
+
+      chatStore.moveMessage = vi.fn()
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1', currentMessageId: 'grandchild1' }
+      })
+
+      // Find MessageTree and emit move-to-parent event
+      const messageTree = wrapper.findComponent({ name: 'MessageTree' })
+      await messageTree.vm.$emit('move-to-parent', {
+        messageId: 'grandchild1',
+        newParentId: 'q1',
+        newIndex: 1
+      })
+
+      expect(chatStore.moveMessage).toHaveBeenCalledWith('grandchild1', 'q1', 1)
     })
   })
 

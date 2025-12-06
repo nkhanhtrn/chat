@@ -463,6 +463,125 @@ export const useChatStore = defineStore('chat', {
       delete this.messagesById[messageId]
     },
 
+    /**
+     * Delete a child message and all its descendants, including cleanup of question links
+     * @param {string} messageId - ID of the message to delete
+     * @param {string|null} currentMessageId - Current message ID (to handle navigation)
+     * @returns {{ navigateTo: string|null }} - Object with navigateTo ID if navigation needed
+     */
+    deleteChildMessage(messageId) {
+      const message = this.messagesById[messageId]
+      if (!message) return { navigateTo: null }
+
+      const parentId = message.parentId
+      const shouldNavigateToParent = this.currentMessageId === messageId && parentId
+
+      // Remove from parent's childIds
+      if (parentId) {
+        const parent = this.messagesById[parentId]
+        if (parent?.childIds) {
+          const idx = parent.childIds.indexOf(messageId)
+          if (idx !== -1) {
+            parent.childIds.splice(idx, 1)
+          }
+        }
+      }
+
+      // Remove questionLinks that point to the message being deleted (and its children)
+      this._removeLinksToMessageTree(messageId)
+
+      // Recursively delete the message and its children
+      this._removeMessageTree(messageId)
+
+      this._persistState()
+
+      return { navigateTo: shouldNavigateToParent ? parentId : null }
+    },
+
+    /**
+     * Helper to remove all questionLinks pointing to a message tree
+     * @param {string} messageId - Root of the tree to remove links to
+     */
+    _removeLinksToMessageTree(messageId) {
+      const msg = this.messagesById[messageId]
+      if (!msg) return
+
+      // Use backlinks to find and remove questionLinks pointing to this message
+      if (msg.linkedFrom) {
+        msg.linkedFrom.forEach(({ sourceMessageId, linkId }) => {
+          const sourceMsg = this.messagesById[sourceMessageId]
+          if (sourceMsg?.customContent) {
+            const index = sourceMsg.customContent.findIndex(item => item.id === linkId)
+            if (index !== -1) {
+              sourceMsg.customContent.splice(index, 1)
+            }
+          }
+        })
+      }
+
+      // Process children recursively
+      if (msg.childIds) {
+        msg.childIds.forEach(childId => this._removeLinksToMessageTree(childId))
+      }
+    },
+
+    /**
+     * Move a message tree to a new notebook
+     * @param {string} messageId - ID of the message to move
+     * @param {string} sourceChatId - ID of the source chat/notebook
+     * @returns {{ newChatId: string, messageId: string }|null} - New chat info or null if failed
+     */
+    moveMessageToNewNotebook(messageId, sourceChatId) {
+      const message = this.messagesById[messageId]
+      if (!message) return null
+
+      const sourceChat = this.chats.find(c => c.id === sourceChatId)
+      if (!sourceChat) return null
+
+      // Create new notebook
+      const newChat = this.createNewChat()
+
+      // Set the notebook name to the summarized question name
+      const notebookName = message.questionSummarized || message.question || 'New Notebook'
+      this.renameChat(newChat.id, notebookName)
+
+      const targetChat = this.chats.find(c => c.id === newChat.id)
+      if (!targetChat) return null
+
+      // Remove from current location
+      if (message.parentId) {
+        // Remove from parent's childIds
+        const parent = this.messagesById[message.parentId]
+        if (parent?.childIds) {
+          const idx = parent.childIds.indexOf(messageId)
+          if (idx !== -1) {
+            parent.childIds.splice(idx, 1)
+          }
+        }
+      } else {
+        // Remove from source chat's root messages
+        const idx = sourceChat.rootMessageIds.indexOf(messageId)
+        if (idx !== -1) {
+          sourceChat.rootMessageIds.splice(idx, 1)
+        }
+      }
+
+      // Clear parentId since it's now a root in the new notebook
+      message.parentId = null
+
+      // Add to target chat's root messages
+      targetChat.rootMessageIds.push(messageId)
+
+      // Update store state
+      this.currentChatId = newChat.id
+      this.currentMessageId = messageId
+      this.rootMessageIds = [...targetChat.rootMessageIds]
+
+      this._persistState()
+
+      return { newChatId: newChat.id, messageId }
+    },
+
     // Streaming control actions
     startStreaming() {
       this.streamAbortController = new AbortController()
