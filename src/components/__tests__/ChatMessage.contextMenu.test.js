@@ -315,6 +315,44 @@ describe('ChatMessage context menu integration', () => {
       expect(() => wrapper.vm.closePopup()).not.toThrow()
       expect(state.popup.mode).toBe(null)
     })
+
+    it('ContextMenu @close event clears temporary highlight (regression test)', async () => {
+      // This test verifies the fix for the bug where closing the context menu
+      // via backdrop click, Escape key, or copy action did not clear the temp highlight
+      const mockSelectionHelper = vi.fn(() => ({
+        selectedText: 'selected text',
+        x: 100,
+        y: 200,
+        visible: true,
+        startOffset: 0,
+        endOffset: 13
+      }))
+
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: { id: '1', question: 'Q', response: 'selected text here', customContent: [] },
+          getSelectedTextAndPosition: mockSelectionHelper
+        },
+        global: { plugins: [createPinia()] }
+      })
+
+      // Open context menu which creates temp highlight
+      wrapper.vm.showContextMenu()
+      const state = getState(wrapper)
+
+      expect(state.popup.mode).toBe('context-menu')
+      expect(state.tempHighlight).not.toBe(null)
+      expect(state.tempHighlight.id).toBe('__temp_highlight__')
+
+      // Find the ContextMenu component and emit 'close' event
+      // This simulates clicking outside or pressing Escape
+      const contextMenu = wrapper.findComponent({ name: 'ContextMenu' })
+      await contextMenu.vm.$emit('close')
+
+      // Both popup and temp highlight should be cleared
+      expect(state.popup.mode).toBe(null)
+      expect(state.tempHighlight).toBe(null)
+    })
   })
 
   describe('Ask Question Behavior', () => {

@@ -34,7 +34,7 @@
            :color-index="popup.state.colorIndex"
            :has-existing-highlight="!!popup.state.highlightId"
            :has-existing-note="!!popup.state.noteContent"
-           @close="popup.close"
+           @close="closePopup"
            @keep-highlight="keepHighlight"
            @ask-question="handleAskQuestion"
            @change-color="handleChangeColor"
@@ -228,8 +228,8 @@ async function handleAskQuestion(question) {
   closePopup()
 
   const childMsg = Message.createChildMessage(parentId, question, selectedText)
-  chatStore.addChildMessage(parentId, childMsg)
 
+  // Add question link BEFORE addChildMessage, since addChildMessage changes currentMessage
   highlights.addQuestionLink({
     text: selectedText,
     targetMessageId: childMsg.id,
@@ -237,6 +237,8 @@ async function handleAskQuestion(question) {
     endOffset,
     noteContent: existingNoteContent
   })
+
+  chatStore.addChildMessage(parentId, childMsg)
 
   isChildStreaming.value = true
   error.value = null

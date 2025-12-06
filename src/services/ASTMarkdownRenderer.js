@@ -14,8 +14,9 @@ import MarkdownIt from 'markdown-it'
  * This allows us to map custom content offsets to the correct positions in the AST
  */
 class PositionTracker {
-  constructor() {
+  constructor(source = '') {
     this.offset = 0
+    this.source = source
   }
 
   advance(length) {
@@ -236,9 +237,12 @@ function tokenToASTNode(token, customContentItems) {
       }
 
       // Inject custom content into inline code
+      const codeInlineChildren = injectCustomContentIntoText(token.content, overlapping, textStartOffset)
       return {
         type: 'code_inline',
-        children: injectCustomContentIntoText(token.content, overlapping, textStartOffset)
+        children: codeInlineChildren,
+        startOffset: textStartOffset,
+        endOffset: textEndOffset
       }
 
     case 'text':
@@ -266,32 +270,71 @@ function tokenToASTNode(token, customContentItems) {
  * @param {Array} tokens - markdown-it tokens
  * @param {Array} customContentItems - Array of custom content metadata
  * @param {PositionTracker} tracker - Position tracker instance
+ * @param {Function} mapOffset - Function to map processed offset to original offset
  * @returns {Array} - Array of AST nodes
  */
-function processTokens(tokens, customContentItems, tracker) {
+function processTokens(tokens, customContentItems, tracker, mapOffset = (x) => x) {
   const ast = []
   const stack = []
 
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i]
 
-    // Track positions for text tokens
-    if (token.type === 'text' || token.type === 'code_inline') {
+    // Track positions for text tokens - map to original content offsets
+    // We need to find the actual position of this text in the processed content
+    // since the tracker doesn't account for all structural characters
+    if (token.type === 'text') {
       if (!token.sourceOffset) {
-        token.sourceOffset = tracker.offset
+        // Search for this text starting from current tracker position
+        // This handles cases where structural characters were skipped
+        const searchStart = tracker.offset
+        const foundPos = tracker.source.indexOf(token.content, searchStart)
+        if (foundPos !== -1) {
+          const originalOffset = mapOffset(foundPos)
+          token.sourceOffset = originalOffset
+          tracker.offset = foundPos + token.content.length
+        } else {
+          // Fallback: use tracker offset if text not found
+          token.sourceOffset = mapOffset(tracker.offset)
+          tracker.advance(token.content.length)
+        }
+      } else {
+        tracker.advance(token.content.length)
       }
-      tracker.advance(token.content.length)
+    } else if (token.type === 'code_inline') {
+      // For inline code, search for the backtick-wrapped content
+      const searchStart = tracker.offset
+      const codeWithBackticks = token.markup + token.content + token.markup
+      const foundPos = tracker.source.indexOf(codeWithBackticks, searchStart)
+      if (foundPos !== -1) {
+        // sourceOffset points to the content, not the backticks
+        const contentPos = foundPos + token.markup.length
+        if (!token.sourceOffset) {
+          token.sourceOffset = mapOffset(contentPos)
+        }
+        tracker.offset = foundPos + codeWithBackticks.length
+      } else {
+        // Fallback
+        const markupLen = token.markup ? token.markup.length : 1
+        tracker.advance(markupLen)
+        if (!token.sourceOffset) {
+          token.sourceOffset = mapOffset(tracker.offset)
+        }
+        tracker.advance(token.content.length)
+        tracker.advance(markupLen)
+      }
     } else if (token.type === 'softbreak' || token.type === 'hardbreak') {
       tracker.advance(1)
     }
 
-    if (token.markup) {
+    // Advance for markup on other token types (not code_inline, handled above)
+    if (token.markup && token.type !== 'code_inline' && token.type !== 'text') {
       tracker.advance(token.markup.length)
     }
 
     // Handle children inline tokens
     if (token.children && token.children.length > 0) {
-      const childrenAST = processTokens(token.children, customContentItems, tracker)
+      const childrenAST = processTokens(token.children, customContentItems, tracker, mapOffset)
 
       // Determine parent node type
       if (token.type === 'inline') {
@@ -396,93 +439,102 @@ function processTokens(tokens, customContentItems, tracker) {
 
 /**
  * Extract code blocks and math blocks to process them separately
+ * Also builds a mapping to convert processed offsets back to original offsets
  * @param {string} content - Markdown content
- * @returns {Object} - { processedContent, extractedBlocks }
+ * @returns {Object} - { processedContent, extractedBlocks, mapProcessedToOriginal }
  */
 function extractSpecialBlocks(content) {
   const extractedBlocks = []
-  let processedContent = content
+  // Track all matches with their original positions BEFORE any replacements
+  const allMatches = []
 
-  // Extract collapsible/hidden blocks ([HIDDEN]...[/HIDDEN])
-  processedContent = processedContent.replace(/\[HIDDEN\]([\s\S]*?)\[\/HIDDEN\]/g, (match, innerContent, index) => {
-    const id = `COLLAPSIBLEBLOCK${extractedBlocks.length}PLACEHOLDER`
+  // First pass: find all matches and their positions in the ORIGINAL content
+  const patterns = [
+    { regex: /\[HIDDEN\]([\s\S]*?)\[\/HIDDEN\]/g, type: 'COLLAPSIBLEBLOCK', getExtra: (m) => ({ content: m[1].trim() }) },
+    { regex: /```(\w+)?\n([\s\S]*?)```/g, type: 'CODEBLOCK', getExtra: (m) => ({ language: m[1] || 'text', code: m[2].trim() }) },
+    { regex: /\$\$([\s\S]+?)\$\$/g, type: 'MATHBLOCK', getExtra: (m) => ({ content: m[1].trim() }) },
+    { regex: /\\\[([\s\S]+?)\\\]/g, type: 'MATHBLOCK', getExtra: (m) => ({ content: m[1].trim() }) },
+    { regex: /(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)/g, type: 'MATHINLINE', getExtra: (m) => ({ content: m[1].trim() }) },
+    { regex: /\\\((.+?)\\\)/g, type: 'MATHINLINE', getExtra: (m) => ({ content: m[1].trim() }) }
+  ]
+
+  for (const { regex, type, getExtra } of patterns) {
+    let match
+    while ((match = regex.exec(content)) !== null) {
+      allMatches.push({
+        type,
+        match: match[0],
+        index: match.index,
+        length: match[0].length,
+        extra: getExtra(match)
+      })
+    }
+  }
+
+  // Sort by position in original content
+  allMatches.sort((a, b) => a.index - b.index)
+
+  // Build processed content and track replacements
+  const replacements = []
+  let processedContent = ''
+  let lastEnd = 0
+
+  for (const m of allMatches) {
+    // Add content before this match
+    processedContent += content.substring(lastEnd, m.index)
+
+    const id = `${m.type}${extractedBlocks.length}PLACEHOLDER`
+    const fullReplacement = m.type === 'MATHINLINE' ? id : `\n${id}\n`
+
+    const processedStart = processedContent.length
+
     extractedBlocks.push({
       id,
-      type: 'collapsible_block',
-      content: innerContent.trim(),
-      originalStart: index,
-      originalEnd: index + match.length
+      type: m.type.toLowerCase().replace('block', '_block').replace('inline', '_inline'),
+      originalStart: m.index,
+      originalEnd: m.index + m.length,
+      ...m.extra
     })
-    return `\n${id}\n`
-  })
 
-  // Extract code blocks (```...```)
-  processedContent = processedContent.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code, index) => {
-    const id = `CODEBLOCK${extractedBlocks.length}PLACEHOLDER`
-    extractedBlocks.push({
-      id,
-      type: 'code_block',
-      language: lang || 'text',
-      code: code.trim(),
-      originalStart: index,
-      originalEnd: index + match.length
+    replacements.push({
+      originalStart: m.index,
+      originalEnd: m.index + m.length,
+      processedStart: processedStart,
+      processedEnd: processedStart + fullReplacement.length
     })
-    return `\n${id}\n`
-  })
 
-  // Extract math blocks ($$...$$)
-  processedContent = processedContent.replace(/\$\$([\s\S]+?)\$\$/g, (match, math, index) => {
-    const id = `MATHBLOCK${extractedBlocks.length}PLACEHOLDER`
-    extractedBlocks.push({
-      id,
-      type: 'math_block',
-      content: math.trim(),
-      originalStart: index,
-      originalEnd: index + match.length
-    })
-    return `\n${id}\n`
-  })
+    processedContent += fullReplacement
+    lastEnd = m.index + m.length
+  }
 
-  // Extract math blocks with bracket notation (\[...\])
-  processedContent = processedContent.replace(/\\\[([\s\S]+?)\\\]/g, (match, math, index) => {
-    const id = `MATHBLOCK${extractedBlocks.length}PLACEHOLDER`
-    extractedBlocks.push({
-      id,
-      type: 'math_block',
-      content: math.trim(),
-      originalStart: index,
-      originalEnd: index + match.length
-    })
-    return `\n${id}\n`
-  })
+  // Add remaining content after last match
+  processedContent += content.substring(lastEnd)
 
-  // Extract inline math ($...$) - but not $$
-  processedContent = processedContent.replace(/(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)/g, (match, math, index) => {
-    const id = `MATHINLINE${extractedBlocks.length}PLACEHOLDER`
-    extractedBlocks.push({
-      id,
-      type: 'math_inline',
-      content: math.trim(),
-      originalStart: index,
-      originalEnd: index + match.length
-    })
-    return id
-  })
+  // Create a function to map processed offset to original offset
+  const mapProcessedToOriginal = (processedOffset) => {
+    let shift = 0
 
-  // Extract inline math with parenthesis notation (\(...\))
-  processedContent = processedContent.replace(/\\\((.+?)\\\)/g, (match, math, index) => {
-    const id = `MATHINLINE${extractedBlocks.length}PLACEHOLDER`
-    extractedBlocks.push({
-      id,
-      type: 'math_inline',
-      content: math.trim(),
-      originalStart: index,
-      originalEnd: index + match.length
-    })
-    return id
-  })
+    for (let i = 0; i < replacements.length; i++) {
+      const r = replacements[i]
+      // If offset is before this replacement in processed content
+      if (processedOffset < r.processedStart) {
+        return processedOffset + shift
+      }
 
-  return { processedContent, extractedBlocks }
+      // If offset is within the replacement placeholder
+      if (processedOffset >= r.processedStart && processedOffset < r.processedEnd) {
+        return r.originalStart
+      }
+
+      // Update shift: how much longer the original was vs the replacement
+      shift += (r.originalEnd - r.originalStart) - (r.processedEnd - r.processedStart)
+    }
+
+    // Offset is after all replacements
+    return processedOffset + shift
+  }
+
+  return { processedContent, extractedBlocks, mapProcessedToOriginal }
 }
 
 /**
@@ -682,22 +734,22 @@ export function parseMarkdownToAST(content, customContentItems = []) {
   if (!content) return { type: 'root', children: [] }
 
   // Extract special blocks (code, math)
-  const { processedContent, extractedBlocks } = extractSpecialBlocks(content)
+  const { processedContent, extractedBlocks, mapProcessedToOriginal } = extractSpecialBlocks(content)
 
   // Filter out custom content items that overlap with extracted blocks
   // Items fully containing blocks will be applied in restoreSpecialBlocksInAST
   // Items partially overlapping blocks are ignored entirely
   const nonBlockItems = filterItemsNotOverlappingBlocks(customContentItems, extractedBlocks)
 
-  // Create position tracker
-  const tracker = new PositionTracker()
+  // Create position tracker with the processed content for searching
+  const tracker = new PositionTracker(processedContent)
 
   // Initialize markdown-it with sensible defaults
   const md = new MarkdownIt({
     html: false, // Disable raw HTML for security
     breaks: true, // Convert \n to <br>
-    linkify: true, // Auto-convert URLs to links
-    typographer: true // Enable smart quotes and other typography
+    linkify: false, // Disabled to preserve exact character positions for highlighting
+    typographer: false // Disabled to preserve exact character positions for highlighting
   })
 
   // Parse markdown to tokens
@@ -705,7 +757,7 @@ export function parseMarkdownToAST(content, customContentItems = []) {
 
   // Convert tokens to AST (only with non-block-overlapping items)
   tracker.reset()
-  let children = processTokens(tokens, nonBlockItems, tracker)
+  let children = processTokens(tokens, nonBlockItems, tracker, mapProcessedToOriginal)
 
   // Restore special blocks (with highlight support for block-overlapping items)
   children = restoreSpecialBlocksInAST(children, extractedBlocks, customContentItems)

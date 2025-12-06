@@ -96,11 +96,12 @@ export function getMarkdownOffsetsFromSelection(selection = window.getSelection(
     // Find positioned elements at start and end of selection
     const startContainer = range.startContainer
     const endContainer = range.endContainer
+
     const startElement = findPositionedElement(startContainer)
     const endElement = findPositionedElement(endContainer)
 
     if (!startElement || !endElement) {
-      console.warn('Could not find positioned elements for selection')
+      console.warn('[Highlight] Could not find positioned elements for selection')
       return null
     }
 
@@ -111,9 +112,6 @@ export function getMarkdownOffsetsFromSelection(selection = window.getSelection(
     if (startElement === endElement) {
       const mdStart = parseInt(startElement.getAttribute('data-md-start'), 10)
       const mdEnd = parseInt(startElement.getAttribute('data-md-end'), 10)
-
-      // Get text content of the element
-      const elementText = startElement.textContent || ''
 
       // Find where the selection starts and ends within this element
       const selectionStart = range.startOffset
@@ -133,7 +131,7 @@ export function getMarkdownOffsetsFromSelection(selection = window.getSelection(
       const elements = getElementsInRange(range)
 
       if (elements.length === 0) {
-        console.warn('No positioned elements found in selection range')
+        console.warn('[Highlight] No positioned elements found in selection range')
         return null
       }
 
@@ -173,7 +171,7 @@ export function getMarkdownOffsetsFromSelection(selection = window.getSelection(
       selectedText // Keep original text, don't trim
     }
   } catch (error) {
-    console.error('Error calculating markdown offsets:', error)
+    console.error('[Highlight] Error calculating markdown offsets:', error)
     return null
   }
 }

@@ -323,6 +323,312 @@ const x = 5;
     })
   })
 
+  describe('Position Tracking with Code Blocks', () => {
+    it('should assign correct offsets to text before code block', () => {
+      const content = `Text before code
+\`\`\`javascript
+const x = 1;
+\`\`\`
+Text after code`
+      const ast = parseMarkdownToAST(content)
+
+      const textNodes = findNodesByType(ast, 'text')
+      const beforeText = textNodes.find(n => n.content && n.content.includes('Text before'))
+
+      expect(beforeText).toBeDefined()
+      expect(beforeText.startOffset).toBe(0)
+    })
+
+    it('should assign correct offsets to text after code block', () => {
+      const content = `Text before
+\`\`\`javascript
+const x = 1;
+\`\`\`
+Text after code`
+      const ast = parseMarkdownToAST(content)
+
+      const textNodes = findNodesByType(ast, 'text')
+      const afterText = textNodes.find(n => n.content && n.content.includes('Text after'))
+
+      expect(afterText).toBeDefined()
+      // The text "Text after code" should start after the code block ends
+      // Code block: ```javascript\nconst x = 1;\n``` = approximately 28 chars
+      // Starting position should be after "Text before\n" (12) + code block
+      expect(afterText.startOffset).toBeGreaterThan(30)
+    })
+
+    it('should map text offsets correctly with multiple code blocks', () => {
+      const content = `First paragraph
+
+\`\`\`python
+x = 1
+\`\`\`
+
+Second paragraph
+
+\`\`\`javascript
+y = 2
+\`\`\`
+
+Third paragraph`
+      const ast = parseMarkdownToAST(content)
+
+      const textNodes = findNodesByType(ast, 'text')
+      const firstPara = textNodes.find(n => n.content && n.content.includes('First'))
+      const secondPara = textNodes.find(n => n.content && n.content.includes('Second'))
+      const thirdPara = textNodes.find(n => n.content && n.content.includes('Third'))
+
+      expect(firstPara).toBeDefined()
+      expect(secondPara).toBeDefined()
+      expect(thirdPara).toBeDefined()
+
+      // Offsets should be in increasing order
+      expect(firstPara.startOffset).toBeLessThan(secondPara.startOffset)
+      expect(secondPara.startOffset).toBeLessThan(thirdPara.startOffset)
+    })
+
+    it('should handle inline code with correct offsets', () => {
+      const content = 'Use the `console.log` function'
+      const ast = parseMarkdownToAST(content)
+
+      const codeInline = findNodesByType(ast, 'code_inline')
+      expect(codeInline.length).toBe(1)
+      expect(codeInline[0].content).toBe('console.log')
+      // Inline code starts at position 9 (after "Use the `")
+      expect(codeInline[0].startOffset).toBe(9)
+    })
+
+    it('should preserve inline code offsets when highlight is applied inside (regression test)', () => {
+      // This test verifies that inline code elements keep their offset data
+      // even when custom content (highlights) are injected as children
+      const content = 'Use the `code` function'
+      const highlights = [{
+        type: 'highlight',
+        id: 'h1',
+        startOffset: 9, // Highlight just the code content
+        endOffset: 13,
+        colorIndex: 0
+      }]
+
+      const ast = parseMarkdownToAST(content, highlights)
+
+      const codeInline = findNodesByType(ast, 'code_inline')
+      expect(codeInline.length).toBe(1)
+
+      // The code_inline node should have children (the highlight) AND offsets
+      expect(codeInline[0].children).toBeDefined()
+      expect(codeInline[0].children.length).toBe(1)
+      expect(codeInline[0].children[0].type).toBe('highlight')
+
+      // Critical: offsets must be preserved for DOM selection to work
+      expect(codeInline[0].startOffset).toBe(9)
+      expect(codeInline[0].endOffset).toBe(13)
+    })
+
+    it('should correctly position text after inline code', () => {
+      const content = 'Before `code` after'
+      const ast = parseMarkdownToAST(content)
+
+      const textNodes = findNodesByType(ast, 'text')
+      const afterText = textNodes.find(n => n.content && n.content.includes('after'))
+
+      expect(afterText).toBeDefined()
+      // "Before " = 7 chars, "`code`" = 6 chars, so " after" starts at 13
+      expect(afterText.startOffset).toBe(13)
+    })
+
+    it('should handle text with multiple inline code segments', () => {
+      const content = 'Use `foo` and `bar` together'
+      const ast = parseMarkdownToAST(content)
+
+      const codeInlines = findNodesByType(ast, 'code_inline')
+      expect(codeInlines.length).toBe(2)
+
+      // First inline code: "foo" starts at position 5 (after "Use `")
+      expect(codeInlines[0].startOffset).toBe(5)
+      // Second inline code: "bar" starts at position 15 (after "Use `foo` and `")
+      expect(codeInlines[1].startOffset).toBe(15)
+    })
+
+    it('should correctly calculate endOffset for text nodes', () => {
+      const content = 'Hello world'
+      const ast = parseMarkdownToAST(content)
+
+      const textNodes = findNodesByType(ast, 'text')
+      expect(textNodes.length).toBe(1)
+      expect(textNodes[0].startOffset).toBe(0)
+      expect(textNodes[0].endOffset).toBe(11) // "Hello world" = 11 chars
+    })
+
+    it('should handle mixed content with code blocks and inline code', () => {
+      const content = `Text with \`inline\` code
+
+\`\`\`javascript
+const x = 1;
+\`\`\`
+
+More text with \`another\` inline`
+      const ast = parseMarkdownToAST(content)
+
+      const codeInlines = findNodesByType(ast, 'code_inline')
+      const codeBlocks = findNodesByType(ast, 'code_block')
+
+      expect(codeBlocks.length).toBe(1)
+      expect(codeInlines.length).toBe(2)
+
+      // First inline code should be at the beginning
+      expect(codeInlines[0].startOffset).toBeLessThan(codeBlocks[0].originalStart || codeBlocks[0].startOffset)
+      // Second inline code should be after the code block
+      expect(codeInlines[1].startOffset).toBeGreaterThan(codeBlocks[0].originalEnd || codeBlocks[0].endOffset)
+    })
+  })
+
+  describe('Highlight Position Accuracy', () => {
+    it('should apply highlight at correct position in simple text', () => {
+      const content = 'Hello beautiful world'
+      const highlights = [{
+        type: 'highlight',
+        id: 'h1',
+        startOffset: 6,
+        endOffset: 15, // "beautiful"
+        colorIndex: 1
+      }]
+      const ast = parseMarkdownToAST(content, highlights)
+
+      const highlightNodes = findNodesByType(ast, 'highlight')
+      expect(highlightNodes.length).toBe(1)
+      expect(highlightNodes[0].text).toBe('beautiful')
+    })
+
+    it('should apply highlight correctly after code block', () => {
+      const content = `Introduction
+
+\`\`\`python
+x = 1
+\`\`\`
+
+This is important text`
+      // Find where "important" starts in the original content
+      const importantStart = content.indexOf('important')
+      const importantEnd = importantStart + 9
+
+      const highlights = [{
+        type: 'highlight',
+        id: 'h1',
+        startOffset: importantStart,
+        endOffset: importantEnd,
+        colorIndex: 2
+      }]
+      const ast = parseMarkdownToAST(content, highlights)
+
+      const highlightNodes = findNodesByType(ast, 'highlight')
+      expect(highlightNodes.length).toBe(1)
+      expect(highlightNodes[0].text).toBe('important')
+    })
+
+    it('should apply highlight correctly around inline code', () => {
+      const content = 'Use the function wisely'
+      // Highlight "the function" (positions 4-16)
+      const highlights = [{
+        type: 'highlight',
+        id: 'h1',
+        startOffset: 4,
+        endOffset: 16,
+        colorIndex: 0
+      }]
+      const ast = parseMarkdownToAST(content, highlights)
+
+      const highlightNodes = findNodesByType(ast, 'highlight')
+      expect(highlightNodes.length).toBe(1)
+      expect(highlightNodes[0].text).toBe('the function')
+    })
+
+    it('should handle highlight spanning multiple text nodes', () => {
+      const content = 'Text **bold** more'
+      // Highlight from "bold" to "more" - should create highlight nodes
+      const boldStart = content.indexOf('**bold**') + 2 // position of 'b' in bold
+      const moreEnd = content.length
+
+      const highlights = [{
+        type: 'highlight',
+        id: 'h1',
+        startOffset: boldStart,
+        endOffset: moreEnd,
+        colorIndex: 1
+      }]
+      const ast = parseMarkdownToAST(content, highlights)
+
+      const highlightNodes = findNodesByType(ast, 'highlight')
+      expect(highlightNodes.length).toBeGreaterThanOrEqual(1)
+    })
+  })
+
+  describe('Offset Mapping Verification', () => {
+    it('should correctly map offsets for text adjacent to inline code', () => {
+      const content = 'Birds can `fly` today'
+      const ast = parseMarkdownToAST(content)
+
+      const textNodes = findNodesByType(ast, 'text')
+      const beforeCode = textNodes.find(n => n.content && n.content.includes('Birds'))
+      const afterCode = textNodes.find(n => n.content && n.content.includes('today'))
+
+      expect(beforeCode).toBeDefined()
+      expect(afterCode).toBeDefined()
+
+      // Verify the text at the mapped offsets matches
+      expect(content.substring(beforeCode.startOffset, beforeCode.endOffset)).toBe(beforeCode.content)
+      expect(content.substring(afterCode.startOffset, afterCode.endOffset)).toBe(afterCode.content)
+    })
+
+    it('should maintain offset accuracy after multiple code blocks', () => {
+      const content = `Start
+\`\`\`js
+code1
+\`\`\`
+Middle
+\`\`\`py
+code2
+\`\`\`
+End text here`
+      const ast = parseMarkdownToAST(content)
+
+      const textNodes = findNodesByType(ast, 'text')
+      const endText = textNodes.find(n => n.content && n.content.includes('End text'))
+
+      expect(endText).toBeDefined()
+      // Verify the content at the offset matches
+      expect(content.substring(endText.startOffset, endText.endOffset)).toBe(endText.content)
+    })
+
+    it('should handle text selection offset calculations correctly', () => {
+      // This simulates the scenario where user selects text near inline code
+      const content = 'Now only birds that can actually fly implement `IFlyable`.'
+      const ast = parseMarkdownToAST(content)
+
+      const textNodes = findNodesByType(ast, 'text')
+      const mainText = textNodes.find(n => n.content && n.content.includes('actually fly'))
+
+      expect(mainText).toBeDefined()
+      // The offset should correctly point to where this text is in the original
+      const extractedText = content.substring(mainText.startOffset, mainText.endOffset)
+      expect(extractedText).toBe(mainText.content)
+    })
+
+    it('should handle selection at word boundaries near inline code', () => {
+      const content = 'The `variable` stores data'
+      const ast = parseMarkdownToAST(content)
+
+      const textNodes = findNodesByType(ast, 'text')
+
+      textNodes.forEach(node => {
+        if (node.content && node.startOffset !== undefined && node.endOffset !== undefined) {
+          const extracted = content.substring(node.startOffset, node.endOffset)
+          expect(extracted).toBe(node.content)
+        }
+      })
+    })
+  })
+
   describe('Edge Cases', () => {
     it('should handle empty content', () => {
       const ast = parseMarkdownToAST('')
