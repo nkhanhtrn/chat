@@ -1,15 +1,26 @@
 <template>
-  <a
-    :href="questionHref"
-    class="question-link"
-    :data-target-message-id="targetMessageId"
-    :data-question-id="questionId"
-    :data-md-start="startOffset"
-    :data-md-end="endOffset"
-    @click="handleClick"
-  >
-    <slot>{{ text }}</slot>
-  </a>
+  <span class="question-link-wrapper">
+    <a
+      :href="questionHref"
+      class="question-link"
+      :data-target-message-id="targetMessageId"
+      :data-question-id="questionId"
+      :data-md-start="startOffset"
+      :data-md-end="endOffset"
+      @click="handleClick"
+    >
+      <slot>{{ text }}</slot>
+    </a>
+    <button
+      v-if="hasNote && isLastSegment"
+      class="note-button"
+      :data-note-id="questionId"
+      @click.stop="handleNoteClick"
+      title="Open note"
+    >
+      +
+    </button>
+  </span>
 </template>
 
 <script setup>
@@ -37,11 +48,23 @@ const props = defineProps({
   endOffset: {
     type: Number,
     required: true
+  },
+  noteContent: {
+    type: String,
+    default: ''
+  },
+  hasNote: {
+    type: Boolean,
+    default: false
+  },
+  isLastSegment: {
+    type: Boolean,
+    default: true
   }
 })
 
 const router = useRouter()
-const emit = defineEmits(['highlight-click'])
+const emit = defineEmits(['highlight-click', 'note-click'])
 
 // Handle click - navigate via Vue Router, but Ctrl+click opens context menu
 function handleClick(event) {
@@ -76,6 +99,18 @@ function handleClick(event) {
   } catch {
     // Fallback: if router fails, do nothing (link won't work in tests)
   }
+}
+
+function handleNoteClick(event) {
+  emit('note-click', {
+    noteId: props.questionId,
+    text: props.text,
+    noteContent: props.noteContent,
+    startOffset: props.startOffset,
+    endOffset: props.endOffset,
+    x: event.clientX,
+    y: event.clientY
+  })
 }
 
 // Compute the href for the question link
@@ -146,6 +181,11 @@ function isDescendantOf(chatStore, messageId, ancestorId) {
 </script>
 
 <style scoped>
+.question-link-wrapper {
+  position: relative;
+  display: inline;
+}
+
 .question-link {
   color: var(--color-link-question);
   text-decoration: none;
@@ -158,5 +198,38 @@ function isDescendantOf(chatStore, messageId, ancestorId) {
 .question-link:hover {
   color: var(--color-link-question-hover);
   border-bottom: 1.5px solid var(--color-link-border-hover);
+}
+
+.note-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  margin-left: 1px;
+  padding: 0;
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--color-text-muted, #999);
+  background-color: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  vertical-align: baseline;
+  opacity: 0.4;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.note-button:hover {
+  opacity: 1;
+  color: var(--color-text-strong, #333);
+  background-color: var(--color-bg-active, rgba(0, 0, 0, 0.12));
+}
+
+.note-button:active {
+  transform: scale(0.9);
 }
 </style>

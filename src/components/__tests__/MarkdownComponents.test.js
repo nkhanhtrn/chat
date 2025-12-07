@@ -789,11 +789,174 @@ describe('Markdown Components', () => {
         const noteButton = wrapper.find('.note-button')
         expect(noteButton.attributes('title')).toBe('Open note')
       })
+
+      it('should not show note button when isLastSegment is false', () => {
+        const wrapper = mount(HighlightSpan, {
+          props: {
+            text: 'text',
+            highlightId: 'h-123',
+            startOffset: 0,
+            endOffset: 4,
+            hasNote: true,
+            isLastSegment: false
+          }
+        })
+        expect(wrapper.find('.note-button').exists()).toBe(false)
+      })
+    })
+
+    describe('Click Behavior', () => {
+      it('should emit note-click on normal click when hasNote is true', async () => {
+        const wrapper = mount(HighlightSpan, {
+          props: {
+            text: 'highlighted text',
+            highlightId: 'h-123',
+            startOffset: 0,
+            endOffset: 16,
+            hasNote: true,
+            noteContent: 'My note content'
+          }
+        })
+
+        const clickEvent = {
+          clientX: 100,
+          clientY: 200,
+          ctrlKey: false,
+          metaKey: false,
+          stopPropagation: vi.fn()
+        }
+
+        await wrapper.find('.custom-highlight').trigger('click', clickEvent)
+
+        expect(wrapper.emitted('note-click')).toBeTruthy()
+        expect(wrapper.emitted('note-click')).toHaveLength(1)
+        expect(wrapper.emitted('highlight-click')).toBeFalsy()
+
+        const [eventData] = wrapper.emitted('note-click')[0]
+        expect(eventData).toEqual({
+          noteId: 'h-123',
+          text: 'highlighted text',
+          noteContent: 'My note content',
+          startOffset: 0,
+          endOffset: 16,
+          x: 100,
+          y: 200
+        })
+      })
+
+      it('should emit highlight-click on normal click when hasNote is false', async () => {
+        const wrapper = mount(HighlightSpan, {
+          props: {
+            text: 'highlighted text',
+            highlightId: 'h-456',
+            startOffset: 5,
+            endOffset: 21,
+            hasNote: false
+          }
+        })
+
+        const clickEvent = {
+          clientX: 150,
+          clientY: 250,
+          ctrlKey: false,
+          metaKey: false,
+          stopPropagation: vi.fn()
+        }
+
+        await wrapper.find('.custom-highlight').trigger('click', clickEvent)
+
+        expect(wrapper.emitted('highlight-click')).toBeTruthy()
+        expect(wrapper.emitted('highlight-click')).toHaveLength(1)
+        expect(wrapper.emitted('note-click')).toBeFalsy()
+
+        const [eventData] = wrapper.emitted('highlight-click')[0]
+        expect(eventData.highlightId).toBe('h-456')
+      })
+
+      it('should emit highlight-click on Ctrl+click even when hasNote is true', async () => {
+        const wrapper = mount(HighlightSpan, {
+          props: {
+            text: 'highlighted text',
+            highlightId: 'h-789',
+            startOffset: 0,
+            endOffset: 16,
+            hasNote: true,
+            noteContent: 'Some note'
+          }
+        })
+
+        const clickEvent = {
+          clientX: 100,
+          clientY: 200,
+          ctrlKey: true,
+          metaKey: false,
+          stopPropagation: vi.fn()
+        }
+
+        await wrapper.find('.custom-highlight').trigger('click', clickEvent)
+
+        expect(wrapper.emitted('highlight-click')).toBeTruthy()
+        expect(wrapper.emitted('highlight-click')).toHaveLength(1)
+        expect(wrapper.emitted('note-click')).toBeFalsy()
+
+        const [eventData] = wrapper.emitted('highlight-click')[0]
+        expect(eventData.highlightId).toBe('h-789')
+      })
+
+      it('should emit highlight-click on Meta+click (Cmd on Mac) even when hasNote is true', async () => {
+        const wrapper = mount(HighlightSpan, {
+          props: {
+            text: 'highlighted text',
+            highlightId: 'h-mac',
+            startOffset: 0,
+            endOffset: 16,
+            hasNote: true,
+            noteContent: 'Mac note'
+          }
+        })
+
+        const clickEvent = {
+          clientX: 100,
+          clientY: 200,
+          ctrlKey: false,
+          metaKey: true,
+          stopPropagation: vi.fn()
+        }
+
+        await wrapper.find('.custom-highlight').trigger('click', clickEvent)
+
+        expect(wrapper.emitted('highlight-click')).toBeTruthy()
+        expect(wrapper.emitted('note-click')).toBeFalsy()
+      })
+
+      it('should emit highlight-click on Ctrl+click when hasNote is false', async () => {
+        const wrapper = mount(HighlightSpan, {
+          props: {
+            text: 'text',
+            highlightId: 'h-no-note',
+            startOffset: 0,
+            endOffset: 4,
+            hasNote: false
+          }
+        })
+
+        const clickEvent = {
+          clientX: 100,
+          clientY: 200,
+          ctrlKey: true,
+          stopPropagation: vi.fn()
+        }
+
+        await wrapper.find('.custom-highlight').trigger('click', clickEvent)
+
+        expect(wrapper.emitted('highlight-click')).toBeTruthy()
+        expect(wrapper.emitted('note-click')).toBeFalsy()
+      })
     })
   })
 
   describe('QuestionLinkSpan', () => {
-    it('should render question link', () => {
+    it('should render question link inside wrapper span', () => {
       const wrapper = mount(QuestionLinkSpan, {
         props: {
           text: 'question text',
@@ -803,12 +966,16 @@ describe('Markdown Components', () => {
           endOffset: 13
         }
       })
-      expect(wrapper.element.tagName).toBe('A')
-      expect(wrapper.classes()).toContain('question-link')
-      expect(wrapper.text()).toBe('question text')
+      // Root element is now a wrapper span
+      expect(wrapper.element.tagName).toBe('SPAN')
+      expect(wrapper.classes()).toContain('question-link-wrapper')
+      // The link is inside the wrapper
+      const link = wrapper.find('a.question-link')
+      expect(link.exists()).toBe(true)
+      expect(link.text()).toBe('question text')
     })
 
-    it('should have required data attributes', () => {
+    it('should have required data attributes on the link', () => {
       const wrapper = mount(QuestionLinkSpan, {
         props: {
           text: 'text',
@@ -818,10 +985,11 @@ describe('Markdown Components', () => {
           endOffset: 10
         }
       })
-      expect(wrapper.attributes('data-target-message-id')).toBe('msg-2')
-      expect(wrapper.attributes('data-question-id')).toBe('q-456')
-      expect(wrapper.attributes('data-md-start')).toBe('5')
-      expect(wrapper.attributes('data-md-end')).toBe('10')
+      const link = wrapper.find('a.question-link')
+      expect(link.attributes('data-target-message-id')).toBe('msg-2')
+      expect(link.attributes('data-question-id')).toBe('q-456')
+      expect(link.attributes('data-md-start')).toBe('5')
+      expect(link.attributes('data-md-end')).toBe('10')
     })
 
     it('should have href attribute with fallback when store is not available', async () => {
@@ -835,7 +1003,8 @@ describe('Markdown Components', () => {
         }
       })
       // When store is not available (like in tests), should return '#' as fallback
-      expect(wrapper.attributes('href')).toBe('#')
+      const link = wrapper.find('a.question-link')
+      expect(link.attributes('href')).toBe('#')
     })
 
     it('should prevent default on regular click', async () => {
@@ -969,6 +1138,177 @@ describe('Markdown Components', () => {
 
       expect(preventDefaultMock).toHaveBeenCalled()
       expect(stopPropagationMock).toHaveBeenCalled()
+    })
+
+    describe('Note Button', () => {
+      it('should not render note button when hasNote is false', () => {
+        const wrapper = mount(QuestionLinkSpan, {
+          props: {
+            text: 'link text',
+            targetMessageId: 'msg-1',
+            questionId: 'q-123',
+            startOffset: 0,
+            endOffset: 9,
+            hasNote: false
+          }
+        })
+        expect(wrapper.find('.note-button').exists()).toBe(false)
+      })
+
+      it('should render note button when hasNote is true', () => {
+        const wrapper = mount(QuestionLinkSpan, {
+          props: {
+            text: 'link text',
+            targetMessageId: 'msg-1',
+            questionId: 'q-123',
+            startOffset: 0,
+            endOffset: 9,
+            hasNote: true
+          }
+        })
+        expect(wrapper.find('.note-button').exists()).toBe(true)
+      })
+
+      it('should not render note button when isLastSegment is false', () => {
+        const wrapper = mount(QuestionLinkSpan, {
+          props: {
+            text: 'link text',
+            targetMessageId: 'msg-1',
+            questionId: 'q-123',
+            startOffset: 0,
+            endOffset: 9,
+            hasNote: true,
+            isLastSegment: false
+          }
+        })
+        expect(wrapper.find('.note-button').exists()).toBe(false)
+      })
+
+      it('should have data-note-id attribute on note button', () => {
+        const wrapper = mount(QuestionLinkSpan, {
+          props: {
+            text: 'text',
+            targetMessageId: 'msg-1',
+            questionId: 'q-note-456',
+            startOffset: 0,
+            endOffset: 4,
+            hasNote: true
+          }
+        })
+        const noteButton = wrapper.find('.note-button')
+        expect(noteButton.attributes('data-note-id')).toBe('q-note-456')
+      })
+
+      it('should emit note-click event when note button is clicked', async () => {
+        const wrapper = mount(QuestionLinkSpan, {
+          props: {
+            text: 'link text',
+            targetMessageId: 'msg-1',
+            questionId: 'q-789',
+            startOffset: 10,
+            endOffset: 19,
+            hasNote: true,
+            noteContent: 'This is my note'
+          }
+        })
+
+        const clickEvent = {
+          clientX: 200,
+          clientY: 300,
+          stopPropagation: vi.fn()
+        }
+
+        await wrapper.find('.note-button').trigger('click', clickEvent)
+
+        expect(wrapper.emitted('note-click')).toBeTruthy()
+        expect(wrapper.emitted('note-click')).toHaveLength(1)
+
+        const [eventData] = wrapper.emitted('note-click')[0]
+        expect(eventData).toEqual({
+          noteId: 'q-789',
+          text: 'link text',
+          noteContent: 'This is my note',
+          startOffset: 10,
+          endOffset: 19,
+          x: 200,
+          y: 300
+        })
+      })
+
+      it('should not emit highlight-click when note button is clicked', async () => {
+        const wrapper = mount(QuestionLinkSpan, {
+          props: {
+            text: 'link text',
+            targetMessageId: 'msg-1',
+            questionId: 'q-123',
+            startOffset: 0,
+            endOffset: 9,
+            hasNote: true
+          }
+        })
+
+        await wrapper.find('.note-button').trigger('click')
+
+        // Note button click should NOT trigger highlight-click
+        expect(wrapper.emitted('highlight-click')).toBeFalsy()
+        // But should emit note-click
+        expect(wrapper.emitted('note-click')).toBeTruthy()
+      })
+
+      it('should emit note-click with empty noteContent when not provided', async () => {
+        const wrapper = mount(QuestionLinkSpan, {
+          props: {
+            text: 'text',
+            targetMessageId: 'msg-1',
+            questionId: 'q-123',
+            startOffset: 0,
+            endOffset: 4,
+            hasNote: true
+            // noteContent not provided, should default to ''
+          }
+        })
+
+        const clickEvent = {
+          clientX: 100,
+          clientY: 100,
+          stopPropagation: vi.fn()
+        }
+
+        await wrapper.find('.note-button').trigger('click', clickEvent)
+
+        const [eventData] = wrapper.emitted('note-click')[0]
+        expect(eventData.noteContent).toBe('')
+      })
+
+      it('should render note button with + symbol', () => {
+        const wrapper = mount(QuestionLinkSpan, {
+          props: {
+            text: 'text',
+            targetMessageId: 'msg-1',
+            questionId: 'q-123',
+            startOffset: 0,
+            endOffset: 4,
+            hasNote: true
+          }
+        })
+        const noteButton = wrapper.find('.note-button')
+        expect(noteButton.text()).toBe('+')
+      })
+
+      it('should have title attribute on note button', () => {
+        const wrapper = mount(QuestionLinkSpan, {
+          props: {
+            text: 'text',
+            targetMessageId: 'msg-1',
+            questionId: 'q-123',
+            startOffset: 0,
+            endOffset: 4,
+            hasNote: true
+          }
+        })
+        const noteButton = wrapper.find('.note-button')
+        expect(noteButton.attributes('title')).toBe('Open note')
+      })
     })
   })
 
@@ -1855,7 +2195,9 @@ describe('Markdown Components', () => {
 
         const questionLink = wrapper.findComponent(QuestionLinkSpan)
         expect(questionLink.exists()).toBe(true)
-        expect(questionLink.attributes('href')).toBe('#') // Fallback when store not available
+        // The href is on the inner anchor element, not the wrapper span
+        const link = questionLink.find('a.question-link')
+        expect(link.attributes('href')).toBe('#') // Fallback when store not available
       })
 
       it('should render nested question-link within strong element', async () => {
@@ -2271,10 +2613,14 @@ describe('Markdown Components', () => {
           endOffset: 8
         }
         const wrapper = mount(ASTNode, { props: { node } })
-        expect(wrapper.element.tagName).toBe('A')
-        expect(wrapper.classes()).toContain('question-link')
-        expect(wrapper.attributes('data-target-message-id')).toBe('msg-2')
-        expect(wrapper.attributes('data-question-id')).toBe('q-456')
+        // Root element is now a wrapper span
+        expect(wrapper.element.tagName).toBe('SPAN')
+        expect(wrapper.classes()).toContain('question-link-wrapper')
+        // The link is inside the wrapper
+        const link = wrapper.find('a.question-link')
+        expect(link.exists()).toBe(true)
+        expect(link.attributes('data-target-message-id')).toBe('msg-2')
+        expect(link.attributes('data-question-id')).toBe('q-456')
       })
 
       it('should render code block node', () => {
@@ -2603,10 +2949,11 @@ describe('Markdown Components', () => {
           endOffset: 33
         }
         const wrapper = mount(ASTNode, { props: { node } })
-        expect(wrapper.attributes('data-target-message-id')).toBe('msg-42')
-        expect(wrapper.attributes('data-question-id')).toBe('q-unique')
-        expect(wrapper.attributes('data-md-start')).toBe('20')
-        expect(wrapper.attributes('data-md-end')).toBe('33')
+        const link = wrapper.find('a.question-link')
+        expect(link.attributes('data-target-message-id')).toBe('msg-42')
+        expect(link.attributes('data-question-id')).toBe('q-unique')
+        expect(link.attributes('data-md-start')).toBe('20')
+        expect(link.attributes('data-md-end')).toBe('33')
       })
 
       it('should bind code block language and code', () => {

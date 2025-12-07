@@ -148,11 +148,16 @@ function createCustomContentNode(item, text, startOffset, endOffset) {
       }
 
     case 'question-link':
+      // isLastSegment is true when this segment ends at the link's actual end
+      const isLastSegmentLink = endOffset >= item.endOffset
       return {
         type: 'question-link',
         ...baseNode,
         targetMessageId: item.targetMessageId,
-        questionId: item.id
+        questionId: item.id,
+        noteContent: item.noteContent || '',
+        hasNote: !!item.hasNote,
+        isLastSegment: isLastSegmentLink
       }
 
     default:
@@ -289,12 +294,15 @@ function processTokens(tokens, customContentItems, tracker, mapOffset = (x) => x
         // This handles cases where structural characters were skipped
         const searchStart = tracker.offset
         const foundPos = tracker.source.indexOf(token.content, searchStart)
-        if (foundPos !== -1) {
+        // Only accept the match if it's reasonably close to expected position
+        // This prevents matching a duplicate occurrence of the same text far away
+        const maxSkip = 20 // Allow skipping up to 20 chars for markdown syntax
+        if (foundPos !== -1 && foundPos - searchStart <= maxSkip) {
           const originalOffset = mapOffset(foundPos)
           token.sourceOffset = originalOffset
           tracker.offset = foundPos + token.content.length
         } else {
-          // Fallback: use tracker offset if text not found
+          // Fallback: use tracker offset if text not found or too far away
           token.sourceOffset = mapOffset(tracker.offset)
           tracker.advance(token.content.length)
         }

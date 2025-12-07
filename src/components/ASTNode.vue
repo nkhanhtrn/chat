@@ -113,7 +113,10 @@ function getNodeProps(node) {
         targetMessageId: node.targetMessageId,
         questionId: node.questionId,
         startOffset: node.startOffset,
-        endOffset: node.endOffset
+        endOffset: node.endOffset,
+        noteContent: node.noteContent || '',
+        hasNote: !!node.hasNote,
+        isLastSegment: node.isLastSegment !== false
       }
 
     case 'code_block':

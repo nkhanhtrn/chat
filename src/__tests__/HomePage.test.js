@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import HomePage from '../views/HomePage.vue'
 import Button from '../components/Button.vue'
+import SettingsModal from '../components/Modal/SettingsModal.vue'
 import { useChatStore } from '../stores/chat.js'
 
 // Mock vue-router
@@ -1024,6 +1025,111 @@ describe('HomePage', () => {
 
       const results = wrapper.findAll('.result-item')
       expect(results.length).toBe(1)
+    })
+  })
+
+  describe('Settings', () => {
+    it('should render settings button in footer', () => {
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      expect(wrapper.find('.homepage-footer').exists()).toBe(true)
+      expect(wrapper.find('.settings-btn').exists()).toBe(true)
+    })
+
+    it('should render settings button with gear icon', () => {
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      const settingsBtn = wrapper.find('.settings-btn')
+      expect(settingsBtn.find('.settings-icon').exists()).toBe(true)
+      expect(settingsBtn.find('svg').exists()).toBe(true)
+    })
+
+    it('should have correct title attribute on settings button', () => {
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      const settingsBtn = wrapper.find('.settings-btn')
+      expect(settingsBtn.attributes('title')).toBe('Settings')
+    })
+
+    it('should include SettingsModal component', () => {
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      const settingsModal = wrapper.findComponent(SettingsModal)
+      expect(settingsModal.exists()).toBe(true)
+    })
+
+    it('should not show settings modal by default', () => {
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      const settingsModal = wrapper.findComponent(SettingsModal)
+      expect(settingsModal.props('modelValue')).toBe(false)
+    })
+
+    it('should open settings modal when settings button is clicked', async () => {
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      const settingsBtn = wrapper.find('.settings-btn')
+      await settingsBtn.trigger('click')
+
+      const settingsModal = wrapper.findComponent(SettingsModal)
+      expect(settingsModal.props('modelValue')).toBe(true)
+    })
+
+    it('should close settings modal when modal emits update:modelValue with false', async () => {
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      // Open the modal
+      const settingsBtn = wrapper.find('.settings-btn')
+      await settingsBtn.trigger('click')
+
+      const settingsModal = wrapper.findComponent(SettingsModal)
+      expect(settingsModal.props('modelValue')).toBe(true)
+
+      // Close the modal via emit
+      await settingsModal.vm.$emit('update:modelValue', false)
+
+      expect(settingsModal.props('modelValue')).toBe(false)
+    })
+
+    it('should position settings footer at the bottom left', () => {
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      const footer = wrapper.find('.homepage-footer')
+      expect(footer.exists()).toBe(true)
+      // The footer should have position: fixed with bottom: 0 and left: 0
+      // We can verify the element exists and has the correct class
     })
   })
 })

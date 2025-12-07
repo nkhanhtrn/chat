@@ -67,15 +67,43 @@ const emit = defineEmits(['highlight-click', 'note-click'])
 
 function handleClick(event) {
   event.stopPropagation()
-  emit('highlight-click', {
-    highlightId: props.highlightId,
-    text: props.text,
-    colorIndex: props.colorIndex,
-    startOffset: props.startOffset,
-    endOffset: props.endOffset,
-    x: event.clientX,
-    y: event.clientY
-  })
+
+  // Ctrl+click (or Cmd+click on Mac) shows context menu
+  if (event.ctrlKey || event.metaKey) {
+    emit('highlight-click', {
+      highlightId: props.highlightId,
+      text: props.text,
+      colorIndex: props.colorIndex,
+      startOffset: props.startOffset,
+      endOffset: props.endOffset,
+      x: event.clientX,
+      y: event.clientY
+    })
+    return
+  }
+
+  // Normal click: show note if available, otherwise show context menu
+  if (props.hasNote) {
+    emit('note-click', {
+      noteId: props.highlightId,
+      text: props.text,
+      noteContent: props.noteContent,
+      startOffset: props.startOffset,
+      endOffset: props.endOffset,
+      x: event.clientX,
+      y: event.clientY
+    })
+  } else {
+    emit('highlight-click', {
+      highlightId: props.highlightId,
+      text: props.text,
+      colorIndex: props.colorIndex,
+      startOffset: props.startOffset,
+      endOffset: props.endOffset,
+      x: event.clientX,
+      y: event.clientY
+    })
+  }
 }
 
 function handleNoteClick(event) {
@@ -113,21 +141,21 @@ function handleNoteClick(event) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
-  margin-left: 2px;
+  width: 12px;
+  height: 12px;
+  margin-left: 1px;
   padding: 0;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 9px;
+  font-weight: 500;
   line-height: 1;
-  color: var(--color-text-muted, #888);
-  background-color: var(--color-bg-hover, rgba(0, 0, 0, 0.06));
+  color: var(--color-text-muted, #999);
+  background-color: transparent;
   border: none;
   border-radius: 50%;
   cursor: pointer;
   transition: all 0.15s ease;
-  vertical-align: super;
-  opacity: 0.7;
+  vertical-align: baseline;
+  opacity: 0.4;
   user-select: none;
   -webkit-user-select: none;
 }
