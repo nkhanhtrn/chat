@@ -1054,6 +1054,257 @@ describe('HomePage', () => {
     })
   })
 
+  describe('Notebook Reordering (Drag and Drop)', () => {
+    it('should have draggable attribute on notebook cards', async () => {
+      chatStore.createNewChat()
+      chatStore.createNewChat()
+
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      const cards = wrapper.findAll('.notebook-card')
+      expect(cards.length).toBe(2)
+      cards.forEach(card => {
+        expect(card.attributes('draggable')).toBe('true')
+      })
+    })
+
+    it('should add dragging class when drag starts', async () => {
+      chatStore.createNewChat()
+
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      const card = wrapper.find('.notebook-card')
+      await card.trigger('dragstart', {
+        dataTransfer: {
+          effectAllowed: '',
+          setData: vi.fn()
+        }
+      })
+
+      expect(card.classes()).toContain('dragging')
+    })
+
+    it('should remove dragging class when drag ends', async () => {
+      chatStore.createNewChat()
+
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      const card = wrapper.find('.notebook-card')
+      await card.trigger('dragstart', {
+        dataTransfer: {
+          effectAllowed: '',
+          setData: vi.fn()
+        }
+      })
+      expect(card.classes()).toContain('dragging')
+
+      await card.trigger('dragend')
+      expect(card.classes()).not.toContain('dragging')
+    })
+
+    it('should add drop-target class when dragging over another card', async () => {
+      chatStore.createNewChat()
+      chatStore.createNewChat()
+
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      const cards = wrapper.findAll('.notebook-card')
+
+      // Start dragging first card
+      await cards[0].trigger('dragstart', {
+        dataTransfer: {
+          effectAllowed: '',
+          setData: vi.fn()
+        }
+      })
+
+      // Drag over second card
+      await cards[1].trigger('dragover', {
+        preventDefault: vi.fn()
+      })
+
+      expect(cards[1].classes()).toContain('drop-target')
+    })
+
+    it('should remove drop-target class on drag leave', async () => {
+      chatStore.createNewChat()
+      chatStore.createNewChat()
+
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      const cards = wrapper.findAll('.notebook-card')
+
+      // Start dragging first card
+      await cards[0].trigger('dragstart', {
+        dataTransfer: {
+          effectAllowed: '',
+          setData: vi.fn()
+        }
+      })
+
+      // Drag over and leave second card
+      await cards[1].trigger('dragover', {
+        preventDefault: vi.fn()
+      })
+      expect(cards[1].classes()).toContain('drop-target')
+
+      await cards[1].trigger('dragleave')
+      expect(cards[1].classes()).not.toContain('drop-target')
+    })
+
+    it('should reorder notebooks on drop', async () => {
+      const chat1 = chatStore.createNewChat()
+      const chat2 = chatStore.createNewChat()
+      const chat3 = chatStore.createNewChat()
+
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      const cards = wrapper.findAll('.notebook-card')
+
+      // Start dragging first card (chat1)
+      await cards[0].trigger('dragstart', {
+        dataTransfer: {
+          effectAllowed: '',
+          setData: vi.fn()
+        }
+      })
+
+      // Drop on third card (chat3) - should move chat1 to position 2 (index of chat3)
+      await cards[2].trigger('drop', {
+        preventDefault: vi.fn()
+      })
+
+      // Verify the order changed: chat2, chat3, chat1 -> wait, let me reconsider
+      // When we drop on index 2, we remove from index 0 first, then insert at index 2
+      // Original: [chat1, chat2, chat3]
+      // Remove chat1: [chat2, chat3]
+      // Insert at index 2: [chat2, chat3, chat1]
+      expect(chatStore.chats[0].id).toBe(chat2.id)
+      expect(chatStore.chats[1].id).toBe(chat3.id)
+      expect(chatStore.chats[2].id).toBe(chat1.id)
+    })
+
+    it('should not reorder when dropping on same position', async () => {
+      const chat1 = chatStore.createNewChat()
+      const chat2 = chatStore.createNewChat()
+
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      const cards = wrapper.findAll('.notebook-card')
+      const originalOrder = chatStore.chats.map(c => c.id)
+
+      // Start dragging first card
+      await cards[0].trigger('dragstart', {
+        dataTransfer: {
+          effectAllowed: '',
+          setData: vi.fn()
+        }
+      })
+
+      // Drop on first card (same position)
+      await cards[0].trigger('drop', {
+        preventDefault: vi.fn()
+      })
+
+      // Order should remain the same
+      expect(chatStore.chats.map(c => c.id)).toEqual(originalOrder)
+    })
+
+    it('should not show drop-target on the card being dragged', async () => {
+      chatStore.createNewChat()
+
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      const card = wrapper.find('.notebook-card')
+
+      // Start dragging
+      await card.trigger('dragstart', {
+        dataTransfer: {
+          effectAllowed: '',
+          setData: vi.fn()
+        }
+      })
+
+      // Drag over same card
+      await card.trigger('dragover', {
+        preventDefault: vi.fn()
+      })
+
+      // Should not have drop-target class on the card being dragged
+      expect(card.classes()).not.toContain('drop-target')
+    })
+
+    it('should clear all drag states after drop', async () => {
+      chatStore.createNewChat()
+      chatStore.createNewChat()
+
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      const cards = wrapper.findAll('.notebook-card')
+
+      // Start dragging first card
+      await cards[0].trigger('dragstart', {
+        dataTransfer: {
+          effectAllowed: '',
+          setData: vi.fn()
+        }
+      })
+
+      // Drag over second card
+      await cards[1].trigger('dragover', {
+        preventDefault: vi.fn()
+      })
+
+      // Drop
+      await cards[1].trigger('drop', {
+        preventDefault: vi.fn()
+      })
+
+      // All drag classes should be cleared
+      const allCards = wrapper.findAll('.notebook-card')
+      allCards.forEach(card => {
+        expect(card.classes()).not.toContain('dragging')
+        expect(card.classes()).not.toContain('drop-target')
+      })
+    })
+  })
+
   describe('Settings', () => {
     it('should render settings button in footer', () => {
       wrapper = mount(HomePage, {

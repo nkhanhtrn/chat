@@ -56,10 +56,20 @@
 
     <div v-else class="notebooks-grid">
       <div
-        v-for="chat in chatStore.chatList"
+        v-for="(chat, index) in chatStore.chatList"
         :key="chat.id"
         class="notebook-card"
+        :class="{
+          'dragging': draggedId === chat.id,
+          'drop-target': dropTargetId === chat.id
+        }"
+        draggable="true"
         @click="openNotebook(chat.id)"
+        @dragstart="handleDragStart($event, chat.id)"
+        @dragend="handleDragEnd"
+        @dragover="handleDragOver($event, chat.id, index)"
+        @dragleave="handleDragLeave"
+        @drop="handleDrop($event, index)"
       >
         <div class="notebook-icon">📓</div>
         <div class="notebook-info">
@@ -122,6 +132,11 @@ const chatStore = useChatStore()
 const showLoginModal = ref(false)
 const showSettingsModal = ref(false)
 const currentUser = ref(null)
+
+// Drag and drop state
+const draggedId = ref(null)
+const dropTargetId = ref(null)
+const dropTargetIndex = ref(null)
 
 // Auth state listener
 let unsubscribeAuth = null
@@ -191,6 +206,53 @@ const handleLoginSuccess = (user) => {
   console.log('Login successful:', user.email)
   // The auth state listener will update currentUser automatically
   // You could add a success message or notification here
+}
+
+// Drag and drop handlers for notebook reordering
+const handleDragStart = (event, id) => {
+  draggedId.value = id
+  event.dataTransfer.effectAllowed = 'move'
+  event.dataTransfer.setData('text/plain', id)
+}
+
+const handleDragEnd = () => {
+  draggedId.value = null
+  dropTargetId.value = null
+  dropTargetIndex.value = null
+}
+
+const handleDragOver = (event, id, index) => {
+  event.preventDefault()
+  if (draggedId.value && draggedId.value !== id) {
+    dropTargetId.value = id
+    dropTargetIndex.value = index
+  }
+}
+
+const handleDragLeave = () => {
+  dropTargetId.value = null
+  dropTargetIndex.value = null
+}
+
+const handleDrop = (event, targetIndex) => {
+  event.preventDefault()
+  if (!draggedId.value) return
+
+  const chatIds = chatStore.chatList.map(c => c.id)
+  const draggedIndex = chatIds.indexOf(draggedId.value)
+
+  if (draggedIndex === -1 || draggedIndex === targetIndex) {
+    handleDragEnd()
+    return
+  }
+
+  // Create new order by removing dragged item and inserting at target position
+  const newOrder = [...chatIds]
+  newOrder.splice(draggedIndex, 1)
+  newOrder.splice(targetIndex, 0, draggedId.value)
+
+  chatStore.reorderChats(newOrder)
+  handleDragEnd()
 }
 </script>
 
@@ -437,6 +499,16 @@ const handleLoginSuccess = (user) => {
   border-color: var(--color-border-accent);
   box-shadow: 0 4px 12px var(--shadow-primary);
   transform: translateY(-2px);
+}
+
+.notebook-card.dragging {
+  opacity: 0.5;
+  transform: scale(0.98);
+}
+
+.notebook-card.drop-target {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent);
 }
 
 .notebook-icon {

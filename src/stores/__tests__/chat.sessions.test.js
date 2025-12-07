@@ -827,6 +827,108 @@ describe('useChatStore - Chat Sessions', () => {
     })
   })
 
+  describe('reorderChats', () => {
+    it('should reorder chats according to new order', () => {
+      chatStore.createNewChat()
+      const chat1Id = chatStore.chats[0].id
+      chatStore.createNewChat()
+      const chat2Id = chatStore.chats[1].id
+      chatStore.createNewChat()
+      const chat3Id = chatStore.chats[2].id
+
+      // Reorder: move chat3 to first position
+      chatStore.reorderChats([chat3Id, chat1Id, chat2Id])
+
+      expect(chatStore.chats[0].id).toBe(chat3Id)
+      expect(chatStore.chats[1].id).toBe(chat1Id)
+      expect(chatStore.chats[2].id).toBe(chat2Id)
+    })
+
+    it('should persist state after reordering', () => {
+      chatStore.createNewChat()
+      const chat1Id = chatStore.chats[0].id
+      chatStore.createNewChat()
+      const chat2Id = chatStore.chats[1].id
+
+      chatStore.reorderChats([chat2Id, chat1Id])
+
+      expect(saveChatStateSpy).toHaveBeenCalled()
+      const savedState = saveChatStateSpy.mock.calls[saveChatStateSpy.mock.calls.length - 1][0]
+      expect(savedState.chats[0].id).toBe(chat2Id)
+      expect(savedState.chats[1].id).toBe(chat1Id)
+    })
+
+    it('should handle partial order (missing chats appended at end)', () => {
+      chatStore.createNewChat()
+      const chat1Id = chatStore.chats[0].id
+      chatStore.createNewChat()
+      const chat2Id = chatStore.chats[1].id
+      chatStore.createNewChat()
+      const chat3Id = chatStore.chats[2].id
+
+      // Only specify order for chat2 and chat1, chat3 should be appended
+      chatStore.reorderChats([chat2Id, chat1Id])
+
+      expect(chatStore.chats[0].id).toBe(chat2Id)
+      expect(chatStore.chats[1].id).toBe(chat1Id)
+      expect(chatStore.chats[2].id).toBe(chat3Id)
+    })
+
+    it('should ignore non-existent chat IDs in order', () => {
+      chatStore.createNewChat()
+      const chat1Id = chatStore.chats[0].id
+      chatStore.createNewChat()
+      const chat2Id = chatStore.chats[1].id
+
+      chatStore.reorderChats(['nonexistent-id', chat2Id, chat1Id])
+
+      expect(chatStore.chats).toHaveLength(2)
+      expect(chatStore.chats[0].id).toBe(chat2Id)
+      expect(chatStore.chats[1].id).toBe(chat1Id)
+    })
+
+    it('should handle empty order array', () => {
+      chatStore.createNewChat()
+      const chat1Id = chatStore.chats[0].id
+      chatStore.createNewChat()
+      const chat2Id = chatStore.chats[1].id
+
+      chatStore.reorderChats([])
+
+      // All chats should be appended in original order
+      expect(chatStore.chats).toHaveLength(2)
+      expect(chatStore.chats[0].id).toBe(chat1Id)
+      expect(chatStore.chats[1].id).toBe(chat2Id)
+    })
+
+    it('should handle single chat reorder', () => {
+      chatStore.createNewChat()
+      const chatId = chatStore.chats[0].id
+
+      chatStore.reorderChats([chatId])
+
+      expect(chatStore.chats).toHaveLength(1)
+      expect(chatStore.chats[0].id).toBe(chatId)
+    })
+
+    it('should preserve chat data after reordering', () => {
+      chatStore.createNewChat()
+      const chat1Id = chatStore.chats[0].id
+      chatStore.addRootMessage({ id: 'msg1', question: 'Q1', response: 'R1' })
+
+      chatStore.createNewChat()
+      const chat2Id = chatStore.chats[1].id
+      chatStore.addRootMessage({ id: 'msg2', question: 'Q2', response: 'R2' })
+
+      chatStore.reorderChats([chat2Id, chat1Id])
+
+      const chat1 = chatStore.chats.find(c => c.id === chat1Id)
+      const chat2 = chatStore.chats.find(c => c.id === chat2Id)
+      expect(chat1.rootMessageIds).toContain('msg1')
+      expect(chat2.rootMessageIds).toContain('msg2')
+    })
+  })
+
   describe('Edge Cases', () => {
     it('should handle creating chat when no current chat exists', () => {
       expect(chatStore.currentChatId).toBeNull()

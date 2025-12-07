@@ -799,6 +799,25 @@ export const useChatStore = defineStore('chat', {
       this._persistState()
     },
 
+    // Reorder notebooks (chats) on the home page
+    reorderChats(newOrder) {
+      // newOrder is an array of chat IDs in the desired order
+      const reorderedChats = newOrder
+        .map(id => this.chats.find(c => c.id === id))
+        .filter(Boolean)
+
+      // Add any chats that weren't in newOrder (safety measure)
+      const existingIds = new Set(newOrder)
+      for (const chat of this.chats) {
+        if (!existingIds.has(chat.id)) {
+          reorderedChats.push(chat)
+        }
+      }
+
+      this.chats = reorderedChats
+      this._persistState()
+    },
+
     // Reorder root messages in the current chat
     reorderRootMessages(newOrder) {
       const chat = this.chats.find(c => c.id === this.currentChatId)
