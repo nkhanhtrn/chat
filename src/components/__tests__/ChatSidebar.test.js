@@ -23,7 +23,19 @@ vi.mock('../../services/api.js', () => ({
   testConnection: vi.fn(() => Promise.resolve(true)),
   fetchModels: vi.fn(() => Promise.resolve([
     { id: 'model-1', name: 'Test Model 1' }
-  ]))
+  ])),
+  initProvider: vi.fn(() => Promise.resolve())
+}))
+
+// Mock firestore to prevent real network calls
+vi.mock('../../services/firestore.js', () => ({
+  loadUserSettings: vi.fn(() => Promise.resolve(null)),
+  saveUserSettings: vi.fn(() => Promise.resolve()),
+  syncChatStateToFirestore: vi.fn(() => Promise.resolve()),
+  loadChatStateFromFirestore: vi.fn(() => Promise.resolve(null)),
+  subscribeToChatState: vi.fn(() => () => {}),
+  deleteChatStateFromFirestore: vi.fn(() => Promise.resolve()),
+  subscribeToUserSettings: vi.fn(() => () => {})
 }))
 
 describe('ChatSidebar', () => {

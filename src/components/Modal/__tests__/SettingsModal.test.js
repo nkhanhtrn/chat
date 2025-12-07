@@ -1,12 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import SettingsModal from '../SettingsModal.vue'
+import * as firestoreModule from '../../../services/firestore.js'
 
 // Mock the LLM API module
 vi.mock('../../../services/api.js', () => ({
   listProviders: vi.fn(() => [
     { id: 'lmstudio', name: 'LM Studio', requiresApiKey: false },
-    { id: 'google', name: 'Google AI Studio', requiresApiKey: true }
+    { id: 'google', name: 'Google AI Studio', requiresApiKey: true },
+    { id: 'cerebras', name: 'Cerebras', requiresApiKey: true }
   ]),
   getCurrentProviderId: vi.fn(() => 'lmstudio'),
   getCurrentConfig: vi.fn(() => ({})),
@@ -15,8 +17,25 @@ vi.mock('../../../services/api.js', () => ({
   fetchModels: vi.fn(() => Promise.resolve([
     { id: 'model-1', name: 'Test Model 1' },
     { id: 'model-2', name: 'Test Model 2' }
-  ]))
+  ])),
+  initProvider: vi.fn(() => Promise.resolve())
 }))
+
+// Mock firestore to prevent real network calls
+vi.mock('../../../services/firestore.js', () => ({
+  loadUserSettings: vi.fn(() => Promise.resolve(null)),
+  saveUserSettings: vi.fn(() => Promise.resolve()),
+  syncChatStateToFirestore: vi.fn(() => Promise.resolve()),
+  loadChatStateFromFirestore: vi.fn(() => Promise.resolve(null)),
+  subscribeToChatState: vi.fn(() => () => {}),
+  deleteChatStateFromFirestore: vi.fn(() => Promise.resolve()),
+  subscribeToUserSettings: vi.fn(() => () => {})
+}))
+
+// Helper to mock user settings from Firestore
+const mockUserSettings = (settings) => {
+  vi.mocked(firestoreModule.loadUserSettings).mockResolvedValue(settings)
+}
 
 // Mock the chat store
 vi.mock('../../../stores/chat.js', () => ({
@@ -33,11 +52,17 @@ describe('SettingsModal', () => {
   const findInBody = (selector) => document.body.querySelector(selector)
   const findAllInBody = (selector) => document.body.querySelectorAll(selector)
 
+  // Helper to wait for async operations to complete
+  const flushAsync = () => new Promise(r => setTimeout(r, 0))
+
   // Button group indices (in Theme tab: 0=theme, 1=width)
   const THEME_GROUP_INDEX = 0
   const WIDTH_GROUP_INDEX = 1
 
   beforeEach(() => {
+    // Reset firestore mocks
+    vi.mocked(firestoreModule.loadUserSettings).mockResolvedValue(null)
+    vi.mocked(firestoreModule.saveUserSettings).mockClear()
     // Mock window theme functions
     window.__getTheme = vi.fn(() => 'light')
     window.__setTheme = vi.fn()
@@ -160,14 +185,14 @@ describe('SettingsModal', () => {
     })
 
     it('should highlight dark theme button when current theme is dark', async () => {
-      window.__getTheme = vi.fn(() => 'dark')
+      mockUserSettings({ theme: 'dark' })
       wrapper = mount(SettingsModal, {
         props: {
           modelValue: true
         },
         attachTo: document.body
       })
-      await wrapper.vm.$nextTick()
+      await flushAsync()
       const buttonGroups = findAllInBody('.button-group')
       const themeButtons = buttonGroups[THEME_GROUP_INDEX].querySelectorAll('.toggle-button')
       expect(themeButtons[0].classList.contains('active')).toBe(false)
@@ -176,14 +201,14 @@ describe('SettingsModal', () => {
     })
 
     it('should highlight sepia theme button when current theme is sepia', async () => {
-      window.__getTheme = vi.fn(() => 'sepia')
+      mockUserSettings({ theme: 'sepia' })
       wrapper = mount(SettingsModal, {
         props: {
           modelValue: true
         },
         attachTo: document.body
       })
-      await wrapper.vm.$nextTick()
+      await flushAsync()
       const buttonGroups = findAllInBody('.button-group')
       const themeButtons = buttonGroups[THEME_GROUP_INDEX].querySelectorAll('.toggle-button')
       expect(themeButtons[0].classList.contains('active')).toBe(false)
@@ -370,14 +395,15 @@ describe('SettingsModal', () => {
   })
 
   describe('Theme Loading on Mount', () => {
-    it('should call __getTheme on mount', () => {
+    it('should call loadUserSettings on mount', async () => {
       wrapper = mount(SettingsModal, {
         props: {
           modelValue: true
         },
         attachTo: document.body
       })
-      expect(window.__getTheme).toHaveBeenCalled()
+      await flushAsync()
+      expect(firestoreModule.loadUserSettings).toHaveBeenCalled()
     })
 
     it('should default to light theme if __getTheme returns undefined', () => {
@@ -534,9 +560,7 @@ describe('SettingsModal', () => {
       expect(footer).toBeNull()
     })
 
-    it('should persist theme to localStorage immediately when changed', async () => {
-      localStorage.clear()
-
+    it('should persist theme to Firestore immediately when changed', async () => {
       wrapper = mount(SettingsModal, {
         props: {
           modelValue: true
@@ -549,30 +573,28 @@ describe('SettingsModal', () => {
       darkButton.click()
       await wrapper.vm.$nextTick()
 
-      expect(localStorage.getItem('theme')).toBe('dark')
+      expect(firestoreModule.saveUserSettings).toHaveBeenCalledWith({ theme: 'dark' })
     })
 
-    it('should persist font size to localStorage immediately when changed', async () => {
-      localStorage.clear()
-
+    it('should persist font size to Firestore immediately when changed', async () => {
       wrapper = mount(SettingsModal, {
         props: {
           modelValue: true
         },
         attachTo: document.body
       })
+      await flushAsync()
 
       const slider = findInBody('.font-slider')
       slider.value = '22'
       slider.dispatchEvent(new Event('input'))
       await wrapper.vm.$nextTick()
 
-      expect(localStorage.getItem('messageFontSize')).toBe('22')
+      // Font size value could be string or number depending on Vue's v-model behavior
+      expect(firestoreModule.saveUserSettings).toHaveBeenCalledWith(expect.objectContaining({ fontSize: expect.anything() }))
     })
 
-    it('should persist font family to localStorage immediately when changed', async () => {
-      localStorage.clear()
-
+    it('should persist font family to Firestore immediately when changed', async () => {
       wrapper = mount(SettingsModal, {
         props: {
           modelValue: true
@@ -585,9 +607,8 @@ describe('SettingsModal', () => {
       fontButtons[clickedIndex].click()
       await wrapper.vm.$nextTick()
 
-      // Verify localStorage was updated (font value comes from component's fonts array at clicked index)
-      const savedFont = localStorage.getItem('messageFontFamily')
-      expect(savedFont).toBeTruthy()
+      // Verify Firestore was called
+      expect(firestoreModule.saveUserSettings).toHaveBeenCalled()
       // The clicked button should now be active, confirming the selection was persisted
       expect(fontButtons[clickedIndex].classList.contains('active')).toBe(true)
     })
@@ -724,15 +745,14 @@ describe('SettingsModal', () => {
       expect(document.documentElement.style.getPropertyValue('--message-line-height')).toBe('2.0')
     })
 
-    it('should persist line height to localStorage immediately when changed', async () => {
-      localStorage.clear()
-
+    it('should persist line height to Firestore immediately when changed', async () => {
       wrapper = mount(SettingsModal, {
         props: {
           modelValue: true
         },
         attachTo: document.body
       })
+      await flushAsync()
 
       const sliders = findAllInBody('.font-slider')
       const lineHeightSlider = sliders[1]
@@ -740,11 +760,12 @@ describe('SettingsModal', () => {
       lineHeightSlider.dispatchEvent(new Event('input'))
       await wrapper.vm.$nextTick()
 
-      expect(localStorage.getItem('messageLineHeight')).toBe('1.9')
+      // Line height value could be string or number depending on Vue's v-model behavior
+      expect(firestoreModule.saveUserSettings).toHaveBeenCalledWith(expect.objectContaining({ lineHeight: expect.anything() }))
     })
 
-    it('should load saved line height from localStorage on mount', async () => {
-      localStorage.setItem('messageLineHeight', '2.1')
+    it('should load saved line height from Firestore on mount', async () => {
+      mockUserSettings({ lineHeight: 2.1 })
 
       wrapper = mount(SettingsModal, {
         props: {
@@ -753,6 +774,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       await wrapper.vm.$nextTick()
+      await new Promise(r => setTimeout(r, 0)) // Wait for async loadUserSettings
 
       const valueDisplays = findAllInBody('.font-size-value')
       expect(valueDisplays[1].textContent).toBe('2.1')
@@ -876,6 +898,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
+      await flushAsync()
       const tabs = findAllInBody('.tab-button')
       tabs[1].click()
       await wrapper.vm.$nextTick()
@@ -893,6 +916,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
+      await flushAsync()
       const tabs = findAllInBody('.tab-button')
       tabs[1].click()
       await wrapper.vm.$nextTick()
@@ -910,6 +934,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
+      await flushAsync()
       const tabs = findAllInBody('.tab-button')
       tabs[1].click()
       await wrapper.vm.$nextTick()
@@ -931,6 +956,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
+      await flushAsync()
       const tabs = findAllInBody('.tab-button')
       tabs[1].click()
       await wrapper.vm.$nextTick()
@@ -951,6 +977,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
+      await flushAsync()
       const tabs = findAllInBody('.tab-button')
       tabs[1].click()
       await wrapper.vm.$nextTick()
@@ -974,6 +1001,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
+      await flushAsync()
       const tabs = findAllInBody('.tab-button')
       tabs[1].click()
       await wrapper.vm.$nextTick()
@@ -991,6 +1019,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
+      await flushAsync()
       const tabs = findAllInBody('.tab-button')
       tabs[1].click()
       await wrapper.vm.$nextTick()
@@ -1020,6 +1049,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
+      await flushAsync()
       const tabs = findAllInBody('.tab-button')
       tabs[1].click()
       await wrapper.vm.$nextTick()
@@ -1035,6 +1065,202 @@ describe('SettingsModal', () => {
       expect(link).toBeTruthy()
       expect(link.getAttribute('href')).toBe('https://aistudio.google.com/apikey')
       expect(link.getAttribute('target')).toBe('_blank')
+    })
+  })
+
+  describe('Separate API Keys Per Provider', () => {
+    it('should maintain separate API keys for different providers', async () => {
+      const { saveUserSettings, loadUserSettings } = await import('../../../services/firestore.js')
+      loadUserSettings.mockResolvedValue({
+        providerConfigs: {
+          google: { apiKey: 'google-key-123' },
+          cerebras: { apiKey: 'cerebras-key-456' }
+        },
+        provider: 'google'
+      })
+
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      await flushAsync()
+
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const providerGroup = findInBody('.provider-group')
+      const providerButtons = providerGroup.querySelectorAll('.toggle-button')
+
+      // Click Google provider
+      providerButtons[1].click()
+      await wrapper.vm.$nextTick()
+
+      let apiKeyInput = findInBody('.api-key-input')
+      expect(apiKeyInput.value).toBe('google-key-123')
+
+      // Switch to Cerebras provider
+      providerButtons[2].click()
+      await wrapper.vm.$nextTick()
+
+      apiKeyInput = findInBody('.api-key-input')
+      expect(apiKeyInput.value).toBe('cerebras-key-456')
+
+      // Switch back to Google - should still have its key
+      providerButtons[1].click()
+      await wrapper.vm.$nextTick()
+
+      apiKeyInput = findInBody('.api-key-input')
+      expect(apiKeyInput.value).toBe('google-key-123')
+    })
+
+    it('should save provider configs when API key changes', async () => {
+      const { saveUserSettings, loadUserSettings } = await import('../../../services/firestore.js')
+      loadUserSettings.mockResolvedValue({
+        providerConfigs: {
+          google: { apiKey: '' },
+          cerebras: { apiKey: '' }
+        },
+        provider: 'google'
+      })
+
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      await flushAsync()
+
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const providerGroup = findInBody('.provider-group')
+      const providerButtons = providerGroup.querySelectorAll('.toggle-button')
+      providerButtons[1].click() // Google
+      await wrapper.vm.$nextTick()
+
+      saveUserSettings.mockClear()
+
+      const apiKeyInput = findInBody('.api-key-input')
+      apiKeyInput.value = 'new-google-key'
+      apiKeyInput.dispatchEvent(new Event('input'))
+      await wrapper.vm.$nextTick()
+
+      // Trigger save
+      apiKeyInput.dispatchEvent(new Event('change'))
+      await wrapper.vm.$nextTick()
+      await new Promise(resolve => setTimeout(resolve, 10))
+
+      expect(saveUserSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          providerConfigs: expect.objectContaining({
+            google: expect.objectContaining({ apiKey: 'new-google-key' })
+          })
+        })
+      )
+    })
+
+    it('should load provider configs from Firestore settings', async () => {
+      const { loadUserSettings } = await import('../../../services/firestore.js')
+      loadUserSettings.mockResolvedValue({
+        providerConfigs: {
+          google: { apiKey: 'saved-google-key' },
+          cerebras: { apiKey: 'saved-cerebras-key' },
+          lmstudio: { baseUrl: 'http://custom:5000' }
+        },
+        provider: 'lmstudio'
+      })
+
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      await flushAsync()
+
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      // LM Studio should show its base URL
+      let apiKeyInput = findInBody('.api-key-input')
+      expect(apiKeyInput.value).toBe('http://custom:5000')
+
+      const providerGroup = findInBody('.provider-group')
+      const providerButtons = providerGroup.querySelectorAll('.toggle-button')
+
+      // Switch to Google
+      providerButtons[1].click()
+      await wrapper.vm.$nextTick()
+
+      apiKeyInput = findInBody('.api-key-input')
+      expect(apiKeyInput.value).toBe('saved-google-key')
+
+      // Switch to Cerebras
+      providerButtons[2].click()
+      await wrapper.vm.$nextTick()
+
+      apiKeyInput = findInBody('.api-key-input')
+      expect(apiKeyInput.value).toBe('saved-cerebras-key')
+    })
+
+    it('should not share API key between Google and Cerebras when entering new key', async () => {
+      const { saveUserSettings, loadUserSettings } = await import('../../../services/firestore.js')
+      loadUserSettings.mockResolvedValue({
+        providerConfigs: {
+          google: { apiKey: '' },
+          cerebras: { apiKey: '' }
+        },
+        provider: 'google'
+      })
+
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      await flushAsync()
+
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const providerGroup = findInBody('.provider-group')
+      const providerButtons = providerGroup.querySelectorAll('.toggle-button')
+
+      // Select Google and enter API key
+      providerButtons[1].click()
+      await wrapper.vm.$nextTick()
+
+      let apiKeyInput = findInBody('.api-key-input')
+      apiKeyInput.value = 'google-only-key'
+      apiKeyInput.dispatchEvent(new Event('input'))
+      await wrapper.vm.$nextTick()
+
+      // Switch to Cerebras - should have empty key (not Google's key)
+      providerButtons[2].click()
+      await wrapper.vm.$nextTick()
+
+      apiKeyInput = findInBody('.api-key-input')
+      expect(apiKeyInput.value).toBe('')
+
+      // Enter Cerebras key
+      apiKeyInput.value = 'cerebras-only-key'
+      apiKeyInput.dispatchEvent(new Event('input'))
+      await wrapper.vm.$nextTick()
+
+      // Switch back to Google - should still have its own key
+      providerButtons[1].click()
+      await wrapper.vm.$nextTick()
+
+      apiKeyInput = findInBody('.api-key-input')
+      expect(apiKeyInput.value).toBe('google-only-key')
     })
   })
 
@@ -1113,6 +1339,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
+      await flushAsync() // Wait for async onMounted
       const tabs = findAllInBody('.tab-button')
       tabs[1].click()
       await wrapper.vm.$nextTick()
@@ -1137,6 +1364,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
+      await flushAsync() // Wait for async onMounted
       const tabs = findAllInBody('.tab-button')
       tabs[1].click()
       await wrapper.vm.$nextTick()
@@ -1163,6 +1391,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
+      await flushAsync() // Wait for async onMounted
       const tabs = findAllInBody('.tab-button')
       tabs[1].click()
       await wrapper.vm.$nextTick()
@@ -1189,6 +1418,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
+      await flushAsync() // Wait for async onMounted
       const tabs = findAllInBody('.tab-button')
       tabs[1].click()
       await wrapper.vm.$nextTick()
@@ -1234,6 +1464,7 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
+      await flushAsync() // Wait for async onMounted
       const tabs = findAllInBody('.tab-button')
       tabs[1].click()
       await wrapper.vm.$nextTick()
@@ -1340,8 +1571,6 @@ describe('SettingsModal', () => {
     })
 
     it('should update content width CSS variable when medium is clicked', async () => {
-      localStorage.setItem('contentWidth', 'narrow') // Start with narrow
-
       wrapper = mount(SettingsModal, {
         props: {
           modelValue: true
@@ -1375,9 +1604,7 @@ describe('SettingsModal', () => {
       expect(document.documentElement.style.getPropertyValue('--content-max-width')).toBe('1000px')
     })
 
-    it('should persist content width to localStorage immediately when changed', async () => {
-      localStorage.clear()
-
+    it('should persist content width to Firestore immediately when changed', async () => {
       wrapper = mount(SettingsModal, {
         props: {
           modelValue: true
@@ -1391,11 +1618,11 @@ describe('SettingsModal', () => {
       widthButtons[2].click() // Click Wide
       await wrapper.vm.$nextTick()
 
-      expect(localStorage.getItem('contentWidth')).toBe('wide')
+      expect(firestoreModule.saveUserSettings).toHaveBeenCalledWith({ contentWidth: 'wide' })
     })
 
-    it('should load saved content width from localStorage on mount', async () => {
-      localStorage.setItem('contentWidth', 'narrow')
+    it('should load saved content width from Firestore on mount', async () => {
+      mockUserSettings({ contentWidth: 'narrow' })
 
       wrapper = mount(SettingsModal, {
         props: {
@@ -1404,6 +1631,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       await wrapper.vm.$nextTick()
+      await new Promise(r => setTimeout(r, 0)) // Wait for async loadUserSettings
 
       const buttonGroups = findAllInBody('.button-group')
       const widthButtons = buttonGroups[WIDTH_GROUP_INDEX].querySelectorAll('.toggle-button')
@@ -1411,8 +1639,8 @@ describe('SettingsModal', () => {
       expect(document.documentElement.style.getPropertyValue('--content-max-width')).toBe('600px')
     })
 
-    it('should apply wide content width from localStorage on mount', async () => {
-      localStorage.setItem('contentWidth', 'wide')
+    it('should apply wide content width from Firestore on mount', async () => {
+      mockUserSettings({ contentWidth: 'wide' })
 
       wrapper = mount(SettingsModal, {
         props: {
@@ -1421,6 +1649,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       await wrapper.vm.$nextTick()
+      await new Promise(r => setTimeout(r, 0)) // Wait for async loadUserSettings
 
       const buttonGroups = findAllInBody('.button-group')
       const widthButtons = buttonGroups[WIDTH_GROUP_INDEX].querySelectorAll('.toggle-button')

@@ -47,6 +47,17 @@ vi.mock('../services/storage.js', async (importOriginal) => {
   }
 })
 
+// Mock firestore to prevent real network calls
+vi.mock('../services/firestore.js', () => ({
+  loadUserSettings: vi.fn(() => Promise.resolve(null)),
+  saveUserSettings: vi.fn(() => Promise.resolve()),
+  syncChatStateToFirestore: vi.fn(() => Promise.resolve()),
+  loadChatStateFromFirestore: vi.fn(() => Promise.resolve(null)),
+  subscribeToChatState: vi.fn(() => () => {}),
+  deleteChatStateFromFirestore: vi.fn(() => Promise.resolve()),
+  subscribeToUserSettings: vi.fn(() => () => {})
+}))
+
 // Mock the environment composable with default dev mode
 vi.mock('../composables/useEnvironment.js')
 

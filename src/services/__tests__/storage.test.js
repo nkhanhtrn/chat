@@ -13,7 +13,12 @@ import * as firestore from '../firestore.js'
 vi.mock('../firestore.js', () => ({
   syncChatStateToFirestore: vi.fn(),
   loadChatStateFromFirestore: vi.fn(),
-  deleteChatStateFromFirestore: vi.fn()
+  deleteChatStateFromFirestore: vi.fn(),
+  loadUserSettings: vi.fn(() => Promise.resolve(null)),
+  saveUserSettings: vi.fn(() => Promise.resolve()),
+  subscribeToChatState: vi.fn(() => () => {}),
+  subscribeToUserSettings: vi.fn(() => () => {}),
+  migrateSettingsToFirestore: vi.fn(() => Promise.resolve())
 }))
 
 describe('storage.js', () => {

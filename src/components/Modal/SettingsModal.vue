@@ -183,9 +183,11 @@ import {
   getCurrentConfig,
   setProvider,
   testConnection,
-  fetchModels
+  fetchModels,
+  initProvider
 } from '../../services/api.js'
 import { useChatStore } from '../../stores/chat.js'
+import { saveUserSettings, loadUserSettings } from '../../services/firestore.js'
 
 const props = defineProps({
   modelValue: {
@@ -199,13 +201,37 @@ const emit = defineEmits(['update:modelValue', 'provider-changed'])
 // LLM Provider state
 const providers = ref([])
 const currentProvider = ref('lmstudio')
-const apiKey = ref('')
-const baseUrl = ref('http://localhost:1234')
+const providerConfigs = ref({
+  google: { apiKey: '' },
+  cerebras: { apiKey: '' },
+  lmstudio: { baseUrl: 'http://localhost:1234' }
+})
 const showApiKey = ref(false)
 const connectionStatus = ref(null)
 const availableModels = ref([])
 const selectedModel = ref('')
 const chatStore = useChatStore()
+
+// Computed properties for current provider's config
+const apiKey = computed({
+  get: () => providerConfigs.value[currentProvider.value]?.apiKey || '',
+  set: (value) => {
+    if (!providerConfigs.value[currentProvider.value]) {
+      providerConfigs.value[currentProvider.value] = {}
+    }
+    providerConfigs.value[currentProvider.value].apiKey = value
+  }
+})
+
+const baseUrl = computed({
+  get: () => providerConfigs.value[currentProvider.value]?.baseUrl || 'http://localhost:1234',
+  set: (value) => {
+    if (!providerConfigs.value[currentProvider.value]) {
+      providerConfigs.value[currentProvider.value] = {}
+    }
+    providerConfigs.value[currentProvider.value].baseUrl = value
+  }
+})
 
 const selectedProviderRequiresKey = computed(() => {
   const provider = providers.value.find(p => p.id === currentProvider.value)
@@ -245,9 +271,32 @@ watch(() => props.modelValue, (visible) => {
 const loadProviderSettings = async () => {
   providers.value = listProviders()
   currentProvider.value = getCurrentProviderId()
+
+  // Load all provider configs from settings
+  const settings = await loadUserSettings()
+  if (settings?.providerConfigs) {
+    // Merge saved configs with defaults
+    providerConfigs.value = {
+      ...providerConfigs.value,
+      ...settings.providerConfigs
+    }
+  }
+
+  // Also load current provider's config from the active config
   const config = getCurrentConfig()
-  apiKey.value = config.apiKey || ''
-  baseUrl.value = config.baseUrl || 'http://localhost:1234'
+  if (config.apiKey) {
+    providerConfigs.value[currentProvider.value] = {
+      ...providerConfigs.value[currentProvider.value],
+      apiKey: config.apiKey
+    }
+  }
+  if (config.baseUrl) {
+    providerConfigs.value[currentProvider.value] = {
+      ...providerConfigs.value[currentProvider.value],
+      baseUrl: config.baseUrl
+    }
+  }
+
   connectionStatus.value = null
 
   // Load available models and current selection
@@ -281,15 +330,22 @@ const selectProvider = async (providerId) => {
   availableModels.value = []
   selectedModel.value = ''
 
+  // Get config for the selected provider
+  const providerConfig = providerConfigs.value[providerId] || {}
   const config = {}
-  if (selectedProviderRequiresKey.value) {
-    config.apiKey = apiKey.value
+
+  const provider = providers.value.find(p => p.id === providerId)
+  if (provider?.requiresApiKey) {
+    config.apiKey = providerConfig.apiKey || ''
   } else {
-    config.baseUrl = baseUrl.value
+    config.baseUrl = providerConfig.baseUrl || 'http://localhost:1234'
   }
 
   setProvider(providerId, config)
   emit('provider-changed', providerId)
+
+  // Save all provider configs
+  saveUserSettings({ providerConfigs: providerConfigs.value })
 
   // Test connection and load models
   await testProviderConnection()
@@ -302,6 +358,9 @@ const onApiKeyChange = async () => {
   connectionStatus.value = null
   availableModels.value = []
 
+  // Save all provider configs
+  saveUserSettings({ providerConfigs: providerConfigs.value })
+
   // Debounce connection test and model loading
   if (apiKey.value.length > 10) {
     await testProviderConnection()
@@ -313,6 +372,9 @@ const onBaseUrlChange = () => {
   const config = { baseUrl: baseUrl.value }
   setProvider(currentProvider.value, config)
   connectionStatus.value = null
+
+  // Save all provider configs
+  saveUserSettings({ providerConfigs: providerConfigs.value })
 }
 
 const testProviderConnection = async () => {
@@ -329,36 +391,51 @@ const testProviderConnection = async () => {
   }
 }
 
-onMounted(() => {
-  loadProviderSettings()
+onMounted(async () => {
+  // Load settings from Firestore
+  const settings = await loadUserSettings()
 
-  currentTheme.value = window.__getTheme?.() || 'light'
-  const savedFontSize = localStorage.getItem('messageFontSize')
-  if (savedFontSize) {
-    fontSize.value = parseInt(savedFontSize, 10)
-    applyFontSize(fontSize.value)
+  if (settings) {
+    // Apply theme settings from Firestore
+    if (settings.theme) {
+      currentTheme.value = settings.theme
+      window.__setTheme?.(settings.theme)
+    } else {
+      currentTheme.value = window.__getTheme?.() || 'light'
+    }
+
+    if (settings.fontSize) {
+      fontSize.value = settings.fontSize
+      applyFontSize(settings.fontSize)
+    }
+
+    if (settings.fontFamily) {
+      fontFamily.value = settings.fontFamily
+      applyFontFamily(settings.fontFamily)
+    }
+
+    if (settings.lineHeight) {
+      lineHeight.value = settings.lineHeight
+      applyLineHeight(settings.lineHeight)
+    }
+
+    if (settings.contentWidth) {
+      contentWidth.value = settings.contentWidth
+      applyContentWidth(settings.contentWidth)
+    }
+  } else {
+    currentTheme.value = window.__getTheme?.() || 'light'
   }
-  const savedFontFamily = localStorage.getItem('messageFontFamily')
-  if (savedFontFamily) {
-    fontFamily.value = savedFontFamily
-    applyFontFamily(savedFontFamily)
-  }
-  const savedLineHeight = localStorage.getItem('messageLineHeight')
-  if (savedLineHeight) {
-    lineHeight.value = parseFloat(savedLineHeight)
-    applyLineHeight(lineHeight.value)
-  }
-  const savedContentWidth = localStorage.getItem('contentWidth')
-  if (savedContentWidth) {
-    contentWidth.value = savedContentWidth
-    applyContentWidth(savedContentWidth)
-  }
+
+  // Initialize LLM provider from Firestore
+  await initProvider()
+  loadProviderSettings()
 })
 
 const setTheme = (theme) => {
   currentTheme.value = theme
   window.__setTheme?.(theme)
-  localStorage.setItem('theme', theme)
+  saveUserSettings({ theme })
 }
 
 const applyFontSize = (size) => {
@@ -367,7 +444,7 @@ const applyFontSize = (size) => {
 
 const updateFontSize = () => {
   applyFontSize(fontSize.value)
-  localStorage.setItem('messageFontSize', fontSize.value.toString())
+  saveUserSettings({ fontSize: fontSize.value })
 }
 
 const applyFontFamily = (family) => {
@@ -377,7 +454,7 @@ const applyFontFamily = (family) => {
 const setFontFamily = (family) => {
   fontFamily.value = family
   applyFontFamily(family)
-  localStorage.setItem('messageFontFamily', family)
+  saveUserSettings({ fontFamily: family })
 }
 
 const applyLineHeight = (height) => {
@@ -386,7 +463,7 @@ const applyLineHeight = (height) => {
 
 const updateLineHeight = () => {
   applyLineHeight(lineHeight.value)
-  localStorage.setItem('messageLineHeight', lineHeight.value.toString())
+  saveUserSettings({ lineHeight: lineHeight.value })
 }
 
 const applyContentWidth = (width) => {
@@ -401,7 +478,7 @@ const applyContentWidth = (width) => {
 const setContentWidth = (width) => {
   contentWidth.value = width
   applyContentWidth(width)
-  localStorage.setItem('contentWidth', width)
+  saveUserSettings({ contentWidth: width })
 }
 
 const close = () => {

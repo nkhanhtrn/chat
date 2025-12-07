@@ -5,9 +5,7 @@
 import { lmstudioProvider } from './providers/lmstudio.js'
 import { googleProvider } from './providers/google.js'
 import { cerebrasProvider } from './providers/cerebras.js'
-
-const STORAGE_KEY_PROVIDER = 'llm-provider'
-const STORAGE_KEY_PROVIDER_CONFIG = 'llm-provider-config'
+import { saveUserSettings, loadUserSettings } from '../firestore.js'
 
 // Registry of available providers
 const providers = {
@@ -19,24 +17,29 @@ const providers = {
 // Current provider state
 let currentProviderId = 'lmstudio'
 let currentConfig = {}
+let firestoreInitialized = false
 
 /**
- * Initialize provider from localStorage
+ * Initialize provider from Firestore
+ * @returns {Promise<void>}
  */
-export const initProvider = () => {
+export const initProvider = async () => {
+  if (firestoreInitialized) return
+
   try {
-    const savedProviderId = localStorage.getItem(STORAGE_KEY_PROVIDER)
-    const savedConfig = localStorage.getItem(STORAGE_KEY_PROVIDER_CONFIG)
+    const settings = await loadUserSettings()
 
-    if (savedProviderId && providers[savedProviderId]) {
-      currentProviderId = savedProviderId
+    if (settings?.llmProvider && providers[settings.llmProvider]) {
+      currentProviderId = settings.llmProvider
     }
 
-    if (savedConfig) {
-      currentConfig = JSON.parse(savedConfig)
+    if (settings?.llmConfig) {
+      currentConfig = settings.llmConfig
     }
+
+    firestoreInitialized = true
   } catch (error) {
-    console.warn('Failed to load provider settings:', error)
+    console.warn('Failed to load provider settings from Firestore:', error)
   }
 }
 
@@ -84,9 +87,11 @@ export const setProvider = (providerId, config = {}) => {
   currentProviderId = providerId
   currentConfig = config
 
-  // Persist to localStorage
-  localStorage.setItem(STORAGE_KEY_PROVIDER, providerId)
-  localStorage.setItem(STORAGE_KEY_PROVIDER_CONFIG, JSON.stringify(config))
+  // Persist to Firestore
+  saveUserSettings({
+    llmProvider: providerId,
+    llmConfig: config
+  })
 }
 
 /**
@@ -95,7 +100,9 @@ export const setProvider = (providerId, config = {}) => {
  */
 export const updateConfig = (config) => {
   currentConfig = { ...currentConfig, ...config }
-  localStorage.setItem(STORAGE_KEY_PROVIDER_CONFIG, JSON.stringify(currentConfig))
+  saveUserSettings({
+    llmConfig: currentConfig
+  })
 }
 
 /**
@@ -133,5 +140,4 @@ export const sendChatMessage = async (model, messages, onChunk = null, signal = 
   return provider.sendMessage(model, messages, onChunk, signal, currentConfig)
 }
 
-// Initialize on module load
-initProvider()
+// Note: initProvider() must be called explicitly after auth is ready
