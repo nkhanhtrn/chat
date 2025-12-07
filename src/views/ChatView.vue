@@ -238,7 +238,7 @@ const handleSendMessage = async (userMessage, contextQuestions = []) => {
 
   scrollToBottom()
 
-  const signal = chatStore.startStreaming()
+  const signal = chatStore.startStreaming(msg.id)
 
   // Build previous messages for context (all root messages except the current one)
   const previousMessages = chatStore.rootMessages

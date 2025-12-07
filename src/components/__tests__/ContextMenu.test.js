@@ -61,21 +61,21 @@ describe('ContextMenu', () => {
     expect(menu).toBeFalsy()
   })
 
-  it('disables Ask Question button when isStreaming is true', () => {
+  it('disables Explain button when isStreaming is true', () => {
     wrapper = mount(ContextMenu, { props: { ...baseProps, isStreaming: true }, attachTo: root })
     const buttons = document.body.querySelectorAll('.context-menu-btn')
-    // Button order: Highlight (0), Copy (1), Note (2), Explain (3), Add Chapter (4)
-    const askQuestionBtn = buttons[3]
-    expect(askQuestionBtn).toBeTruthy()
-    expect(askQuestionBtn.disabled).toBe(true)
+    // Button order: Highlight (0), Copy (1), Link to Question (2), Note (3), Explain (4), Deep Dive (5)
+    const explainBtn = buttons[4]
+    expect(explainBtn).toBeTruthy()
+    expect(explainBtn.disabled).toBe(true)
   })
 
-  it('enables Ask Question button when isStreaming is false', () => {
+  it('enables Explain button when isStreaming is false', () => {
     wrapper = mount(ContextMenu, { props: { ...baseProps, isStreaming: false }, attachTo: root })
     const buttons = document.body.querySelectorAll('.context-menu-btn')
-    const askQuestionBtn = buttons[3]
-    expect(askQuestionBtn).toBeTruthy()
-    expect(askQuestionBtn.disabled).toBe(false)
+    const explainBtn = buttons[4]
+    expect(explainBtn).toBeTruthy()
+    expect(explainBtn.disabled).toBe(false)
   })
 
   it('highlight button is always enabled regardless of streaming', () => {
@@ -301,8 +301,8 @@ describe('ContextMenu', () => {
   })
 
   describe('Note functionality', () => {
-    // Button order: Highlight (0), Copy (1), Note (2), Explain (3), Add Chapter (4)
-    const NOTE_BTN_INDEX = 2
+    // Button order: Highlight (0), Copy (1), Link to Question (2), Note (3), Explain (4), Deep Dive (5)
+    const NOTE_BTN_INDEX = 3
 
     it('shows "Add Note" button by default', () => {
       wrapper = mount(ContextMenu, { props: baseProps, attachTo: root })
@@ -370,7 +370,8 @@ describe('ContextMenu', () => {
   })
 
   describe('Link to Question functionality', () => {
-    const LINK_BTN_INDEX = 6 // Button order: Highlight, Copy, Note, Explain, Deep Dive, New Topic, Link to Question
+    // Button order: Highlight (0), Copy (1), Link to Question (2), Note (3), Explain (4), Deep Dive (5)
+    const LINK_BTN_INDEX = 2
 
     it('renders Link to Question button', () => {
       wrapper = mount(ContextMenu, { props: baseProps, attachTo: root })

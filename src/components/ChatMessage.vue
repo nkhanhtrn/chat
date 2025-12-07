@@ -230,6 +230,7 @@ async function handleAskQuestion(question) {
   chatStore.addChildMessage(parentId, childMsg)
 
   isChildStreaming.value = true
+  chatStore.streamingMessageId = childMsg.id
   error.value = null
 
   const previousMessages = buildConversationChain(chatStore.messagesById, parentId)
@@ -247,6 +248,7 @@ async function handleAskQuestion(question) {
     error.value = err.message
   } finally {
     isChildStreaming.value = false
+    chatStore.streamingMessageId = null
   }
 }
 
@@ -304,6 +306,7 @@ async function handleAddChapter(selectedText) {
   })
 
   isChildStreaming.value = true
+  chatStore.streamingMessageId = newRootMsg.id
   error.value = null
 
   try {
@@ -319,6 +322,7 @@ async function handleAddChapter(selectedText) {
     error.value = err.message
   } finally {
     isChildStreaming.value = false
+    chatStore.streamingMessageId = null
   }
 }
 

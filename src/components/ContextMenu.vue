@@ -22,6 +22,7 @@
         </div>
         <div class="context-menu-row">
           <Button class="context-menu-btn" @click="onCopy" variant="tertiary">Copy</Button>
+          <Button class="context-menu-btn" @click="onLinkToQuestion" variant="tertiary">Link to Question</Button>
         </div>
         <div class="context-menu-row">
           <Button class="context-menu-btn" @click="onAddNote" variant="tertiary">{{ hasExistingNote ? 'Edit Note' : 'Note' }}</Button>
@@ -29,10 +30,6 @@
         </div>
         <div class="context-menu-row">
           <Button class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming" variant="tertiary">Deep Dive</Button>
-          <Button class="context-menu-btn" @click="onAddChapter" :disabled="isStreaming" variant="tertiary">New Topic</Button>
-        </div>
-        <div class="context-menu-row">
-          <Button class="context-menu-btn" @click="onLinkToQuestion" variant="tertiary">Link to Question</Button>
         </div>
         <PromptInput
           placeholder="Ctrl + Enter to deep dive"
@@ -73,7 +70,7 @@ const props = defineProps({
     default: false
   }
 })
-const emit = defineEmits(['close', 'keep-highlight', 'ask-question', 'change-color', 'remove-highlight', 'add-chapter', 'add-note', 'quick-explain', 'custom-prompt', 'custom-prompt-deep-dive', 'link-to-question'])
+const emit = defineEmits(['close', 'keep-highlight', 'ask-question', 'change-color', 'remove-highlight', 'add-note', 'quick-explain', 'custom-prompt', 'custom-prompt-deep-dive', 'link-to-question'])
 
 const selectedColorIndex = ref(0)
 
@@ -103,10 +100,6 @@ function onHighlightAction() {
 
 function onAskQuestion() {
   emit('ask-question', `${props.highlightedText}`)
-}
-
-function onAddChapter() {
-  emit('add-chapter', `${props.highlightedText}`)
 }
 
 function onAddNote() {

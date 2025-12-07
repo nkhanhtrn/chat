@@ -339,4 +339,44 @@ describe('MessageNavigation', () => {
       expect(currentItem.classes()).not.toContain('active')
     })
   })
+
+  describe('Streaming Indicator', () => {
+    it('should not show streaming indicator when not streaming', () => {
+      chatStore.streamingMessageId = null
+      const wrapper = mountComponent('2')
+      expect(wrapper.find('.streaming-indicator').exists()).toBe(false)
+    })
+
+    it('should show streaming indicator on current streaming message', () => {
+      chatStore.streamingMessageId = '2'
+      const wrapper = mountComponent('2')
+      expect(wrapper.find('.streaming-indicator').exists()).toBe(true)
+    })
+
+    it('should not show streaming indicator on non-streaming message', () => {
+      chatStore.streamingMessageId = '3'
+      const wrapper = mountComponent('2')
+      // The indicator should only appear on the message that matches streamingMessageId
+      const items = wrapper.findAll('.breadcrumb-item')
+      // msg1 (Root) should not have indicator
+      expect(items[0].find('.streaming-indicator').exists()).toBe(false)
+    })
+
+    it('should show streaming indicator on ancestor message in breadcrumb', () => {
+      // When viewing msg3, if msg1 is streaming, it should show indicator on msg1
+      chatStore.streamingMessageId = '1'
+      const wrapper = mountComponent('3')
+      const items = wrapper.findAll('.breadcrumb-item')
+      // First item is msg1 (Root) which should have indicator
+      expect(items[0].find('.streaming-indicator').exists()).toBe(true)
+    })
+
+    it('should show streaming indicator on last breadcrumb item when it is streaming', () => {
+      chatStore.streamingMessageId = '3'
+      const wrapper = mountComponent('3')
+      const items = wrapper.findAll('.breadcrumb-item')
+      const lastItem = items[items.length - 1]
+      expect(lastItem.find('.streaming-indicator').exists()).toBe(true)
+    })
+  })
 })

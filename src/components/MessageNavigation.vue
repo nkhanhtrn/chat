@@ -13,6 +13,7 @@
               variant="tertiary"
             >
               {{ msg.questionSummarized }}
+              <span v-if="isMessageStreaming(msg.id)" class="streaming-indicator"></span>
             </Button>
             <!-- Children popup -->
             <div
@@ -118,6 +119,10 @@ function truncateQuestion(question) {
   if (!question) return ''
   return question.length > 30 ? question.substring(0, 30) + '...' : question
 }
+
+function isMessageStreaming(messageId) {
+  return chatStore.streamingMessageId === messageId
+}
 </script>
 
 <style scoped>
@@ -186,6 +191,24 @@ function truncateQuestion(question) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Streaming indicator */
+.streaming-indicator {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-left: 6px;
+  border: 2px solid var(--color-border-subtle, #e5e7eb);
+  border-top-color: var(--color-primary, #6366f1);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 </style>

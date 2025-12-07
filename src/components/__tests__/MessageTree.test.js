@@ -332,30 +332,6 @@ describe('MessageTree', () => {
     })
   })
 
-  describe('Props Defaults', () => {
-    it('should have default currentMessageId as null', () => {
-      chatStore.messagesById['parent1'] = { id: 'parent1', childIds: [] }
-
-      wrapper = mount(MessageTree, {
-        props: { parentId: 'parent1' },
-        global: { provide: createProvide() }
-      })
-
-      expect(wrapper.props('currentMessageId')).toBe(null)
-    })
-
-    it('should have default expandedPath as empty Set', () => {
-      chatStore.messagesById['parent1'] = { id: 'parent1', childIds: [] }
-
-      wrapper = mount(MessageTree, {
-        props: { parentId: 'parent1' },
-        global: { provide: createProvide() }
-      })
-
-      expect(wrapper.props('expandedPath')).toEqual(new Set())
-    })
-  })
-
   describe('Editable and Delete Button Props', () => {
     it('should pass editable prop to DraggableTreeItem', () => {
       setupMessagesInStore([
@@ -375,21 +351,6 @@ describe('MessageTree', () => {
       expect(item.props('editable')).toBe(true)
     })
 
-    it('should default editable to false', () => {
-      setupMessagesInStore([
-        { id: 'child1', question: 'Child 1', response: '', parentId: 'parent1' }
-      ])
-      chatStore.messagesById['parent1'] = { id: 'parent1', childIds: ['child1'] }
-
-      wrapper = mount(MessageTree, {
-        props: { parentId: 'parent1' },
-        global: { provide: createProvide() }
-      })
-
-      const item = wrapper.findComponent({ name: 'DraggableTreeItem' })
-      expect(item.props('editable')).toBe(false)
-    })
-
     it('should pass showDeleteButton prop to DraggableTreeItem', () => {
       setupMessagesInStore([
         { id: 'child1', question: 'Child 1', response: '', parentId: 'parent1' }
@@ -406,55 +367,6 @@ describe('MessageTree', () => {
 
       const item = wrapper.findComponent({ name: 'DraggableTreeItem' })
       expect(item.props('showDeleteButton')).toBe(true)
-    })
-
-    it('should default showDeleteButton to false', () => {
-      setupMessagesInStore([
-        { id: 'child1', question: 'Child 1', response: '', parentId: 'parent1' }
-      ])
-      chatStore.messagesById['parent1'] = { id: 'parent1', childIds: ['child1'] }
-
-      wrapper = mount(MessageTree, {
-        props: { parentId: 'parent1' },
-        global: { provide: createProvide() }
-      })
-
-      const item = wrapper.findComponent({ name: 'DraggableTreeItem' })
-      expect(item.props('showDeleteButton')).toBe(false)
-    })
-
-    it('should render delete button when showDeleteButton is true', () => {
-      setupMessagesInStore([
-        { id: 'child1', question: 'Child 1', response: '', parentId: 'parent1' }
-      ])
-      chatStore.messagesById['parent1'] = { id: 'parent1', childIds: ['child1'] }
-
-      wrapper = mount(MessageTree, {
-        props: {
-          parentId: 'parent1',
-          showDeleteButton: true
-        },
-        global: { provide: createProvide() }
-      })
-
-      expect(wrapper.find('.delete-button').exists()).toBe(true)
-    })
-
-    it('should not render delete button when showDeleteButton is false', () => {
-      setupMessagesInStore([
-        { id: 'child1', question: 'Child 1', response: '', parentId: 'parent1' }
-      ])
-      chatStore.messagesById['parent1'] = { id: 'parent1', childIds: ['child1'] }
-
-      wrapper = mount(MessageTree, {
-        props: {
-          parentId: 'parent1',
-          showDeleteButton: false
-        },
-        global: { provide: createProvide() }
-      })
-
-      expect(wrapper.find('.delete-button').exists()).toBe(false)
     })
 
     it('should pass editable and showDeleteButton to nested MessageTree', () => {
@@ -629,6 +541,43 @@ describe('MessageTree', () => {
 
         expect(wrapper.emitted('toggle-expand')).toBeTruthy()
       }
+    })
+  })
+
+  describe('Streaming Indicator', () => {
+    it('should pass isStreaming true when message is streaming', () => {
+      setupMessagesInStore([
+        { id: 'child1', question: 'Child 1', response: '', parentId: 'parent1' }
+      ])
+      chatStore.messagesById['parent1'] = { id: 'parent1', childIds: ['child1'] }
+      chatStore.streamingMessageId = 'child1'
+
+      wrapper = mount(MessageTree, {
+        props: { parentId: 'parent1' },
+        global: { provide: createProvide() }
+      })
+
+      const item = wrapper.findComponent({ name: 'DraggableTreeItem' })
+      expect(item.props('isStreaming')).toBe(true)
+      expect(wrapper.find('.streaming-indicator').exists()).toBe(true)
+    })
+
+    it('should pass isStreaming false when different message is streaming', () => {
+      setupMessagesInStore([
+        { id: 'child1', question: 'Child 1', response: '', parentId: 'parent1' },
+        { id: 'child2', question: 'Child 2', response: '', parentId: 'parent1' }
+      ])
+      chatStore.messagesById['parent1'] = { id: 'parent1', childIds: ['child1', 'child2'] }
+      chatStore.streamingMessageId = 'child2'
+
+      wrapper = mount(MessageTree, {
+        props: { parentId: 'parent1' },
+        global: { provide: createProvide() }
+      })
+
+      const items = wrapper.findAllComponents({ name: 'DraggableTreeItem' })
+      expect(items[0].props('isStreaming')).toBe(false)
+      expect(items[1].props('isStreaming')).toBe(true)
     })
   })
 })

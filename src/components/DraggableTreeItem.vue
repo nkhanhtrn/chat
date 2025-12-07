@@ -27,11 +27,13 @@
 
         <!-- Editable text -->
         <template v-if="editable">
-          <span
-            v-if="!isEditing"
-            class="tree-item-text"
-            @dblclick.stop="startEditing"
-          >{{ item.questionSummarized || item.question }}</span>
+          <div v-if="!isEditing" class="tree-item-text-wrapper">
+            <span
+              class="tree-item-text"
+              @dblclick.stop="startEditing"
+            >{{ item.questionSummarized || item.question }}</span>
+            <span v-if="isStreaming" class="streaming-indicator" title="Generating response..."></span>
+          </div>
           <div v-else ref="editWrapperRef" class="inline-edit-wrapper" @click.stop>
             <input
               ref="editInputRef"
@@ -66,7 +68,10 @@
             </div>
           </div>
         </template>
-        <span v-else class="tree-item-text">{{ item.questionSummarized || item.question }}</span>
+        <div v-else class="tree-item-text-wrapper">
+          <span class="tree-item-text">{{ item.questionSummarized || item.question }}</span>
+          <span v-if="isStreaming" class="streaming-indicator" title="Generating response..."></span>
+        </div>
 
         <button
           v-if="showDeleteButton && !isEditing"
@@ -102,7 +107,8 @@ const props = defineProps({
   draggable: { type: Boolean, default: true },
   hideDropZones: { type: Boolean, default: false },
   itemClass: { type: [String, Object, Array], default: '' },
-  editable: { type: Boolean, default: false }
+  editable: { type: Boolean, default: false },
+  isStreaming: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['click', 'delete', 'drop', 'rename'])
@@ -251,12 +257,20 @@ defineExpose({ startEditing })
 .tree-item.active .tree-item-text { color: var(--color-text-secondary); font-weight: 500; }
 .tree-item.is-dragging { opacity: 0.5; }
 
+/* Tree Item Text Wrapper */
+.tree-item-text-wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
 /* Tree Item Text */
 .tree-item-text {
   font-size: 0.9rem;
   color: var(--color-text-muted);
   line-height: 1.4;
-  flex: 1;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -384,4 +398,22 @@ defineExpose({ startEditing })
 }
 .inline-edit-btn:hover:not(:disabled) { opacity: 1; }
 .inline-edit-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* Streaming indicator */
+.streaming-indicator {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--color-border-subtle, #e5e7eb);
+  border-top-color: var(--color-primary, #6366f1);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-top: 4px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 </style>

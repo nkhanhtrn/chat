@@ -10,6 +10,7 @@
       :is-expanded="isExpanded(child.id)"
       :editable="editable"
       :show-delete-button="showDeleteButton"
+      :is-streaming="isMessageStreaming(child.id)"
       @click="handleItemClick"
       @drop="handleDrop"
       @rename="(item, newText) => emit('rename', item, newText)"
@@ -72,6 +73,10 @@ const children = computed(() => {
 const hasChildren = (messageId) => {
   const msg = chatStore.messagesById[messageId]
   return msg?.childIds?.length > 0
+}
+
+const isMessageStreaming = (messageId) => {
+  return chatStore.streamingMessageId === messageId
 }
 
 const isExpanded = (messageId) => {

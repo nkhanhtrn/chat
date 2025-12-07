@@ -104,6 +104,7 @@
             :hide-drop-zones="isSidebarCollapsed"
             :editable="!isSidebarCollapsed"
             :show-delete-button="!isSidebarCollapsed"
+            :is-streaming="isMessageStreaming(rootMsg.id)"
             :item-class="{ 'root-header': true, 'is-current-root': rootMsg.id === currentRootId }"
             @click="handleRootClick"
             @drop="handleDrop"
@@ -310,6 +311,11 @@ const isInActivePath = (messageId) => {
 const hasChildren = (messageId) => {
   const msg = chatStore.messagesById[messageId]
   return msg?.childIds?.length > 0
+}
+
+// Check if a message is currently streaming
+const isMessageStreaming = (messageId) => {
+  return chatStore.streamingMessageId === messageId
 }
 
 // Handle clicking a search result

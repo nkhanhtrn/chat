@@ -18,6 +18,7 @@ export const useChatStore = defineStore('chat', {
 
       // App state
       isStreaming: false,
+      streamingMessageId: null, // ID of the message currently being streamed
       streamAbortController: null,
       error: null,
       currentModel: null,
@@ -637,9 +638,10 @@ export const useChatStore = defineStore('chat', {
     },
 
     // Streaming control actions
-    startStreaming() {
+    startStreaming(messageId = null) {
       this.streamAbortController = new AbortController()
       this.isStreaming = true
+      this.streamingMessageId = messageId
       return this.streamAbortController.signal
     },
 
@@ -649,6 +651,7 @@ export const useChatStore = defineStore('chat', {
         this.streamAbortController = null
       }
       this.isStreaming = false
+      this.streamingMessageId = null
     },
 
     // Legacy actions for compatibility
@@ -656,6 +659,7 @@ export const useChatStore = defineStore('chat', {
       this.isStreaming = val
       if (!val) {
         this.streamAbortController = null
+        this.streamingMessageId = null
       }
     },
 

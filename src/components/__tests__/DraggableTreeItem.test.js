@@ -619,6 +619,59 @@ describe('DraggableTreeItem', () => {
       expect(wrapper.props('hideDropZones')).toBe(false)
       expect(wrapper.props('itemClass')).toBe('')
       expect(wrapper.props('editable')).toBe(false)
+      expect(wrapper.props('isStreaming')).toBe(false)
+    })
+  })
+
+  describe('Streaming Indicator', () => {
+    it('should not show streaming indicator by default', () => {
+      wrapper = mount(DraggableTreeItem, {
+        props: defaultProps,
+        global: createGlobalConfig(createProvide())
+      })
+      expect(wrapper.find('.streaming-indicator').exists()).toBe(false)
+    })
+
+    it('should show streaming indicator when isStreaming is true', () => {
+      wrapper = mount(DraggableTreeItem, {
+        props: { ...defaultProps, isStreaming: true },
+        global: createGlobalConfig(createProvide())
+      })
+      expect(wrapper.find('.streaming-indicator').exists()).toBe(true)
+    })
+
+    it('should not show streaming indicator when isStreaming is false', () => {
+      wrapper = mount(DraggableTreeItem, {
+        props: { ...defaultProps, isStreaming: false },
+        global: createGlobalConfig(createProvide())
+      })
+      expect(wrapper.find('.streaming-indicator').exists()).toBe(false)
+    })
+
+    it('should show streaming indicator with editable prop', () => {
+      wrapper = mount(DraggableTreeItem, {
+        props: { ...defaultProps, editable: true, isStreaming: true },
+        global: createGlobalConfig(createProvide())
+      })
+      expect(wrapper.find('.streaming-indicator').exists()).toBe(true)
+    })
+
+    it('should have correct title attribute on streaming indicator', () => {
+      wrapper = mount(DraggableTreeItem, {
+        props: { ...defaultProps, isStreaming: true },
+        global: createGlobalConfig(createProvide())
+      })
+      expect(wrapper.find('.streaming-indicator').attributes('title')).toBe('Generating response...')
+    })
+
+    it('streaming indicator should be inside text wrapper', () => {
+      wrapper = mount(DraggableTreeItem, {
+        props: { ...defaultProps, isStreaming: true },
+        global: createGlobalConfig(createProvide())
+      })
+      const wrapper_div = wrapper.find('.tree-item-text-wrapper')
+      expect(wrapper_div.exists()).toBe(true)
+      expect(wrapper_div.find('.streaming-indicator').exists()).toBe(true)
     })
   })
 
