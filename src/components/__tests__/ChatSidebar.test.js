@@ -12,6 +12,20 @@ vi.mock('vue-router', () => ({
   })
 }))
 
+// Mock the LLM API module to prevent real network calls from SettingsModal
+vi.mock('../../services/api.js', () => ({
+  listProviders: vi.fn(() => [
+    { id: 'lmstudio', name: 'LM Studio', requiresApiKey: false }
+  ]),
+  getCurrentProviderId: vi.fn(() => 'lmstudio'),
+  getCurrentConfig: vi.fn(() => ({})),
+  setProvider: vi.fn(),
+  testConnection: vi.fn(() => Promise.resolve(true)),
+  fetchModels: vi.fn(() => Promise.resolve([
+    { id: 'model-1', name: 'Test Model 1' }
+  ]))
+}))
+
 describe('ChatSidebar', () => {
   let wrapper
   let chatStore
@@ -2417,20 +2431,97 @@ describe('ChatSidebar', () => {
     })
   })
 
-  describe('Back Button (Previous Notebook)', () => {
+  describe('Back Button (Previous Question)', () => {
     beforeEach(() => {
       mockRouterPush.mockClear()
     })
 
-    it('should not render back button initially', () => {
+    it('should always render back button', () => {
       wrapper = mount(ChatSidebar, {
         props: { chats: [], currentChatId: 'chat1' }
       })
 
-      expect(wrapper.find('.back-button').exists()).toBe(false)
+      expect(wrapper.find('.back-button').exists()).toBe(true)
     })
 
-    it('should render back button after moving question to new notebook', async () => {
+    it('should be disabled when no previousLocation in store', () => {
+      chatStore.previousLocation = null
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats: [], currentChatId: 'chat1' }
+      })
+
+      const backButton = wrapper.find('.back-button')
+      expect(backButton.classes()).toContain('disabled')
+      expect(backButton.attributes('disabled')).toBeDefined()
+    })
+
+    it('should be enabled when previousLocation exists in store', () => {
+      chatStore.previousLocation = { messageId: 'q1', chatId: 'chat1' }
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats: [], currentChatId: 'chat1' }
+      })
+
+      const backButton = wrapper.find('.back-button')
+      expect(backButton.classes()).not.toContain('disabled')
+      expect(backButton.attributes('disabled')).toBeUndefined()
+    })
+
+    it('should navigate to previous question when back button clicked', async () => {
+      chatStore.previousLocation = { messageId: 'q1', chatId: 'chat1' }
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats: [], currentChatId: 'chat2' }
+      })
+
+      await wrapper.find('.back-button').trigger('click')
+
+      expect(mockRouterPush).toHaveBeenCalledWith({
+        name: 'question',
+        params: { id: 'chat1', questionId: 'q1' }
+      })
+    })
+
+    it('should clear previousLocation in store after clicking back', async () => {
+      chatStore.previousLocation = { messageId: 'q1', chatId: 'chat1' }
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats: [], currentChatId: 'chat2' }
+      })
+
+      await wrapper.find('.back-button').trigger('click')
+
+      expect(chatStore.previousLocation).toBeNull()
+    })
+
+    it('should become disabled after clicking back', async () => {
+      chatStore.previousLocation = { messageId: 'q1', chatId: 'chat1' }
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats: [], currentChatId: 'chat2' }
+      })
+
+      await wrapper.find('.back-button').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      const backButton = wrapper.find('.back-button')
+      expect(backButton.classes()).toContain('disabled')
+    })
+
+    it('should not navigate when disabled', async () => {
+      chatStore.previousLocation = null
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats: [], currentChatId: 'chat1' }
+      })
+
+      await wrapper.find('.back-button').trigger('click')
+
+      expect(mockRouterPush).not.toHaveBeenCalled()
+    })
+
+    it('should set previousLocation when moving question to new notebook', async () => {
       setupMessagesInStore([
         { id: 'q1', question: 'Test Question', response: '' }
       ])
@@ -2441,6 +2532,7 @@ describe('ChatSidebar', () => {
         rootMessageIds: ['q1']
       }]
       chatStore.currentChatId = 'chat1'
+      chatStore.currentMessageId = 'q1'
       chatStore.rootMessageIds = ['q1']
 
       const chats = [{
@@ -2450,11 +2542,8 @@ describe('ChatSidebar', () => {
       }]
 
       wrapper = mount(ChatSidebar, {
-        props: { chats, currentChatId: 'chat1' }
+        props: { chats, currentChatId: 'chat1', currentMessageId: 'q1' }
       })
-
-      // Initially no back button
-      expect(wrapper.find('.back-button').exists()).toBe(false)
 
       // Simulate dropping on notebooks button to show modal
       const notebooksButton = wrapper.find('.back-home-button')
@@ -2472,18 +2561,18 @@ describe('ChatSidebar', () => {
         preventDefault: vi.fn()
       })
 
-      // Modal should be shown
-      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
-      expect(modal.props('visible')).toBe(true)
-
       // Simulate selecting "New notebook" in modal
+      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
       await modal.vm.$emit('select-new')
 
-      // Back button should now be visible
-      expect(wrapper.find('.back-button').exists()).toBe(true)
+      // previousLocation should be set in store
+      expect(chatStore.previousLocation).toEqual({
+        messageId: 'q1',
+        chatId: 'chat1'
+      })
     })
 
-    it('should render back button after moving question to existing notebook', async () => {
+    it('should set previousLocation when moving question to existing notebook', async () => {
       setupMessagesInStore([
         { id: 'q1', question: 'Test Question', response: '' }
       ])
@@ -2493,6 +2582,7 @@ describe('ChatSidebar', () => {
         { id: 'chat2', title: 'Chat 2', rootMessageIds: [] }
       ]
       chatStore.currentChatId = 'chat1'
+      chatStore.currentMessageId = 'q1'
       chatStore.rootMessageIds = ['q1']
 
       const chats = [
@@ -2501,11 +2591,8 @@ describe('ChatSidebar', () => {
       ]
 
       wrapper = mount(ChatSidebar, {
-        props: { chats, currentChatId: 'chat1' }
+        props: { chats, currentChatId: 'chat1', currentMessageId: 'q1' }
       })
-
-      // Initially no back button
-      expect(wrapper.find('.back-button').exists()).toBe(false)
 
       // Simulate dropping on notebooks button to show modal
       const notebooksButton = wrapper.find('.back-home-button')
@@ -2527,154 +2614,11 @@ describe('ChatSidebar', () => {
       const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
       await modal.vm.$emit('select-existing', { id: 'chat2', title: 'Chat 2' })
 
-      // Back button should now be visible
-      expect(wrapper.find('.back-button').exists()).toBe(true)
-    })
-
-    it('should navigate to previous notebook when back button clicked', async () => {
-      setupMessagesInStore([
-        { id: 'q1', question: 'Test Question', response: '' }
-      ])
-
-      chatStore.chats = [{
-        id: 'chat1',
-        title: 'Chat 1',
-        rootMessageIds: ['q1']
-      }]
-      chatStore.currentChatId = 'chat1'
-      chatStore.rootMessageIds = ['q1']
-
-      const chats = [{
-        id: 'chat1',
-        title: 'Chat 1',
-        questions: [{ id: 'q1', text: 'Test Question' }]
-      }]
-
-      wrapper = mount(ChatSidebar, {
-        props: { chats, currentChatId: 'chat1' }
+      // previousLocation should be set in store
+      expect(chatStore.previousLocation).toEqual({
+        messageId: 'q1',
+        chatId: 'chat1'
       })
-
-      // Trigger move to new notebook
-      const notebooksButton = wrapper.find('.back-home-button')
-      const treeItem = wrapper.find('.tree-item')
-
-      await treeItem.trigger('dragstart', {
-        dataTransfer: { effectAllowed: 'move', setData: vi.fn() }
-      })
-
-      await notebooksButton.trigger('drop', {
-        dataTransfer: {},
-        preventDefault: vi.fn()
-      })
-
-      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
-      await modal.vm.$emit('select-new')
-
-      // Clear previous router calls
-      mockRouterPush.mockClear()
-
-      // Click back button
-      const backButton = wrapper.find('.back-button')
-      await backButton.trigger('click')
-
-      // Should navigate to previous notebook
-      expect(mockRouterPush).toHaveBeenCalledWith({
-        name: 'notebook',
-        params: { id: 'chat1' }
-      })
-    })
-
-    it('should hide back button after clicking it', async () => {
-      setupMessagesInStore([
-        { id: 'q1', question: 'Test Question', response: '' }
-      ])
-
-      chatStore.chats = [{
-        id: 'chat1',
-        title: 'Chat 1',
-        rootMessageIds: ['q1']
-      }]
-      chatStore.currentChatId = 'chat1'
-      chatStore.rootMessageIds = ['q1']
-
-      const chats = [{
-        id: 'chat1',
-        title: 'Chat 1',
-        questions: [{ id: 'q1', text: 'Test Question' }]
-      }]
-
-      wrapper = mount(ChatSidebar, {
-        props: { chats, currentChatId: 'chat1' }
-      })
-
-      // Trigger move to new notebook
-      const notebooksButton = wrapper.find('.back-home-button')
-      const treeItem = wrapper.find('.tree-item')
-
-      await treeItem.trigger('dragstart', {
-        dataTransfer: { effectAllowed: 'move', setData: vi.fn() }
-      })
-
-      await notebooksButton.trigger('drop', {
-        dataTransfer: {},
-        preventDefault: vi.fn()
-      })
-
-      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
-      await modal.vm.$emit('select-new')
-
-      // Back button should be visible
-      expect(wrapper.find('.back-button').exists()).toBe(true)
-
-      // Click back button
-      await wrapper.find('.back-button').trigger('click')
-
-      // Back button should be hidden
-      expect(wrapper.find('.back-button').exists()).toBe(false)
-    })
-
-    it('should not show back button when modal is cancelled', async () => {
-      setupMessagesInStore([
-        { id: 'q1', question: 'Test Question', response: '' }
-      ])
-
-      chatStore.chats = [{
-        id: 'chat1',
-        title: 'Chat 1',
-        rootMessageIds: ['q1']
-      }]
-      chatStore.currentChatId = 'chat1'
-      chatStore.rootMessageIds = ['q1']
-
-      const chats = [{
-        id: 'chat1',
-        title: 'Chat 1',
-        questions: [{ id: 'q1', text: 'Test Question' }]
-      }]
-
-      wrapper = mount(ChatSidebar, {
-        props: { chats, currentChatId: 'chat1' }
-      })
-
-      // Trigger move modal
-      const notebooksButton = wrapper.find('.back-home-button')
-      const treeItem = wrapper.find('.tree-item')
-
-      await treeItem.trigger('dragstart', {
-        dataTransfer: { effectAllowed: 'move', setData: vi.fn() }
-      })
-
-      await notebooksButton.trigger('drop', {
-        dataTransfer: {},
-        preventDefault: vi.fn()
-      })
-
-      // Cancel the modal
-      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
-      await modal.vm.$emit('cancel')
-
-      // Back button should not be visible
-      expect(wrapper.find('.back-button').exists()).toBe(false)
     })
   })
 

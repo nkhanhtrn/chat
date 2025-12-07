@@ -496,4 +496,183 @@ describe('storage.js', () => {
       expect(lastCall.messagesById).toHaveProperty('m4')
     })
   })
+
+  describe('UI state exclusions from Firestore sync', () => {
+    beforeEach(() => {
+      vi.mocked(firestore.syncChatStateToFirestore).mockResolvedValue(undefined)
+    })
+
+    it('excludes currentMessageId from Firestore sync', async () => {
+      const state = {
+        messagesById: { m1: { id: 'm1' } },
+        chats: [],
+        currentMessageId: 'msg123',
+        isStreaming: false
+      }
+
+      await saveChatState(state)
+
+      const syncedState = vi.mocked(firestore.syncChatStateToFirestore).mock.calls[0][0]
+      expect(syncedState).not.toHaveProperty('currentMessageId')
+    })
+
+    it('excludes currentChatId from Firestore sync', async () => {
+      const state = {
+        messagesById: { m1: { id: 'm1' } },
+        chats: [],
+        currentChatId: 'chat123',
+        isStreaming: false
+      }
+
+      await saveChatState(state)
+
+      const syncedState = vi.mocked(firestore.syncChatStateToFirestore).mock.calls[0][0]
+      expect(syncedState).not.toHaveProperty('currentChatId')
+    })
+
+    it('excludes currentRootIndex from Firestore sync', async () => {
+      const state = {
+        messagesById: { m1: { id: 'm1' } },
+        chats: [],
+        currentRootIndex: 5,
+        isStreaming: false
+      }
+
+      await saveChatState(state)
+
+      const syncedState = vi.mocked(firestore.syncChatStateToFirestore).mock.calls[0][0]
+      expect(syncedState).not.toHaveProperty('currentRootIndex')
+    })
+
+    it('excludes previousLocation from Firestore sync', async () => {
+      const state = {
+        messagesById: { m1: { id: 'm1' } },
+        chats: [],
+        previousLocation: { messageId: 'msg1', chatId: 'chat1' },
+        isStreaming: false
+      }
+
+      await saveChatState(state)
+
+      const syncedState = vi.mocked(firestore.syncChatStateToFirestore).mock.calls[0][0]
+      expect(syncedState).not.toHaveProperty('previousLocation')
+    })
+
+    it('still includes UI state in localStorage', async () => {
+      const state = {
+        messagesById: { m1: { id: 'm1' } },
+        chats: [],
+        currentMessageId: 'msg123',
+        currentChatId: 'chat123',
+        currentRootIndex: 5,
+        previousLocation: { messageId: 'msg1', chatId: 'chat1' },
+        isStreaming: false
+      }
+
+      await saveChatState(state)
+
+      const savedData = JSON.parse(mockLocalStorage.setItem.mock.calls[0][1])
+      expect(savedData.currentMessageId).toBe('msg123')
+      expect(savedData.currentChatId).toBe('chat123')
+      expect(savedData.currentRootIndex).toBe(5)
+      expect(savedData.previousLocation).toEqual({ messageId: 'msg1', chatId: 'chat1' })
+    })
+
+    it('includes data state in Firestore sync', async () => {
+      const state = {
+        messagesById: { m1: { id: 'm1', question: 'Test' } },
+        chats: [{ id: 'chat1', rootMessageIds: ['m1'] }],
+        currentMessageId: 'msg123',
+        isStreaming: false
+      }
+
+      await saveChatState(state)
+
+      const syncedState = vi.mocked(firestore.syncChatStateToFirestore).mock.calls[0][0]
+      expect(syncedState.messagesById).toEqual({ m1: { id: 'm1', question: 'Test' } })
+      expect(syncedState.chats).toEqual([{ id: 'chat1', rootMessageIds: ['m1'] }])
+    })
+  })
+
+  describe('skip sync when data unchanged', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+      vi.mocked(firestore.syncChatStateToFirestore).mockResolvedValue(undefined)
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('skips Firestore sync when only UI state changes', async () => {
+      const state1 = {
+        messagesById: { m1: { id: 'm1' } },
+        chats: [],
+        currentMessageId: 'msg1',
+        isStreaming: false
+      }
+      const state2 = {
+        messagesById: { m1: { id: 'm1' } },
+        chats: [],
+        currentMessageId: 'msg2', // Only UI state changed
+        isStreaming: false
+      }
+
+      await saveChatState(state1)
+      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+
+      await saveChatState(state2)
+      // Should still be 1 because data state hasn't changed
+      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+    })
+
+    it('syncs when data state changes', async () => {
+      const state1 = {
+        messagesById: { m1: { id: 'm1' } },
+        chats: [],
+        currentMessageId: 'msg1',
+        isStreaming: false
+      }
+      const state2 = {
+        messagesById: { m1: { id: 'm1' }, m2: { id: 'm2' } }, // Data changed
+        chats: [],
+        currentMessageId: 'msg1',
+        isStreaming: false
+      }
+
+      await saveChatState(state1)
+      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+
+      // Advance past throttle period
+      await vi.advanceTimersByTimeAsync(1000)
+
+      await saveChatState(state2)
+      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(2)
+    })
+
+    it('skips sync for navigation-only changes', async () => {
+      const baseState = {
+        messagesById: { m1: { id: 'm1' }, m2: { id: 'm2' } },
+        chats: [{ id: 'chat1', rootMessageIds: ['m1', 'm2'] }],
+        isStreaming: false
+      }
+
+      // First save
+      await saveChatState({ ...baseState, currentMessageId: 'm1', currentChatId: 'chat1' })
+      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+
+      // Navigate to different message (only UI state changes)
+      await saveChatState({ ...baseState, currentMessageId: 'm2', currentChatId: 'chat1' })
+      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+
+      // Navigate with previousLocation set (only UI state changes)
+      await saveChatState({
+        ...baseState,
+        currentMessageId: 'm1',
+        currentChatId: 'chat1',
+        previousLocation: { messageId: 'm2', chatId: 'chat1' }
+      })
+      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+    })
+  })
 })

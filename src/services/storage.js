@@ -12,6 +12,7 @@ const FIRESTORE_SYNC_THROTTLE_MS = 1000
 let lastFirestoreSyncTime = 0
 let pendingFirestoreSync = null
 let pendingState = null
+let lastSyncedStateHash = null
 
 /**
  * Reset throttle state (for testing purposes)
@@ -23,6 +24,14 @@ export const _resetThrottleState = () => {
   }
   pendingFirestoreSync = null
   pendingState = null
+  lastSyncedStateHash = null
+}
+
+/**
+ * Simple hash function to compare state objects
+ */
+const hashState = (state) => {
+  return JSON.stringify(state)
 }
 
 /**
@@ -49,6 +58,12 @@ const serializeState = (state) => {
  * @param {Object} serializedState - The serialized state to sync
  */
 const throttledFirestoreSync = (serializedState) => {
+  // Skip sync if data hasn't changed
+  const stateHash = hashState(serializedState)
+  if (stateHash === lastSyncedStateHash) {
+    return
+  }
+
   // Store the latest state to sync
   pendingState = serializedState
 
@@ -83,6 +98,8 @@ const performFirestoreSync = async () => {
 
   try {
     await syncChatStateToFirestore(stateToSync)
+    // Update hash after successful sync
+    lastSyncedStateHash = hashState(stateToSync)
   } catch (firestoreError) {
     console.warn('Firestore sync failed:', firestoreError)
   }
@@ -110,7 +127,10 @@ export const saveChatState = async (state) => {
     // Optionally sync to Firestore if enabled and user is authenticated
     // Uses throttling to limit writes to once per second
     if (ENABLE_FIRESTORE_SYNC) {
-      throttledFirestoreSync(serializedState)
+      // Exclude UI-only state from Firestore sync
+      // These are session-specific and don't need to be synced across devices
+      const { currentMessageId, currentChatId, currentRootIndex, previousLocation, ...dataState } = serializedState
+      throttledFirestoreSync(dataState)
     }
   } catch (error) {
     console.error('Failed to save chat state to localStorage:', error)

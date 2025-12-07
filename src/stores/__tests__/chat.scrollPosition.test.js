@@ -232,4 +232,107 @@ describe('scroll position', () => {
       loadChatStateSpy.mockRestore()
     })
   })
+
+  describe('previousLocation tracking', () => {
+    beforeEach(() => {
+      chatStore.chats = [{ id: 'notebook1', rootMessageIds: ['msg1', 'msg2'] }]
+      chatStore.currentChatId = 'notebook1'
+      chatStore.addRootMessage({ id: 'msg1', question: 'Q1', response: 'R1' })
+      chatStore.addRootMessage({ id: 'msg2', question: 'Q2', response: 'R2' })
+      chatStore.currentMessageId = 'msg1'
+    })
+
+    it('should track previousLocation when navigating to a different message', () => {
+      chatStore.navigateToMessage('msg2')
+
+      expect(chatStore.previousLocation).toEqual({
+        messageId: 'msg1',
+        chatId: 'notebook1'
+      })
+    })
+
+    it('should not track previousLocation when navigating to same message', () => {
+      chatStore.navigateToMessage('msg1')
+
+      expect(chatStore.previousLocation).toBeNull()
+    })
+
+    it('should not track previousLocation when currentMessageId is null', () => {
+      chatStore.currentMessageId = null
+      chatStore.navigateToMessage('msg1')
+
+      expect(chatStore.previousLocation).toBeNull()
+    })
+
+    it('should skip history tracking when skipHistory option is true', () => {
+      chatStore.navigateToMessage('msg2', null, { skipHistory: true })
+
+      expect(chatStore.previousLocation).toBeNull()
+    })
+
+    it('should update previousLocation on subsequent navigations', () => {
+      chatStore.navigateToMessage('msg2')
+      expect(chatStore.previousLocation).toEqual({ messageId: 'msg1', chatId: 'notebook1' })
+
+      chatStore.navigateToMessage('msg1')
+      expect(chatStore.previousLocation).toEqual({ messageId: 'msg2', chatId: 'notebook1' })
+    })
+
+    it('should track chatId at time of navigation', () => {
+      chatStore.chats.push({ id: 'notebook2', rootMessageIds: ['msg3'] })
+      chatStore.addRootMessage({ id: 'msg3', question: 'Q3', response: 'R3' })
+
+      // Navigate within notebook1
+      chatStore.navigateToMessage('msg2')
+      expect(chatStore.previousLocation.chatId).toBe('notebook1')
+
+      // Switch to notebook2 and navigate
+      // Note: previousLocation captures the chatId at the time of navigation,
+      // so if we switch chatId before navigating, it uses the new chatId
+      chatStore.currentChatId = 'notebook2'
+      chatStore.navigateToMessage('msg3')
+
+      // The previousLocation captures msg2 with the current chatId at time of call
+      expect(chatStore.previousLocation).toEqual({
+        messageId: 'msg2',
+        chatId: 'notebook2'
+      })
+    })
+  })
+
+  describe('navigateBack action', () => {
+    beforeEach(() => {
+      chatStore.chats = [{ id: 'notebook1', rootMessageIds: ['msg1', 'msg2'] }]
+      chatStore.currentChatId = 'notebook1'
+      chatStore.addRootMessage({ id: 'msg1', question: 'Q1', response: 'R1' })
+      chatStore.addRootMessage({ id: 'msg2', question: 'Q2', response: 'R2' })
+      chatStore.currentMessageId = 'msg1'
+    })
+
+    it('should return null when there is no previousLocation', () => {
+      const result = chatStore.navigateBack()
+
+      expect(result).toBeNull()
+    })
+
+    it('should return previousLocation and clear it', () => {
+      chatStore.navigateToMessage('msg2')
+      expect(chatStore.previousLocation).not.toBeNull()
+
+      const result = chatStore.navigateBack()
+
+      expect(result).toEqual({ messageId: 'msg1', chatId: 'notebook1' })
+      expect(chatStore.previousLocation).toBeNull()
+    })
+
+    it('should only allow one back navigation per navigation', () => {
+      chatStore.navigateToMessage('msg2')
+
+      const firstResult = chatStore.navigateBack()
+      const secondResult = chatStore.navigateBack()
+
+      expect(firstResult).toEqual({ messageId: 'msg1', chatId: 'notebook1' })
+      expect(secondResult).toBeNull()
+    })
+  })
 })

@@ -14,6 +14,20 @@ vi.mock('vue-router', () => ({
   })
 }))
 
+// Mock the LLM API module to prevent real network calls
+vi.mock('../services/api.js', () => ({
+  listProviders: vi.fn(() => [
+    { id: 'lmstudio', name: 'LM Studio', requiresApiKey: false }
+  ]),
+  getCurrentProviderId: vi.fn(() => 'lmstudio'),
+  getCurrentConfig: vi.fn(() => ({})),
+  setProvider: vi.fn(),
+  testConnection: vi.fn(() => Promise.resolve(true)),
+  fetchModels: vi.fn(() => Promise.resolve([
+    { id: 'model-1', name: 'Test Model 1' }
+  ]))
+}))
+
 describe('HomePage', () => {
   let wrapper
   let pinia

@@ -3,10 +3,11 @@
     <div class="sidebar-header">
       <div class="header-buttons">
         <button
-          v-if="previousNotebookId"
           @click="handleGoBack"
           class="back-button"
-          title="Back to previous notebook"
+          :class="{ disabled: !chatStore.previousLocation }"
+          :disabled="!chatStore.previousLocation"
+          title="Back to previous question"
         >
           <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
         </button>
@@ -272,7 +273,8 @@ const showSettings = ref(false)
 const isNotebooksDropTarget = ref(false)
 const showMoveModal = ref(false)
 const pendingMoveMessageId = ref(null)
-const previousNotebookId = ref(null)
+
+// Previous location is now tracked in the store via chatStore.previousLocation
 
 // Drag state - shared with MessageTree via provide
 const draggedItem = ref(null)
@@ -459,7 +461,8 @@ const handleMoveToNewNotebook = () => {
 
   // Navigate to the new notebook and the moved question
   if (result) {
-    previousNotebookId.value = sourceNotebookId
+    // Track previous location in store for back navigation
+    chatStore.previousLocation = { messageId: props.currentMessageId, chatId: sourceNotebookId }
     router.push({ name: 'question', params: { id: result.newChatId, questionId: result.messageId } })
   }
 }
@@ -483,19 +486,19 @@ const handleMoveToExistingNotebook = (notebook) => {
 
   // Navigate to the target notebook and the moved question
   if (result) {
-    previousNotebookId.value = sourceNotebookId
+    // Track previous location in store for back navigation
+    chatStore.previousLocation = { messageId: props.currentMessageId, chatId: sourceNotebookId }
     router.push({ name: 'question', params: { id: result.targetChatId, questionId: result.messageId } })
   }
 }
 
-// Handle going back to previous notebook
+// Handle going back to previous location
 const handleGoBack = () => {
-  if (!previousNotebookId.value) return
+  const loc = chatStore.navigateBack()
+  if (!loc) return
 
-  const notebookId = previousNotebookId.value
-  previousNotebookId.value = null
-
-  router.push({ name: 'notebook', params: { id: notebookId } })
+  // Use router for navigation (works across notebooks)
+  router.push({ name: 'question', params: { id: loc.chatId, questionId: loc.messageId } })
 }
 
 // Handle canceling the move
@@ -552,9 +555,14 @@ const handleCancelMove = () => {
   transition: background-color 0.15s, color 0.15s;
 }
 
-.back-button:hover {
+.back-button:hover:not(:disabled) {
   background-color: var(--color-bg-hover);
   color: var(--color-text-secondary);
+}
+
+.back-button.disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 .back-home-button {

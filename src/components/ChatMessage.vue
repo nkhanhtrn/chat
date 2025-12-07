@@ -36,7 +36,6 @@
            @ask-question="handleAskQuestion"
            @change-color="handleChangeColor"
            @remove-highlight="handleRemoveHighlight"
-           @add-chapter="handleAddChapter"
            @add-note="handleAddNote"
            @quick-explain="handleQuickExplain"
            @custom-prompt="handleCustomPrompt"
@@ -279,51 +278,6 @@ function handleRemoveHighlight() {
     highlights.removeHighlight(popup.state.highlightId)
   }
   closePopup()
-}
-
-async function handleAddChapter(selectedText) {
-  if (!selectedText || isChildStreaming.value) return
-
-  const { startOffset, endOffset } = popup.state
-  if (startOffset === undefined || endOffset === undefined) {
-    console.error('Invalid selection data')
-    return
-  }
-
-  closePopup()
-
-  const newRootMsg = chatStore.addRootMessage({
-    id: crypto.randomUUID(),
-    question: selectedText,
-    response: ''
-  })
-
-  highlights.addQuestionLink({
-    text: selectedText,
-    targetMessageId: newRootMsg.id,
-    startOffset,
-    endOffset
-  })
-
-  isChildStreaming.value = true
-  chatStore.streamingMessageId = newRootMsg.id
-  error.value = null
-
-  try {
-    const messages = getMainPrompts(`[NEWTOPIC] ${selectedText}`)
-    await chatServiceImpl.sendMessage(
-      chatStore.currentModel,
-      messages,
-      (chunk) => {
-        chatStore.appendToResponse(newRootMsg.id, chunk)
-      }
-    )
-  } catch (err) {
-    error.value = err.message
-  } finally {
-    isChildStreaming.value = false
-    chatStore.streamingMessageId = null
-  }
 }
 
 function handleAddNote() {

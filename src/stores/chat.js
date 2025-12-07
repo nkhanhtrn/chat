@@ -27,6 +27,9 @@ export const useChatStore = defineStore('chat', {
       chats: [], // [{ id, rootMessageIds }]
       currentChatId: null,
 
+      // Back navigation - tracks previous location for back button
+      previousLocation: null, // { messageId, chatId } or null
+
       // Initialization state
       isInitialized: false,
     }
@@ -368,8 +371,12 @@ export const useChatStore = defineStore('chat', {
 
     // Navigation actions
     // Returns the scroll position of the target message
-    navigateToMessage(messageId, currentScrollPosition = null) {
+    navigateToMessage(messageId, currentScrollPosition = null, { skipHistory = false } = {}) {
       if (this.messagesById[messageId]) {
+        // Track previous location for back button (unless skipping history)
+        if (!skipHistory && this.currentMessageId && this.currentMessageId !== messageId) {
+          this.previousLocation = { messageId: this.currentMessageId, chatId: this.currentChatId }
+        }
         // Save scroll position of current message before navigating
         if (currentScrollPosition !== null && this.currentMessageId) {
           this.messagesById[this.currentMessageId].scrollPosition = currentScrollPosition
@@ -379,6 +386,16 @@ export const useChatStore = defineStore('chat', {
         return this.messagesById[messageId].scrollPosition || 0
       }
       return 0
+    },
+
+    // Navigate back to previous location
+    navigateBack() {
+      if (!this.previousLocation) return null
+
+      const { messageId, chatId } = this.previousLocation
+      this.previousLocation = null
+
+      return { messageId, chatId }
     },
 
     navigateToParent(messageId = this.currentMessageId, currentScrollPosition = null) {
