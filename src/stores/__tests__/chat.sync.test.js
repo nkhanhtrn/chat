@@ -319,6 +319,35 @@ describe('useChatStore - Sync functionality', () => {
       expect(savedState).toHaveProperty('currentModel')
       expect(savedState).toHaveProperty('chats')
       expect(savedState).toHaveProperty('currentChatId')
+      expect(savedState).toHaveProperty('isStreaming')
+    })
+
+    it('includes isStreaming state for Firestore sync control', async () => {
+      vi.mocked(storage.loadChatState).mockResolvedValue({
+        hasConflict: false,
+        state: mockSavedState
+      })
+      vi.mocked(storage.saveChatState).mockResolvedValue(undefined)
+
+      store = useChatStore()
+      await store.initializeStore()
+
+      // Test when not streaming
+      store._persistState()
+      let savedState = vi.mocked(storage.saveChatState).mock.calls[0][0]
+      expect(savedState.isStreaming).toBe(false)
+
+      // Test when streaming
+      store.startStreaming('test-msg-id')
+      store._persistState()
+      savedState = vi.mocked(storage.saveChatState).mock.calls[1][0]
+      expect(savedState.isStreaming).toBe(true)
+
+      // Test after stopping streaming
+      store.stopStreaming()
+      store._persistState()
+      savedState = vi.mocked(storage.saveChatState).mock.calls[2][0]
+      expect(savedState.isStreaming).toBe(false)
     })
   })
 

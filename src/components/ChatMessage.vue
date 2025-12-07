@@ -1,70 +1,76 @@
 <template>
   <div>
-    <!-- Root question -->
-    <div class="message message-user">
-      <div class="message-content">
-        <div class="user-message">
-          {{ rootMessage.question }}
+    <SlideTransition>
+      <div :key="currentMessage.id">
+        <!-- Current question -->
+        <div class="message message-user">
+          <div class="message-content">
+            <div class="user-message">
+              {{ currentMessage.question }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Assistant answer with streaming -->
+        <div v-if="isStreaming || currentResponse" class="message message-assistant">
+          <div class="message-content" style="position: relative;">
+            <div class="assistant-message" @mouseup="showContextMenu">
+              <MarkdownRenderer
+                :content="currentResponse"
+                :custom-content="effectiveCustomContent"
+                @highlight-click="handleHighlightClick"
+                @note-click="handleNoteClick"
+              />
+              <span v-if="isStreaming" class="cursor">▊</span>
+            </div>
+            <div v-if="error" class="error-message">{{ error }}</div>
+          </div>
         </div>
       </div>
-    </div>
+    </SlideTransition>
 
-     <!-- Assistant answer with streaming -->
-     <div v-if="isStreaming || currentResponse" class="message message-assistant">
-       <div class="message-content" style="position: relative;">
-         <div class="assistant-message" @mouseup="showContextMenu">
-           <MarkdownRenderer
-             :content="currentResponse"
-             :custom-content="effectiveCustomContent"
-             @highlight-click="handleHighlightClick"
-             @note-click="handleNoteClick"
-           />
-           <span v-if="isStreaming" class="cursor">▊</span>
-         </div>
-         <div v-if="error" class="error-message">{{ error }}</div>
-         <ContextMenu
-           :visible="popup.state.mode === 'context-menu'"
-           :x="popup.state.x"
-           :y="popup.state.y"
-           :highlighted-text="popup.state.selectedText"
-           :is-streaming="isStreaming"
-           :color-index="popup.state.colorIndex"
-           :has-existing-highlight="!!popup.state.highlightId"
-           :has-existing-note="!!popup.state.noteContent"
-           @close="closePopup"
-           @keep-highlight="keepHighlight"
-           @ask-question="handleAskQuestion"
-           @change-color="handleChangeColor"
-           @remove-highlight="handleRemoveHighlight"
-           @add-note="handleAddNote"
-           @quick-explain="handleQuickExplain"
-           @custom-prompt="handleCustomPrompt"
-           @customPromptDeepDive="handleCustomPromptDeepDive"
-           @link-to-question="handleLinkToQuestion"
-         />
-         <Note
-           :visible="popup.state.mode === 'note'"
-           :note-id="popup.state.highlightId"
-           :initial-content="popup.state.noteContent"
-           :highlighted-text="popup.state.selectedText"
-           :is-temp="popup.state.isNewNote"
-           :start-in-edit-mode="popup.state.startInEditMode"
-           :is-streaming="popup.state.isStreaming"
-           :is-custom-prompt="popup.state.isCustomPrompt"
-           :custom-prompt-text="popup.state.customPromptText"
-           @save="handleNoteSave"
-           @cancel="handleNoteCancel"
-           @delete="handleNoteDelete"
-           @detail-explain="handleNoteDetailExplain"
-           @explore="handleNoteExplore"
-         />
-         <QuestionSearchModal
-           :visible="showQuestionSearch"
-           @select="handleQuestionSearchSelect"
-           @cancel="handleQuestionSearchCancel"
-         />
-       </div>
-     </div>
+    <!-- Popups outside transition to prevent them from animating -->
+    <ContextMenu
+      :visible="popup.state.mode === 'context-menu'"
+      :x="popup.state.x"
+      :y="popup.state.y"
+      :highlighted-text="popup.state.selectedText"
+      :is-streaming="isStreaming"
+      :color-index="popup.state.colorIndex"
+      :has-existing-highlight="!!popup.state.highlightId"
+      :has-existing-note="!!popup.state.noteContent"
+      @close="closePopup"
+      @keep-highlight="keepHighlight"
+      @ask-question="handleAskQuestion"
+      @change-color="handleChangeColor"
+      @remove-highlight="handleRemoveHighlight"
+      @add-note="handleAddNote"
+      @quick-explain="handleQuickExplain"
+      @custom-prompt="handleCustomPrompt"
+      @customPromptDeepDive="handleCustomPromptDeepDive"
+      @link-to-question="handleLinkToQuestion"
+    />
+    <Note
+      :visible="popup.state.mode === 'note'"
+      :note-id="popup.state.highlightId"
+      :initial-content="popup.state.noteContent"
+      :highlighted-text="popup.state.selectedText"
+      :is-temp="popup.state.isNewNote"
+      :start-in-edit-mode="popup.state.startInEditMode"
+      :is-streaming="popup.state.isStreaming"
+      :is-custom-prompt="popup.state.isCustomPrompt"
+      :custom-prompt-text="popup.state.customPromptText"
+      @save="handleNoteSave"
+      @cancel="handleNoteCancel"
+      @delete="handleNoteDelete"
+      @detail-explain="handleNoteDetailExplain"
+      @explore="handleNoteExplore"
+    />
+    <QuestionSearchModal
+      :visible="showQuestionSearch"
+      @select="handleQuestionSearchSelect"
+      @cancel="handleQuestionSearchCancel"
+    />
   </div>
 </template>
 
@@ -73,6 +79,7 @@ import { ref, computed } from 'vue'
 import { useChatStore } from '../stores/chat.js'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import ContextMenu from './ContextMenu.vue'
+import SlideTransition from './SlideTransition.vue'
 import Note from './Note.vue'
 import QuestionSearchModal from './Modal/QuestionSearchModal.vue'
 import { sendChatMessage } from '../services/api.js'

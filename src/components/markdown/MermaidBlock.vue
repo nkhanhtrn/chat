@@ -50,22 +50,60 @@
 </template>
 
 <script>
-import { ref, onMounted, watch, nextTick, computed } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
 import mermaid from 'mermaid'
 import Button from '../Button.vue'
 import MermaidModal from '../Modal/MermaidModal.vue'
 
-let initialized = false
+function isDarkMode() {
+  const stored = localStorage.getItem('theme')
+  if (stored === 'dark' || stored === 'sepia') return true
+  if (stored === 'light') return false
+  // Auto mode - check system preference
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+}
 
 function initMermaid() {
-  if (initialized) return
+  const dark = isDarkMode()
   mermaid.initialize({
     startOnLoad: false,
-    theme: 'default',
+    theme: 'base',
     securityLevel: 'strict',
-    fontFamily: 'inherit'
+    fontFamily: 'inherit',
+    themeVariables: dark ? {
+      // Dark theme colors
+      primaryColor: '#3a3a3a',
+      primaryTextColor: '#e0e0e0',
+      primaryBorderColor: '#5a5a5a',
+      lineColor: '#808080',
+      secondaryColor: '#2d2d2d',
+      tertiaryColor: '#252525',
+      background: '#1e1e1e',
+      mainBkg: '#2d2d2d',
+      nodeBorder: '#5a5a5a',
+      clusterBkg: '#252525',
+      clusterBorder: '#4a4a4a',
+      titleColor: '#e0e0e0',
+      edgeLabelBackground: '#2d2d2d',
+      nodeTextColor: '#e0e0e0',
+    } : {
+      // Light theme colors
+      primaryColor: '#e8e8e8',
+      primaryTextColor: '#333333',
+      primaryBorderColor: '#c0c0c0',
+      lineColor: '#666666',
+      secondaryColor: '#f0f0f0',
+      tertiaryColor: '#f5f5f5',
+      background: '#ffffff',
+      mainBkg: '#f5f5f5',
+      nodeBorder: '#c0c0c0',
+      clusterBkg: '#f8f8f8',
+      clusterBorder: '#d0d0d0',
+      titleColor: '#333333',
+      edgeLabelBackground: '#ffffff',
+      nodeTextColor: '#333333',
+    }
   })
-  initialized = true
 }
 
 export default {
@@ -95,11 +133,18 @@ export default {
       svg.value = ''
 
       try {
-        const id = `mermaid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        const id = `mermaid-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
         const { svg: renderedSvg } = await mermaid.render(id, props.code)
         svg.value = renderedSvg
       } catch (e) {
         error.value = e.message || 'Failed to render mermaid diagram'
+      }
+    }
+
+    // Re-render when theme changes
+    const handleStorageChange = (e) => {
+      if (e.key === 'theme') {
+        nextTick(renderDiagram)
       }
     }
 
@@ -129,6 +174,11 @@ export default {
 
     onMounted(() => {
       nextTick(renderDiagram)
+      window.addEventListener('storage', handleStorageChange)
+    })
+
+    onUnmounted(() => {
+      window.removeEventListener('storage', handleStorageChange)
     })
 
     watch(() => props.code, () => {

@@ -105,8 +105,15 @@ const initializeApp = async () => {
     chatStore._persistState()
   })
 
-  // Mount the app after initialization
+  // Mount the app
   app.mount('#app')
+
+  // Fade out and remove loading screen
+  const loadingEl = document.getElementById('app-loading')
+  if (loadingEl) {
+    loadingEl.style.opacity = '0'
+    setTimeout(() => loadingEl.remove(), 300)
+  }
 }
 
 // Start the app

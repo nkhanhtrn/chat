@@ -28,14 +28,15 @@ let chatStateUnsubscribe = null
 const waitForAuth = () => {
   return new Promise((resolve) => {
     const auth = getFirebaseAuth()
-    // If already authenticated, return immediately
-    if (auth.currentUser) {
-      resolve(auth.currentUser)
-      return
-    }
-    // Otherwise wait for auth state to be determined
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      unsubscribe()
+    // Always use onAuthStateChanged to ensure auth is fully initialized
+    // Checking auth.currentUser directly can throw "Params are not set" if auth isn't ready
+    let unsubscribe = null
+    let resolved = false
+    unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (resolved) return
+      resolved = true
+      // Use queueMicrotask to ensure unsubscribe is assigned before we call it
+      queueMicrotask(() => unsubscribe?.())
       resolve(user)
     })
   })

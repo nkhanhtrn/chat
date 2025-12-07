@@ -97,9 +97,9 @@ describe('MermaidModal', () => {
       expect(wrapper.find('.zoom-level').exists()).toBe(true)
     })
 
-    it('displays 100% zoom by default', () => {
+    it('displays 200% zoom by default', () => {
       const wrapper = mountComponent()
-      expect(wrapper.find('.zoom-level').text()).toBe('100%')
+      expect(wrapper.find('.zoom-level').text()).toBe('200%')
     })
 
     it('increases zoom when zoom in button is clicked', async () => {
@@ -107,7 +107,7 @@ describe('MermaidModal', () => {
       const zoomInBtn = wrapper.findAll('.modal-action-btn')[1]
 
       await zoomInBtn.trigger('click')
-      expect(wrapper.find('.zoom-level').text()).toBe('125%')
+      expect(wrapper.find('.zoom-level').text()).toBe('225%')
     })
 
     it('decreases zoom when zoom out button is clicked', async () => {
@@ -115,7 +115,7 @@ describe('MermaidModal', () => {
       const zoomOutBtn = wrapper.findAll('.modal-action-btn')[0]
 
       await zoomOutBtn.trigger('click')
-      expect(wrapper.find('.zoom-level').text()).toBe('75%')
+      expect(wrapper.find('.zoom-level').text()).toBe('175%')
     })
 
     it('resets zoom when reset button is clicked', async () => {
@@ -125,10 +125,10 @@ describe('MermaidModal', () => {
 
       await zoomInBtn.trigger('click')
       await zoomInBtn.trigger('click')
-      expect(wrapper.find('.zoom-level').text()).toBe('150%')
+      expect(wrapper.find('.zoom-level').text()).toBe('250%')
 
       await resetBtn.trigger('click')
-      expect(wrapper.find('.zoom-level').text()).toBe('100%')
+      expect(wrapper.find('.zoom-level').text()).toBe('200%')
     })
 
     it('applies zoom transform to content', async () => {
@@ -137,14 +137,15 @@ describe('MermaidModal', () => {
 
       await zoomInBtn.trigger('click')
       const content = wrapper.find('.mermaid-modal-content')
-      expect(content.attributes('style')).toContain('scale(1.25)')
+      expect(content.attributes('style')).toContain('scale(2.25)')
     })
 
     it('does not zoom below 25%', async () => {
       const wrapper = mountComponent()
       const zoomOutBtn = wrapper.findAll('.modal-action-btn')[0]
 
-      for (let i = 0; i < 5; i++) {
+      // Starting at 200%, need 8 clicks to try to go below 25%
+      for (let i = 0; i < 10; i++) {
         await zoomOutBtn.trigger('click')
       }
       expect(wrapper.find('.zoom-level').text()).toBe('25%')
@@ -164,7 +165,8 @@ describe('MermaidModal', () => {
       const wrapper = mountComponent()
       const zoomOutBtn = wrapper.findAll('.modal-action-btn')[0]
 
-      for (let i = 0; i < 5; i++) {
+      // Starting at 200%, need 7 clicks to reach 25%
+      for (let i = 0; i < 10; i++) {
         await zoomOutBtn.trigger('click')
       }
       expect(zoomOutBtn.attributes('disabled')).toBeDefined()
@@ -180,7 +182,7 @@ describe('MermaidModal', () => {
       expect(zoomInBtn.attributes('disabled')).toBeDefined()
     })
 
-    it('disables reset button when zoom is at 100%', () => {
+    it('disables reset button when zoom is at default (200%)', () => {
       const wrapper = mountComponent()
       const resetBtn = wrapper.findAll('.modal-action-btn')[2]
       expect(resetBtn.attributes('disabled')).toBeDefined()
@@ -290,18 +292,18 @@ describe('MermaidModal', () => {
         }
       })
 
-      // Zoom in
+      // Zoom in from default 200%
       const zoomInBtn = wrapper.findAll('.modal-action-btn')[1]
       await zoomInBtn.trigger('click')
       await zoomInBtn.trigger('click')
-      expect(wrapper.find('.zoom-level').text()).toBe('150%')
+      expect(wrapper.find('.zoom-level').text()).toBe('250%')
 
       // Close and reopen
       await wrapper.setProps({ visible: false })
       await wrapper.setProps({ visible: true })
 
       // Zoom level should be preserved
-      expect(wrapper.find('.zoom-level').text()).toBe('150%')
+      expect(wrapper.find('.zoom-level').text()).toBe('250%')
     })
   })
 

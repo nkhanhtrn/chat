@@ -26,7 +26,7 @@
                   <line x1="8" y1="11" x2="14" y2="11"></line>
                 </svg>
               </button>
-              <button @click="resetZoom" class="modal-action-btn" title="Reset zoom" :disabled="zoomLevel === 1">
+              <button @click="resetZoom" class="modal-action-btn" title="Reset zoom" :disabled="zoomLevel === DEFAULT_ZOOM">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
                   <path d="M3 3v5h5"></path>
@@ -52,11 +52,7 @@
             :class="{ 'is-panning': isPanning, 'flashing': isFlashing }"
             @mousedown="startPan"
           >
-            <div
-              class="mermaid-modal-content"
-              :style="{ transform: `scale(${zoomLevel})` }"
-              v-html="svg"
-            ></div>
+            <div class="mermaid-modal-content" :style="contentStyle" v-html="svg"></div>
           </div>
           <!-- Resize handles -->
           <div class="resize-handle resize-handle-e" @mousedown="startResize('e', $event)"></div>
@@ -74,7 +70,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 
 const props = defineProps({
   visible: {
@@ -98,10 +94,11 @@ const modalHeight = ref(600)
 const modalX = ref(null)
 const modalY = ref(null)
 
-// Zoom - restore from localStorage
+// Zoom - restore from localStorage (default to 200% for better readability)
 const ZOOM_STORAGE_KEY = 'mermaid-modal-zoom'
+const DEFAULT_ZOOM = 2
 const savedZoom = localStorage.getItem(ZOOM_STORAGE_KEY)
-const zoomLevel = ref(savedZoom ? parseFloat(savedZoom) : 1)
+const zoomLevel = ref(savedZoom ? parseFloat(savedZoom) : DEFAULT_ZOOM)
 const zoomPercent = computed(() => Math.round(zoomLevel.value * 100))
 
 // Save zoom level to localStorage when it changes
@@ -150,6 +147,13 @@ const modalStyle = computed(() => {
   return style
 })
 
+const contentStyle = computed(() => {
+  return {
+    transform: `scale(${zoomLevel.value})`,
+    transformOrigin: 'top left'
+  }
+})
+
 function zoomIn() {
   if (zoomLevel.value < 5) {
     zoomLevel.value = Math.min(5, zoomLevel.value + 0.25)
@@ -163,7 +167,7 @@ function zoomOut() {
 }
 
 function resetZoom() {
-  zoomLevel.value = 1
+  zoomLevel.value = DEFAULT_ZOOM
 }
 
 async function copySvg() {
@@ -453,9 +457,6 @@ onUnmounted(() => {
   flex: 1;
   overflow: auto;
   padding: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   cursor: grab;
 }
 
@@ -478,8 +479,11 @@ onUnmounted(() => {
 }
 
 .mermaid-modal-content {
-  transform-origin: center center;
-  transition: transform 0.2s ease;
+  display: inline-block;
+}
+
+.mermaid-modal-content :deep(svg) {
+  display: block;
 }
 
 /* Resize handles */

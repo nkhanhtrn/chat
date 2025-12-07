@@ -138,6 +138,41 @@ export const saveChatState = async (state) => {
 }
 
 /**
+ * Check if cloud contains all local data plus potentially more
+ * (i.e., cloud is a superset of local)
+ * @param {Object} localState
+ * @param {Object} cloudState
+ * @returns {boolean}
+ */
+const cloudIsSupersetOfLocal = (localState, cloudState) => {
+  if (!localState || !cloudState) return false
+
+  // Get local chat IDs
+  const localChatIds = new Set((localState.chats || []).map(c => c.id))
+  const cloudChatIds = new Set((cloudState.chats || []).map(c => c.id))
+
+  // Check all local chats exist in cloud
+  for (const chatId of localChatIds) {
+    if (!cloudChatIds.has(chatId)) return false
+  }
+
+  // Get local message IDs
+  const localMessageIds = new Set(Object.keys(localState.messagesById || {}))
+  const cloudMessageIds = new Set(Object.keys(cloudState.messagesById || {}))
+
+  // Check all local messages exist in cloud
+  for (const messageId of localMessageIds) {
+    if (!cloudMessageIds.has(messageId)) return false
+  }
+
+  // Cloud has all local data - check if it has MORE data
+  const cloudHasMore = cloudChatIds.size > localChatIds.size ||
+                       cloudMessageIds.size > localMessageIds.size
+
+  return cloudHasMore
+}
+
+/**
  * Check if two states have meaningful data differences
  * @param {Object} state1
  * @param {Object} state2
@@ -192,8 +227,16 @@ export const loadChatState = async () => {
       }
     }
 
-    // If both exist and have different data, return conflict info
+    // If both exist and have different data, check if cloud is a superset
     if (localState && cloudState && hasDataDifference(localState, cloudState)) {
+      // If cloud contains all local data plus more, auto-use cloud (no conflict modal)
+      if (cloudIsSupersetOfLocal(localState, cloudState)) {
+        console.log('Cloud has all local data plus more - auto-syncing from cloud')
+        localStorage.setItem(STORAGE_KEY_CHAT_STATE, JSON.stringify(cloudState))
+        return { hasConflict: false, state: cloudState }
+      }
+
+      // Otherwise, there's a real conflict - local has data that cloud doesn't
       console.log('Detected sync conflict between local and cloud data')
       return {
         hasConflict: true,

@@ -265,6 +265,170 @@ describe('storage.js', () => {
       expect(firestore.loadChatStateFromFirestore).not.toHaveBeenCalled()
       expect(result.state).toEqual(mockLocalState)
     })
+
+    describe('auto-sync when cloud is superset of local', () => {
+      it('auto-uses cloud when cloud contains all local chats plus more', async () => {
+        const localState = {
+          messagesById: { msg1: { id: 'msg1' } },
+          chats: [{ id: 'chat1', rootMessageIds: ['msg1'] }]
+        }
+        const cloudState = {
+          messagesById: { msg1: { id: 'msg1' }, msg2: { id: 'msg2' } },
+          chats: [
+            { id: 'chat1', rootMessageIds: ['msg1'] },
+            { id: 'chat2', rootMessageIds: ['msg2'] }
+          ]
+        }
+
+        mockLocalStorage.store['chat-state'] = JSON.stringify(localState)
+        vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(cloudState)
+
+        const result = await loadChatState()
+
+        expect(result.hasConflict).toBe(false)
+        expect(result.state).toEqual(cloudState)
+      })
+
+      it('auto-uses cloud when cloud contains all local messages plus more', async () => {
+        const localState = {
+          messagesById: { msg1: { id: 'msg1' } },
+          chats: [{ id: 'chat1', rootMessageIds: ['msg1'] }]
+        }
+        const cloudState = {
+          messagesById: { msg1: { id: 'msg1' }, msg2: { id: 'msg2' }, msg3: { id: 'msg3' } },
+          chats: [{ id: 'chat1', rootMessageIds: ['msg1'] }]
+        }
+
+        mockLocalStorage.store['chat-state'] = JSON.stringify(localState)
+        vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(cloudState)
+
+        const result = await loadChatState()
+
+        expect(result.hasConflict).toBe(false)
+        expect(result.state).toEqual(cloudState)
+      })
+
+      it('syncs cloud state to localStorage when auto-using cloud', async () => {
+        const localState = {
+          messagesById: { msg1: { id: 'msg1' } },
+          chats: [{ id: 'chat1' }]
+        }
+        const cloudState = {
+          messagesById: { msg1: { id: 'msg1' }, msg2: { id: 'msg2' } },
+          chats: [{ id: 'chat1' }, { id: 'chat2' }]
+        }
+
+        mockLocalStorage.store['chat-state'] = JSON.stringify(localState)
+        vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(cloudState)
+
+        await loadChatState()
+
+        expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
+          'chat-state',
+          JSON.stringify(cloudState)
+        )
+      })
+
+      it('shows conflict when local has chats that cloud does not', async () => {
+        const localState = {
+          messagesById: { msg1: { id: 'msg1' }, msg2: { id: 'msg2' } },
+          chats: [
+            { id: 'chat1', rootMessageIds: ['msg1'] },
+            { id: 'chat2', rootMessageIds: ['msg2'] }
+          ]
+        }
+        const cloudState = {
+          messagesById: { msg1: { id: 'msg1' }, msg3: { id: 'msg3' } },
+          chats: [
+            { id: 'chat1', rootMessageIds: ['msg1'] },
+            { id: 'chat3', rootMessageIds: ['msg3'] }
+          ]
+        }
+
+        mockLocalStorage.store['chat-state'] = JSON.stringify(localState)
+        vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(cloudState)
+
+        const result = await loadChatState()
+
+        expect(result.hasConflict).toBe(true)
+        expect(result.localData).toEqual(localState)
+        expect(result.cloudData).toEqual(cloudState)
+      })
+
+      it('shows conflict when local has messages that cloud does not', async () => {
+        const localState = {
+          messagesById: { msg1: { id: 'msg1' }, msgLocal: { id: 'msgLocal' } },
+          chats: [{ id: 'chat1' }]
+        }
+        const cloudState = {
+          messagesById: { msg1: { id: 'msg1' }, msgCloud: { id: 'msgCloud' } },
+          chats: [{ id: 'chat1' }]
+        }
+
+        mockLocalStorage.store['chat-state'] = JSON.stringify(localState)
+        vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(cloudState)
+
+        const result = await loadChatState()
+
+        expect(result.hasConflict).toBe(true)
+      })
+
+      it('shows conflict when cloud has same count but different data', async () => {
+        const localState = {
+          messagesById: { msgA: { id: 'msgA' } },
+          chats: [{ id: 'chatA' }]
+        }
+        const cloudState = {
+          messagesById: { msgB: { id: 'msgB' } },
+          chats: [{ id: 'chatB' }]
+        }
+
+        mockLocalStorage.store['chat-state'] = JSON.stringify(localState)
+        vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(cloudState)
+
+        const result = await loadChatState()
+
+        expect(result.hasConflict).toBe(true)
+      })
+
+      it('does not auto-sync when cloud is subset of local', async () => {
+        const localState = {
+          messagesById: { msg1: { id: 'msg1' }, msg2: { id: 'msg2' } },
+          chats: [{ id: 'chat1' }, { id: 'chat2' }]
+        }
+        const cloudState = {
+          messagesById: { msg1: { id: 'msg1' } },
+          chats: [{ id: 'chat1' }]
+        }
+
+        mockLocalStorage.store['chat-state'] = JSON.stringify(localState)
+        vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(cloudState)
+
+        const result = await loadChatState()
+
+        expect(result.hasConflict).toBe(true)
+      })
+
+      it('handles empty local state with cloud data', async () => {
+        const localState = {
+          messagesById: {},
+          chats: []
+        }
+        const cloudState = {
+          messagesById: { msg1: { id: 'msg1' } },
+          chats: [{ id: 'chat1' }]
+        }
+
+        mockLocalStorage.store['chat-state'] = JSON.stringify(localState)
+        vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(cloudState)
+
+        const result = await loadChatState()
+
+        // Empty local is a subset of any cloud, so should auto-use cloud
+        expect(result.hasConflict).toBe(false)
+        expect(result.state).toEqual(cloudState)
+      })
+    })
   })
 
   describe('resolveConflict', () => {

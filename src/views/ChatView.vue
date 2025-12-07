@@ -25,31 +25,32 @@
       </div>
 
       <div class="messages-container" ref="messagesContainer">
-        <div v-if="chatStore.rootMessages.length === 0 || isAddingNewQuestion" class="welcome-message">
-          <h2>{{ isAddingNewQuestion ? 'Ask a new question' : 'Welcome to your Study Assistant!' }}</h2>
-          <p>{{ isAddingNewQuestion ? 'Enter your question below to continue learning.' : 'Start by asking a question about any topic you\'d like to learn.' }}</p>
-          <div v-if="!isAddingNewQuestion" class="example-prompts">
-            <p>Try asking:</p>
-            <ul>
-              <li v-for="q in prepopulatedQuestions" :key="q" @click="handleExampleClick(q)" class="clickable">
-                "{{ q }}"
-              </li>
-            </ul>
+        <SlideTransition>
+          <div v-if="chatStore.rootMessages.length === 0 || isAddingNewQuestion" key="welcome" class="welcome-message">
+            <h2>{{ isAddingNewQuestion ? 'Ask a new question' : 'Welcome to your Study Assistant!' }}</h2>
+            <p>{{ isAddingNewQuestion ? 'Enter your question below to continue learning.' : 'Start by asking a question about any topic you\'d like to learn.' }}</p>
+            <div v-if="!isAddingNewQuestion" class="example-prompts">
+              <p>Try asking:</p>
+              <ul>
+                <li v-for="q in prepopulatedQuestions" :key="q" @click="handleExampleClick(q)" class="clickable">
+                  "{{ q }}"
+                </li>
+              </ul>
+            </div>
           </div>
-        </div>
 
-        <div v-if="chatStore.currentRootMessage && !isAddingNewQuestion" class="root-message-container">
-          <ChatMessage
-            :key="chatStore.currentRootMessage.id"
-            :message="chatStore.currentRootMessage"
-            :is-app-streaming="chatStore.isStreaming && chatStore.currentRootIndex === chatStore.rootMessages.length - 1"
-          />
-          <div v-if="chatStore.isStreaming" class="stop-streaming-container">
-            <button class="stop-streaming-button" @click="handleStopStreaming">
-              Stop generating
-            </button>
+          <div v-else-if="chatStore.currentRootMessage" key="chat" class="root-message-container">
+            <ChatMessage
+              :message="chatStore.currentRootMessage"
+              :is-app-streaming="chatStore.isStreaming && chatStore.currentRootIndex === chatStore.rootMessages.length - 1"
+            />
+            <div v-if="chatStore.isStreaming" class="stop-streaming-container">
+              <button class="stop-streaming-button" @click="handleStopStreaming">
+                Stop generating
+              </button>
+            </div>
           </div>
-        </div>
+        </SlideTransition>
 
         <div v-if="error" class="error-message">
           {{ error }}
@@ -84,6 +85,7 @@ import ChatInput from '../components/ChatInput.vue'
 import ChatSidebar from '../components/ChatSidebar.vue'
 import MessageNavigation from '../components/MessageNavigation.vue'
 import Scratchpad from '../components/Scratchpad.vue'
+import SlideTransition from '../components/SlideTransition.vue'
 import { sendChatMessage, fetchModels } from '../services/api.js'
 import { useChatStore } from '../stores/chat.js'
 import DevToolbar from '../components/DevToolbar.vue'

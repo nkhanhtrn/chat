@@ -186,8 +186,11 @@ describe('firestore.js', () => {
       expect(result).toBeNull()
     })
 
-    it('uses currentUser if already authenticated', async () => {
-      mockAuth.currentUser = mockUser
+    it('uses onAuthStateChanged to wait for auth', async () => {
+      vi.mocked(onAuthStateChanged).mockImplementation((auth, callback) => {
+        queueMicrotask(() => callback(mockUser))
+        return vi.fn()
+      })
 
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
@@ -196,12 +199,15 @@ describe('firestore.js', () => {
 
       await loadChatStateFromFirestore()
 
-      // Should not wait for onAuthStateChanged
-      expect(onAuthStateChanged).not.toHaveBeenCalled()
+      // Should use onAuthStateChanged to ensure auth is ready
+      expect(onAuthStateChanged).toHaveBeenCalled()
     })
 
     it('removes lastUpdated metadata from returned state', async () => {
-      mockAuth.currentUser = mockUser
+      vi.mocked(onAuthStateChanged).mockImplementation((auth, callback) => {
+        queueMicrotask(() => callback(mockUser))
+        return vi.fn()
+      })
 
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
@@ -481,7 +487,10 @@ describe('firestore.js', () => {
     })
 
     it('fetches from Firestore on first call', async () => {
-      mockAuth.currentUser = mockUser
+      vi.mocked(onAuthStateChanged).mockImplementation((auth, callback) => {
+        queueMicrotask(() => callback(mockUser))
+        return vi.fn()
+      })
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
         data: () => ({ ...mockSettings })
@@ -494,7 +503,10 @@ describe('firestore.js', () => {
     })
 
     it('returns cached data on subsequent calls within TTL', async () => {
-      mockAuth.currentUser = mockUser
+      vi.mocked(onAuthStateChanged).mockImplementation((auth, callback) => {
+        queueMicrotask(() => callback(mockUser))
+        return vi.fn()
+      })
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
         data: () => ({ ...mockSettings })
@@ -513,7 +525,10 @@ describe('firestore.js', () => {
     })
 
     it('bypasses cache when forceRefresh is true', async () => {
-      mockAuth.currentUser = mockUser
+      vi.mocked(onAuthStateChanged).mockImplementation((auth, callback) => {
+        queueMicrotask(() => callback(mockUser))
+        return vi.fn()
+      })
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
         data: () => ({ ...mockSettings })
@@ -530,7 +545,10 @@ describe('firestore.js', () => {
     })
 
     it('removes lastUpdated metadata from returned settings', async () => {
-      mockAuth.currentUser = mockUser
+      vi.mocked(onAuthStateChanged).mockImplementation((auth, callback) => {
+        queueMicrotask(() => callback(mockUser))
+        return vi.fn()
+      })
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
         data: () => ({
@@ -576,7 +594,10 @@ describe('firestore.js', () => {
     })
 
     it('forces next loadUserSettings to fetch from Firestore', async () => {
-      mockAuth.currentUser = mockUser
+      vi.mocked(onAuthStateChanged).mockImplementation((auth, callback) => {
+        queueMicrotask(() => callback(mockUser))
+        return vi.fn()
+      })
       vi.mocked(getDoc).mockResolvedValue({
         exists: () => true,
         data: () => ({ theme: 'dark' })
