@@ -629,6 +629,118 @@ End text here`
     })
   })
 
+  describe('Mermaid Block Extraction', () => {
+    it('should extract mermaid code blocks', () => {
+      const content = `Here is a diagram:
+\`\`\`mermaid
+graph TD
+    A --> B
+\`\`\`
+End of diagram.`
+      const ast = parseMarkdownToAST(content)
+
+      const mermaidBlocks = findNodesByType(ast, 'mermaid_block')
+      expect(mermaidBlocks.length).toBe(1)
+      expect(mermaidBlocks[0].code).toBe('graph TD\n    A --> B')
+    })
+
+    it('should not create duplicate code block for mermaid', () => {
+      const content = `\`\`\`mermaid
+flowchart LR
+    A --> B
+\`\`\``
+      const ast = parseMarkdownToAST(content)
+
+      const mermaidBlocks = findNodesByType(ast, 'mermaid_block')
+      const codeBlocks = findNodesByType(ast, 'code_block')
+
+      expect(mermaidBlocks.length).toBe(1)
+      expect(codeBlocks.length).toBe(0)
+    })
+
+    it('should handle mermaid alongside regular code blocks', () => {
+      const content = `\`\`\`mermaid
+graph TD
+    A --> B
+\`\`\`
+
+\`\`\`javascript
+const x = 1;
+\`\`\``
+      const ast = parseMarkdownToAST(content)
+
+      const mermaidBlocks = findNodesByType(ast, 'mermaid_block')
+      const codeBlocks = findNodesByType(ast, 'code_block')
+
+      expect(mermaidBlocks.length).toBe(1)
+      expect(codeBlocks.length).toBe(1)
+      expect(codeBlocks[0].language).toBe('javascript')
+    })
+
+    it('should handle multiple mermaid blocks', () => {
+      const content = `\`\`\`mermaid
+graph TD
+    A --> B
+\`\`\`
+
+Some text
+
+\`\`\`mermaid
+sequenceDiagram
+    Alice->>Bob: Hello
+\`\`\``
+      const ast = parseMarkdownToAST(content)
+
+      const mermaidBlocks = findNodesByType(ast, 'mermaid_block')
+      expect(mermaidBlocks.length).toBe(2)
+      expect(mermaidBlocks[0].code).toContain('graph TD')
+      expect(mermaidBlocks[1].code).toContain('sequenceDiagram')
+    })
+
+    it('should preserve text around mermaid blocks', () => {
+      const content = `Before diagram
+\`\`\`mermaid
+graph TD
+    A --> B
+\`\`\`
+After diagram`
+      const ast = parseMarkdownToAST(content)
+
+      const textNodes = findNodesByType(ast, 'text')
+      expect(textNodes.some(n => n.content && n.content.includes('Before'))).toBe(true)
+      expect(textNodes.some(n => n.content && n.content.includes('After'))).toBe(true)
+    })
+
+    it('should handle mermaid with various diagram types', () => {
+      const content = `\`\`\`mermaid
+pie title Pets
+    "Dogs" : 386
+    "Cats" : 85
+\`\`\``
+      const ast = parseMarkdownToAST(content)
+
+      const mermaidBlocks = findNodesByType(ast, 'mermaid_block')
+      expect(mermaidBlocks.length).toBe(1)
+      expect(mermaidBlocks[0].code).toContain('pie title')
+    })
+
+    it('should assign correct offsets to mermaid blocks', () => {
+      const content = `Text before
+\`\`\`mermaid
+graph LR
+    A --> B
+\`\`\`
+Text after`
+      const ast = parseMarkdownToAST(content)
+
+      const mermaidBlocks = findNodesByType(ast, 'mermaid_block')
+      expect(mermaidBlocks.length).toBe(1)
+      expect(mermaidBlocks[0].startOffset).toBeDefined()
+      expect(mermaidBlocks[0].endOffset).toBeDefined()
+      expect(mermaidBlocks[0].startOffset).toBeGreaterThan(0)
+    })
+  })
+
   describe('Edge Cases', () => {
     it('should handle empty content', () => {
       const ast = parseMarkdownToAST('')

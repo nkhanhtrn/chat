@@ -459,6 +459,7 @@ function extractSpecialBlocks(content) {
   // First pass: find all matches and their positions in the ORIGINAL content
   const patterns = [
     { regex: /\[HIDDEN\]([\s\S]*?)\[\/HIDDEN\]/g, type: 'COLLAPSIBLEBLOCK', getExtra: (m) => ({ content: m[1].trim() }) },
+    { regex: /```mermaid\n([\s\S]*?)```/g, type: 'MERMAIDBLOCK', getExtra: (m) => ({ code: m[1].trim() }) },
     { regex: /```(\w+)?\n([\s\S]*?)```/g, type: 'CODEBLOCK', getExtra: (m) => ({ language: m[1] || 'text', code: m[2].trim() }) },
     { regex: /\$\$([\s\S]+?)\$\$/g, type: 'MATHBLOCK', getExtra: (m) => ({ content: m[1].trim() }) },
     { regex: /\\\[([\s\S]+?)\\\]/g, type: 'MATHBLOCK', getExtra: (m) => ({ content: m[1].trim() }) },
@@ -482,12 +483,23 @@ function extractSpecialBlocks(content) {
   // Sort by position in original content
   allMatches.sort((a, b) => a.index - b.index)
 
+  // Filter out overlapping matches (keep the first one at each position)
+  const filteredMatches = []
+  for (const m of allMatches) {
+    const overlaps = filteredMatches.some(existing =>
+      m.index < existing.index + existing.length && m.index + m.length > existing.index
+    )
+    if (!overlaps) {
+      filteredMatches.push(m)
+    }
+  }
+
   // Build processed content and track replacements
   const replacements = []
   let processedContent = ''
   let lastEnd = 0
 
-  for (const m of allMatches) {
+  for (const m of filteredMatches) {
     // Add content before this match
     processedContent += content.substring(lastEnd, m.index)
 
@@ -679,7 +691,7 @@ function restoreSpecialBlocksInAST(ast, extractedBlocks, customContentItems = []
       // Check if paragraph contains only a placeholder
       const updatedChildren = restoreSpecialBlocksInAST(node.children, extractedBlocks, customContentItems)
       if (updatedChildren.length === 1 &&
-          (updatedChildren[0].type === 'code_block' || updatedChildren[0].type === 'math_block')) {
+          (updatedChildren[0].type === 'code_block' || updatedChildren[0].type === 'math_block' || updatedChildren[0].type === 'mermaid_block')) {
         // Replace paragraph with the block directly
         return updatedChildren[0]
       }

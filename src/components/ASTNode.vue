@@ -42,6 +42,7 @@ import CodeBlock from './markdown/CodeBlock.vue'
 import InlineCode from './markdown/InlineCode.vue'
 import MathBlock from './markdown/MathBlock.vue'
 import MathInline from './markdown/MathInline.vue'
+import MermaidBlock from './markdown/MermaidBlock.vue'
 import MarkdownTable from './markdown/MarkdownTable.vue'
 import CollapsibleBlock from './markdown/CollapsibleBlock.vue'
 
@@ -73,6 +74,7 @@ const componentMap = {
   'code_inline': InlineCode,
   'math_block': MathBlock,
   'math_inline': MathInline,
+  'mermaid_block': MermaidBlock,
   'table': MarkdownTable,
   'collapsible_block': CollapsibleBlock
 }
@@ -122,6 +124,11 @@ function getNodeProps(node) {
     case 'code_block':
       return {
         language: node.language,
+        code: node.code
+      }
+
+    case 'mermaid_block':
+      return {
         code: node.code
       }
 

@@ -125,4 +125,11 @@
   --color-table-header-bg: #f0f0f0;
   --color-table-border: #d0d0d0;
   --color-table-hover-bg: #f8f8f8;
+
+  /* Mermaid Diagram specific */
+  --color-mermaid-bg: #fafafa;
+  --color-mermaid-header-bg: #f0f0f0;
+  --color-mermaid-border: #e0e0e0;
+  --color-mermaid-label-text: #666666;
+  --color-mermaid-error-text: #d32f2f;
 }
