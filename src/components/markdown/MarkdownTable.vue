@@ -11,14 +11,14 @@
         <thead v-if="headers.length > 0">
           <tr>
             <th v-for="(header, index) in headers" :key="index" :style="getAlignment(alignments[index])">
-              <TableCell :children="header" @question-link-click="bubbleQuestionLinkClick" @highlight-click="bubbleHighlightClick" />
+              <TableCell :children="header" @question-link-click="bubbleQuestionLinkClick" @highlight-click="bubbleHighlightClick" @note-click="bubbleNoteClick" />
             </th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="(row, rowIndex) in rows" :key="rowIndex">
             <td v-for="(cell, cellIndex) in row" :key="cellIndex" :style="getAlignment(alignments[cellIndex])">
-              <TableCell :children="cell" @question-link-click="bubbleQuestionLinkClick" @highlight-click="bubbleHighlightClick" />
+              <TableCell :children="cell" @question-link-click="bubbleQuestionLinkClick" @highlight-click="bubbleHighlightClick" @note-click="bubbleNoteClick" />
             </td>
           </tr>
         </tbody>
@@ -28,10 +28,10 @@
           <div v-for="(row, rowIndex) in rows" :key="rowIndex" class="mobile-card">
             <div v-for="(cell, cellIndex) in row" :key="cellIndex" class="mobile-card-row">
               <div class="mobile-card-label">
-                <TableCell v-if="headers[cellIndex]" :children="headers[cellIndex]" @question-link-click="bubbleQuestionLinkClick" @highlight-click="bubbleHighlightClick" />
+                <TableCell v-if="headers[cellIndex]" :children="headers[cellIndex]" @question-link-click="bubbleQuestionLinkClick" @highlight-click="bubbleHighlightClick" @note-click="bubbleNoteClick" />
               </div>
               <div class="mobile-card-value">
-                <TableCell :children="cell" @question-link-click="bubbleQuestionLinkClick" @highlight-click="bubbleHighlightClick" />
+                <TableCell :children="cell" @question-link-click="bubbleQuestionLinkClick" @highlight-click="bubbleHighlightClick" @note-click="bubbleNoteClick" />
               </div>
             </div>
           </div>
@@ -58,7 +58,7 @@ export default {
       required: true
     }
   },
-  emits: ['question-link-click', 'highlight-click'],
+  emits: ['question-link-click', 'highlight-click', 'note-click'],
   setup(props) {
     const isCollapsed = ref(false)
 
@@ -151,6 +151,9 @@ export default {
     },
     bubbleHighlightClick(data) {
       this.$emit('highlight-click', data)
+    },
+    bubbleNoteClick(data) {
+      this.$emit('note-click', data)
     }
   }
 }

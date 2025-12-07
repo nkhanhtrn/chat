@@ -1801,6 +1801,242 @@ describe('Markdown Components', () => {
       // Should expand
       expect(wrapper.find('.table-container').exists()).toBe(true)
     })
+
+    it('should bubble note-click event from table cell', async () => {
+      const tableNode = {
+        type: 'table',
+        children: [
+          {
+            type: 'thead',
+            children: [
+              {
+                type: 'tr',
+                children: [
+                  { type: 'th', children: [{ type: 'text', text: 'Header' }], align: null }
+                ]
+              }
+            ]
+          },
+          {
+            type: 'tbody',
+            children: [
+              {
+                type: 'tr',
+                children: [
+                  {
+                    type: 'td',
+                    children: [
+                      {
+                        type: 'highlight',
+                        text: 'highlight with note',
+                        highlightId: 'h-table-note',
+                        colorIndex: 2,
+                        startOffset: 0,
+                        endOffset: 19,
+                        noteContent: 'Note in table cell',
+                        hasNote: true,
+                        isLastSegment: true
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      const wrapper = mount(MarkdownTable, {
+        props: {
+          node: tableNode
+        }
+      })
+
+      const highlight = wrapper.findComponent(HighlightSpan)
+      expect(highlight.exists()).toBe(true)
+
+      // Find and click the note button
+      const noteButton = highlight.find('.note-button')
+      expect(noteButton.exists()).toBe(true)
+
+      await noteButton.trigger('click')
+
+      expect(wrapper.emitted('note-click')).toBeTruthy()
+      expect(wrapper.emitted('note-click')).toHaveLength(1)
+
+      const [eventData] = wrapper.emitted('note-click')[0]
+      expect(eventData.noteId).toBe('h-table-note')
+      expect(eventData.noteContent).toBe('Note in table cell')
+    })
+
+    it('should bubble note-click event from table header cell', async () => {
+      const tableNode = {
+        type: 'table',
+        children: [
+          {
+            type: 'thead',
+            children: [
+              {
+                type: 'tr',
+                children: [
+                  {
+                    type: 'th',
+                    children: [
+                      {
+                        type: 'highlight',
+                        text: 'header note',
+                        highlightId: 'h-header-note',
+                        colorIndex: 1,
+                        startOffset: 0,
+                        endOffset: 11,
+                        noteContent: 'Note in header',
+                        hasNote: true,
+                        isLastSegment: true
+                      }
+                    ],
+                    align: null
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            type: 'tbody',
+            children: [
+              {
+                type: 'tr',
+                children: [
+                  { type: 'td', children: [{ type: 'text', text: 'Cell' }] }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      const wrapper = mount(MarkdownTable, {
+        props: {
+          node: tableNode
+        }
+      })
+
+      const highlight = wrapper.findComponent(HighlightSpan)
+      expect(highlight.exists()).toBe(true)
+
+      const noteButton = highlight.find('.note-button')
+      expect(noteButton.exists()).toBe(true)
+
+      await noteButton.trigger('click')
+
+      expect(wrapper.emitted('note-click')).toBeTruthy()
+      const [eventData] = wrapper.emitted('note-click')[0]
+      expect(eventData.noteId).toBe('h-header-note')
+    })
+
+    it('should render note button for highlight with note in table cell', () => {
+      const tableNode = {
+        type: 'table',
+        children: [
+          {
+            type: 'thead',
+            children: [
+              {
+                type: 'tr',
+                children: [
+                  { type: 'th', children: [{ type: 'text', text: 'Header' }], align: null }
+                ]
+              }
+            ]
+          },
+          {
+            type: 'tbody',
+            children: [
+              {
+                type: 'tr',
+                children: [
+                  {
+                    type: 'td',
+                    children: [
+                      {
+                        type: 'highlight',
+                        text: 'has note',
+                        highlightId: 'h-with-note-btn',
+                        colorIndex: 0,
+                        startOffset: 0,
+                        endOffset: 8,
+                        noteContent: 'The note content',
+                        hasNote: true,
+                        isLastSegment: true
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      const wrapper = mount(MarkdownTable, {
+        props: { node: tableNode }
+      })
+
+      const highlight = wrapper.findComponent(HighlightSpan)
+      expect(highlight.exists()).toBe(true)
+      expect(highlight.find('.note-button').exists()).toBe(true)
+    })
+
+    it('should not render note button for highlight without note in table cell', () => {
+      const tableNode = {
+        type: 'table',
+        children: [
+          {
+            type: 'thead',
+            children: [
+              {
+                type: 'tr',
+                children: [
+                  { type: 'th', children: [{ type: 'text', text: 'Header' }], align: null }
+                ]
+              }
+            ]
+          },
+          {
+            type: 'tbody',
+            children: [
+              {
+                type: 'tr',
+                children: [
+                  {
+                    type: 'td',
+                    children: [
+                      {
+                        type: 'highlight',
+                        text: 'no note',
+                        highlightId: 'h-no-note-btn',
+                        colorIndex: 0,
+                        startOffset: 0,
+                        endOffset: 7,
+                        hasNote: false,
+                        isLastSegment: true
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      const wrapper = mount(MarkdownTable, {
+        props: { node: tableNode }
+      })
+
+      const highlight = wrapper.findComponent(HighlightSpan)
+      expect(highlight.exists()).toBe(true)
+      expect(highlight.find('.note-button').exists()).toBe(false)
+    })
   })
 
   describe('TableCell', () => {
@@ -2453,6 +2689,176 @@ describe('Markdown Components', () => {
         expect(wrapper.text()).toContain('highlight')
         expect(wrapper.find('.inline-code').exists()).toBe(true)
         expect(wrapper.find('mark').exists()).toBe(true)
+      })
+    })
+
+    describe('Note Props and Events', () => {
+      it('should pass note-related props for highlight node', () => {
+        const wrapper = mount(TableCell, {
+          props: {
+            children: [
+              {
+                type: 'highlight',
+                text: 'highlighted with note',
+                colorIndex: 2,
+                highlightId: 'h-note-123',
+                startOffset: 0,
+                endOffset: 21,
+                noteContent: 'This is a note',
+                hasNote: true,
+                isLastSegment: true
+              }
+            ]
+          }
+        })
+        const highlight = wrapper.findComponent(HighlightSpan)
+        expect(highlight.exists()).toBe(true)
+        expect(highlight.props('noteContent')).toBe('This is a note')
+        expect(highlight.props('hasNote')).toBe(true)
+        expect(highlight.props('isLastSegment')).toBe(true)
+      })
+
+      it('should default hasNote to false when not provided', () => {
+        const wrapper = mount(TableCell, {
+          props: {
+            children: [
+              {
+                type: 'highlight',
+                text: 'highlighted without note',
+                colorIndex: 1,
+                highlightId: 'h-no-note',
+                startOffset: 0,
+                endOffset: 24
+              }
+            ]
+          }
+        })
+        const highlight = wrapper.findComponent(HighlightSpan)
+        expect(highlight.exists()).toBe(true)
+        expect(highlight.props('hasNote')).toBe(false)
+        expect(highlight.props('noteContent')).toBe('')
+        expect(highlight.props('isLastSegment')).toBe(true)
+      })
+
+      it('should bubble note-click event from HighlightSpan', async () => {
+        const wrapper = mount(TableCell, {
+          props: {
+            children: [
+              {
+                type: 'highlight',
+                text: 'highlighted with note',
+                highlightId: 'h-note-456',
+                colorIndex: 2,
+                startOffset: 0,
+                endOffset: 21,
+                noteContent: 'Test note content',
+                hasNote: true,
+                isLastSegment: true
+              }
+            ]
+          }
+        })
+
+        const highlight = wrapper.findComponent(HighlightSpan)
+        expect(highlight.exists()).toBe(true)
+
+        // Find and click the note button
+        const noteButton = highlight.find('.note-button')
+        expect(noteButton.exists()).toBe(true)
+
+        await noteButton.trigger('click')
+
+        expect(wrapper.emitted('note-click')).toBeTruthy()
+        expect(wrapper.emitted('note-click')).toHaveLength(1)
+
+        const [eventData] = wrapper.emitted('note-click')[0]
+        expect(eventData.noteId).toBe('h-note-456')
+        expect(eventData.noteContent).toBe('Test note content')
+      })
+
+      it('should bubble note-click from nested TableCell children', async () => {
+        const wrapper = mount(TableCell, {
+          props: {
+            children: [
+              {
+                type: 'strong',
+                children: [
+                  {
+                    type: 'highlight',
+                    text: 'nested note highlight',
+                    highlightId: 'h-nested-note',
+                    colorIndex: 1,
+                    startOffset: 0,
+                    endOffset: 21,
+                    noteContent: 'Nested note content',
+                    hasNote: true,
+                    isLastSegment: true
+                  }
+                ]
+              }
+            ]
+          }
+        })
+
+        const highlight = wrapper.findComponent(HighlightSpan)
+        expect(highlight.exists()).toBe(true)
+
+        const noteButton = highlight.find('.note-button')
+        expect(noteButton.exists()).toBe(true)
+
+        await noteButton.trigger('click')
+
+        expect(wrapper.emitted('note-click')).toBeTruthy()
+        const [eventData] = wrapper.emitted('note-click')[0]
+        expect(eventData.noteId).toBe('h-nested-note')
+      })
+
+      it('should not render note button when hasNote is false', () => {
+        const wrapper = mount(TableCell, {
+          props: {
+            children: [
+              {
+                type: 'highlight',
+                text: 'no note here',
+                highlightId: 'h-no-note-btn',
+                colorIndex: 0,
+                startOffset: 0,
+                endOffset: 12,
+                hasNote: false,
+                isLastSegment: true
+              }
+            ]
+          }
+        })
+
+        const highlight = wrapper.findComponent(HighlightSpan)
+        expect(highlight.exists()).toBe(true)
+        expect(highlight.find('.note-button').exists()).toBe(false)
+      })
+
+      it('should not render note button when isLastSegment is false', () => {
+        const wrapper = mount(TableCell, {
+          props: {
+            children: [
+              {
+                type: 'highlight',
+                text: 'not last segment',
+                highlightId: 'h-not-last',
+                colorIndex: 0,
+                startOffset: 0,
+                endOffset: 16,
+                noteContent: 'Has note but not last',
+                hasNote: true,
+                isLastSegment: false
+              }
+            ]
+          }
+        })
+
+        const highlight = wrapper.findComponent(HighlightSpan)
+        expect(highlight.exists()).toBe(true)
+        // Note button should not appear on non-last segments
+        expect(highlight.find('.note-button').exists()).toBe(false)
       })
     })
   })

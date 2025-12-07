@@ -7,6 +7,7 @@
         @click="handleClick(node, $event)"
         @question-link-click="bubbleQuestionLinkClick"
         @highlight-click="bubbleHighlightClick"
+        @note-click="bubbleNoteClick"
       >
         <template v-if="node.children">
           <TableCell
@@ -15,6 +16,7 @@
             :children="[child]"
             @question-link-click="bubbleQuestionLinkClick"
             @highlight-click="bubbleHighlightClick"
+            @note-click="bubbleNoteClick"
           />
         </template>
         <template v-else-if="node.content">
@@ -58,7 +60,7 @@ export default {
       required: true
     }
   },
-  emits: ['question-link-click', 'highlight-click'],
+  emits: ['question-link-click', 'highlight-click', 'note-click'],
   methods: {
     getComponent(type) {
       const map = {
@@ -88,7 +90,10 @@ export default {
             colorIndex: node.colorIndex,
             highlightId: node.highlightId,
             startOffset: node.startOffset,
-            endOffset: node.endOffset
+            endOffset: node.endOffset,
+            noteContent: node.noteContent || '',
+            hasNote: !!node.hasNote,
+            isLastSegment: node.isLastSegment !== false
           }
         case 'question-link':
           return {
@@ -136,6 +141,9 @@ export default {
     },
     bubbleHighlightClick(data) {
       this.$emit('highlight-click', data)
+    },
+    bubbleNoteClick(data) {
+      this.$emit('note-click', data)
     }
   }
 }
