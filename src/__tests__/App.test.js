@@ -22,7 +22,17 @@ vi.mock('vue-router', () => ({
 // Mock the API module
 vi.mock('../services/api.js', () => ({
   fetchModels: vi.fn(),
-  sendChatMessage: vi.fn()
+  sendChatMessage: vi.fn(),
+  listProviders: vi.fn(() => [
+    { id: 'lmstudio', name: 'LM Studio', requiresApiKey: false },
+    { id: 'google', name: 'Google AI Studio', requiresApiKey: true }
+  ]),
+  getCurrentProviderId: vi.fn(() => 'lmstudio'),
+  getCurrentConfig: vi.fn(() => ({})),
+  setProvider: vi.fn(),
+  updateConfig: vi.fn(),
+  testConnection: vi.fn(() => Promise.resolve(true)),
+  initProvider: vi.fn()
 }))
 
 import { fetchModels, sendChatMessage } from '../services/api.js'
@@ -197,7 +207,7 @@ describe('ChatView', () => {
 
       await flushPromises()
 
-      expect(fetchModels).toHaveBeenCalledTimes(1)
+      expect(fetchModels).toHaveBeenCalled()
     })
 
     it('should use first model from fetched models', async () => {

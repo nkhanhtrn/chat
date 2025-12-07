@@ -2,12 +2,40 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import SettingsModal from '../SettingsModal.vue'
 
+// Mock the LLM API module
+vi.mock('../../../services/api.js', () => ({
+  listProviders: vi.fn(() => [
+    { id: 'lmstudio', name: 'LM Studio', requiresApiKey: false },
+    { id: 'google', name: 'Google AI Studio', requiresApiKey: true }
+  ]),
+  getCurrentProviderId: vi.fn(() => 'lmstudio'),
+  getCurrentConfig: vi.fn(() => ({})),
+  setProvider: vi.fn(),
+  testConnection: vi.fn(() => Promise.resolve(true)),
+  fetchModels: vi.fn(() => Promise.resolve([
+    { id: 'model-1', name: 'Test Model 1' },
+    { id: 'model-2', name: 'Test Model 2' }
+  ]))
+}))
+
+// Mock the chat store
+vi.mock('../../../stores/chat.js', () => ({
+  useChatStore: vi.fn(() => ({
+    currentModel: 'model-1',
+    setCurrentModel: vi.fn()
+  }))
+}))
+
 describe('SettingsModal', () => {
   let wrapper
 
   // Helper to find elements in teleported content
   const findInBody = (selector) => document.body.querySelector(selector)
   const findAllInBody = (selector) => document.body.querySelectorAll(selector)
+
+  // Button group indices (in Theme tab: 0=theme, 1=width)
+  const THEME_GROUP_INDEX = 0
+  const WIDTH_GROUP_INDEX = 1
 
   beforeEach(() => {
     // Mock window theme functions
@@ -95,7 +123,9 @@ describe('SettingsModal', () => {
         },
         attachTo: document.body
       })
-      expect(findInBody('.setting-label').textContent).toBe('Theme')
+      const labels = findAllInBody('.setting-label')
+      const themeLabel = Array.from(labels).find(label => label.textContent === 'Theme')
+      expect(themeLabel).toBeTruthy()
     })
 
     it('should render light, sepia, and dark theme buttons', () => {
@@ -106,8 +136,8 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const buttonGroups = findAllInBody('.button-group')
-      // First button group is theme
-      const themeButtons = buttonGroups[0].querySelectorAll('.toggle-button')
+      // Theme button group (after provider selector)
+      const themeButtons = buttonGroups[THEME_GROUP_INDEX].querySelectorAll('.toggle-button')
       expect(themeButtons).toHaveLength(3)
       expect(themeButtons[0].textContent).toContain('Light')
       expect(themeButtons[1].textContent).toContain('Sepia')
@@ -123,7 +153,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const buttonGroups = findAllInBody('.button-group')
-      const themeButtons = buttonGroups[0].querySelectorAll('.toggle-button')
+      const themeButtons = buttonGroups[THEME_GROUP_INDEX].querySelectorAll('.toggle-button')
       expect(themeButtons[0].classList.contains('active')).toBe(true)
       expect(themeButtons[1].classList.contains('active')).toBe(false)
       expect(themeButtons[2].classList.contains('active')).toBe(false)
@@ -139,7 +169,7 @@ describe('SettingsModal', () => {
       })
       await wrapper.vm.$nextTick()
       const buttonGroups = findAllInBody('.button-group')
-      const themeButtons = buttonGroups[0].querySelectorAll('.toggle-button')
+      const themeButtons = buttonGroups[THEME_GROUP_INDEX].querySelectorAll('.toggle-button')
       expect(themeButtons[0].classList.contains('active')).toBe(false)
       expect(themeButtons[1].classList.contains('active')).toBe(false)
       expect(themeButtons[2].classList.contains('active')).toBe(true)
@@ -155,7 +185,7 @@ describe('SettingsModal', () => {
       })
       await wrapper.vm.$nextTick()
       const buttonGroups = findAllInBody('.button-group')
-      const themeButtons = buttonGroups[0].querySelectorAll('.toggle-button')
+      const themeButtons = buttonGroups[THEME_GROUP_INDEX].querySelectorAll('.toggle-button')
       expect(themeButtons[0].classList.contains('active')).toBe(false)
       expect(themeButtons[1].classList.contains('active')).toBe(true)
       expect(themeButtons[2].classList.contains('active')).toBe(false)
@@ -170,7 +200,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const buttonGroups = findAllInBody('.button-group')
-      const lightButton = buttonGroups[0].querySelectorAll('.toggle-button')[0]
+      const lightButton = buttonGroups[THEME_GROUP_INDEX].querySelectorAll('.toggle-button')[0]
       lightButton.click()
       await wrapper.vm.$nextTick()
       expect(window.__setTheme).toHaveBeenCalledWith('light')
@@ -185,7 +215,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const buttonGroups = findAllInBody('.button-group')
-      const sepiaButton = buttonGroups[0].querySelectorAll('.toggle-button')[1]
+      const sepiaButton = buttonGroups[THEME_GROUP_INDEX].querySelectorAll('.toggle-button')[1]
       sepiaButton.click()
       await wrapper.vm.$nextTick()
       expect(window.__setTheme).toHaveBeenCalledWith('sepia')
@@ -200,7 +230,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const buttonGroups = findAllInBody('.button-group')
-      const darkButton = buttonGroups[0].querySelectorAll('.toggle-button')[2]
+      const darkButton = buttonGroups[THEME_GROUP_INDEX].querySelectorAll('.toggle-button')[2]
       darkButton.click()
       await wrapper.vm.$nextTick()
       expect(window.__setTheme).toHaveBeenCalledWith('dark')
@@ -216,7 +246,7 @@ describe('SettingsModal', () => {
       })
 
       const buttonGroups = findAllInBody('.button-group')
-      const themeButtons = buttonGroups[0].querySelectorAll('.toggle-button')
+      const themeButtons = buttonGroups[THEME_GROUP_INDEX].querySelectorAll('.toggle-button')
       expect(themeButtons[0].classList.contains('active')).toBe(true)
 
       themeButtons[2].click() // Click dark
@@ -383,7 +413,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const buttonGroups = findAllInBody('.button-group')
-      const darkButton = buttonGroups[0].querySelectorAll('.toggle-button')[2]
+      const darkButton = buttonGroups[THEME_GROUP_INDEX].querySelectorAll('.toggle-button')[2]
       // Should not throw
       darkButton.click()
       await wrapper.vm.$nextTick()
@@ -479,7 +509,7 @@ describe('SettingsModal', () => {
       })
 
       const buttonGroups = findAllInBody('.button-group')
-      const darkButton = buttonGroups[0].querySelectorAll('.toggle-button')[2]
+      const darkButton = buttonGroups[THEME_GROUP_INDEX].querySelectorAll('.toggle-button')[2]
       darkButton.click()
       await wrapper.vm.$nextTick()
 
@@ -515,7 +545,7 @@ describe('SettingsModal', () => {
       })
 
       const buttonGroups = findAllInBody('.button-group')
-      const darkButton = buttonGroups[0].querySelectorAll('.toggle-button')[2]
+      const darkButton = buttonGroups[THEME_GROUP_INDEX].querySelectorAll('.toggle-button')[2]
       darkButton.click()
       await wrapper.vm.$nextTick()
 
@@ -573,7 +603,7 @@ describe('SettingsModal', () => {
 
       // Change theme to dark
       const buttonGroups = findAllInBody('.button-group')
-      const darkButton = buttonGroups[0].querySelectorAll('.toggle-button')[2]
+      const darkButton = buttonGroups[THEME_GROUP_INDEX].querySelectorAll('.toggle-button')[2]
       darkButton.click()
       await wrapper.vm.$nextTick()
 
@@ -596,7 +626,7 @@ describe('SettingsModal', () => {
 
       // Change theme to dark
       const buttonGroups = findAllInBody('.button-group')
-      const darkButton = buttonGroups[0].querySelectorAll('.toggle-button')[2]
+      const darkButton = buttonGroups[THEME_GROUP_INDEX].querySelectorAll('.toggle-button')[2]
       darkButton.click()
       await wrapper.vm.$nextTick()
 
@@ -623,7 +653,7 @@ describe('SettingsModal', () => {
 
       // Change theme to dark
       const buttonGroups = findAllInBody('.button-group')
-      const darkButton = buttonGroups[0].querySelectorAll('.toggle-button')[2]
+      const darkButton = buttonGroups[THEME_GROUP_INDEX].querySelectorAll('.toggle-button')[2]
       darkButton.click()
       await wrapper.vm.$nextTick()
 
@@ -745,6 +775,491 @@ describe('SettingsModal', () => {
     })
   })
 
+  describe('Tab Navigation', () => {
+    it('should render Theme and LLM tabs', () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      expect(tabs).toHaveLength(2)
+      expect(tabs[0].textContent).toContain('Theme')
+      expect(tabs[1].textContent).toContain('LLM')
+    })
+
+    it('should show Theme tab as active by default', () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      expect(tabs[0].classList.contains('active')).toBe(true)
+      expect(tabs[1].classList.contains('active')).toBe(false)
+    })
+
+    it('should switch to LLM tab when clicked', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      expect(tabs[0].classList.contains('active')).toBe(false)
+      expect(tabs[1].classList.contains('active')).toBe(true)
+    })
+
+    it('should show theme content when Theme tab is active', () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const themeLabel = Array.from(findAllInBody('.setting-label')).find(
+        label => label.textContent === 'Theme'
+      )
+      expect(themeLabel).toBeTruthy()
+    })
+
+    it('should show LLM content when LLM tab is active', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const providerLabel = Array.from(findAllInBody('.setting-label')).find(
+        label => label.textContent === 'Provider'
+      )
+      expect(providerLabel).toBeTruthy()
+    })
+
+    it('should switch back to Theme tab when clicked', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+
+      // Switch to LLM
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      // Switch back to Theme
+      tabs[0].click()
+      await wrapper.vm.$nextTick()
+
+      expect(tabs[0].classList.contains('active')).toBe(true)
+      expect(tabs[1].classList.contains('active')).toBe(false)
+    })
+  })
+
+  describe('LLM Provider Settings', () => {
+    it('should render provider buttons in LLM tab', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const providerGroup = findInBody('.provider-group')
+      expect(providerGroup).toBeTruthy()
+      const providerButtons = providerGroup.querySelectorAll('.toggle-button')
+      expect(providerButtons.length).toBeGreaterThan(0)
+    })
+
+    it('should highlight current provider', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const providerGroup = findInBody('.provider-group')
+      const providerButtons = providerGroup.querySelectorAll('.toggle-button')
+      // lmstudio is default from mock
+      expect(providerButtons[0].classList.contains('active')).toBe(true)
+    })
+
+    it('should switch provider when clicking provider button', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const providerGroup = findInBody('.provider-group')
+      const providerButtons = providerGroup.querySelectorAll('.toggle-button')
+
+      // Click on Google AI Studio (second provider)
+      providerButtons[1].click()
+      await wrapper.vm.$nextTick()
+
+      expect(providerButtons[1].classList.contains('active')).toBe(true)
+    })
+
+    it('should emit provider-changed when switching providers', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const providerGroup = findInBody('.provider-group')
+      const providerButtons = providerGroup.querySelectorAll('.toggle-button')
+      providerButtons[1].click()
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.emitted('provider-changed')).toBeTruthy()
+      expect(wrapper.emitted('provider-changed')[0]).toEqual(['google'])
+    })
+
+    it('should show API key input for providers that require it', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const providerGroup = findInBody('.provider-group')
+      const providerButtons = providerGroup.querySelectorAll('.toggle-button')
+
+      // Click on Google AI Studio which requires API key
+      providerButtons[1].click()
+      await wrapper.vm.$nextTick()
+
+      const apiKeyInput = findInBody('.api-key-input')
+      expect(apiKeyInput).toBeTruthy()
+      expect(apiKeyInput.getAttribute('placeholder')).toBe('Enter API key')
+    })
+
+    it('should show base URL input for LM Studio', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      // LM Studio is default and should show base URL input
+      const apiKeyInput = findInBody('.api-key-input')
+      expect(apiKeyInput).toBeTruthy()
+      expect(apiKeyInput.getAttribute('placeholder')).toBe('http://localhost:1234')
+    })
+
+    it('should toggle API key visibility', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const providerGroup = findInBody('.provider-group')
+      const providerButtons = providerGroup.querySelectorAll('.toggle-button')
+      providerButtons[1].click() // Switch to Google
+      await wrapper.vm.$nextTick()
+
+      const apiKeyInput = findInBody('.api-key-input')
+      const toggleBtn = findInBody('.toggle-visibility-btn')
+
+      expect(apiKeyInput.getAttribute('type')).toBe('password')
+      expect(toggleBtn.textContent).toBe('Show')
+
+      toggleBtn.click()
+      await wrapper.vm.$nextTick()
+
+      expect(apiKeyInput.getAttribute('type')).toBe('text')
+      expect(toggleBtn.textContent).toBe('Hide')
+    })
+
+    it('should show API key hint with link for Google provider', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const providerGroup = findInBody('.provider-group')
+      const providerButtons = providerGroup.querySelectorAll('.toggle-button')
+      providerButtons[1].click()
+      await wrapper.vm.$nextTick()
+
+      const hint = findInBody('.api-key-hint')
+      expect(hint).toBeTruthy()
+      const link = hint.querySelector('a')
+      expect(link).toBeTruthy()
+      expect(link.getAttribute('href')).toBe('https://aistudio.google.com/apikey')
+      expect(link.getAttribute('target')).toBe('_blank')
+    })
+  })
+
+  describe('Model Selection', () => {
+    it('should render model selector when models are available', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      // Wait for models to load
+      await new Promise(resolve => setTimeout(resolve, 10))
+      await wrapper.vm.$nextTick()
+
+      const modelSection = findInBody('.model-section')
+      expect(modelSection).toBeTruthy()
+
+      const modelSelect = findInBody('.model-select')
+      expect(modelSelect).toBeTruthy()
+    })
+
+    it('should render model options from fetched models', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      await new Promise(resolve => setTimeout(resolve, 10))
+      await wrapper.vm.$nextTick()
+
+      const modelSelect = findInBody('.model-select')
+      const options = modelSelect.querySelectorAll('option')
+      expect(options.length).toBe(2)
+      expect(options[0].textContent).toContain('Test Model 1')
+      expect(options[1].textContent).toContain('Test Model 2')
+    })
+
+    it('should render model label', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      await new Promise(resolve => setTimeout(resolve, 10))
+      await wrapper.vm.$nextTick()
+
+      const modelLabel = findInBody('.model-label')
+      expect(modelLabel).toBeTruthy()
+      expect(modelLabel.textContent).toBe('Model')
+    })
+  })
+
+  describe('Connection Status', () => {
+    it('should show pending status when testing connection', async () => {
+      const { testConnection } = await import('../../../services/api.js')
+      testConnection.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve(true), 100)))
+
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const providerGroup = findInBody('.provider-group')
+      const providerButtons = providerGroup.querySelectorAll('.toggle-button')
+      providerButtons[1].click()
+      await wrapper.vm.$nextTick()
+
+      const status = findInBody('.connection-status.pending')
+      expect(status).toBeTruthy()
+      expect(status.textContent).toContain('Testing connection')
+    })
+
+    it('should show success status on successful connection', async () => {
+      const { testConnection } = await import('../../../services/api.js')
+      testConnection.mockResolvedValue(true)
+
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const providerGroup = findInBody('.provider-group')
+      const providerButtons = providerGroup.querySelectorAll('.toggle-button')
+      providerButtons[1].click()
+
+      await new Promise(resolve => setTimeout(resolve, 10))
+      await wrapper.vm.$nextTick()
+
+      const status = findInBody('.connection-status.success')
+      expect(status).toBeTruthy()
+      expect(status.textContent).toContain('Connected successfully')
+    })
+
+    it('should show error status on failed connection', async () => {
+      const { testConnection } = await import('../../../services/api.js')
+      testConnection.mockResolvedValue(false)
+
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const providerGroup = findInBody('.provider-group')
+      const providerButtons = providerGroup.querySelectorAll('.toggle-button')
+      providerButtons[1].click()
+
+      await new Promise(resolve => setTimeout(resolve, 10))
+      await wrapper.vm.$nextTick()
+
+      const status = findInBody('.connection-status.error')
+      expect(status).toBeTruthy()
+      expect(status.textContent).toContain('Connection failed')
+    })
+
+    it('should show error message on connection exception', async () => {
+      const { testConnection } = await import('../../../services/api.js')
+      testConnection.mockRejectedValue(new Error('Network error'))
+
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const providerGroup = findInBody('.provider-group')
+      const providerButtons = providerGroup.querySelectorAll('.toggle-button')
+      providerButtons[1].click()
+
+      await new Promise(resolve => setTimeout(resolve, 10))
+      await wrapper.vm.$nextTick()
+
+      const status = findInBody('.connection-status.error')
+      expect(status).toBeTruthy()
+      expect(status.textContent).toContain('Network error')
+    })
+  })
+
+  describe('Provider Settings Loading', () => {
+    it('should load provider settings when modal opens', async () => {
+      const { listProviders, getCurrentProviderId } = await import('../../../services/api.js')
+
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: false
+        },
+        attachTo: document.body
+      })
+
+      await wrapper.setProps({ modelValue: true })
+      await wrapper.vm.$nextTick()
+
+      expect(listProviders).toHaveBeenCalled()
+      expect(getCurrentProviderId).toHaveBeenCalled()
+    })
+
+    it('should reset connection status when switching providers', async () => {
+      const { testConnection } = await import('../../../services/api.js')
+      testConnection.mockResolvedValue(true)
+
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const providerGroup = findInBody('.provider-group')
+      const providerButtons = providerGroup.querySelectorAll('.toggle-button')
+
+      // Switch to Google
+      providerButtons[1].click()
+      await new Promise(resolve => setTimeout(resolve, 10))
+      await wrapper.vm.$nextTick()
+
+      // Verify success status
+      expect(findInBody('.connection-status.success')).toBeTruthy()
+
+      // Switch back to LM Studio - status should reset then update
+      testConnection.mockResolvedValue(true)
+      providerButtons[0].click()
+      await wrapper.vm.$nextTick()
+
+      // Should show pending or success (depends on timing)
+      const status = findInBody('.connection-status')
+      expect(status).toBeTruthy()
+    })
+  })
+
   describe('Content Width Settings', () => {
     it('should render width label', () => {
       wrapper = mount(SettingsModal, {
@@ -766,8 +1281,8 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const buttonGroups = findAllInBody('.button-group')
-      // Second button group is width (first is theme)
-      const widthButtons = buttonGroups[1].querySelectorAll('.toggle-button')
+      // Width button group (after provider and theme)
+      const widthButtons = buttonGroups[WIDTH_GROUP_INDEX].querySelectorAll('.toggle-button')
       expect(widthButtons).toHaveLength(3)
       expect(widthButtons[0].textContent).toContain('Narrow')
       expect(widthButtons[1].textContent).toContain('Medium')
@@ -782,7 +1297,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const buttonGroups = findAllInBody('.button-group')
-      const widthButtons = buttonGroups[1].querySelectorAll('.toggle-button')
+      const widthButtons = buttonGroups[WIDTH_GROUP_INDEX].querySelectorAll('.toggle-button')
       expect(widthButtons[0].classList.contains('active')).toBe(false)
       expect(widthButtons[1].classList.contains('active')).toBe(true)
       expect(widthButtons[2].classList.contains('active')).toBe(false)
@@ -797,7 +1312,7 @@ describe('SettingsModal', () => {
       })
 
       const buttonGroups = findAllInBody('.button-group')
-      const widthButtons = buttonGroups[1].querySelectorAll('.toggle-button')
+      const widthButtons = buttonGroups[WIDTH_GROUP_INDEX].querySelectorAll('.toggle-button')
 
       widthButtons[0].click() // Click Narrow
       await wrapper.vm.$nextTick()
@@ -816,7 +1331,7 @@ describe('SettingsModal', () => {
       })
 
       const buttonGroups = findAllInBody('.button-group')
-      const widthButtons = buttonGroups[1].querySelectorAll('.toggle-button')
+      const widthButtons = buttonGroups[WIDTH_GROUP_INDEX].querySelectorAll('.toggle-button')
 
       widthButtons[0].click() // Click Narrow
       await wrapper.vm.$nextTick()
@@ -835,7 +1350,7 @@ describe('SettingsModal', () => {
       })
 
       const buttonGroups = findAllInBody('.button-group')
-      const widthButtons = buttonGroups[1].querySelectorAll('.toggle-button')
+      const widthButtons = buttonGroups[WIDTH_GROUP_INDEX].querySelectorAll('.toggle-button')
 
       widthButtons[1].click() // Click Medium
       await wrapper.vm.$nextTick()
@@ -852,7 +1367,7 @@ describe('SettingsModal', () => {
       })
 
       const buttonGroups = findAllInBody('.button-group')
-      const widthButtons = buttonGroups[1].querySelectorAll('.toggle-button')
+      const widthButtons = buttonGroups[WIDTH_GROUP_INDEX].querySelectorAll('.toggle-button')
 
       widthButtons[2].click() // Click Wide
       await wrapper.vm.$nextTick()
@@ -871,7 +1386,7 @@ describe('SettingsModal', () => {
       })
 
       const buttonGroups = findAllInBody('.button-group')
-      const widthButtons = buttonGroups[1].querySelectorAll('.toggle-button')
+      const widthButtons = buttonGroups[WIDTH_GROUP_INDEX].querySelectorAll('.toggle-button')
 
       widthButtons[2].click() // Click Wide
       await wrapper.vm.$nextTick()
@@ -891,7 +1406,7 @@ describe('SettingsModal', () => {
       await wrapper.vm.$nextTick()
 
       const buttonGroups = findAllInBody('.button-group')
-      const widthButtons = buttonGroups[1].querySelectorAll('.toggle-button')
+      const widthButtons = buttonGroups[WIDTH_GROUP_INDEX].querySelectorAll('.toggle-button')
       expect(widthButtons[0].classList.contains('active')).toBe(true)
       expect(document.documentElement.style.getPropertyValue('--content-max-width')).toBe('600px')
     })
@@ -908,7 +1423,7 @@ describe('SettingsModal', () => {
       await wrapper.vm.$nextTick()
 
       const buttonGroups = findAllInBody('.button-group')
-      const widthButtons = buttonGroups[1].querySelectorAll('.toggle-button')
+      const widthButtons = buttonGroups[WIDTH_GROUP_INDEX].querySelectorAll('.toggle-button')
       expect(widthButtons[2].classList.contains('active')).toBe(true)
       expect(document.documentElement.style.getPropertyValue('--content-max-width')).toBe('1000px')
     })
