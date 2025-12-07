@@ -283,14 +283,17 @@ const loadProviderSettings = async () => {
   }
 
   // Also load current provider's config from the active config
+  // But only load relevant keys for the current provider type
   const config = getCurrentConfig()
-  if (config.apiKey) {
+  const provider = providers.value.find(p => p.id === currentProvider.value)
+
+  if (provider?.requiresApiKey && config.apiKey) {
     providerConfigs.value[currentProvider.value] = {
       ...providerConfigs.value[currentProvider.value],
       apiKey: config.apiKey
     }
   }
-  if (config.baseUrl) {
+  if (!provider?.requiresApiKey && config.baseUrl) {
     providerConfigs.value[currentProvider.value] = {
       ...providerConfigs.value[currentProvider.value],
       baseUrl: config.baseUrl
@@ -324,6 +327,22 @@ const onModelChange = () => {
   }
 }
 
+/**
+ * Build clean provider configs with only relevant keys per provider
+ */
+const buildCleanProviderConfigs = () => {
+  const clean = {}
+  for (const p of providers.value) {
+    const config = providerConfigs.value[p.id] || {}
+    if (p.requiresApiKey) {
+      clean[p.id] = { apiKey: config.apiKey || '' }
+    } else {
+      clean[p.id] = { baseUrl: config.baseUrl || p.defaultBaseUrl || 'http://localhost:1234' }
+    }
+  }
+  return clean
+}
+
 const selectProvider = async (providerId) => {
   currentProvider.value = providerId
   connectionStatus.value = null
@@ -344,8 +363,8 @@ const selectProvider = async (providerId) => {
   setProvider(providerId, config)
   emit('provider-changed', providerId)
 
-  // Save all provider configs
-  saveUserSettings({ providerConfigs: providerConfigs.value })
+  // Save cleaned provider configs (only relevant keys per provider)
+  saveUserSettings({ providerConfigs: buildCleanProviderConfigs() })
 
   // Test connection and load models
   await testProviderConnection()
@@ -358,8 +377,8 @@ const onApiKeyChange = async () => {
   connectionStatus.value = null
   availableModels.value = []
 
-  // Save all provider configs
-  saveUserSettings({ providerConfigs: providerConfigs.value })
+  // Save cleaned provider configs
+  saveUserSettings({ providerConfigs: buildCleanProviderConfigs() })
 
   // Debounce connection test and model loading
   if (apiKey.value.length > 10) {
@@ -373,8 +392,8 @@ const onBaseUrlChange = () => {
   setProvider(currentProvider.value, config)
   connectionStatus.value = null
 
-  // Save all provider configs
-  saveUserSettings({ providerConfigs: providerConfigs.value })
+  // Save cleaned provider configs
+  saveUserSettings({ providerConfigs: buildCleanProviderConfigs() })
 }
 
 const testProviderConnection = async () => {

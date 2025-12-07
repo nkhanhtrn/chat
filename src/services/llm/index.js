@@ -34,10 +34,20 @@ export const initProvider = async () => {
       currentProviderId = settings.llmProvider
     }
 
-    if (settings?.llmConfig) {
-      currentConfig = settings.llmConfig
+    // Load provider-specific config, filtering to only relevant keys
+    const provider = providers[currentProviderId]
+    const savedConfig = settings?.providerConfigs?.[currentProviderId] || settings?.llmConfig || {}
+    const config = {}
+
+    // Only load keys that are relevant for this provider type
+    if (provider?.requiresApiKey && savedConfig.apiKey) {
+      config.apiKey = savedConfig.apiKey
+    }
+    if (!provider?.requiresApiKey && savedConfig.baseUrl) {
+      config.baseUrl = savedConfig.baseUrl
     }
 
+    currentConfig = config
     firestoreInitialized = true
   } catch (error) {
     console.warn('Failed to load provider settings from Firestore:', error)
@@ -85,13 +95,24 @@ export const setProvider = (providerId, config = {}) => {
     throw new Error(`Unknown provider: ${providerId}`)
   }
 
+  const provider = providers[providerId]
   currentProviderId = providerId
-  currentConfig = config
+
+  // Build clean config with only provider-relevant keys
+  // This prevents baseUrl from LM Studio leaking to Cerebras, etc.
+  const cleanConfig = {}
+  if (provider.requiresApiKey && config.apiKey) {
+    cleanConfig.apiKey = config.apiKey
+  }
+  if (!provider.requiresApiKey && config.baseUrl) {
+    cleanConfig.baseUrl = config.baseUrl
+  }
+  currentConfig = cleanConfig
 
   // Persist to Firestore
   saveUserSettings({
     llmProvider: providerId,
-    llmConfig: config
+    llmConfig: currentConfig
   })
 }
 

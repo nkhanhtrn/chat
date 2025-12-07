@@ -7,6 +7,25 @@ const STORAGE_KEY_CHAT_STATE = 'chat-state'
 // Configuration flag - set to false to disable Firestore sync
 let ENABLE_FIRESTORE_SYNC = true
 
+// Read-only mode flag - when true, no data is saved to localStorage or Firestore
+let READ_ONLY_MODE = false
+
+/**
+ * Enable or disable read-only mode
+ * When enabled, no data is saved to localStorage or Firestore
+ * @param {boolean} enabled - Whether to enable read-only mode
+ */
+export const setReadOnlyMode = (enabled) => {
+  READ_ONLY_MODE = enabled
+  console.log(`Read-only mode ${enabled ? 'enabled' : 'disabled'}`)
+}
+
+/**
+ * Check if read-only mode is enabled
+ * @returns {boolean}
+ */
+export const isReadOnlyMode = () => READ_ONLY_MODE
+
 // Throttle configuration for Firestore writes (1 second = 1000ms)
 const FIRESTORE_SYNC_THROTTLE_MS = 1000
 let lastFirestoreSyncTime = 0
@@ -110,6 +129,11 @@ const performFirestoreSync = async () => {
  * @param {Object} state - The chat state to save
  */
 export const saveChatState = async (state) => {
+  // Skip saving entirely when in read-only mode
+  if (READ_ONLY_MODE) {
+    return
+  }
+
   try {
     const serializedState = serializeState(state)
 

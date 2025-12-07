@@ -1,4 +1,16 @@
 <template>
+  <!-- Dev Toolbar (fixed at top, outside app flow) -->
+  <DevToolbar v-if="isDev" />
+  <div v-if="isDev" class="dev-toolbar-spacer"></div>
+
+  <!-- Stale Data Banner -->
+  <StaleDataBanner
+    :visible="showStaleDataBanner"
+    :isReadOnlyMode="isReadOnlyMode"
+    @refresh="refresh"
+    @dismiss="dismissBanner"
+  />
+
   <router-view />
 
   <!-- Sync Conflict Modal -->
@@ -11,11 +23,23 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, provide, onMounted } from 'vue'
 import SyncConflictModal from './components/Modal/SyncConflictModal.vue'
+import StaleDataBanner from './components/StaleDataBanner.vue'
+import DevToolbar from './components/DevToolbar.vue'
 import { useChatStore } from './stores/chat.js'
+import { useStaleDataDetection } from './composables/useStaleDataDetection.js'
+import { getIsDev } from './composables/useEnvironment.js'
+
+const isDev = getIsDev()
 
 const chatStore = useChatStore()
+
+// Stale data detection
+const { showStaleDataBanner, isReadOnlyMode, refresh, dismissBanner, triggerBanner } = useStaleDataDetection()
+
+// Provide trigger function for DevToolbar
+provide('triggerStaleDataBanner', triggerBanner)
 
 const showConflictModal = ref(false)
 const conflictData = ref({
@@ -46,4 +70,9 @@ const handleConflictResolve = async (choice) => {
 
 <style>
 /* Global styles are in style.css */
+
+/* Add padding when dev toolbar is visible */
+.dev-toolbar-spacer {
+  height: 41px; /* Match dev toolbar height */
+}
 </style>

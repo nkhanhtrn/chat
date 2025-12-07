@@ -252,6 +252,7 @@ const handleSendMessage = async (userMessage, contextQuestions = []) => {
 
   error.value = null
   isAddingNewQuestion.value = false
+  showingOverview.value = false
 
   // Create and add message to store
   const msg = chatStore.addRootMessage({

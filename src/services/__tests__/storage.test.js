@@ -5,6 +5,8 @@ import {
   resolveConflict,
   clearAllStorage,
   setFirestoreSyncEnabled,
+  setReadOnlyMode,
+  isReadOnlyMode,
   _resetThrottleState
 } from '../storage.js'
 import * as firestore from '../firestore.js'
@@ -53,6 +55,9 @@ describe('storage.js', () => {
 
     // Enable Firestore sync by default
     setFirestoreSyncEnabled(true)
+
+    // Disable read-only mode by default
+    setReadOnlyMode(false)
   })
 
   afterEach(() => {
@@ -842,6 +847,86 @@ describe('storage.js', () => {
         previousLocation: { messageId: 'm2', chatId: 'chat1' }
       })
       expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('read-only mode', () => {
+    const mockState = {
+      messagesById: { msg1: { id: 'msg1', question: 'Test' } },
+      chats: [{ id: 'chat1', rootMessageIds: ['msg1'] }],
+      isStreaming: false
+    }
+
+    describe('isReadOnlyMode', () => {
+      it('should return false by default', () => {
+        expect(isReadOnlyMode()).toBe(false)
+      })
+
+      it('should return true when read-only mode is enabled', () => {
+        setReadOnlyMode(true)
+        expect(isReadOnlyMode()).toBe(true)
+      })
+
+      it('should return false when read-only mode is disabled', () => {
+        setReadOnlyMode(true)
+        setReadOnlyMode(false)
+        expect(isReadOnlyMode()).toBe(false)
+      })
+    })
+
+    describe('setReadOnlyMode', () => {
+      it('should enable read-only mode', () => {
+        setReadOnlyMode(true)
+        expect(isReadOnlyMode()).toBe(true)
+      })
+
+      it('should disable read-only mode', () => {
+        setReadOnlyMode(true)
+        setReadOnlyMode(false)
+        expect(isReadOnlyMode()).toBe(false)
+      })
+    })
+
+    describe('saveChatState in read-only mode', () => {
+      it('should not save to localStorage when read-only mode is enabled', async () => {
+        setReadOnlyMode(true)
+
+        await saveChatState(mockState)
+
+        expect(mockLocalStorage.setItem).not.toHaveBeenCalled()
+      })
+
+      it('should not sync to Firestore when read-only mode is enabled', async () => {
+        setReadOnlyMode(true)
+        vi.mocked(firestore.syncChatStateToFirestore).mockResolvedValue(undefined)
+
+        await saveChatState(mockState)
+
+        expect(firestore.syncChatStateToFirestore).not.toHaveBeenCalled()
+      })
+
+      it('should save normally when read-only mode is disabled', async () => {
+        setReadOnlyMode(false)
+        vi.mocked(firestore.syncChatStateToFirestore).mockResolvedValue(undefined)
+
+        await saveChatState(mockState)
+
+        expect(mockLocalStorage.setItem).toHaveBeenCalled()
+      })
+
+      it('should resume saving after read-only mode is disabled', async () => {
+        vi.mocked(firestore.syncChatStateToFirestore).mockResolvedValue(undefined)
+
+        // Enable read-only mode
+        setReadOnlyMode(true)
+        await saveChatState(mockState)
+        expect(mockLocalStorage.setItem).not.toHaveBeenCalled()
+
+        // Disable read-only mode
+        setReadOnlyMode(false)
+        await saveChatState(mockState)
+        expect(mockLocalStorage.setItem).toHaveBeenCalled()
+      })
     })
   })
 })
