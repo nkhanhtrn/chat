@@ -35,11 +35,12 @@ describe('useTreeExpansion', () => {
       expect(expandedPath.value.size).toBe(0)
     })
 
-    it('auto-expands to current message on init', () => {
+    it('auto-expands to current message on init (inclusive)', () => {
       const { expandedRootId, expandedPath } = createComposable(createMockMessages(), 'grandchild1')
       expect(expandedRootId.value).toBe('root1')
       expect(expandedPath.value.has('root1')).toBe(true)
       expect(expandedPath.value.has('child1')).toBe(true)
+      expect(expandedPath.value.has('grandchild1')).toBe(true) // includes the message itself
     })
   })
 
@@ -66,31 +67,34 @@ describe('useTreeExpansion', () => {
   })
 
   describe('buildPathToChild', () => {
-    it('builds path from root to child', () => {
+    it('builds path from root to child (inclusive)', () => {
       const { buildPathToChild, expandedPath } = createComposable()
 
       buildPathToChild('child1')
 
       expect(expandedPath.value.has('root1')).toBe(true)
-      expect(expandedPath.value.size).toBe(1)
+      expect(expandedPath.value.has('child1')).toBe(true) // includes the child itself
+      expect(expandedPath.value.size).toBe(2)
     })
 
-    it('builds path from root to grandchild', () => {
+    it('builds path from root to grandchild (inclusive)', () => {
       const { buildPathToChild, expandedPath } = createComposable()
 
       buildPathToChild('grandchild1')
 
       expect(expandedPath.value.has('root1')).toBe(true)
       expect(expandedPath.value.has('child1')).toBe(true)
-      expect(expandedPath.value.size).toBe(2)
+      expect(expandedPath.value.has('grandchild1')).toBe(true) // includes the grandchild itself
+      expect(expandedPath.value.size).toBe(3)
     })
 
-    it('creates empty path for root message', () => {
+    it('includes only root message when building path to root', () => {
       const { buildPathToChild, expandedPath } = createComposable()
 
       buildPathToChild('root1')
 
-      expect(expandedPath.value.size).toBe(0)
+      expect(expandedPath.value.has('root1')).toBe(true)
+      expect(expandedPath.value.size).toBe(1)
     })
   })
 
@@ -174,6 +178,23 @@ describe('useTreeExpansion', () => {
       expect(expandedPath.value.has('child1')).toBe(false)
       expect(expandedPath.value.has('child2')).toBe(true)
     })
+
+    it('does not collapse when expandOnly is true', () => {
+      const { toggleExpand, expandedPath } = createComposable()
+      expandedPath.value = new Set(['child1'])
+
+      toggleExpand('child1', { expandOnly: true })
+
+      expect(expandedPath.value.has('child1')).toBe(true)
+    })
+
+    it('still expands when expandOnly is true and node is collapsed', () => {
+      const { toggleExpand, expandedPath } = createComposable()
+
+      toggleExpand('child1', { expandOnly: true })
+
+      expect(expandedPath.value.has('child1')).toBe(true)
+    })
   })
 
   describe('toggleRoot', () => {
@@ -214,10 +235,38 @@ describe('useTreeExpansion', () => {
       expect(expandedRootId.value).toBe('root2')
       expect(expandedPath.value.size).toBe(0)
     })
+
+    it('does not collapse when expandOnly is true', () => {
+      const { toggleRoot, expandedRootId, expandedPath } = createComposable()
+      expandedRootId.value = 'root1'
+      expandedPath.value = new Set(['child1'])
+
+      toggleRoot('root1', { expandOnly: true })
+
+      expect(expandedRootId.value).toBe('root1')
+      expect(expandedPath.value.has('child1')).toBe(true)
+    })
+
+    it('still expands when expandOnly is true and root is collapsed', () => {
+      const { toggleRoot, expandedRootId } = createComposable()
+
+      toggleRoot('root1', { expandOnly: true })
+
+      expect(expandedRootId.value).toBe('root1')
+    })
+
+    it('switches to different root even with expandOnly', () => {
+      const { toggleRoot, expandedRootId } = createComposable()
+      expandedRootId.value = 'root1'
+
+      toggleRoot('root2', { expandOnly: true })
+
+      expect(expandedRootId.value).toBe('root2')
+    })
   })
 
   describe('expandToMessage', () => {
-    it('expands root and builds path to message', () => {
+    it('expands root and builds path to message (inclusive)', () => {
       const { expandToMessage, expandedRootId, expandedPath } = createComposable()
 
       expandToMessage('grandchild1')
@@ -225,6 +274,7 @@ describe('useTreeExpansion', () => {
       expect(expandedRootId.value).toBe('root1')
       expect(expandedPath.value.has('root1')).toBe(true)
       expect(expandedPath.value.has('child1')).toBe(true)
+      expect(expandedPath.value.has('grandchild1')).toBe(true) // includes the message itself
     })
 
     it('handles root message', () => {
@@ -233,12 +283,13 @@ describe('useTreeExpansion', () => {
       expandToMessage('root1')
 
       expect(expandedRootId.value).toBe('root1')
-      expect(expandedPath.value.size).toBe(0)
+      expect(expandedPath.value.has('root1')).toBe(true)
+      expect(expandedPath.value.size).toBe(1)
     })
   })
 
   describe('watch currentMessageId', () => {
-    it('auto-expands when currentMessageId changes', async () => {
+    it('auto-expands when currentMessageId changes (inclusive)', async () => {
       const { currentMessageId, expandedRootId, expandedPath } = createComposable()
 
       currentMessageId.value = 'grandchild1'
@@ -246,6 +297,7 @@ describe('useTreeExpansion', () => {
 
       expect(expandedRootId.value).toBe('root1')
       expect(expandedPath.value.has('child1')).toBe(true)
+      expect(expandedPath.value.has('grandchild1')).toBe(true) // includes the message itself
     })
 
     it('does nothing when currentMessageId is set to null', async () => {

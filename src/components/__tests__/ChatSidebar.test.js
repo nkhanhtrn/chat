@@ -248,7 +248,7 @@ describe('ChatSidebar', () => {
       expect(childrenTrees.length).toBeGreaterThanOrEqual(1)
     })
 
-    it('should toggle tree expansion when clicking root item', async () => {
+    it('should always expand tree when clicking root item (never collapse)', async () => {
       setupMessagesInStore([
         { id: 'q1', question: 'Question 1', response: '', childIds: ['child1'] },
         { id: 'child1', question: 'Child Question', response: '', parentId: 'q1' }
@@ -267,11 +267,11 @@ describe('ChatSidebar', () => {
       // Initially expanded (because currentMessageId is in this tree)
       expect(wrapper.find('.tree-children').exists()).toBe(true)
 
-      // Click root item to collapse
+      // Click root item - should stay expanded (never collapse on click)
       await wrapper.find('.tree-item').trigger('click')
-      expect(wrapper.find('.tree-children').exists()).toBe(false)
+      expect(wrapper.find('.tree-children').exists()).toBe(true)
 
-      // Click again to expand
+      // Click again - should still be expanded
       await wrapper.find('.tree-item').trigger('click')
       expect(wrapper.find('.tree-children').exists()).toBe(true)
     })

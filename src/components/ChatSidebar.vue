@@ -219,13 +219,18 @@ const {
   findRootId,
   isInActivePath: treeIsInActivePath,
   isRootExpanded,
-  toggleExpand: handleToggleExpand,
+  toggleExpand,
   toggleRoot,
   expandToMessage
 } = useTreeExpansion({
   getMessageById: (id) => chatStore.messagesById[id],
   currentMessageId: toRef(props, 'currentMessageId')
 })
+
+// Wrapper to always expand on click (never collapse when selecting)
+const handleToggleExpand = (messageId) => {
+  toggleExpand(messageId, { expandOnly: true })
+}
 
 // Chat questions computed for search
 const chatQuestions = computed(() => {
@@ -304,7 +309,7 @@ const handleSearchResultClick = (result) => {
   clearSearch()
 }
 
-// Handle clicking a root message - select and toggle expand
+// Handle clicking a root message - select and always expand on first click
 const handleRootClick = (rootMsg) => {
   const currentChat = props.chats.find(c => c.id === props.currentChatId)
   if (!currentChat) return
@@ -314,8 +319,8 @@ const handleRootClick = (rootMsg) => {
     emit('select-question', question)
   }
 
-  // Toggle expand/collapse using composable
-  toggleRoot(rootMsg.id)
+  // Always expand on click (never collapse when selecting)
+  toggleRoot(rootMsg.id, { expandOnly: true })
 }
 
 // Handle selecting a child message
@@ -331,7 +336,7 @@ const handleSelectChild = (childMsg) => {
       rootIndex: rootIndex >= 0 ? rootIndex : 0
     })
 
-    // Rebuild expanded path to show full tree to selected child
+    // Rebuild expanded path to show full tree to selected child (includes the child itself)
     buildExpandedPathToChild(childMsg.id)
   }
 }

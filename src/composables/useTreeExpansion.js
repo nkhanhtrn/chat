@@ -17,12 +17,15 @@ export function useTreeExpansion({ getMessageById, currentMessageId }) {
   const expandedPath = ref(new Set())
 
   /**
-   * Build the expanded path from root to a specific child
+   * Build the expanded path from root to a specific child (inclusive)
    * @param {string} childId - The child message ID to build path to
    */
   const buildPathToChild = (childId) => {
     const newPath = new Set()
     let msg = getMessageById(childId)
+
+    // Include the child itself so its children are visible
+    newPath.add(childId)
 
     while (msg?.parentId) {
       newPath.add(msg.parentId)
@@ -70,9 +73,12 @@ export function useTreeExpansion({ getMessageById, currentMessageId }) {
   /**
    * Toggle expansion of a node within the tree
    * @param {string} messageId - Message ID to toggle
+   * @param {Object} options - Options
+   * @param {boolean} options.expandOnly - If true, only expand (never collapse)
    */
-  const toggleExpand = (messageId) => {
+  const toggleExpand = (messageId, { expandOnly = false } = {}) => {
     if (expandedPath.value.has(messageId)) {
+      if (expandOnly) return
       // Collapse: remove this node and all its descendants from path
       const newPath = new Set(expandedPath.value)
       newPath.delete(messageId)
@@ -99,11 +105,15 @@ export function useTreeExpansion({ getMessageById, currentMessageId }) {
   /**
    * Toggle a root's expansion and reset the path
    * @param {string} rootId - Root message ID
+   * @param {Object} options - Options
+   * @param {boolean} options.expandOnly - If true, only expand (never collapse)
    */
-  const toggleRoot = (rootId) => {
+  const toggleRoot = (rootId, { expandOnly = false } = {}) => {
     if (expandedRootId.value === rootId) {
-      expandedRootId.value = null
-      expandedPath.value = new Set()
+      if (!expandOnly) {
+        expandedRootId.value = null
+        expandedPath.value = new Set()
+      }
     } else {
       expandedRootId.value = rootId
       expandedPath.value = new Set()
