@@ -1,61 +1,56 @@
 <template>
   <div class="table-wrapper">
-    <div v-if="isCollapsed" class="collapse-row">
-      <button @click="toggleCollapse" class="collapse-btn" :title="'Expand'">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
-      </button>
-      <span class="collapsed-label" @click="toggleCollapse">Table ({{ rows.length }} rows)</span>
-    </div>
-    <div v-else class="table-container">
-      <button @click="toggleCollapse" class="collapse-btn collapse-btn-side" :title="'Collapse'">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="18 15 12 9 6 15"></polyline>
-        </svg>
-      </button>
-      <!-- Desktop: Traditional table -->
-      <table class="markdown-table desktop-table">
-      <thead v-if="headers.length > 0">
-        <tr>
-          <th v-for="(header, index) in headers" :key="index" :style="getAlignment(alignments[index])">
-            <TableCell :children="header" @question-link-click="bubbleQuestionLinkClick" @highlight-click="bubbleHighlightClick" />
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="(row, rowIndex) in rows" :key="rowIndex">
-          <td v-for="(cell, cellIndex) in row" :key="cellIndex" :style="getAlignment(alignments[cellIndex])">
-            <TableCell :children="cell" @question-link-click="bubbleQuestionLinkClick" @highlight-click="bubbleHighlightClick" />
-          </td>
-        </tr>
-      </tbody>
-      </table>
-      <!-- Mobile: Card layout -->
-      <div class="mobile-cards">
-        <div v-for="(row, rowIndex) in rows" :key="rowIndex" class="mobile-card">
-          <div v-for="(cell, cellIndex) in row" :key="cellIndex" class="mobile-card-row">
-            <div class="mobile-card-label">
-              <TableCell v-if="headers[cellIndex]" :children="headers[cellIndex]" @question-link-click="bubbleQuestionLinkClick" @highlight-click="bubbleHighlightClick" />
-            </div>
-            <div class="mobile-card-value">
+    <CollapseToggle
+      :is-collapsed="isCollapsed"
+      :label="`Table (${rows.length} rows)`"
+      @toggle="toggleCollapse"
+    >
+      <div class="table-container">
+        <!-- Desktop: Traditional table -->
+        <table class="markdown-table desktop-table">
+        <thead v-if="headers.length > 0">
+          <tr>
+            <th v-for="(header, index) in headers" :key="index" :style="getAlignment(alignments[index])">
+              <TableCell :children="header" @question-link-click="bubbleQuestionLinkClick" @highlight-click="bubbleHighlightClick" />
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(row, rowIndex) in rows" :key="rowIndex">
+            <td v-for="(cell, cellIndex) in row" :key="cellIndex" :style="getAlignment(alignments[cellIndex])">
               <TableCell :children="cell" @question-link-click="bubbleQuestionLinkClick" @highlight-click="bubbleHighlightClick" />
+            </td>
+          </tr>
+        </tbody>
+        </table>
+        <!-- Mobile: Card layout -->
+        <div class="mobile-cards">
+          <div v-for="(row, rowIndex) in rows" :key="rowIndex" class="mobile-card">
+            <div v-for="(cell, cellIndex) in row" :key="cellIndex" class="mobile-card-row">
+              <div class="mobile-card-label">
+                <TableCell v-if="headers[cellIndex]" :children="headers[cellIndex]" @question-link-click="bubbleQuestionLinkClick" @highlight-click="bubbleHighlightClick" />
+              </div>
+              <div class="mobile-card-value">
+                <TableCell :children="cell" @question-link-click="bubbleQuestionLinkClick" @highlight-click="bubbleHighlightClick" />
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </CollapseToggle>
   </div>
 </template>
 
 <script>
 import { computed, ref } from 'vue'
 import TableCell from './TableCell.vue'
+import CollapseToggle from './CollapseToggle.vue'
 
 export default {
   name: 'MarkdownTable',
   components: {
-    TableCell
+    TableCell,
+    CollapseToggle
   },
   props: {
     node: {
@@ -165,51 +160,6 @@ export default {
 .table-wrapper {
   overflow-x: auto;
   margin: 12px 0;
-}
-
-.collapse-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.table-container {
-  display: flex;
-  align-items: flex-start;
-  gap: 4px;
-}
-
-.collapse-btn {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-muted, #888);
-  opacity: 0.5;
-  transition: opacity 0.2s;
-}
-
-.collapse-btn:hover {
-  opacity: 1;
-}
-
-.collapse-btn-side {
-  margin-top: 8px;
-  flex-shrink: 0;
-}
-
-.collapsed-label {
-  font-size: 13px;
-  color: var(--color-text-muted, #888);
-  cursor: pointer;
-  font-style: italic;
-}
-
-.collapsed-label:hover {
-  color: var(--color-text, #333);
 }
 
 .markdown-table {

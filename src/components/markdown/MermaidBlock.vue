@@ -1,19 +1,10 @@
 <template>
   <div class="mermaid-block-wrapper">
-    <div v-if="isCollapsed" class="collapse-row">
-      <button @click="toggleCollapse" class="collapse-btn" title="Expand">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
-      </button>
-      <span class="collapsed-label" @click="toggleCollapse">mermaid ({{ lineCount }} lines)</span>
-    </div>
-    <div v-else class="mermaid-container">
-      <button @click="toggleCollapse" class="collapse-btn collapse-btn-side" title="Collapse">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="18 15 12 9 6 15"></polyline>
-        </svg>
-      </button>
+    <CollapseToggle
+      :is-collapsed="isCollapsed"
+      :label="`mermaid (${lineCount} lines)`"
+      @toggle="toggleCollapse"
+    >
       <div class="mermaid-block">
         <div class="mermaid-header">
           <span>mermaid</span>
@@ -39,7 +30,7 @@
           <div v-else class="mermaid-svg-container" v-html="svg"></div>
         </div>
       </div>
-    </div>
+    </CollapseToggle>
 
     <MermaidModal
       :visible="isModalOpen"
@@ -53,6 +44,7 @@
 import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
 import Button from '../Button.vue'
 import MermaidModal from '../Modal/MermaidModal.vue'
+import CollapseToggle from './CollapseToggle.vue'
 
 let mermaidInstance = null
 
@@ -121,7 +113,8 @@ export default {
   name: 'MermaidBlock',
   components: {
     Button,
-    MermaidModal
+    MermaidModal,
+    CollapseToggle
   },
   props: {
     code: {
@@ -215,51 +208,6 @@ export default {
 <style scoped>
 .mermaid-block-wrapper {
   margin: 12px 0;
-}
-
-.collapse-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.mermaid-container {
-  display: flex;
-  align-items: flex-start;
-  gap: 4px;
-}
-
-.collapse-btn {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-muted, #888);
-  opacity: 0.5;
-  transition: opacity 0.2s;
-}
-
-.collapse-btn:hover {
-  opacity: 1;
-}
-
-.collapse-btn-side {
-  margin-top: 8px;
-  flex-shrink: 0;
-}
-
-.collapsed-label {
-  font-size: 13px;
-  color: var(--color-text-muted, #888);
-  cursor: pointer;
-  font-style: italic;
-}
-
-.collapsed-label:hover {
-  color: var(--color-text, #333);
 }
 
 .mermaid-block {
