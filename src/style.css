@@ -19,3 +19,11 @@ body {
   height: 100vh;
   background-color: var(--color-bg-base);
 }
+
+/* Mobile breakpoint variables */
+:root {
+  --breakpoint-mobile: 768px;
+  --breakpoint-tablet: 1024px;
+  --sidebar-width: 320px;
+  --sidebar-collapsed-width: 64px;
+}

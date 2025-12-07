@@ -17,19 +17,35 @@
       <div class="mermaid-block">
         <div class="mermaid-header">
           <span>mermaid</span>
-          <Button @click="copyCode" class="copy-btn" title="Copy code" variant="tertiary">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-            </svg>
-          </Button>
+          <div class="header-actions">
+            <Button @click="openModal" class="expand-btn" title="Open in modal" variant="tertiary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <polyline points="9 21 3 21 3 15"></polyline>
+                <line x1="21" y1="3" x2="14" y2="10"></line>
+                <line x1="3" y1="21" x2="10" y2="14"></line>
+              </svg>
+            </Button>
+            <Button @click="copyCode" class="copy-btn" title="Copy code" variant="tertiary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+            </Button>
+          </div>
         </div>
         <div class="mermaid-content" :class="{ flashing: isFlashing }">
           <div v-if="error" class="mermaid-error">{{ error }}</div>
-          <div v-else v-html="svg"></div>
+          <div v-else class="mermaid-svg-container" v-html="svg"></div>
         </div>
       </div>
     </div>
+
+    <MermaidModal
+      :visible="isModalOpen"
+      :svg="svg"
+      @close="closeModal"
+    />
   </div>
 </template>
 
@@ -37,6 +53,7 @@
 import { ref, onMounted, watch, nextTick, computed } from 'vue'
 import mermaid from 'mermaid'
 import Button from '../Button.vue'
+import MermaidModal from '../Modal/MermaidModal.vue'
 
 let initialized = false
 
@@ -54,7 +71,8 @@ function initMermaid() {
 export default {
   name: 'MermaidBlock',
   components: {
-    Button
+    Button,
+    MermaidModal
   },
   props: {
     code: {
@@ -67,6 +85,7 @@ export default {
     const error = ref('')
     const isFlashing = ref(false)
     const isCollapsed = ref(false)
+    const isModalOpen = ref(false)
 
     const lineCount = computed(() => props.code.split('\n').length)
 
@@ -86,6 +105,14 @@ export default {
 
     const toggleCollapse = () => {
       isCollapsed.value = !isCollapsed.value
+    }
+
+    const openModal = () => {
+      isModalOpen.value = true
+    }
+
+    const closeModal = () => {
+      isModalOpen.value = false
     }
 
     const copyCode = async () => {
@@ -108,7 +135,18 @@ export default {
       nextTick(renderDiagram)
     })
 
-    return { svg, error, isFlashing, isCollapsed, lineCount, toggleCollapse, copyCode }
+    return {
+      svg,
+      error,
+      isFlashing,
+      isCollapsed,
+      isModalOpen,
+      lineCount,
+      toggleCollapse,
+      openModal,
+      closeModal,
+      copyCode
+    }
   }
 }
 </script>
@@ -183,12 +221,23 @@ export default {
   font-weight: 600;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .mermaid-content {
   padding: 16px;
   display: flex;
   justify-content: center;
-  overflow-x: auto;
+  overflow: auto;
   background-color: var(--color-mermaid-bg);
+}
+
+.mermaid-svg-container {
+  display: flex;
+  justify-content: center;
 }
 
 .mermaid-content.flashing {

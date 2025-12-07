@@ -806,6 +806,24 @@ const handleCancelMove = () => {
   justify-content: center;
 }
 
+/* Collapsed sidebar: stack buttons vertically */
+.chat-sidebar.collapsed .header-buttons {
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Mobile/small screen: expanded sidebar overlaps content, collapsed pushes */
+@media (max-width: 768px) {
+  .chat-sidebar:not(.collapsed) {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 1000;
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+  }
+}
+
 /* Search styles */
 .search-container {
   position: relative;

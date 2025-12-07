@@ -342,8 +342,16 @@ const handleScratchpadUpdate = (content) => {
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-width: 0;
   background-color: transparent;
   font-family: 'Georgia', 'Palatino Linotype', 'Book Antiqua', 'Times New Roman', serif;
+}
+
+/* Desktop: ensure reasonable minimum width for content */
+@media (min-width: 769px) {
+  .app-container {
+    min-width: 700px;
+  }
 }
 
 .messages-container {
@@ -524,6 +532,26 @@ const handleScratchpadUpdate = (content) => {
   align-items: center;
   gap: 1.5rem;
   max-width: 100%;
+}
+
+/* Mobile/small screen responsive styles */
+@media (max-width: 768px) {
+  .messages-container {
+    padding: 1.5rem 1rem;
+  }
+
+  .welcome-message {
+    padding: 2rem 1rem;
+  }
+
+  .welcome-message h2 {
+    font-size: 1.5rem;
+  }
+
+  .example-prompts {
+    padding: 1.5rem 1rem;
+    margin-top: 1.5rem;
+  }
 }
 
 </style>

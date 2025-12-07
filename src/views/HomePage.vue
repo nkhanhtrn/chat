@@ -515,4 +515,56 @@ const handleLoginSuccess = (user) => {
   font-size: 0.9rem;
   font-style: italic;
 }
+
+/* Mobile/small screen responsive styles */
+@media (max-width: 768px) {
+  .homepage {
+    padding: 1rem;
+  }
+
+  .homepage-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .homepage-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .header-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .user-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .user-email {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 150px;
+  }
+
+  .notebooks-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .notebook-card {
+    padding: 1rem;
+  }
+
+  .notebook-icon {
+    font-size: 2rem;
+  }
+
+  .search-container {
+    margin-bottom: 1rem;
+  }
+}
 </style>

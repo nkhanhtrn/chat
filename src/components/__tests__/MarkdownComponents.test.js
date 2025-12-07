@@ -17,6 +17,7 @@ import QuestionLinkSpan from '../markdown/QuestionLinkSpan.vue'
 import TextSpan from '../markdown/TextSpan.vue'
 import MarkdownTable from '../markdown/MarkdownTable.vue'
 import CollapsibleBlock from '../markdown/CollapsibleBlock.vue'
+import MermaidBlock from '../markdown/MermaidBlock.vue'
 
 describe('Markdown Components', () => {
   describe('MarkdownParagraph', () => {
@@ -3184,6 +3185,169 @@ describe('Markdown Components', () => {
       expect(wrapper.find('.collapse-btn').exists()).toBe(true)
       expect(wrapper.find('.collapse-label').exists()).toBe(true)
       expect(wrapper.find('.collapsible-content').exists()).toBe(true)
+    })
+  })
+
+  describe('MermaidBlock', () => {
+    let clipboardWriteTextSpy
+
+    beforeEach(() => {
+      clipboardWriteTextSpy = vi.fn().mockResolvedValue(undefined)
+      Object.defineProperty(navigator, 'clipboard', {
+        value: {
+          writeText: clipboardWriteTextSpy
+        },
+        writable: true,
+        configurable: true
+      })
+    })
+
+    it('should render mermaid block with header', () => {
+      const wrapper = mount(MermaidBlock, {
+        props: {
+          code: 'graph TD\n    A --> B'
+        }
+      })
+      expect(wrapper.find('.mermaid-block').exists()).toBe(true)
+      expect(wrapper.find('.mermaid-header').exists()).toBe(true)
+      expect(wrapper.find('.mermaid-header').text()).toContain('mermaid')
+    })
+
+    it('should render mermaid content container', () => {
+      const wrapper = mount(MermaidBlock, {
+        props: {
+          code: 'graph TD\n    A --> B'
+        }
+      })
+      expect(wrapper.find('.mermaid-content').exists()).toBe(true)
+    })
+
+    it('should start in expanded state', () => {
+      const wrapper = mount(MermaidBlock, {
+        props: {
+          code: 'graph TD\n    A --> B'
+        }
+      })
+      expect(wrapper.find('.mermaid-container').exists()).toBe(true)
+      expect(wrapper.find('.collapse-row').exists()).toBe(false)
+    })
+
+    it('should collapse when collapse button is clicked', async () => {
+      const wrapper = mount(MermaidBlock, {
+        props: {
+          code: 'graph TD\n    A --> B'
+        }
+      })
+      await wrapper.find('.collapse-btn').trigger('click')
+      expect(wrapper.find('.collapse-row').exists()).toBe(true)
+      expect(wrapper.find('.mermaid-container').exists()).toBe(false)
+    })
+
+    it('should show line count when collapsed', async () => {
+      const wrapper = mount(MermaidBlock, {
+        props: {
+          code: 'graph TD\n    A --> B\n    B --> C'
+        }
+      })
+      await wrapper.find('.collapse-btn').trigger('click')
+      expect(wrapper.find('.collapsed-label').text()).toContain('3 lines')
+    })
+
+    it('should expand when collapsed label is clicked', async () => {
+      const wrapper = mount(MermaidBlock, {
+        props: {
+          code: 'graph TD\n    A --> B'
+        }
+      })
+      await wrapper.find('.collapse-btn').trigger('click')
+      expect(wrapper.find('.collapse-row').exists()).toBe(true)
+
+      await wrapper.find('.collapsed-label').trigger('click')
+      expect(wrapper.find('.mermaid-container').exists()).toBe(true)
+      expect(wrapper.find('.collapse-row').exists()).toBe(false)
+    })
+
+    it('should have copy button in header', () => {
+      const wrapper = mount(MermaidBlock, {
+        props: {
+          code: 'graph TD\n    A --> B'
+        }
+      })
+      expect(wrapper.find('.copy-btn').exists()).toBe(true)
+    })
+
+    it('should copy code to clipboard when copy button is clicked', async () => {
+      const code = 'graph TD\n    A --> B'
+      const wrapper = mount(MermaidBlock, {
+        props: { code }
+      })
+      await wrapper.find('.copy-btn').trigger('click')
+      expect(clipboardWriteTextSpy).toHaveBeenCalledWith(code)
+    })
+
+    it('should have expand button in header', () => {
+      const wrapper = mount(MermaidBlock, {
+        props: {
+          code: 'graph TD\n    A --> B'
+        }
+      })
+      expect(wrapper.find('.expand-btn').exists()).toBe(true)
+    })
+
+    it('should open modal when expand button is clicked', async () => {
+      const wrapper = mount(MermaidBlock, {
+        props: {
+          code: 'graph TD\n    A --> B'
+        },
+        global: {
+          stubs: {
+            teleport: true
+          }
+        }
+      })
+
+      await wrapper.find('.expand-btn').trigger('click')
+      const modal = wrapper.findComponent({ name: 'MermaidModal' })
+      expect(modal.exists()).toBe(true)
+      expect(modal.props('visible')).toBe(true)
+    })
+
+    it('should close modal when close event is emitted', async () => {
+      const wrapper = mount(MermaidBlock, {
+        props: {
+          code: 'graph TD\n    A --> B'
+        },
+        global: {
+          stubs: {
+            teleport: true
+          }
+        }
+      })
+
+      await wrapper.find('.expand-btn').trigger('click')
+      const modal = wrapper.findComponent({ name: 'MermaidModal' })
+      expect(modal.props('visible')).toBe(true)
+
+      await modal.vm.$emit('close')
+      expect(modal.props('visible')).toBe(false)
+    })
+
+    it('should pass svg to modal', async () => {
+      const wrapper = mount(MermaidBlock, {
+        props: {
+          code: 'graph TD\n    A --> B'
+        },
+        global: {
+          stubs: {
+            teleport: true
+          }
+        }
+      })
+
+      const modal = wrapper.findComponent({ name: 'MermaidModal' })
+      expect(modal.exists()).toBe(true)
+      // Modal should receive the svg prop (even if empty initially before render)
+      expect(modal.props('svg')).toBeDefined()
     })
   })
 })
