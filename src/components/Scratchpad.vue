@@ -387,10 +387,10 @@ const handleInput = () => {
   transform: translateY(16px) scale(0.95);
 }
 
-/* Mobile: move to top-right */
+/* Mobile: move to top-right, below breadcrumb */
 @media (max-width: 768px) {
   .scratchpad-container {
-    top: 12px;
+    top: 56px;
     bottom: auto;
     right: 12px;
   }

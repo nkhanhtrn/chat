@@ -19,4 +19,10 @@ defineProps({
   margin-top: 1em;
   margin-bottom: 1em;
 }
+
+@media (max-width: 768px) {
+  .markdown-list {
+    padding-left: 1.25em;
+  }
+}
 </style>

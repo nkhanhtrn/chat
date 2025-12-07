@@ -592,39 +592,66 @@ const handleDrop = (event, targetIndex) => {
 @media (max-width: 768px) {
   .homepage {
     padding: 1rem;
+    padding-bottom: 4rem; /* Space for fixed settings button */
   }
 
   .homepage-header {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
+    align-items: stretch;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
   }
 
   .homepage-header h1 {
     font-size: 1.5rem;
+    text-align: center;
   }
 
   .header-actions {
     width: 100%;
-    flex-wrap: wrap;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .header-actions > :deep(button),
+  .header-actions > button,
+  .sign-in-btn {
+    width: 100%;
+    justify-content: center;
   }
 
   .user-info {
-    flex: 1;
-    min-width: 0;
+    width: 100%;
+    justify-content: space-between;
+    padding: 0.625rem 0.875rem;
   }
 
   .user-email {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 150px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .sign-out-btn {
+    flex-shrink: 0;
+  }
+
+  .search-container {
+    margin-bottom: 1rem;
+  }
+
+  .search-input {
+    padding: 0.875rem 1rem;
+    font-size: 1rem;
   }
 
   .notebooks-grid {
     grid-template-columns: 1fr;
-    gap: 1rem;
+    gap: 0.75rem;
   }
 
   .notebook-card {
@@ -635,8 +662,57 @@ const handleDrop = (event, targetIndex) => {
     font-size: 2rem;
   }
 
-  .search-container {
-    margin-bottom: 1rem;
+  .notebook-title {
+    font-size: 1rem;
+  }
+
+  .delete-btn {
+    opacity: 1; /* Always show on mobile for touch */
+  }
+
+  .empty-state {
+    padding: 3rem 1.5rem;
+  }
+
+  .empty-icon {
+    font-size: 3rem;
+  }
+
+  .homepage-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 0.75rem 1rem;
+    background: var(--color-bg-base);
+    border-top: 1px solid var(--color-border-base);
+    display: flex;
+    justify-content: center;
+  }
+
+  .settings-btn {
+    width: auto;
+    height: auto;
+    padding: 0.625rem 1.5rem;
+    gap: 0.5rem;
+  }
+
+  .settings-btn::after {
+    content: 'Settings';
+    font-size: 0.875rem;
+  }
+
+  /* Search results mobile adjustments */
+  .search-results-title {
+    font-size: 1.125rem;
+  }
+
+  .result-item {
+    padding: 0.875rem;
+  }
+
+  .result-question {
+    font-size: 0.9375rem;
   }
 }
 </style>

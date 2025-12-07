@@ -602,4 +602,11 @@ function handleQuestionSearchCancel() {
   border-top: 1px solid var(--color-border, #e0e0e0);
   margin: 1rem 0;
 }
+
+@media (max-width: 768px) {
+  .message-content {
+    text-align: left;
+    hyphens: none;
+  }
+}
 </style>

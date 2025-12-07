@@ -10,6 +10,12 @@
       <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
     </svg>
   </button>
+  <!-- Mobile backdrop - clicking closes sidebar -->
+  <div
+    v-if="!isSidebarCollapsed && !fullPage"
+    class="sidebar-backdrop"
+    @click="collapseSidebar"
+  ></div>
   <div :class="['chat-sidebar', { collapsed: isSidebarCollapsed && !fullPage, 'full-page': fullPage }]">
     <div class="sidebar-header">
       <div class="header-buttons">
@@ -249,7 +255,7 @@ const chatStore = useChatStore()
 const router = useRouter()
 
 // Use composables
-const { isCollapsed: isSidebarCollapsed, toggle: toggleSidebar } = useSidebarCollapse('chatSidebarCollapsed')
+const { isCollapsed: isSidebarCollapsed, toggle: toggleSidebar, collapse: collapseSidebar } = useSidebarCollapse('chatSidebarCollapsed')
 
 const {
   findRootId,
@@ -820,7 +826,7 @@ const handleCancelMove = () => {
 .mobile-expand-button {
   display: none;
   position: fixed;
-  top: 12px;
+  top: 56px;
   left: 12px;
   z-index: 999;
   width: 40px;
@@ -841,8 +847,24 @@ const handleCancelMove = () => {
   color: var(--color-text);
 }
 
+/* Sidebar backdrop - only visible on mobile */
+.sidebar-backdrop {
+  display: none;
+}
+
 /* Mobile/small screen: expanded sidebar overlaps content, collapsed hides */
 @media (max-width: 768px) {
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.4);
+    z-index: 999;
+  }
+
   .chat-sidebar:not(.collapsed) {
     position: fixed;
     left: 0;
