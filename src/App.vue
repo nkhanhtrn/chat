@@ -12,7 +12,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import SyncConflictModal from './components/SyncConflictModal.vue'
+import SyncConflictModal from './components/Modal/SyncConflictModal.vue'
 import { useChatStore } from './stores/chat.js'
 
 const chatStore = useChatStore()

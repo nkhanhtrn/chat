@@ -97,81 +97,25 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useChatStore } from '../stores/chat.js'
 import Button from '../components/Button.vue'
-import LoginModal from '../components/LoginModal.vue'
+import LoginModal from '../components/Modal/LoginModal.vue'
 import { onAuthChange, signOutUser } from '../services/auth.js'
+import { useGlobalSearch } from '../composables/useGlobalSearch.js'
 
 const router = useRouter()
 const chatStore = useChatStore()
 
-const searchQuery = ref('')
 const showLoginModal = ref(false)
 const currentUser = ref(null)
 
 // Auth state listener
 let unsubscribeAuth = null
 
-const searchResults = computed(() => {
-  const query = searchQuery.value.trim().toLowerCase()
-  if (!query) return []
-
-  // Split query into individual words for multi-word search
-  const searchWords = query.split(/\s+/).filter(w => w.length > 0)
-  const results = []
-
-  // Helper to recursively search through message tree
-  const searchMessageTree = (messageId, chat, rootId, rootIndex) => {
-    const message = chatStore.getMessageById(messageId)
-    if (!message) return
-
-    const questionText = message.questionSummarized || message.question || ''
-    const lowerText = questionText.toLowerCase()
-    // Match if ALL search words are found
-    if (searchWords.every(word => lowerText.includes(word))) {
-      results.push({
-        id: message.id,
-        text: questionText,
-        chatId: chat.id,
-        rootId,
-        rootIndex,
-        notebookTitle: chat.title || 'Untitled Notebook',
-        type: 'question'
-      })
-    }
-
-    // Search children recursively
-    if (message.childIds) {
-      for (const childId of message.childIds) {
-        searchMessageTree(childId, chat, rootId, rootIndex)
-      }
-    }
-  }
-
-  for (const chat of chatStore.chatList) {
-    // Search notebook title
-    const notebookTitle = chat.title || 'Untitled Notebook'
-    const lowerTitle = notebookTitle.toLowerCase()
-    // Match if ALL search words are found
-    if (searchWords.every(word => lowerTitle.includes(word))) {
-      results.push({
-        id: chat.id,
-        text: notebookTitle,
-        chatId: chat.id,
-        notebookTitle,
-        type: 'notebook'
-      })
-    }
-
-    // Search questions within notebook
-    for (const question of chat.questions) {
-      searchMessageTree(question.id, chat, question.id, question.rootIndex)
-    }
-  }
-  return results
-})
+// Use global search with notebook title matching
+const { query: searchQuery, results: searchResults } = useGlobalSearch({ includeNotebooks: true })
 
 onMounted(() => {
   console.log('HomePage mounted')

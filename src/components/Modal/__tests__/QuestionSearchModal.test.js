@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import QuestionSearchModal from '../QuestionSearchModal.vue'
-import { useChatStore } from '../../stores/chat.js'
+import { useChatStore } from '../../../stores/chat.js'
 
 describe('QuestionSearchModal', () => {
   let wrapper
@@ -13,7 +13,7 @@ describe('QuestionSearchModal', () => {
   const createStoreWithMessages = () => {
     chatStore = useChatStore()
 
-    // Add root messages
+    // Add messages from multiple notebooks
     chatStore.messagesById = {
       'root-1': {
         id: 'root-1',
@@ -46,8 +46,24 @@ describe('QuestionSearchModal', () => {
         response: 'TypeScript is a typed superset of JavaScript.',
         childIds: [],
         parentId: null
+      },
+      // Messages from a second notebook
+      'root-3': {
+        id: 'root-3',
+        question: 'What is Python?',
+        questionSummarized: 'What is Python?',
+        response: 'Python is a programming language.',
+        childIds: [],
+        parentId: null
       }
     }
+
+    // Set up multiple notebooks (chats)
+    chatStore.chats = [
+      { id: 'notebook-1', name: 'JavaScript Notes', rootMessageIds: ['root-1', 'root-2'] },
+      { id: 'notebook-2', name: 'Python Notes', rootMessageIds: ['root-3'] }
+    ]
+    chatStore.currentChatId = 'notebook-1'
     chatStore.rootMessageIds = ['root-1', 'root-2']
 
     return chatStore
@@ -538,6 +554,85 @@ describe('QuestionSearchModal', () => {
 
       expect(results[1].classList.contains('focused')).toBe(true)
       expect(results[0].classList.contains('focused')).toBe(false)
+    })
+  })
+
+  describe('Cross-notebook search', () => {
+    it('searches across all notebooks', async () => {
+      createStoreWithMessages()
+      wrapper = mount(QuestionSearchModal, {
+        props: { visible: true },
+        global: { plugins: [pinia] },
+        attachTo: root
+      })
+
+      const input = document.body.querySelector('.search-input')
+      input.value = 'What is'
+      input.dispatchEvent(new Event('input'))
+      await wrapper.vm.$nextTick()
+
+      const results = document.body.querySelectorAll('.result-item')
+      // Should find questions from both notebooks: JavaScript, TypeScript, Python
+      expect(results.length).toBe(3)
+    })
+
+    it('finds questions from other notebooks', async () => {
+      createStoreWithMessages()
+      wrapper = mount(QuestionSearchModal, {
+        props: { visible: true },
+        global: { plugins: [pinia] },
+        attachTo: root
+      })
+
+      const input = document.body.querySelector('.search-input')
+      input.value = 'Python'
+      input.dispatchEvent(new Event('input'))
+      await wrapper.vm.$nextTick()
+
+      const results = document.body.querySelectorAll('.result-item')
+      expect(results.length).toBe(1)
+      expect(results[0].querySelector('.result-text').textContent).toContain('Python')
+    })
+
+    it('displays notebook name for each result', async () => {
+      createStoreWithMessages()
+      wrapper = mount(QuestionSearchModal, {
+        props: { visible: true },
+        global: { plugins: [pinia] },
+        attachTo: root
+      })
+
+      const input = document.body.querySelector('.search-input')
+      input.value = 'Python'
+      input.dispatchEvent(new Event('input'))
+      await wrapper.vm.$nextTick()
+
+      const results = document.body.querySelectorAll('.result-item')
+      const notebookLabel = results[0].querySelector('.result-notebook')
+      expect(notebookLabel).toBeTruthy()
+      expect(notebookLabel.textContent).toContain('Python Notes')
+    })
+
+    it('shows correct notebook for each result when multiple match', async () => {
+      createStoreWithMessages()
+      wrapper = mount(QuestionSearchModal, {
+        props: { visible: true },
+        global: { plugins: [pinia] },
+        attachTo: root
+      })
+
+      const input = document.body.querySelector('.search-input')
+      input.value = 'What'
+      input.dispatchEvent(new Event('input'))
+      await wrapper.vm.$nextTick()
+
+      const results = document.body.querySelectorAll('.result-item')
+
+      // Check that results have notebook labels
+      results.forEach(result => {
+        const notebookLabel = result.querySelector('.result-notebook')
+        expect(notebookLabel).toBeTruthy()
+      })
     })
   })
 

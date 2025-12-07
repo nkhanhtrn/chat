@@ -2,10 +2,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import LoginModal from '../LoginModal.vue'
 import Modal from '../Modal.vue'
-import * as auth from '../../services/auth.js'
+import * as auth from '../../../services/auth.js'
 
 // Mock auth module
-vi.mock('../../services/auth.js', () => ({
+vi.mock('../../../services/auth.js', () => ({
   signInUser: vi.fn()
 }))
 

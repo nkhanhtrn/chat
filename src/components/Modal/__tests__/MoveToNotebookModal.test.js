@@ -78,7 +78,7 @@ describe('MoveToNotebookModal', () => {
       const results = document.body.querySelectorAll('.result-item:not(.new-notebook)')
       expect(results.length).toBe(3) // All except 'current'
 
-      const titles = Array.from(results).map(r => r.textContent.trim())
+      const titles = Array.from(results).map(r => r.querySelector('.result-title')?.textContent.trim())
       expect(titles).toContain('JavaScript Notes')
       expect(titles).toContain('TypeScript Guide')
       expect(titles).toContain('React Tutorial')

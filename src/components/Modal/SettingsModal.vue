@@ -95,7 +95,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import Modal from './Modal.vue'
-import Button from './Button.vue'
+import Button from '../Button.vue'
 
 const props = defineProps({
   modelValue: {

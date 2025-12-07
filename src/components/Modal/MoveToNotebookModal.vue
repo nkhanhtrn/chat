@@ -23,12 +23,16 @@
         <button
           v-for="(notebook, index) in filteredNotebooks"
           :key="notebook.id"
-          class="result-item"
+          class="result-item notebook-item"
           :class="{ focused: focusedIndex === index }"
           @click="onSelectNotebook(notebook)"
           @mouseenter="focusedIndex = index"
         >
-          <span class="result-title">{{ notebook.title }}</span>
+          <span class="notebook-icon">📓</span>
+          <div class="notebook-info">
+            <span class="result-title">{{ notebook.title }}</span>
+            <span class="notebook-meta">{{ notebook.messageCount }} question{{ notebook.messageCount !== 1 ? 's' : '' }}</span>
+          </div>
         </button>
       </template>
       <div v-else-if="searchQuery.trim()" class="empty-state">
@@ -198,5 +202,28 @@ function onCancel() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.notebook-item {
+  align-items: flex-start;
+}
+
+.notebook-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.notebook-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.notebook-meta {
+  font-size: 0.75rem;
+  color: var(--color-text-muted, #888);
 }
 </style>

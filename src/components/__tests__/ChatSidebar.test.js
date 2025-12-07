@@ -1053,7 +1053,11 @@ describe('ChatSidebar', () => {
         questions: [{ id: 'q1', text: 'Question 1' }]
       }]
 
-      chatStore.chats = chats
+      chatStore.chats = [{
+        id: 'chat1',
+        title: 'Original Title',
+        rootMessageIds: ['q1']
+      }]
       chatStore.renameChat = vi.fn()
 
       wrapper = mount(ChatSidebar, {
@@ -1885,9 +1889,7 @@ describe('ChatSidebar', () => {
       expect(notebooksButton.classes()).not.toContain('drop-target')
     })
 
-    it('should show confirmation dialog when dropping question on notebooks button', async () => {
-      mockConfirm.mockReturnValue(false) // User cancels
-
+    it('should show modal when dropping question on notebooks button', async () => {
       setupMessagesInStore([
         { id: 'q1', question: 'Test Question', response: '' }
       ])
@@ -1901,6 +1903,9 @@ describe('ChatSidebar', () => {
       wrapper = mount(ChatSidebar, {
         props: { chats, currentChatId: 'chat1' }
       })
+
+      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
+      expect(modal.props('visible')).toBe(false)
 
       const notebooksButton = wrapper.find('.back-home-button')
       const treeItem = wrapper.find('.tree-item')
@@ -1919,15 +1924,11 @@ describe('ChatSidebar', () => {
         preventDefault: vi.fn()
       })
 
-      // Confirm should be called
-      expect(mockConfirm).toHaveBeenCalledWith(
-        expect.stringContaining('Move "Test Question" and all its children to a new notebook?')
-      )
+      // Modal should be shown
+      expect(modal.props('visible')).toBe(true)
     })
 
-    it('should not create new notebook if user cancels confirmation', async () => {
-      mockConfirm.mockReturnValue(false)
-
+    it('should not create new notebook if user cancels modal', async () => {
       setupMessagesInStore([
         { id: 'q1', question: 'Test Question', response: '' }
       ])
@@ -1965,13 +1966,18 @@ describe('ChatSidebar', () => {
         preventDefault: vi.fn()
       })
 
+      // Modal should be shown
+      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
+      expect(modal.props('visible')).toBe(true)
+
+      // User cancels
+      await modal.vm.$emit('cancel')
+
       // No new chat should be created
       expect(chatStore.chats.length).toBe(initialChatCount)
     })
 
-    it('should move question to new notebook when user confirms', async () => {
-      mockConfirm.mockReturnValue(true)
-
+    it('should move question to new notebook when user selects new notebook in modal', async () => {
       setupMessagesInStore([
         { id: 'q1', question: 'Test Question', response: '', childIds: [] }
       ])
@@ -2009,6 +2015,10 @@ describe('ChatSidebar', () => {
         preventDefault: vi.fn()
       })
 
+      // User selects new notebook in modal
+      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
+      await modal.vm.$emit('select-new')
+
       // New chat should be created
       expect(chatStore.chats.length).toBe(2)
 
@@ -2020,8 +2030,6 @@ describe('ChatSidebar', () => {
     })
 
     it('should move question tree with all children to new notebook', async () => {
-      mockConfirm.mockReturnValue(true)
-
       setupMessagesInStore([
         { id: 'q1', question: 'Parent', response: '', childIds: ['child1', 'child2'] },
         { id: 'child1', question: 'Child 1', response: '', parentId: 'q1', childIds: [] },
@@ -2061,6 +2069,10 @@ describe('ChatSidebar', () => {
         preventDefault: vi.fn()
       })
 
+      // User selects new notebook in modal
+      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
+      await modal.vm.$emit('select-new')
+
       // All messages should still exist in messagesById
       expect(chatStore.messagesById['q1']).toBeDefined()
       expect(chatStore.messagesById['child1']).toBeDefined()
@@ -2074,9 +2086,7 @@ describe('ChatSidebar', () => {
       expect(chatStore.messagesById['child2'].parentId).toBe('q1')
     })
 
-    it('should navigate to new notebook with moved question after drop', async () => {
-      mockConfirm.mockReturnValue(true)
-
+    it('should navigate to new notebook with moved question after selecting new in modal', async () => {
       setupMessagesInStore([
         { id: 'q1', question: 'Test Question', response: '' }
       ])
@@ -2114,6 +2124,10 @@ describe('ChatSidebar', () => {
         preventDefault: vi.fn()
       })
 
+      // User selects new notebook in modal
+      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
+      await modal.vm.$emit('select-new')
+
       // Router should be called with question route
       await wrapper.vm.$nextTick()
 
@@ -2125,8 +2139,6 @@ describe('ChatSidebar', () => {
     })
 
     it('should clear parentId when moving child question to new notebook', async () => {
-      mockConfirm.mockReturnValue(true)
-
       setupMessagesInStore([
         { id: 'parent', question: 'Parent', response: '', childIds: ['child1'] },
         { id: 'child1', question: 'Child', response: '', parentId: 'parent', childIds: [] }
@@ -2174,6 +2186,10 @@ describe('ChatSidebar', () => {
         preventDefault: vi.fn()
       })
 
+      // User selects new notebook in modal
+      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
+      await modal.vm.$emit('select-new')
+
       // Child should have null parentId in new notebook
       expect(chatStore.messagesById['child1'].parentId).toBeNull()
 
@@ -2182,8 +2198,6 @@ describe('ChatSidebar', () => {
     })
 
     it('should update current message and chat IDs after move', async () => {
-      mockConfirm.mockReturnValue(true)
-
       setupMessagesInStore([
         { id: 'q1', question: 'Test Question', response: '' }
       ])
@@ -2222,6 +2236,10 @@ describe('ChatSidebar', () => {
         preventDefault: vi.fn()
       })
 
+      // User selects new notebook in modal
+      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
+      await modal.vm.$emit('select-new')
+
       // Current message ID should be updated to moved question
       expect(chatStore.currentMessageId).toBe('q1')
 
@@ -2230,9 +2248,7 @@ describe('ChatSidebar', () => {
       expect(chatStore.currentChatId).toBe(newChatId)
     })
 
-    it('should use questionSummarized in confirmation message', async () => {
-      mockConfirm.mockReturnValue(false)
-
+    it('should name new notebook with questionSummarized when available', async () => {
       setupMessagesInStore([
         {
           id: 'q1',
@@ -2241,6 +2257,14 @@ describe('ChatSidebar', () => {
           response: ''
         }
       ])
+
+      chatStore.chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        rootMessageIds: ['q1']
+      }]
+      chatStore.currentChatId = 'chat1'
+      chatStore.rootMessageIds = ['q1']
 
       const chats = [{
         id: 'chat1',
@@ -2267,64 +2291,16 @@ describe('ChatSidebar', () => {
         preventDefault: vi.fn()
       })
 
-      expect(mockConfirm).toHaveBeenCalledWith(
-        expect.stringContaining('Move "Short summary"')
-      )
-    })
+      // User selects new notebook in modal
+      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
+      await modal.vm.$emit('select-new')
 
-    it('should name new notebook with questionSummarized when dragging question', async () => {
-      mockConfirm.mockReturnValue(true)
-
-      setupMessagesInStore([
-        {
-          id: 'q1',
-          question: 'This is a very long question that should be summarized',
-          questionSummarized: 'Short Summary',
-          response: ''
-        }
-      ])
-
-      chatStore.chats = [{
-        id: 'chat1',
-        name: 'Chat 1',
-        rootMessageIds: ['q1']
-      }]
-      chatStore.currentChatId = 'chat1'
-      chatStore.rootMessageIds = ['q1']
-
-      const chats = [{
-        id: 'chat1',
-        title: 'Chat 1',
-        questions: [{ id: 'q1', text: 'Short Summary' }]
-      }]
-
-      wrapper = mount(ChatSidebar, {
-        props: { chats, currentChatId: 'chat1' }
-      })
-
-      const notebooksButton = wrapper.find('.back-home-button')
-      const treeItem = wrapper.find('.tree-item')
-
-      await treeItem.trigger('dragstart', {
-        dataTransfer: {
-          effectAllowed: 'move',
-          setData: vi.fn()
-        }
-      })
-
-      await notebooksButton.trigger('drop', {
-        dataTransfer: {},
-        preventDefault: vi.fn()
-      })
-
-      // New chat should be created with the summarized question name
+      // New notebook should use questionSummarized as name
       expect(chatStore.chats.length).toBe(2)
-      expect(chatStore.chats[1].name).toBe('Short Summary')
+      expect(chatStore.chats[1].name).toBe('Short summary')
     })
 
     it('should name new notebook with question text when no questionSummarized exists', async () => {
-      mockConfirm.mockReturnValue(true)
-
       setupMessagesInStore([
         {
           id: 'q1',
@@ -2366,6 +2342,10 @@ describe('ChatSidebar', () => {
         preventDefault: vi.fn()
       })
 
+      // User selects new notebook in modal
+      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
+      await modal.vm.$emit('select-new')
+
       // New chat should be created with the question text as fallback
       expect(chatStore.chats.length).toBe(2)
       expect(chatStore.chats[1].name).toBe('Test Question')
@@ -2384,13 +2364,12 @@ describe('ChatSidebar', () => {
         preventDefault: vi.fn()
       })
 
-      // Should not crash and confirm should not be called
-      expect(mockConfirm).not.toHaveBeenCalled()
+      // Should not crash and modal should not be shown
+      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
+      expect(modal.props('visible')).toBe(false)
     })
 
     it('should persist state after moving question', async () => {
-      mockConfirm.mockReturnValue(true)
-
       setupMessagesInStore([
         { id: 'q1', question: 'Test Question', response: '' }
       ])
@@ -2401,6 +2380,7 @@ describe('ChatSidebar', () => {
         rootMessageIds: ['q1']
       }]
       chatStore.currentChatId = 'chat1'
+      chatStore.rootMessageIds = ['q1']
       chatStore._persistState = vi.fn()
 
       const chats = [{
@@ -2428,8 +2408,469 @@ describe('ChatSidebar', () => {
         preventDefault: vi.fn()
       })
 
+      // User selects new notebook in modal
+      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
+      await modal.vm.$emit('select-new')
+
       // _persistState should be called
       expect(chatStore._persistState).toHaveBeenCalled()
+    })
+  })
+
+  describe('Back Button (Previous Notebook)', () => {
+    beforeEach(() => {
+      mockRouterPush.mockClear()
+    })
+
+    it('should not render back button initially', () => {
+      wrapper = mount(ChatSidebar, {
+        props: { chats: [], currentChatId: 'chat1' }
+      })
+
+      expect(wrapper.find('.back-button').exists()).toBe(false)
+    })
+
+    it('should render back button after moving question to new notebook', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Test Question', response: '' }
+      ])
+
+      chatStore.chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        rootMessageIds: ['q1']
+      }]
+      chatStore.currentChatId = 'chat1'
+      chatStore.rootMessageIds = ['q1']
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Test Question' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      // Initially no back button
+      expect(wrapper.find('.back-button').exists()).toBe(false)
+
+      // Simulate dropping on notebooks button to show modal
+      const notebooksButton = wrapper.find('.back-home-button')
+      const treeItem = wrapper.find('.tree-item')
+
+      await treeItem.trigger('dragstart', {
+        dataTransfer: {
+          effectAllowed: 'move',
+          setData: vi.fn()
+        }
+      })
+
+      await notebooksButton.trigger('drop', {
+        dataTransfer: {},
+        preventDefault: vi.fn()
+      })
+
+      // Modal should be shown
+      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
+      expect(modal.props('visible')).toBe(true)
+
+      // Simulate selecting "New notebook" in modal
+      await modal.vm.$emit('select-new')
+
+      // Back button should now be visible
+      expect(wrapper.find('.back-button').exists()).toBe(true)
+    })
+
+    it('should render back button after moving question to existing notebook', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Test Question', response: '' }
+      ])
+
+      chatStore.chats = [
+        { id: 'chat1', title: 'Chat 1', rootMessageIds: ['q1'] },
+        { id: 'chat2', title: 'Chat 2', rootMessageIds: [] }
+      ]
+      chatStore.currentChatId = 'chat1'
+      chatStore.rootMessageIds = ['q1']
+
+      const chats = [
+        { id: 'chat1', title: 'Chat 1', questions: [{ id: 'q1', text: 'Test Question' }] },
+        { id: 'chat2', title: 'Chat 2', questions: [] }
+      ]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      // Initially no back button
+      expect(wrapper.find('.back-button').exists()).toBe(false)
+
+      // Simulate dropping on notebooks button to show modal
+      const notebooksButton = wrapper.find('.back-home-button')
+      const treeItem = wrapper.find('.tree-item')
+
+      await treeItem.trigger('dragstart', {
+        dataTransfer: {
+          effectAllowed: 'move',
+          setData: vi.fn()
+        }
+      })
+
+      await notebooksButton.trigger('drop', {
+        dataTransfer: {},
+        preventDefault: vi.fn()
+      })
+
+      // Simulate selecting existing notebook in modal
+      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
+      await modal.vm.$emit('select-existing', { id: 'chat2', title: 'Chat 2' })
+
+      // Back button should now be visible
+      expect(wrapper.find('.back-button').exists()).toBe(true)
+    })
+
+    it('should navigate to previous notebook when back button clicked', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Test Question', response: '' }
+      ])
+
+      chatStore.chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        rootMessageIds: ['q1']
+      }]
+      chatStore.currentChatId = 'chat1'
+      chatStore.rootMessageIds = ['q1']
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Test Question' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      // Trigger move to new notebook
+      const notebooksButton = wrapper.find('.back-home-button')
+      const treeItem = wrapper.find('.tree-item')
+
+      await treeItem.trigger('dragstart', {
+        dataTransfer: { effectAllowed: 'move', setData: vi.fn() }
+      })
+
+      await notebooksButton.trigger('drop', {
+        dataTransfer: {},
+        preventDefault: vi.fn()
+      })
+
+      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
+      await modal.vm.$emit('select-new')
+
+      // Clear previous router calls
+      mockRouterPush.mockClear()
+
+      // Click back button
+      const backButton = wrapper.find('.back-button')
+      await backButton.trigger('click')
+
+      // Should navigate to previous notebook
+      expect(mockRouterPush).toHaveBeenCalledWith({
+        name: 'notebook',
+        params: { id: 'chat1' }
+      })
+    })
+
+    it('should hide back button after clicking it', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Test Question', response: '' }
+      ])
+
+      chatStore.chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        rootMessageIds: ['q1']
+      }]
+      chatStore.currentChatId = 'chat1'
+      chatStore.rootMessageIds = ['q1']
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Test Question' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      // Trigger move to new notebook
+      const notebooksButton = wrapper.find('.back-home-button')
+      const treeItem = wrapper.find('.tree-item')
+
+      await treeItem.trigger('dragstart', {
+        dataTransfer: { effectAllowed: 'move', setData: vi.fn() }
+      })
+
+      await notebooksButton.trigger('drop', {
+        dataTransfer: {},
+        preventDefault: vi.fn()
+      })
+
+      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
+      await modal.vm.$emit('select-new')
+
+      // Back button should be visible
+      expect(wrapper.find('.back-button').exists()).toBe(true)
+
+      // Click back button
+      await wrapper.find('.back-button').trigger('click')
+
+      // Back button should be hidden
+      expect(wrapper.find('.back-button').exists()).toBe(false)
+    })
+
+    it('should not show back button when modal is cancelled', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Test Question', response: '' }
+      ])
+
+      chatStore.chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        rootMessageIds: ['q1']
+      }]
+      chatStore.currentChatId = 'chat1'
+      chatStore.rootMessageIds = ['q1']
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Test Question' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      // Trigger move modal
+      const notebooksButton = wrapper.find('.back-home-button')
+      const treeItem = wrapper.find('.tree-item')
+
+      await treeItem.trigger('dragstart', {
+        dataTransfer: { effectAllowed: 'move', setData: vi.fn() }
+      })
+
+      await notebooksButton.trigger('drop', {
+        dataTransfer: {},
+        preventDefault: vi.fn()
+      })
+
+      // Cancel the modal
+      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
+      await modal.vm.$emit('cancel')
+
+      // Back button should not be visible
+      expect(wrapper.find('.back-button').exists()).toBe(false)
+    })
+  })
+
+  describe('Move to Notebook Modal', () => {
+    beforeEach(() => {
+      mockRouterPush.mockClear()
+    })
+
+    it('should show modal when dropping question on notebooks button', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Test Question', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Test Question' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
+      expect(modal.props('visible')).toBe(false)
+
+      const notebooksButton = wrapper.find('.back-home-button')
+      const treeItem = wrapper.find('.tree-item')
+
+      await treeItem.trigger('dragstart', {
+        dataTransfer: { effectAllowed: 'move', setData: vi.fn() }
+      })
+
+      await notebooksButton.trigger('drop', {
+        dataTransfer: {},
+        preventDefault: vi.fn()
+      })
+
+      expect(modal.props('visible')).toBe(true)
+    })
+
+    it('should close modal when cancel is emitted', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Test Question', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Test Question' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      // Open modal
+      const notebooksButton = wrapper.find('.back-home-button')
+      const treeItem = wrapper.find('.tree-item')
+
+      await treeItem.trigger('dragstart', {
+        dataTransfer: { effectAllowed: 'move', setData: vi.fn() }
+      })
+
+      await notebooksButton.trigger('drop', {
+        dataTransfer: {},
+        preventDefault: vi.fn()
+      })
+
+      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
+      expect(modal.props('visible')).toBe(true)
+
+      // Cancel
+      await modal.vm.$emit('cancel')
+
+      expect(modal.props('visible')).toBe(false)
+    })
+
+    it('should pass notebooks list to modal', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Test Question', response: '' }
+      ])
+
+      const chats = [
+        { id: 'chat1', title: 'Chat 1', questions: [{ id: 'q1', text: 'Test Question' }] },
+        { id: 'chat2', title: 'Chat 2', questions: [] }
+      ]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
+      expect(modal.props('notebooks')).toBeDefined()
+      expect(modal.props('currentNotebookId')).toBe('chat1')
+    })
+
+    it('should move question to new notebook when select-new emitted', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Test Question', response: '' }
+      ])
+
+      chatStore.chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        rootMessageIds: ['q1']
+      }]
+      chatStore.currentChatId = 'chat1'
+      chatStore.rootMessageIds = ['q1']
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Test Question' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      // Trigger modal
+      const notebooksButton = wrapper.find('.back-home-button')
+      const treeItem = wrapper.find('.tree-item')
+
+      await treeItem.trigger('dragstart', {
+        dataTransfer: { effectAllowed: 'move', setData: vi.fn() }
+      })
+
+      await notebooksButton.trigger('drop', {
+        dataTransfer: {},
+        preventDefault: vi.fn()
+      })
+
+      const initialChatCount = chatStore.chats.length
+
+      // Select new notebook
+      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
+      await modal.vm.$emit('select-new')
+
+      // New chat should be created
+      expect(chatStore.chats.length).toBe(initialChatCount + 1)
+
+      // Should navigate to new notebook
+      expect(mockRouterPush).toHaveBeenCalledWith({
+        name: 'question',
+        params: expect.objectContaining({ questionId: 'q1' })
+      })
+    })
+
+    it('should move question to existing notebook when select-existing emitted', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Test Question', response: '' }
+      ])
+
+      chatStore.chats = [
+        { id: 'chat1', title: 'Chat 1', rootMessageIds: ['q1'] },
+        { id: 'chat2', title: 'Chat 2', rootMessageIds: [] }
+      ]
+      chatStore.currentChatId = 'chat1'
+      chatStore.rootMessageIds = ['q1']
+
+      const chats = [
+        { id: 'chat1', title: 'Chat 1', questions: [{ id: 'q1', text: 'Test Question' }] },
+        { id: 'chat2', title: 'Chat 2', questions: [] }
+      ]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      // Trigger modal
+      const notebooksButton = wrapper.find('.back-home-button')
+      const treeItem = wrapper.find('.tree-item')
+
+      await treeItem.trigger('dragstart', {
+        dataTransfer: { effectAllowed: 'move', setData: vi.fn() }
+      })
+
+      await notebooksButton.trigger('drop', {
+        dataTransfer: {},
+        preventDefault: vi.fn()
+      })
+
+      // Select existing notebook
+      const modal = wrapper.findComponent({ name: 'MoveToNotebookModal' })
+      await modal.vm.$emit('select-existing', { id: 'chat2', title: 'Chat 2' })
+
+      // Question should be moved to chat2
+      expect(chatStore.chats[0].rootMessageIds).not.toContain('q1')
+      expect(chatStore.chats[1].rootMessageIds).toContain('q1')
+
+      // Should navigate to target notebook
+      expect(mockRouterPush).toHaveBeenCalledWith({
+        name: 'question',
+        params: { id: 'chat2', questionId: 'q1' }
+      })
     })
   })
 })

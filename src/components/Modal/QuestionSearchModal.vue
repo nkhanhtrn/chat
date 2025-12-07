@@ -31,9 +31,16 @@
           @mouseenter="focusedIndex = index"
         >
           <div class="result-text">{{ result.text }}</div>
-          <div v-if="result.ancestors.length > 0" class="result-ancestors">
-            <span v-for="(ancestor, i) in result.ancestors" :key="ancestor.id">
-              {{ ancestor.text }}<span v-if="i < result.ancestors.length - 1"> → </span>
+          <div class="result-meta">
+            <span class="result-notebook">
+              <span class="notebook-icon">📓</span>
+              {{ result.notebookTitle }}
+            </span>
+            <span v-if="result.ancestors.length > 0" class="result-ancestors">
+              <span class="ancestors-separator">·</span>
+              <span v-for="(ancestor, i) in result.ancestors" :key="ancestor.id">
+                {{ ancestor.text }}<span v-if="i < result.ancestors.length - 1"> → </span>
+              </span>
             </span>
           </div>
         </button>
@@ -47,11 +54,10 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import Modal from './Modal.vue'
-import Button from './Button.vue'
-import { useSidebarSearch } from '../composables/useSidebarSearch.js'
-import { useChatStore } from '../stores/chat.js'
+import Button from '../Button.vue'
+import { useGlobalSearch } from '../../composables/useGlobalSearch.js'
 
 const props = defineProps({
   visible: {
@@ -62,23 +68,11 @@ const props = defineProps({
 
 const emit = defineEmits(['select', 'cancel'])
 
-const chatStore = useChatStore()
 const searchInputRef = ref(null)
 const focusedIndex = ref(0)
 
-// Create computed ref for chat questions (root messages)
-const chatQuestions = computed(() => {
-  return chatStore.rootMessages.map(msg => ({
-    id: msg.id,
-    text: msg.questionSummarized || msg.question || 'Untitled'
-  }))
-})
-
-// Use the sidebar search composable
-const { query: searchQuery, results } = useSidebarSearch({
-  getMessageById: (id) => chatStore.getMessageById(id),
-  chatQuestions
-})
+// Use global search with ancestor breadcrumbs
+const { query: searchQuery, results } = useGlobalSearch({ includeAncestors: true })
 
 // Focus input when modal opens
 watch(() => props.visible, (isVisible) => {
@@ -197,9 +191,33 @@ function onCancel() {
   line-height: 1.4;
 }
 
-.result-ancestors {
+.result-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
   font-size: 0.8rem;
   color: var(--color-text-muted, #666);
   line-height: 1.3;
+}
+
+.result-notebook {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--color-text-muted, #888);
+}
+
+.notebook-icon {
+  font-size: 0.75rem;
+}
+
+.ancestors-separator {
+  color: var(--color-text-muted, #999);
+  margin: 0 0.1rem;
+}
+
+.result-ancestors {
+  color: var(--color-text-muted, #666);
 }
 </style>

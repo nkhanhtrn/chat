@@ -1,18 +1,28 @@
 <template>
   <div :class="['chat-sidebar', { collapsed: isSidebarCollapsed }]">
     <div class="sidebar-header">
-      <button
-        @click="$emit('back-home')"
-        class="back-home-button"
-        :class="{ 'drop-target': isNotebooksDropTarget }"
-        title="Back to Notebooks"
-        @dragover.prevent="handleDragOverNotebooks"
-        @dragleave="handleDragLeaveNotebooks"
-        @drop="handleDropOnNotebooks"
-      >
-        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
-        <span v-if="!isSidebarCollapsed" class="button-text">Notebooks</span>
-      </button>
+      <div class="header-buttons">
+        <button
+          v-if="previousNotebookId"
+          @click="handleGoBack"
+          class="back-button"
+          title="Back to previous notebook"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        </button>
+        <button
+          @click="$emit('back-home')"
+          class="back-home-button"
+          :class="{ 'drop-target': isNotebooksDropTarget }"
+          title="Back to Notebooks"
+          @dragover.prevent="handleDragOverNotebooks"
+          @dragleave="handleDragLeaveNotebooks"
+          @drop="handleDropOnNotebooks"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+          <span v-if="!isSidebarCollapsed" class="button-text">Notebooks</span>
+        </button>
+      </div>
       <!-- Notebook title -->
       <div v-if="!isSidebarCollapsed && currentNotebook" class="notebook-title-container">
         <InlineEdit
@@ -184,8 +194,8 @@
 import { ref, computed, provide, toRef } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from './Button.vue'
-import SettingsModal from './SettingsModal.vue'
-import MoveToNotebookModal from './MoveToNotebookModal.vue'
+import SettingsModal from './Modal/SettingsModal.vue'
+import MoveToNotebookModal from './Modal/MoveToNotebookModal.vue'
 import MessageTree from './MessageTree.vue'
 import DraggableTreeItem from './DraggableTreeItem.vue'
 import InlineEdit from './InlineEdit.vue'
@@ -261,6 +271,7 @@ const showSettings = ref(false)
 const isNotebooksDropTarget = ref(false)
 const showMoveModal = ref(false)
 const pendingMoveMessageId = ref(null)
+const previousNotebookId = ref(null)
 
 // Drag state - shared with MessageTree via provide
 const draggedItem = ref(null)
@@ -431,6 +442,9 @@ const handleDropOnNotebooks = (event) => {
 const handleMoveToNewNotebook = () => {
   if (!pendingMoveMessageId.value) return
 
+  // Store current notebook as previous before moving
+  const sourceNotebookId = props.currentChatId
+
   const result = chatStore.moveMessageToNewNotebook(pendingMoveMessageId.value, props.currentChatId)
 
   // Close modal and clear state
@@ -439,6 +453,7 @@ const handleMoveToNewNotebook = () => {
 
   // Navigate to the new notebook and the moved question
   if (result) {
+    previousNotebookId.value = sourceNotebookId
     router.push({ name: 'question', params: { id: result.newChatId, questionId: result.messageId } })
   }
 }
@@ -446,6 +461,9 @@ const handleMoveToNewNotebook = () => {
 // Handle moving to an existing notebook
 const handleMoveToExistingNotebook = (notebook) => {
   if (!pendingMoveMessageId.value) return
+
+  // Store current notebook as previous before moving
+  const sourceNotebookId = props.currentChatId
 
   const result = chatStore.moveMessageToExistingNotebook(
     pendingMoveMessageId.value,
@@ -459,8 +477,19 @@ const handleMoveToExistingNotebook = (notebook) => {
 
   // Navigate to the target notebook and the moved question
   if (result) {
+    previousNotebookId.value = sourceNotebookId
     router.push({ name: 'question', params: { id: result.targetChatId, questionId: result.messageId } })
   }
+}
+
+// Handle going back to previous notebook
+const handleGoBack = () => {
+  if (!previousNotebookId.value) return
+
+  const notebookId = previousNotebookId.value
+  previousNotebookId.value = null
+
+  router.push({ name: 'notebook', params: { id: notebookId } })
 }
 
 // Handle canceling the move
@@ -494,6 +523,32 @@ const handleCancelMove = () => {
 
 .chat-sidebar.collapsed .sidebar-header {
   padding: 0.4rem 0.75rem;
+}
+
+.header-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.back-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.back-button:hover {
+  background-color: var(--color-bg-hover);
+  color: var(--color-text-secondary);
 }
 
 .back-home-button {

@@ -68,7 +68,7 @@
 
 <script setup>
 import { ref, computed, watch, nextTick, onMounted } from 'vue'
-import Modal from './Modal.vue'
+import Modal from './Modal/Modal.vue'
 import Button from './Button.vue'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 

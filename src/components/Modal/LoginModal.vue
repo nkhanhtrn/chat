@@ -65,7 +65,7 @@
 <script setup>
 import { ref } from 'vue'
 import Modal from './Modal.vue'
-import { signInUser } from '../services/auth.js'
+import { signInUser } from '../../services/auth.js'
 
 const props = defineProps({
   visible: {
