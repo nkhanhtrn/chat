@@ -15,28 +15,10 @@
       </button>
     </Transition>
 
-    <!-- Toggle Button -->
-    <Transition name="button-fade" @after-leave="showPanel = true">
-      <button
-        v-if="showButton"
-        class="scratchpad-toggle"
-        @click="isOpen = true"
-        title="Open scratchpad"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-          <polyline points="14 2 14 8 20 8"></polyline>
-          <line x1="16" y1="13" x2="8" y2="13"></line>
-          <line x1="16" y1="17" x2="8" y2="17"></line>
-          <polyline points="10 9 9 9 8 9"></polyline>
-        </svg>
-      </button>
-    </Transition>
-
-    <!-- Scratchpad Panel -->
-    <Transition name="scratchpad-slide" @after-leave="showButton = true" @after-enter="panelVisible = true">
+    <!-- Scratchpad Panel (above button in desktop) -->
+    <Transition name="scratchpad-slide">
       <div
-        v-if="showPanel"
+        v-if="isOpen"
         class="scratchpad-panel"
         :style="{ width: panelWidth + 'px', height: panelHeight + 'px' }"
       >
@@ -63,6 +45,22 @@
         ></textarea>
       </div>
     </Transition>
+
+    <!-- Toggle Button -->
+    <button
+      class="scratchpad-toggle"
+      :class="{ 'is-open': isOpen }"
+      @click="isOpen = !isOpen"
+      :title="isOpen ? 'Close scratchpad' : 'Open scratchpad'"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <polyline points="14 2 14 8 20 8"></polyline>
+        <line x1="16" y1="13" x2="8" y2="13"></line>
+        <line x1="16" y1="17" x2="8" y2="17"></line>
+        <polyline points="10 9 9 9 8 9"></polyline>
+      </svg>
+    </button>
   </div>
 </template>
 
@@ -89,8 +87,6 @@ const props = defineProps({
 const emit = defineEmits(['update:content', 'stop-streaming'])
 
 const isOpen = ref(false)
-const showButton = ref(true)
-const showPanel = ref(false)
 const localContent = ref(props.content)
 const textareaRef = ref(null)
 
@@ -140,17 +136,25 @@ const startResize = (e) => {
   document.addEventListener('mouseup', stopResize)
 }
 
+const isMobile = () => window.innerWidth <= 768
+
 const onResize = (e) => {
   if (!isResizing.value) return
 
-  // Since panel is anchored at bottom-right, dragging top-left means:
-  // - moving left (negative deltaX) increases width
-  // - moving up (negative deltaY) increases height
+  // Width: dragging left increases width (same for both)
   const deltaX = startX - e.clientX
-  const deltaY = startY - e.clientY
-
   panelWidth.value = Math.max(MIN_WIDTH, startWidth + deltaX)
-  panelHeight.value = Math.max(MIN_HEIGHT, startHeight + deltaY)
+
+  // Height: depends on handle position
+  // Desktop (top-left handle): dragging up increases height
+  // Mobile (bottom-left handle): dragging down increases height
+  if (isMobile()) {
+    const deltaY = e.clientY - startY
+    panelHeight.value = Math.max(MIN_HEIGHT, startHeight + deltaY)
+  } else {
+    const deltaY = startY - e.clientY
+    panelHeight.value = Math.max(MIN_HEIGHT, startHeight + deltaY)
+  }
 }
 
 const stopResize = () => {
@@ -175,19 +179,8 @@ watch(() => props.content, (newContent) => {
   localContent.value = newContent
 })
 
-// Handle open/close transitions
+// Focus textarea when panel opens
 watch(isOpen, (newValue) => {
-  if (newValue) {
-    // Opening: hide button first, panel shows after button fades out
-    showButton.value = false
-  } else {
-    // Closing: hide panel first, button shows after panel slides out
-    showPanel.value = false
-  }
-})
-
-// Focus textarea when panel becomes visible
-watch(showPanel, (newValue) => {
   if (newValue) {
     nextTick(() => {
       textareaRef.value?.focus()
@@ -235,6 +228,10 @@ const handleInput = () => {
 .scratchpad-toggle:hover {
   transform: scale(1.05);
   opacity: 0.85;
+}
+
+.scratchpad-toggle.is-open {
+  background-color: var(--color-primary, #4a90a4);
 }
 
 .streaming-toggle {
@@ -292,6 +289,7 @@ const handleInput = () => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  margin-bottom: 12px;
 }
 
 .resize-handle {
@@ -389,21 +387,6 @@ const handleInput = () => {
   transform: translateY(16px) scale(0.95);
 }
 
-/* Fade transition for button */
-.button-fade-enter-active {
-  transition: opacity 0.15s ease 0.05s, transform 0.15s ease 0.05s;
-}
-
-.button-fade-leave-active {
-  transition: opacity 0.1s ease, transform 0.1s ease;
-}
-
-.button-fade-enter-from,
-.button-fade-leave-to {
-  opacity: 0;
-  transform: scale(0.8);
-}
-
 /* Mobile: move to top-right */
 @media (max-width: 768px) {
   .scratchpad-container {
@@ -428,6 +411,23 @@ const handleInput = () => {
     right: 12px;
     bottom: auto;
     max-height: calc(100vh - 180px);
+    margin-bottom: 0;
+  }
+
+  .resize-handle {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    cursor: nesw-resize;
+  }
+
+  .resize-handle::before {
+    top: auto;
+    bottom: 4px;
+    left: 4px;
+    border-top: none;
+    border-bottom: 2px solid var(--color-text-muted, #999);
+    border-left: 2px solid var(--color-text-muted, #999);
   }
 }
 </style>

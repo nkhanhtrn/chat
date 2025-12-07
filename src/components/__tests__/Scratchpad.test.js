@@ -29,8 +29,6 @@ describe('Scratchpad', () => {
   // Helper to open the panel by directly setting state (bypasses transition)
   const openPanel = async (w) => {
     w.vm.isOpen = true
-    w.vm.showButton = false
-    w.vm.showPanel = true
     await w.vm.$nextTick()
   }
 
@@ -95,16 +93,30 @@ describe('Scratchpad', () => {
       expect(wrapper.vm.isOpen).toBe(true)
     })
 
-    it('should hide toggle button when opening (showButton = false)', async () => {
+    it('should toggle isOpen when toggle button is clicked again', async () => {
+      wrapper = mount(Scratchpad)
+
+      // Open
+      await wrapper.find('.scratchpad-toggle').trigger('click')
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.isOpen).toBe(true)
+
+      // Close by clicking toggle again
+      await wrapper.find('.scratchpad-toggle').trigger('click')
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.isOpen).toBe(false)
+    })
+
+    it('should keep toggle button visible when panel is open', async () => {
       wrapper = mount(Scratchpad)
 
       await wrapper.find('.scratchpad-toggle').trigger('click')
       await wrapper.vm.$nextTick()
 
-      expect(wrapper.vm.showButton).toBe(false)
+      expect(wrapper.find('.scratchpad-toggle').exists()).toBe(true)
     })
 
-    it('should show panel when showPanel is true', async () => {
+    it('should show panel when isOpen is true', async () => {
       wrapper = mount(Scratchpad)
       await openPanel(wrapper)
 
@@ -121,14 +133,31 @@ describe('Scratchpad', () => {
       expect(wrapper.vm.isOpen).toBe(false)
     })
 
-    it('should set showPanel to false when closing', async () => {
+    it('should hide panel when isOpen becomes false', async () => {
       wrapper = mount(Scratchpad)
       await openPanel(wrapper)
 
-      await wrapper.find('.scratchpad-close').trigger('click')
+      expect(wrapper.find('.scratchpad-panel').exists()).toBe(true)
+
+      wrapper.vm.isOpen = false
       await wrapper.vm.$nextTick()
 
-      expect(wrapper.vm.showPanel).toBe(false)
+      expect(wrapper.find('.scratchpad-panel').exists()).toBe(false)
+    })
+
+    it('should add is-open class to toggle button when open', async () => {
+      wrapper = mount(Scratchpad)
+
+      await wrapper.find('.scratchpad-toggle').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('.scratchpad-toggle').classes()).toContain('is-open')
+    })
+
+    it('should not have is-open class when closed', () => {
+      wrapper = mount(Scratchpad)
+
+      expect(wrapper.find('.scratchpad-toggle').classes()).not.toContain('is-open')
     })
   })
 
@@ -348,14 +377,63 @@ describe('Scratchpad', () => {
       // Height should not go below MIN_HEIGHT (150)
       expect(wrapper.vm.panelHeight).toBeGreaterThanOrEqual(150)
     })
+
+    it('should increase height when dragging up in desktop mode', async () => {
+      // Mock desktop viewport
+      Object.defineProperty(window, 'innerWidth', { value: 1024, writable: true })
+
+      wrapper = mount(Scratchpad)
+      await openPanel(wrapper)
+
+      const initialHeight = wrapper.vm.panelHeight
+
+      // Start resize
+      wrapper.vm.startResize({ preventDefault: () => {}, clientX: 100, clientY: 100 })
+
+      // Drag up (lower Y value)
+      wrapper.vm.onResize({ clientX: 100, clientY: 50 })
+
+      expect(wrapper.vm.panelHeight).toBeGreaterThan(initialHeight)
+    })
+
+    it('should increase height when dragging down in mobile mode', async () => {
+      // Mock mobile viewport
+      Object.defineProperty(window, 'innerWidth', { value: 500, writable: true })
+
+      wrapper = mount(Scratchpad)
+      await openPanel(wrapper)
+
+      const initialHeight = wrapper.vm.panelHeight
+
+      // Start resize
+      wrapper.vm.startResize({ preventDefault: () => {}, clientX: 100, clientY: 100 })
+
+      // Drag down (higher Y value) - on mobile this should increase height
+      wrapper.vm.onResize({ clientX: 100, clientY: 150 })
+
+      expect(wrapper.vm.panelHeight).toBeGreaterThan(initialHeight)
+    })
+
+    it('should have isMobile function', () => {
+      wrapper = mount(Scratchpad)
+      expect(typeof wrapper.vm.isMobile).toBe('function')
+    })
   })
 
   describe('Accessibility', () => {
-    it('should have title attribute on toggle button', () => {
+    it('should have title attribute on toggle button when closed', () => {
       wrapper = mount(Scratchpad)
 
       const toggleButton = wrapper.find('.scratchpad-toggle')
       expect(toggleButton.attributes('title')).toBe('Open scratchpad')
+    })
+
+    it('should have title attribute on toggle button when open', async () => {
+      wrapper = mount(Scratchpad)
+      await openPanel(wrapper)
+
+      const toggleButton = wrapper.find('.scratchpad-toggle')
+      expect(toggleButton.attributes('title')).toBe('Close scratchpad')
     })
 
     it('should have title attribute on close button', async () => {
