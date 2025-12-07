@@ -51,9 +51,18 @@
 
 <script>
 import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
-import mermaid from 'mermaid'
 import Button from '../Button.vue'
 import MermaidModal from '../Modal/MermaidModal.vue'
+
+let mermaidInstance = null
+
+async function getMermaid() {
+  if (!mermaidInstance) {
+    const { default: mermaid } = await import('mermaid')
+    mermaidInstance = mermaid
+  }
+  return mermaidInstance
+}
 
 function isDarkMode() {
   const stored = localStorage.getItem('theme')
@@ -63,7 +72,8 @@ function isDarkMode() {
   return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
 }
 
-function initMermaid() {
+async function initMermaid() {
+  const mermaid = await getMermaid()
   const dark = isDarkMode()
   mermaid.initialize({
     startOnLoad: false,
@@ -104,6 +114,7 @@ function initMermaid() {
       nodeTextColor: '#333333',
     }
   })
+  return mermaid
 }
 
 export default {
@@ -128,11 +139,11 @@ export default {
     const lineCount = computed(() => props.code.split('\n').length)
 
     const renderDiagram = async () => {
-      initMermaid()
       error.value = ''
       svg.value = ''
 
       try {
+        const mermaid = await initMermaid()
         const id = `mermaid-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
         const { svg: renderedSvg } = await mermaid.render(id, props.code)
         svg.value = renderedSvg

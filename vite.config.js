@@ -16,7 +16,9 @@ export default defineConfig({
           // Math rendering library
           'katex': ['katex'],
           // Markdown parsing
-          'markdown': ['markdown-it', 'marked']
+          'markdown': ['markdown-it', 'marked'],
+          // Firebase (large bundle)
+          'firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore']
         }
       }
     },
