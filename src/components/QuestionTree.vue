@@ -12,12 +12,15 @@
       :hide-drop-zones="!draggable"
       :editable="editable"
       :show-delete-button="showDeleteButton"
+      :show-collapse-button="showCollapseButton"
+      :has-children="hasChildren(rootMsg.id)"
       :is-streaming="isMessageStreaming(rootMsg.id)"
       :item-class="getRootItemClass(rootMsg)"
       @click="handleRootClick"
       @drop="handleDrop"
       @rename="handleRename"
       @delete="handleDeleteRoot"
+      @toggle-expand="handleToggleRootExpand"
     >
       <template #children>
         <MessageTree
@@ -26,9 +29,11 @@
           :expanded-path="expandedPath"
           :editable="editable"
           :show-delete-button="showDeleteButton"
+          :show-collapse-button="showCollapseButton"
           :expand-all="expandAll"
+          :collapsed-nodes="initialExpandAll ? collapsedChildNodes : null"
           @select="handleSelectChild"
-          @toggle-expand="handleToggleExpand"
+          @toggle-expand="handleToggleChildExpand"
           @rename="handleRename"
           @delete="handleDeleteChild"
         />
@@ -70,8 +75,18 @@ const props = defineProps({
     type: Boolean,
     default: true
   },
-  // Expand all children by default
+  // Show collapse buttons
+  showCollapseButton: {
+    type: Boolean,
+    default: false
+  },
+  // Expand all children by default (overrides user interaction)
   expandAll: {
+    type: Boolean,
+    default: false
+  },
+  // Start with all nodes expanded but allow user to collapse
+  initialExpandAll: {
     type: Boolean,
     default: false
   }
@@ -87,6 +102,9 @@ const emit = defineEmits([
 
 const chatStore = useChatStore()
 
+// Track collapsed child nodes when initialExpandAll is true
+const collapsedChildNodes = ref(new Set())
+
 // Tree expansion management
 const {
   expandedPath,
@@ -98,7 +116,8 @@ const {
   expandToMessage
 } = useTreeExpansion({
   getMessageById: (id) => chatStore.messagesById[id],
-  currentMessageId: toRef(props, 'currentMessageId')
+  currentMessageId: toRef(props, 'currentMessageId'),
+  initialExpandAll: props.initialExpandAll
 })
 
 // Drag state - shared with MessageTree via provide
@@ -144,6 +163,11 @@ const handleRootClick = (rootMsg) => {
   toggleRoot(rootMsg.id, { expandOnly: true })
 }
 
+// Handle toggle expand for root messages (from collapse button)
+const handleToggleRootExpand = (rootMsg) => {
+  toggleRoot(rootMsg.id)
+}
+
 // Handle selecting a child message
 const handleSelectChild = (childMsg) => {
   const rootId = findRootId(childMsg.id)
@@ -155,6 +179,23 @@ const handleSelectChild = (childMsg) => {
 // Handle toggle expand (wrapper to always expand on click)
 const handleToggleExpand = (messageId) => {
   toggleExpand(messageId, { expandOnly: true })
+}
+
+// Handle toggle expand for child nodes (from collapse button in initialExpandAll mode)
+const handleToggleChildExpand = (messageId) => {
+  if (props.initialExpandAll) {
+    // In initialExpandAll mode, toggle collapsed state
+    const newCollapsed = new Set(collapsedChildNodes.value)
+    if (newCollapsed.has(messageId)) {
+      newCollapsed.delete(messageId)
+    } else {
+      newCollapsed.add(messageId)
+    }
+    collapsedChildNodes.value = newCollapsed
+  } else {
+    // Normal mode - use toggleExpand
+    toggleExpand(messageId)
+  }
 }
 
 // Handle deleting a root message

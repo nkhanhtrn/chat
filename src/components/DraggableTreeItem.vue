@@ -23,7 +23,20 @@
     >
       <!-- Custom content slot or default content -->
       <slot :item="item" :dragHandleClass="'drag-handle'" :isEditing="isEditing">
-        <div v-if="!isEditing" class="drag-handle" title="Drag to reorder">⋮⋮</div>
+        <!-- Collapse/Expand button -->
+        <button
+          v-if="showCollapseButton && hasChildren && !isEditing"
+          class="collapse-button"
+          @click.stop="$emit('toggle-expand', item)"
+          :title="isExpanded ? 'Collapse' : 'Expand'"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline v-if="isExpanded" points="6 9 12 15 18 9"></polyline>
+            <polyline v-else points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+        <div v-if="!isEditing && !showCollapseButton" class="drag-handle" title="Drag to reorder">⋮⋮</div>
+        <div v-else-if="!isEditing && showCollapseButton && !hasChildren" class="collapse-spacer"></div>
 
         <!-- Editable text -->
         <template v-if="editable">
@@ -104,6 +117,8 @@ const props = defineProps({
   isActive: { type: Boolean, default: false },
   isExpanded: { type: Boolean, default: false },
   showDeleteButton: { type: Boolean, default: false },
+  showCollapseButton: { type: Boolean, default: false },
+  hasChildren: { type: Boolean, default: false },
   draggable: { type: Boolean, default: true },
   hideDropZones: { type: Boolean, default: false },
   itemClass: { type: [String, Object, Array], default: '' },
@@ -111,7 +126,7 @@ const props = defineProps({
   isStreaming: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['click', 'delete', 'drop', 'rename'])
+const emit = defineEmits(['click', 'delete', 'drop', 'rename', 'toggle-expand'])
 
 // ============================================
 // Drag & Drop
@@ -295,6 +310,36 @@ defineExpose({ startEditing })
 .tree-item:hover .drag-handle { opacity: 0.6; }
 .drag-handle:hover { opacity: 1 !important; color: var(--color-text-strong); }
 .drag-handle:active { cursor: grabbing; }
+
+/* Collapse Button */
+.collapse-button {
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  padding: 0;
+  transition: all 0.15s;
+  opacity: 0;
+}
+.tree-item:hover .collapse-button { opacity: 0.6; }
+.collapse-button:hover {
+  opacity: 1 !important;
+  color: var(--color-text-strong);
+  background-color: var(--color-bg-hover);
+}
+
+/* Spacer for items without children when collapse buttons are shown */
+.collapse-spacer {
+  flex-shrink: 0;
+  width: 1.25rem;
+}
 
 /* Delete Button */
 .delete-button {

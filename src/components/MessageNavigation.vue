@@ -3,6 +3,17 @@
     <!-- Breadcrumb Navigation -->
     <div v-if="currentMessage" class="breadcrumb-nav">
       <div class="breadcrumb">
+        <Button
+          class="breadcrumb-item breadcrumb-index"
+          @click="navigateToIndex"
+          title="Go to index"
+          variant="tertiary"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+            <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
+          </svg>
+        </Button>
+        <span class="breadcrumb-sep">&gt;</span>
         <template v-for="(msg, idx) in breadcrumbMessages" :key="msg.id">
           <div class="breadcrumb-item-wrapper">
             <Button
@@ -115,6 +126,19 @@ function navigateToChild(id) {
   })
 }
 
+function navigateToIndex() {
+  // Save current scroll position before navigating
+  if (chatStore.currentMessageId) {
+    chatStore.saveScrollPosition(chatStore.currentMessageId, getScrollPosition())
+  }
+
+  // Navigate to the notebook index page
+  router.push({
+    name: 'notebook',
+    params: { id: chatStore.currentChatId }
+  })
+}
+
 function truncateQuestion(question) {
   if (!question) return ''
   return question.length > 30 ? question.substring(0, 30) + '...' : question
@@ -132,7 +156,7 @@ function isMessageStreaming(messageId) {
   align-items: center;
   font-size: 0.97em;
   margin: 0.2em 0;
-  gap: 0.2em;
+  gap: 0;
   user-select: none;
 }
 
@@ -141,10 +165,15 @@ function isMessageStreaming(messageId) {
   opacity: 0.6;
 }
 
+.breadcrumb-index {
+  display: flex;
+  align-items: center;
+}
+
 .breadcrumb-sep {
   color: var(--color-bg-accent-muted);
   font-weight: bold;
-  padding: 0 0.25em;
+  padding: 0;
   font-size: 1.1em;
 }
 

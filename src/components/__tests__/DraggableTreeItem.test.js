@@ -615,11 +615,89 @@ describe('DraggableTreeItem', () => {
       expect(wrapper.props('isActive')).toBe(false)
       expect(wrapper.props('isExpanded')).toBe(false)
       expect(wrapper.props('showDeleteButton')).toBe(false)
+      expect(wrapper.props('showCollapseButton')).toBe(false)
+      expect(wrapper.props('hasChildren')).toBe(false)
       expect(wrapper.props('draggable')).toBe(true)
       expect(wrapper.props('hideDropZones')).toBe(false)
       expect(wrapper.props('itemClass')).toBe('')
       expect(wrapper.props('editable')).toBe(false)
       expect(wrapper.props('isStreaming')).toBe(false)
+    })
+  })
+
+  describe('Collapse Button', () => {
+    it('should not show collapse button by default', () => {
+      wrapper = mount(DraggableTreeItem, {
+        props: defaultProps,
+        global: createGlobalConfig(createProvide())
+      })
+      expect(wrapper.find('.collapse-button').exists()).toBe(false)
+    })
+
+    it('should not show collapse button when showCollapseButton is true but hasChildren is false', () => {
+      wrapper = mount(DraggableTreeItem, {
+        props: { ...defaultProps, showCollapseButton: true, hasChildren: false },
+        global: createGlobalConfig(createProvide())
+      })
+      expect(wrapper.find('.collapse-button').exists()).toBe(false)
+      expect(wrapper.find('.collapse-spacer').exists()).toBe(true)
+    })
+
+    it('should show collapse button when showCollapseButton and hasChildren are true', () => {
+      wrapper = mount(DraggableTreeItem, {
+        props: { ...defaultProps, showCollapseButton: true, hasChildren: true },
+        global: createGlobalConfig(createProvide())
+      })
+      expect(wrapper.find('.collapse-button').exists()).toBe(true)
+    })
+
+    it('should emit toggle-expand when collapse button is clicked', async () => {
+      wrapper = mount(DraggableTreeItem, {
+        props: { ...defaultProps, showCollapseButton: true, hasChildren: true },
+        global: createGlobalConfig(createProvide())
+      })
+      await wrapper.find('.collapse-button').trigger('click')
+      expect(wrapper.emitted('toggle-expand')).toBeTruthy()
+      expect(wrapper.emitted('toggle-expand')[0][0]).toEqual(defaultProps.item)
+    })
+
+    it('should show down arrow when expanded', () => {
+      wrapper = mount(DraggableTreeItem, {
+        props: { ...defaultProps, showCollapseButton: true, hasChildren: true, isExpanded: true },
+        global: createGlobalConfig(createProvide())
+      })
+      const svg = wrapper.find('.collapse-button svg')
+      expect(svg.exists()).toBe(true)
+      // Check for down arrow polyline (points="6 9 12 15 18 9")
+      expect(svg.find('polyline[points="6 9 12 15 18 9"]').exists()).toBe(true)
+    })
+
+    it('should show right arrow when collapsed', () => {
+      wrapper = mount(DraggableTreeItem, {
+        props: { ...defaultProps, showCollapseButton: true, hasChildren: true, isExpanded: false },
+        global: createGlobalConfig(createProvide())
+      })
+      const svg = wrapper.find('.collapse-button svg')
+      expect(svg.exists()).toBe(true)
+      // Check for right arrow polyline (points="9 18 15 12 9 6")
+      expect(svg.find('polyline[points="9 18 15 12 9 6"]').exists()).toBe(true)
+    })
+
+    it('should not show drag handle when collapse button is shown', () => {
+      wrapper = mount(DraggableTreeItem, {
+        props: { ...defaultProps, showCollapseButton: true, hasChildren: true },
+        global: createGlobalConfig(createProvide())
+      })
+      expect(wrapper.find('.drag-handle').exists()).toBe(false)
+    })
+
+    it('should not emit click event when collapse button is clicked', async () => {
+      wrapper = mount(DraggableTreeItem, {
+        props: { ...defaultProps, showCollapseButton: true, hasChildren: true },
+        global: createGlobalConfig(createProvide())
+      })
+      await wrapper.find('.collapse-button').trigger('click')
+      expect(wrapper.emitted('click')).toBeFalsy()
     })
   })
 

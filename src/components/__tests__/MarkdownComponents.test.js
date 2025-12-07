@@ -358,8 +358,8 @@ describe('Markdown Components', () => {
           code: 'const x = 5;'
         }
       })
-      expect(wrapper.find('.code-container').exists()).toBe(true)
-      expect(wrapper.find('.collapse-row').exists()).toBe(false)
+      expect(wrapper.find('.collapse-content').exists()).toBe(true)
+      expect(wrapper.find('.collapse-row').exists()).toBe(true)
       expect(wrapper.find('.code-block').exists()).toBe(true)
     })
 
@@ -372,14 +372,14 @@ describe('Markdown Components', () => {
       })
 
       // Initially expanded
-      expect(wrapper.find('.code-container').exists()).toBe(true)
+      expect(wrapper.find('.collapse-content').exists()).toBe(true)
 
       // Click collapse button
       await wrapper.find('.collapse-btn').trigger('click')
 
       // Should now be collapsed
       expect(wrapper.find('.collapse-row').exists()).toBe(true)
-      expect(wrapper.find('.code-container').exists()).toBe(false)
+      expect(wrapper.find('.collapse-content').exists()).toBe(false)
     })
 
     it('should expand when expand button is clicked', async () => {
@@ -392,14 +392,14 @@ describe('Markdown Components', () => {
 
       // Collapse first
       await wrapper.find('.collapse-btn').trigger('click')
-      expect(wrapper.find('.collapse-row').exists()).toBe(true)
+      expect(wrapper.find('.collapse-content').exists()).toBe(false)
 
       // Click expand button
       await wrapper.find('.collapse-btn').trigger('click')
 
       // Should now be expanded
-      expect(wrapper.find('.code-container').exists()).toBe(true)
-      expect(wrapper.find('.collapse-row').exists()).toBe(false)
+      expect(wrapper.find('.collapse-content').exists()).toBe(true)
+      expect(wrapper.find('.code-block').exists()).toBe(true)
     })
 
     it('should show language and line count when collapsed', async () => {
@@ -427,13 +427,13 @@ describe('Markdown Components', () => {
 
       // Collapse
       await wrapper.find('.collapse-btn').trigger('click')
-      expect(wrapper.find('.collapse-row').exists()).toBe(true)
+      expect(wrapper.find('.collapse-content').exists()).toBe(false)
 
       // Click label
       await wrapper.find('.collapsed-label').trigger('click')
 
       // Should expand
-      expect(wrapper.find('.code-container').exists()).toBe(true)
+      expect(wrapper.find('.collapse-content').exists()).toBe(true)
     })
 
     it('should compute line count correctly', () => {
@@ -1611,7 +1611,8 @@ describe('Markdown Components', () => {
       })
 
       expect(wrapper.find('.table-container').exists()).toBe(true)
-      expect(wrapper.find('.collapse-row').exists()).toBe(false)
+      expect(wrapper.find('.collapse-row').exists()).toBe(true)
+      expect(wrapper.find('.collapse-content').exists()).toBe(true)
       expect(wrapper.find('.markdown-table').exists()).toBe(true)
     })
 
@@ -1694,14 +1695,14 @@ describe('Markdown Components', () => {
 
       // Collapse first
       await wrapper.find('.collapse-btn').trigger('click')
-      expect(wrapper.find('.collapse-row').exists()).toBe(true)
+      expect(wrapper.find('.collapse-content').exists()).toBe(false)
 
       // Click expand button
       await wrapper.find('.collapse-btn').trigger('click')
 
       // Should now be expanded
       expect(wrapper.find('.table-container').exists()).toBe(true)
-      expect(wrapper.find('.collapse-row').exists()).toBe(false)
+      expect(wrapper.find('.collapse-content').exists()).toBe(true)
     })
 
     it('should show row count when collapsed', async () => {
@@ -3228,8 +3229,9 @@ describe('Markdown Components', () => {
           code: 'graph TD\n    A --> B'
         }
       })
-      expect(wrapper.find('.mermaid-container').exists()).toBe(true)
-      expect(wrapper.find('.collapse-row').exists()).toBe(false)
+      expect(wrapper.find('.collapse-content').exists()).toBe(true)
+      expect(wrapper.find('.collapse-row').exists()).toBe(true)
+      expect(wrapper.find('.mermaid-block').exists()).toBe(true)
     })
 
     it('should collapse when collapse button is clicked', async () => {
@@ -3260,11 +3262,11 @@ describe('Markdown Components', () => {
         }
       })
       await wrapper.find('.collapse-btn').trigger('click')
-      expect(wrapper.find('.collapse-row').exists()).toBe(true)
+      expect(wrapper.find('.collapse-content').exists()).toBe(false)
 
       await wrapper.find('.collapsed-label').trigger('click')
-      expect(wrapper.find('.mermaid-container').exists()).toBe(true)
-      expect(wrapper.find('.collapse-row').exists()).toBe(false)
+      expect(wrapper.find('.collapse-content').exists()).toBe(true)
+      expect(wrapper.find('.mermaid-block').exists()).toBe(true)
     })
 
     it('should have copy button in header', () => {

@@ -10,11 +10,14 @@
       :is-expanded="isExpanded(child.id)"
       :editable="editable"
       :show-delete-button="showDeleteButton"
+      :show-collapse-button="showCollapseButton"
+      :has-children="hasChildren(child.id)"
       :is-streaming="isMessageStreaming(child.id)"
       @click="handleItemClick"
       @drop="handleDrop"
       @rename="(item, newText) => emit('rename', item, newText)"
       @delete="(item) => emit('delete', item)"
+      @toggle-expand="handleToggleExpand"
     >
       <template #children>
         <MessageTree
@@ -24,7 +27,9 @@
           :expanded-path="expandedPath"
           :editable="editable"
           :show-delete-button="showDeleteButton"
+          :show-collapse-button="showCollapseButton"
           :expand-all="expandAll"
+          :collapsed-nodes="collapsedNodes"
           @select="$emit('select', $event)"
           @toggle-expand="$emit('toggle-expand', $event)"
           @rename="(item, newText) => emit('rename', item, newText)"
@@ -61,9 +66,18 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  showCollapseButton: {
+    type: Boolean,
+    default: false
+  },
   expandAll: {
     type: Boolean,
     default: false
+  },
+  // Track manually collapsed nodes (used when initialExpandAll is active)
+  collapsedNodes: {
+    type: Set,
+    default: null
   }
 })
 
@@ -85,6 +99,10 @@ const isMessageStreaming = (messageId) => {
 }
 
 const isExpanded = (messageId) => {
+  // If collapsedNodes is provided (initialExpandAll mode), check if node was manually collapsed
+  if (props.collapsedNodes) {
+    return !props.collapsedNodes.has(messageId)
+  }
   return props.expandAll || props.expandedPath.has(messageId)
 }
 
@@ -92,6 +110,11 @@ const isExpanded = (messageId) => {
 const handleItemClick = (child) => {
   emit('select', child)
   emit('toggle-expand', child.id)
+}
+
+// Handle toggle expand from collapse button
+const handleToggleExpand = (item) => {
+  emit('toggle-expand', item.id)
 }
 
 // Drag state - shared across tree via provide/inject

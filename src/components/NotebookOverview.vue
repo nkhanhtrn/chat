@@ -12,9 +12,11 @@
 
     <div class="overview-content">
       <QuestionTree
+        ref="questionTreeRef"
         v-if="rootMessages.length > 0"
         :root-messages="rootMessages"
-        :expand-all="true"
+        :show-collapse-button="true"
+        :initial-expand-all="true"
         @select="handleSelect"
         @delete-root="handleDeleteRoot"
         @delete-child="handleDeleteChild"
@@ -159,5 +161,10 @@ const handleDrop = (dropData) => {
 /* Use a slightly smaller font size than the message setting for tree items */
 :deep(.tree-item-text) {
   font-size: calc(var(--message-font-size, 18px) * 0.9);
+}
+
+/* Remove left border from tree children in overview */
+:deep(.tree-children) {
+  border-left: none;
 }
 </style>

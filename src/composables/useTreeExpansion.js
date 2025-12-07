@@ -9,12 +9,18 @@ import { ref, watch, computed } from 'vue'
  * @param {import('vue').Ref<string|null>} options.currentMessageId - Reactive ref to current message ID
  * @returns {Object} - Tree expansion state and methods
  */
-export function useTreeExpansion({ getMessageById, currentMessageId }) {
-  // Track which root message tree is expanded (only one at a time)
+export function useTreeExpansion({ getMessageById, currentMessageId, initialExpandAll = false }) {
+  // Track which root message tree is expanded (only one at a time, unless expandAllRoots)
   const expandedRootId = ref(null)
 
   // Track the expanded path within the tree (ancestors of current selection)
   const expandedPath = ref(new Set())
+
+  // Track expanded roots when multiple roots can be expanded
+  const expandedRoots = ref(new Set())
+
+  // Track if we're in expand-all mode (all roots expanded independently)
+  const expandAllMode = ref(initialExpandAll)
 
   /**
    * Build the expanded path from root to a specific child (inclusive)
@@ -67,6 +73,10 @@ export function useTreeExpansion({ getMessageById, currentMessageId }) {
    * @returns {boolean}
    */
   const isRootExpanded = (rootId) => {
+    if (expandAllMode.value) {
+      // In expand-all mode, roots are expanded unless explicitly collapsed
+      return !expandedRoots.value.has(rootId + '_collapsed')
+    }
     return expandedRootId.value === rootId
   }
 
@@ -109,14 +119,29 @@ export function useTreeExpansion({ getMessageById, currentMessageId }) {
    * @param {boolean} options.expandOnly - If true, only expand (never collapse)
    */
   const toggleRoot = (rootId, { expandOnly = false } = {}) => {
-    if (expandedRootId.value === rootId) {
-      if (!expandOnly) {
-        expandedRootId.value = null
+    if (expandAllMode.value) {
+      // In expand-all mode, toggle individual roots
+      const newRoots = new Set(expandedRoots.value)
+      if (newRoots.has(rootId + '_collapsed')) {
+        // Was collapsed, now expand
+        newRoots.delete(rootId + '_collapsed')
+      } else {
+        // Was expanded (default), now collapse
+        if (!expandOnly) {
+          newRoots.add(rootId + '_collapsed')
+        }
+      }
+      expandedRoots.value = newRoots
+    } else {
+      if (expandedRootId.value === rootId) {
+        if (!expandOnly) {
+          expandedRootId.value = null
+          expandedPath.value = new Set()
+        }
+      } else {
+        expandedRootId.value = rootId
         expandedPath.value = new Set()
       }
-    } else {
-      expandedRootId.value = rootId
-      expandedPath.value = new Set()
     }
   }
 
@@ -142,6 +167,8 @@ export function useTreeExpansion({ getMessageById, currentMessageId }) {
   return {
     expandedRootId,
     expandedPath,
+    expandedRoots,
+    expandAllMode,
     buildPathToChild,
     findRootId,
     isInActivePath,

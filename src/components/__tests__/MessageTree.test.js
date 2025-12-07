@@ -580,4 +580,196 @@ describe('MessageTree', () => {
       expect(items[1].props('isStreaming')).toBe(true)
     })
   })
+
+  describe('Collapse Button', () => {
+    it('should pass showCollapseButton prop to DraggableTreeItem', () => {
+      setupMessagesInStore([
+        { id: 'child1', question: 'Child 1', response: '', parentId: 'parent1', childIds: ['grandchild1'] },
+        { id: 'grandchild1', question: 'Grandchild', response: '', parentId: 'child1' }
+      ])
+      chatStore.messagesById['parent1'] = { id: 'parent1', childIds: ['child1'] }
+
+      wrapper = mount(MessageTree, {
+        props: {
+          parentId: 'parent1',
+          showCollapseButton: true
+        },
+        global: { provide: createProvide() }
+      })
+
+      const item = wrapper.findComponent({ name: 'DraggableTreeItem' })
+      expect(item.props('showCollapseButton')).toBe(true)
+    })
+
+    it('should pass hasChildren prop correctly', () => {
+      setupMessagesInStore([
+        { id: 'child1', question: 'Child 1', response: '', parentId: 'parent1', childIds: ['grandchild1'] },
+        { id: 'child2', question: 'Child 2', response: '', parentId: 'parent1', childIds: [] },
+        { id: 'grandchild1', question: 'Grandchild', response: '', parentId: 'child1' }
+      ])
+      chatStore.messagesById['parent1'] = { id: 'parent1', childIds: ['child1', 'child2'] }
+
+      wrapper = mount(MessageTree, {
+        props: {
+          parentId: 'parent1',
+          showCollapseButton: true
+        },
+        global: { provide: createProvide() }
+      })
+
+      const items = wrapper.findAllComponents({ name: 'DraggableTreeItem' })
+      expect(items[0].props('hasChildren')).toBe(true)
+      expect(items[1].props('hasChildren')).toBe(false)
+    })
+
+    it('should emit toggle-expand when collapse button is clicked', async () => {
+      setupMessagesInStore([
+        { id: 'child1', question: 'Child 1', response: '', parentId: 'parent1', childIds: ['grandchild1'] },
+        { id: 'grandchild1', question: 'Grandchild', response: '', parentId: 'child1' }
+      ])
+      chatStore.messagesById['parent1'] = { id: 'parent1', childIds: ['child1'] }
+
+      wrapper = mount(MessageTree, {
+        props: {
+          parentId: 'parent1',
+          showCollapseButton: true
+        },
+        global: { provide: createProvide() }
+      })
+
+      const item = wrapper.findComponent({ name: 'DraggableTreeItem' })
+      await item.vm.$emit('toggle-expand', { id: 'child1' })
+
+      expect(wrapper.emitted('toggle-expand')).toBeTruthy()
+      expect(wrapper.emitted('toggle-expand')[0][0]).toBe('child1')
+    })
+
+    it('should pass showCollapseButton to nested MessageTree', () => {
+      setupMessagesInStore([
+        { id: 'child1', question: 'Child 1', response: '', parentId: 'parent1', childIds: ['grandchild1'] },
+        { id: 'grandchild1', question: 'Grandchild', response: '', parentId: 'child1', childIds: [] }
+      ])
+      chatStore.messagesById['parent1'] = { id: 'parent1', childIds: ['child1'] }
+
+      wrapper = mount(MessageTree, {
+        props: {
+          parentId: 'parent1',
+          expandedPath: new Set(['child1']),
+          showCollapseButton: true
+        },
+        global: { provide: createProvide() }
+      })
+
+      const nestedTrees = wrapper.findAllComponents({ name: 'MessageTree' })
+      if (nestedTrees.length > 0) {
+        const nestedTree = nestedTrees[nestedTrees.length - 1]
+        expect(nestedTree.props('showCollapseButton')).toBe(true)
+      }
+    })
+  })
+
+  describe('Collapsed Nodes', () => {
+    it('should expand items by default when collapsedNodes is an empty Set', () => {
+      setupMessagesInStore([
+        { id: 'child1', question: 'Child 1', response: '', parentId: 'parent1', childIds: ['grandchild1'] },
+        { id: 'grandchild1', question: 'Grandchild', response: '', parentId: 'child1' }
+      ])
+      chatStore.messagesById['parent1'] = { id: 'parent1', childIds: ['child1'] }
+
+      wrapper = mount(MessageTree, {
+        props: {
+          parentId: 'parent1',
+          collapsedNodes: new Set()
+        },
+        global: { provide: createProvide() }
+      })
+
+      const item = wrapper.findComponent({ name: 'DraggableTreeItem' })
+      expect(item.props('isExpanded')).toBe(true)
+    })
+
+    it('should collapse items when they are in collapsedNodes Set', () => {
+      setupMessagesInStore([
+        { id: 'child1', question: 'Child 1', response: '', parentId: 'parent1', childIds: ['grandchild1'] },
+        { id: 'grandchild1', question: 'Grandchild', response: '', parentId: 'child1' }
+      ])
+      chatStore.messagesById['parent1'] = { id: 'parent1', childIds: ['child1'] }
+
+      wrapper = mount(MessageTree, {
+        props: {
+          parentId: 'parent1',
+          collapsedNodes: new Set(['child1'])
+        },
+        global: { provide: createProvide() }
+      })
+
+      const item = wrapper.findComponent({ name: 'DraggableTreeItem' })
+      expect(item.props('isExpanded')).toBe(false)
+    })
+
+    it('should use expandedPath when collapsedNodes is null', () => {
+      setupMessagesInStore([
+        { id: 'child1', question: 'Child 1', response: '', parentId: 'parent1', childIds: ['grandchild1'] },
+        { id: 'grandchild1', question: 'Grandchild', response: '', parentId: 'child1' }
+      ])
+      chatStore.messagesById['parent1'] = { id: 'parent1', childIds: ['child1'] }
+
+      wrapper = mount(MessageTree, {
+        props: {
+          parentId: 'parent1',
+          expandedPath: new Set(['child1']),
+          collapsedNodes: null
+        },
+        global: { provide: createProvide() }
+      })
+
+      const item = wrapper.findComponent({ name: 'DraggableTreeItem' })
+      expect(item.props('isExpanded')).toBe(true)
+    })
+
+    it('should pass collapsedNodes to nested MessageTree', () => {
+      setupMessagesInStore([
+        { id: 'child1', question: 'Child 1', response: '', parentId: 'parent1', childIds: ['grandchild1'] },
+        { id: 'grandchild1', question: 'Grandchild', response: '', parentId: 'child1', childIds: [] }
+      ])
+      chatStore.messagesById['parent1'] = { id: 'parent1', childIds: ['child1'] }
+
+      const collapsedNodes = new Set(['grandchild1'])
+
+      wrapper = mount(MessageTree, {
+        props: {
+          parentId: 'parent1',
+          collapsedNodes
+        },
+        global: { provide: createProvide() }
+      })
+
+      const nestedTrees = wrapper.findAllComponents({ name: 'MessageTree' })
+      if (nestedTrees.length > 0) {
+        const nestedTree = nestedTrees[nestedTrees.length - 1]
+        expect(nestedTree.props('collapsedNodes')).toStrictEqual(collapsedNodes)
+      }
+    })
+
+    it('should use expandAll when collapsedNodes is null and item not in expandedPath', () => {
+      setupMessagesInStore([
+        { id: 'child1', question: 'Child 1', response: '', parentId: 'parent1', childIds: ['grandchild1'] },
+        { id: 'grandchild1', question: 'Grandchild', response: '', parentId: 'child1' }
+      ])
+      chatStore.messagesById['parent1'] = { id: 'parent1', childIds: ['child1'] }
+
+      wrapper = mount(MessageTree, {
+        props: {
+          parentId: 'parent1',
+          expandedPath: new Set(),
+          expandAll: true,
+          collapsedNodes: null
+        },
+        global: { provide: createProvide() }
+      })
+
+      const item = wrapper.findComponent({ name: 'DraggableTreeItem' })
+      expect(item.props('isExpanded')).toBe(true)
+    })
+  })
 })

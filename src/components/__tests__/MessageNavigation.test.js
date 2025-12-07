@@ -49,32 +49,92 @@ describe('MessageNavigation', () => {
     })
   }
 
-  describe('Home Button (First Breadcrumb Item)', () => {
-    it('should render first breadcrumb item with questionSummarized text', () => {
+  describe('Index Button', () => {
+    it('should render index button with list icon', () => {
       const wrapper = mountComponent('2')
-      const items = wrapper.findAll('.breadcrumb-item')
-      expect(items.length).toBeGreaterThan(0)
-      const firstItem = items[0]
-      expect(firstItem.text()).toContain('Root')
+      const indexButton = wrapper.find('.breadcrumb-index')
+      expect(indexButton.exists()).toBe(true)
+      expect(indexButton.find('svg').exists()).toBe(true)
     })
 
-    it('should render first breadcrumb with tertiary variant', () => {
-      // Use '2' to test with at least 2 breadcrumb items (component only renders when > 1)
+    it('should have correct title attribute', () => {
+      const wrapper = mountComponent('2')
+      const indexButton = wrapper.find('.breadcrumb-index')
+      expect(indexButton.attributes('title')).toBe('Go to index')
+    })
+
+    it('should use tertiary variant', () => {
+      const wrapper = mountComponent('2')
+      const indexButton = wrapper.findComponent('.breadcrumb-index')
+      expect(indexButton.props('variant')).toBe('tertiary')
+    })
+
+    it('should navigate to notebook index when clicked', async () => {
+      const wrapper = mountComponent('2')
+      const indexButton = wrapper.find('.breadcrumb-index')
+      await indexButton.trigger('click')
+      expect(mockPush).toHaveBeenCalledWith({
+        name: 'notebook',
+        params: { id: 'chat1' }
+      })
+    })
+
+    it('should save scroll position before navigating to index', async () => {
+      const wrapper = mountComponent('2')
+      const indexButton = wrapper.find('.breadcrumb-index')
+      await indexButton.trigger('click')
+      expect(chatStore.saveScrollPosition).toHaveBeenCalledWith('2', 0)
+    })
+
+    it('should render separator after index button', () => {
+      const wrapper = mountComponent('2')
+      const separators = wrapper.findAll('.breadcrumb-sep')
+      expect(separators.length).toBeGreaterThan(0)
+      // First separator should be right after the index button
+      expect(separators[0].text()).toBe('>')
+    })
+
+    it('should always render index button regardless of message depth', () => {
+      // Test with root message
+      const wrapper1 = mountComponent('1')
+      expect(wrapper1.find('.breadcrumb-index').exists()).toBe(true)
+
+      // Test with deeply nested message
+      const wrapper2 = mountComponent('3')
+      expect(wrapper2.find('.breadcrumb-index').exists()).toBe(true)
+    })
+  })
+
+  describe('Root Message Breadcrumb Item', () => {
+    it('should render root breadcrumb item with questionSummarized text', () => {
+      const wrapper = mountComponent('2')
+      // Items are: Index button, Root, Child
+      const items = wrapper.findAll('.breadcrumb-item:not(.breadcrumb-index)')
+      expect(items.length).toBeGreaterThan(0)
+      const firstMessageItem = items[0]
+      expect(firstMessageItem.text()).toContain('Root')
+    })
+
+    it('should render message breadcrumbs with tertiary variant', () => {
       const wrapper = mountComponent('2')
       const buttons = wrapper.findAllComponents(Button)
-      expect(buttons.length).toBeGreaterThan(0)
-      expect(buttons[0].props('variant')).toBe('tertiary')
+      // All buttons should have tertiary variant
+      buttons.forEach(button => {
+        expect(button.props('variant')).toBe('tertiary')
+      })
     })
 
-    it('should have correct title attribute on first breadcrumb item', () => {
+    it('should have correct title attribute on root breadcrumb item', () => {
       const wrapper = mountComponent('2')
-      const items = wrapper.findAll('.breadcrumb-item')
+      // Get message items (excluding index button)
+      const items = wrapper.findAll('.breadcrumb-item:not(.breadcrumb-index)')
       expect(items[0].attributes('title')).toBe('Root')
     })
 
-    it('should navigate to root message when first breadcrumb item is clicked', async () => {
+    it('should navigate to root message when root breadcrumb item is clicked', async () => {
       const wrapper = mountComponent('2')
-      const items = wrapper.findAll('.breadcrumb-item')
+      // Get message items (excluding index button)
+      const items = wrapper.findAll('.breadcrumb-item:not(.breadcrumb-index)')
       await items[0].trigger('click')
       expect(mockPush).toHaveBeenCalledWith({
         name: 'question',
@@ -87,9 +147,9 @@ describe('MessageNavigation', () => {
       const wrapper = mountComponent('1')
       // Breadcrumb is rendered for any message (to show children indicator)
       expect(wrapper.find('.breadcrumb-nav').exists()).toBe(true)
-      // Only one breadcrumb item (the root itself)
+      // Index button + root message = 2 breadcrumb items
       const items = wrapper.findAll('.breadcrumb-item')
-      expect(items.length).toBe(1)
+      expect(items.length).toBe(2)
     })
   })
 
@@ -120,10 +180,10 @@ describe('MessageNavigation', () => {
 
   describe('Breadcrumb Styles', () => {
     it('current message breadcrumb should not have active class when it has children', async () => {
-      // currentMessage is '2', breadcrumb: Root (home icon), Child
+      // currentMessage is '2', breadcrumb: Index, Root, Child
       // msg2 has children, so it should NOT have active class
       const wrapper = mountComponent('2')
-      const items = wrapper.findAll('.breadcrumb-item')
+      const items = wrapper.findAll('.breadcrumb-item:not(.breadcrumb-index)')
       expect(items.length).toBe(2) // Root + Child
       const last = items[items.length - 1]
       // The last breadcrumb should NOT be active because it has children
@@ -132,7 +192,7 @@ describe('MessageNavigation', () => {
 
     it('last breadcrumb is normal if active', async () => {
       const wrapper = mountComponent('3')
-      const items = wrapper.findAll('.breadcrumb-item')
+      const items = wrapper.findAll('.breadcrumb-item:not(.breadcrumb-index)')
       const last = items[items.length - 1]
       expect(last.classes()).toContain('active')
       // Should not be grey (no #aaa inline style)
@@ -140,10 +200,10 @@ describe('MessageNavigation', () => {
     })
 
     it('non-active breadcrumb is clickable', async () => {
-      // currentMessage is '3', breadcrumb: Root, Child, Last
+      // currentMessage is '3', breadcrumb: Index, Root, Child, Last
       // Click on 'Child' which is not active
       const wrapper = mountComponent('3')
-      const items = wrapper.findAll('.breadcrumb-item')
+      const items = wrapper.findAll('.breadcrumb-item:not(.breadcrumb-index)')
       const childItem = items[1] // 'Child' which is not active
       expect(childItem.classes()).not.toContain('active')
       await childItem.trigger('click')
@@ -157,8 +217,8 @@ describe('MessageNavigation', () => {
 
     it('breadcrumb items should have questionSummarized text', () => {
       const wrapper = mountComponent('2')
-      const items = wrapper.findAll('.breadcrumb-item')
-      expect(items.length).toBe(2)
+      const items = wrapper.findAll('.breadcrumb-item:not(.breadcrumb-index)')
+      expect(items.length).toBe(2) // Root + Child
       // Second item (idx=1) shows questionSummarized
       expect(items[1].text()).toContain('Child')
     })
@@ -176,11 +236,11 @@ describe('MessageNavigation', () => {
   describe('Navigation Path', () => {
     it('should show full path from root to current message', () => {
       const wrapper = mountComponent('3')
-      // Should have: Root + Child + Last
-      const items = wrapper.findAll('.breadcrumb-item')
+      // Should have: Index + Root + Child + Last
+      const items = wrapper.findAll('.breadcrumb-item:not(.breadcrumb-index)')
 
       expect(items.length).toBe(3) // Root, Child, and Last
-      // First item shows questionSummarized text
+      // First message item shows questionSummarized text
       expect(items[0].text()).toContain('Root')
       expect(items[1].text()).toContain('Child')
       expect(items[2].text()).toContain('Last')
@@ -190,8 +250,9 @@ describe('MessageNavigation', () => {
       const wrapper = mountComponent('1')
       // Breadcrumb is rendered even for root
       expect(wrapper.find('.breadcrumb-nav').exists()).toBe(true)
+      // Index button + root message = 2 items
       const items = wrapper.findAll('.breadcrumb-item')
-      expect(items.length).toBe(1)
+      expect(items.length).toBe(2)
     })
   })
 
@@ -357,7 +418,7 @@ describe('MessageNavigation', () => {
       chatStore.streamingMessageId = '3'
       const wrapper = mountComponent('2')
       // The indicator should only appear on the message that matches streamingMessageId
-      const items = wrapper.findAll('.breadcrumb-item')
+      const items = wrapper.findAll('.breadcrumb-item:not(.breadcrumb-index)')
       // msg1 (Root) should not have indicator
       expect(items[0].find('.streaming-indicator').exists()).toBe(false)
     })
@@ -366,15 +427,15 @@ describe('MessageNavigation', () => {
       // When viewing msg3, if msg1 is streaming, it should show indicator on msg1
       chatStore.streamingMessageId = '1'
       const wrapper = mountComponent('3')
-      const items = wrapper.findAll('.breadcrumb-item')
-      // First item is msg1 (Root) which should have indicator
+      const items = wrapper.findAll('.breadcrumb-item:not(.breadcrumb-index)')
+      // First message item is msg1 (Root) which should have indicator
       expect(items[0].find('.streaming-indicator').exists()).toBe(true)
     })
 
     it('should show streaming indicator on last breadcrumb item when it is streaming', () => {
       chatStore.streamingMessageId = '3'
       const wrapper = mountComponent('3')
-      const items = wrapper.findAll('.breadcrumb-item')
+      const items = wrapper.findAll('.breadcrumb-item:not(.breadcrumb-index)')
       const lastItem = items[items.length - 1]
       expect(lastItem.find('.streaming-indicator').exists()).toBe(true)
     })

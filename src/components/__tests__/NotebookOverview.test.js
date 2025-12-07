@@ -206,7 +206,7 @@ describe('NotebookOverview', () => {
   })
 
   describe('QuestionTree Props', () => {
-    it('should pass expandAll=true to QuestionTree', () => {
+    it('should pass initialExpandAll=true to QuestionTree', () => {
       setupNotebook('notebook1', 'Test', [
         { id: 'q1', question: 'Question 1' }
       ])
@@ -217,7 +217,7 @@ describe('NotebookOverview', () => {
       })
 
       const questionTree = wrapper.findComponent({ name: 'QuestionTree' })
-      expect(questionTree.props('expandAll')).toBe(true)
+      expect(questionTree.props('initialExpandAll')).toBe(true)
     })
 
     it('should pass root messages to QuestionTree', () => {
@@ -233,6 +233,20 @@ describe('NotebookOverview', () => {
 
       const questionTree = wrapper.findComponent({ name: 'QuestionTree' })
       expect(questionTree.props('rootMessages')).toHaveLength(2)
+    })
+
+    it('should pass showCollapseButton=true to QuestionTree', () => {
+      setupNotebook('notebook1', 'Test', [
+        { id: 'q1', question: 'Question 1' }
+      ])
+
+      wrapper = mount(NotebookOverview, {
+        props: { notebookId: 'notebook1' },
+        global: { provide: createProvide() }
+      })
+
+      const questionTree = wrapper.findComponent({ name: 'QuestionTree' })
+      expect(questionTree.props('showCollapseButton')).toBe(true)
     })
   })
 
