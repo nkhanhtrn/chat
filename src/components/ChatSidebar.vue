@@ -27,6 +27,9 @@
       </div>
       <!-- Notebook title -->
       <div v-if="!isSidebarCollapsed && currentNotebook" class="notebook-title-container">
+        <svg class="notebook-icon" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+          <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
+        </svg>
         <InlineEdit
           ref="notebookTitleEdit"
           :model-value="currentNotebook.title"
@@ -557,8 +560,16 @@ const handleCancelMove = () => {
 /* Notebook title */
 .notebook-title-container {
   margin: 1rem 0;
-  padding: 0;
-  text-align: center;
+  padding: 0 1rem 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.notebook-icon {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
 }
 
 .notebook-title {

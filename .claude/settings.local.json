@@ -12,7 +12,8 @@
       "Bash(npx vue-tsc:*)",
       "Bash(npm run test:unit:*)",
       "Bash(npm run:*)",
-      "Bash(npx vitest:*)"
+      "Bash(npx vitest:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

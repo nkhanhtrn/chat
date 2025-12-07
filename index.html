@@ -26,41 +26,75 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Charis+SIL:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-</head>
-<body>
-  <!-- Loading screen (outside #app so Vue doesn't replace it) -->
-  <div id="app-loading" style="
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    background-color: #faf8f5;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    color: #333;
-    z-index: 9999;
-    opacity: 1;
-    transition: opacity 0.3s ease-out;
-  ">
-    <div style="
-      width: 40px;
-      height: 40px;
-      border: 3px solid #e0dcd4;
-      border-top-color: #4a90a4;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    "></div>
-    <p style="margin-top: 16px; font-size: 14px; color: #666;">Loading...</p>
-  </div>
   <style>
+    /* Theme variables for loading screen */
+    :root, [data-theme="light"] {
+      --loading-bg: #fafafa;
+      --loading-spinner-track: #e0e0e0;
+      --loading-spinner-active: #404040;
+      --loading-text: #686868;
+    }
+    [data-theme="dark"] {
+      --loading-bg: #1a1a1a;
+      --loading-spinner-track: #4a4a4a;
+      --loading-spinner-active: #d0d0d0;
+      --loading-text: #9a9a9a;
+    }
+    [data-theme="sepia"] {
+      --loading-bg: #f4ecd8;
+      --loading-spinner-track: #d4c9b5;
+      --loading-spinner-active: #5c4a3d;
+      --loading-text: #6b5a4d;
+    }
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
+    #app-loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background-color: var(--loading-bg);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      z-index: 9999;
+      opacity: 1;
+      transition: opacity 0.3s ease-out;
+    }
+    #app-loading .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--loading-spinner-track);
+      border-top-color: var(--loading-spinner-active);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    #app-loading p {
+      margin-top: 16px;
+      font-size: 14px;
+      color: var(--loading-text);
+    }
   </style>
+  <script>
+    // Apply cached theme immediately to prevent flash
+    try {
+      var theme = localStorage.getItem('theme');
+      if (theme && ['light', 'dark', 'sepia'].includes(theme)) {
+        document.documentElement.setAttribute('data-theme', theme);
+      }
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <!-- Loading screen (outside #app so Vue doesn't replace it) -->
+  <div id="app-loading">
+    <div class="spinner"></div>
+    <p>Loading...</p>
+  </div>
   <div id="app"></div>
   <script type="module" src="/src/main.js"></script>
 </body>

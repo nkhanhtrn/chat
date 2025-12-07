@@ -7,44 +7,13 @@ import './theme/colors-sepia.css'
 import { createPinia } from 'pinia'
 import { useChatStore } from './stores/chat.js'
 import router from './router'
+import { initializeTheme, applySettings, exposeGlobally } from './services/settings.js'
 
-// Current theme state (will be updated from Firestore)
-let currentTheme = 'light'
-
-// Theme switching via data attribute
-const setTheme = (theme) => {
-  currentTheme = theme
-  document.documentElement.setAttribute('data-theme', theme)
-}
-
-// Apply all settings to the document
-const applySettings = (settings) => {
-  if (!settings) return
-
-  if (settings.theme) {
-    setTheme(settings.theme)
-  }
-  if (settings.fontSize) {
-    document.documentElement.style.setProperty('--message-font-size', `${settings.fontSize}px`)
-  }
-  if (settings.fontFamily) {
-    document.documentElement.style.setProperty('--message-font-family', settings.fontFamily)
-  }
-  if (settings.lineHeight) {
-    document.documentElement.style.setProperty('--message-line-height', settings.lineHeight.toString())
-  }
-  if (settings.contentWidth) {
-    const widthMap = { narrow: '600px', medium: '800px', wide: '1000px' }
-    document.documentElement.style.setProperty('--content-max-width', widthMap[settings.contentWidth] || '800px')
-  }
-}
-
-// Start with light theme, will be updated after Firestore loads
-setTheme('light')
+// Initialize theme from localStorage cache (or default to light)
+initializeTheme()
 
 // Expose theme functions globally for components to use
-window.__setTheme = setTheme
-window.__getTheme = () => currentTheme
+exposeGlobally()
 
 const app = createApp(App)
 const pinia = createPinia()
