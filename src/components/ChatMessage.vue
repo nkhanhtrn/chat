@@ -229,7 +229,7 @@ async function handleAskQuestion(question) {
   chatStore.addChildMessage(parentId, childMsg)
 
   isChildStreaming.value = true
-  chatStore.streamingMessageId = childMsg.id
+  chatStore.startStreaming(childMsg.id)
   error.value = null
 
   const previousMessages = buildConversationChain(chatStore.messagesById, parentId)
@@ -247,7 +247,7 @@ async function handleAskQuestion(question) {
     error.value = err.message
   } finally {
     isChildStreaming.value = false
-    chatStore.streamingMessageId = null
+    chatStore.stopStreaming()
   }
 }
 

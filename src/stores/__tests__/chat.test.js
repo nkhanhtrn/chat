@@ -16,7 +16,9 @@ describe('useChatStore', () => {
       },
       rootMessageIds: ['msg1'],
       currentMessageId: 'msg1',
-      currentModel: 'gpt-4'
+      currentModel: 'gpt-4',
+      chats: [{ id: 'chat1', rootMessageIds: ['msg1'] }],
+      currentChatId: 'chat1'
     }
 
     let loadChatStateSpy

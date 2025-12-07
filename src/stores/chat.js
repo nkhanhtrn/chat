@@ -147,12 +147,21 @@ export const useChatStore = defineStore('chat', {
 
       // Restore state
       this.messagesById = messagesById
-      this.rootMessageIds = savedState.rootMessageIds || []
-      this.currentMessageId = savedState.currentMessageId || null
-      this.currentRootIndex = savedState.currentRootIndex || 0
       this.currentModel = savedState.currentModel || null
       this.chats = savedState.chats || []
       this.currentChatId = savedState.currentChatId || null
+
+      // Ensure rootMessageIds matches the current chat to prevent cache issues
+      // where notes from another notebook appear in the wrong one
+      const currentChat = this.chats.find(c => c.id === this.currentChatId)
+      if (currentChat) {
+        this.rootMessageIds = [...currentChat.rootMessageIds]
+      } else {
+        this.rootMessageIds = []
+      }
+
+      this.currentMessageId = savedState.currentMessageId || null
+      this.currentRootIndex = savedState.currentRootIndex || 0
     },
 
     // Resolve a sync conflict and apply the chosen state
@@ -699,6 +708,7 @@ export const useChatStore = defineStore('chat', {
         currentModel: this.currentModel,
         chats: this.chats,
         currentChatId: this.currentChatId,
+        isStreaming: this.isStreaming,
       }
       saveChatState(state)
     },
