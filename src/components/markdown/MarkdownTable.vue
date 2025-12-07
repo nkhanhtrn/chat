@@ -14,7 +14,8 @@
           <polyline points="18 15 12 9 6 15"></polyline>
         </svg>
       </button>
-      <table class="markdown-table">
+      <!-- Desktop: Traditional table -->
+      <table class="markdown-table desktop-table">
       <thead v-if="headers.length > 0">
         <tr>
           <th v-for="(header, index) in headers" :key="index" :style="getAlignment(alignments[index])">
@@ -30,6 +31,19 @@
         </tr>
       </tbody>
       </table>
+      <!-- Mobile: Card layout -->
+      <div class="mobile-cards">
+        <div v-for="(row, rowIndex) in rows" :key="rowIndex" class="mobile-card">
+          <div v-for="(cell, cellIndex) in row" :key="cellIndex" class="mobile-card-row">
+            <div class="mobile-card-label">
+              <TableCell v-if="headers[cellIndex]" :children="headers[cellIndex]" @question-link-click="bubbleQuestionLinkClick" @highlight-click="bubbleHighlightClick" />
+            </div>
+            <div class="mobile-card-value">
+              <TableCell :children="cell" @question-link-click="bubbleQuestionLinkClick" @highlight-click="bubbleHighlightClick" />
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -224,5 +238,57 @@ export default {
 
 .markdown-table tr:hover {
   background-color: var(--color-table-hover-bg);
+}
+
+/* Mobile card layout - hidden by default */
+.mobile-cards {
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.mobile-card {
+  background-color: var(--color-table-bg);
+  border: 1px solid var(--color-table-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.mobile-card-row {
+  display: flex;
+  border-bottom: 1px solid var(--color-table-border);
+}
+
+.mobile-card-row:last-child {
+  border-bottom: none;
+}
+
+.mobile-card-label {
+  flex: 0 0 40%;
+  padding: 8px 10px;
+  background-color: var(--color-table-header-bg);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--color-code-block-header-text);
+  word-break: break-word;
+}
+
+.mobile-card-value {
+  flex: 1;
+  padding: 8px 10px;
+  color: var(--color-code-block-text);
+  word-break: break-word;
+}
+
+/* Mobile breakpoint: switch to card layout */
+@media (max-width: 768px) {
+  .desktop-table {
+    display: none;
+  }
+
+  .mobile-cards {
+    display: flex;
+  }
 }
 </style>

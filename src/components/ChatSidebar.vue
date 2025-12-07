@@ -1,4 +1,15 @@
 <template>
+  <!-- Mobile expand button - shows when sidebar is collapsed on mobile -->
+  <button
+    v-if="isSidebarCollapsed && !fullPage"
+    @click="toggleSidebar"
+    class="mobile-expand-button"
+    title="Expand sidebar"
+  >
+    <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+      <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+    </svg>
+  </button>
   <div :class="['chat-sidebar', { collapsed: isSidebarCollapsed && !fullPage, 'full-page': fullPage }]">
     <div class="sidebar-header">
       <div class="header-buttons">
@@ -789,7 +800,32 @@ const handleCancelMove = () => {
   gap: 0.5rem;
 }
 
-/* Mobile/small screen: expanded sidebar overlaps content, collapsed pushes */
+/* Mobile expand button - hidden by default, shown on mobile when collapsed */
+.mobile-expand-button {
+  display: none;
+  position: fixed;
+  bottom: 12px;
+  left: 12px;
+  z-index: 999;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 8px;
+  background-color: var(--color-bg-elevated);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.mobile-expand-button:hover {
+  background-color: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+/* Mobile/small screen: expanded sidebar overlaps content, collapsed hides */
 @media (max-width: 768px) {
   .chat-sidebar:not(.collapsed) {
     position: fixed;
@@ -797,6 +833,14 @@ const handleCancelMove = () => {
     top: 0;
     z-index: 1000;
     box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+  }
+
+  .chat-sidebar.collapsed {
+    display: none;
+  }
+
+  .mobile-expand-button {
+    display: flex;
   }
 }
 

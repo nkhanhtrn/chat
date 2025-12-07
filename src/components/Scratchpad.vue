@@ -403,4 +403,18 @@ const handleInput = () => {
   opacity: 0;
   transform: scale(0.8);
 }
+
+/* Mobile: align with sidebar expand button */
+@media (max-width: 768px) {
+  .scratchpad-container {
+    bottom: 12px;
+    right: 12px;
+  }
+
+  .scratchpad-toggle,
+  .streaming-toggle {
+    width: 40px;
+    height: 40px;
+  }
+}
 </style>
