@@ -24,6 +24,7 @@
           :expanded-path="expandedPath"
           :editable="editable"
           :show-delete-button="showDeleteButton"
+          :expand-all="expandAll"
           @select="$emit('select', $event)"
           @toggle-expand="$emit('toggle-expand', $event)"
           @rename="(item, newText) => emit('rename', item, newText)"
@@ -59,6 +60,10 @@ const props = defineProps({
   showDeleteButton: {
     type: Boolean,
     default: false
+  },
+  expandAll: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -80,7 +85,7 @@ const isMessageStreaming = (messageId) => {
 }
 
 const isExpanded = (messageId) => {
-  return props.expandedPath.has(messageId)
+  return props.expandAll || props.expandedPath.has(messageId)
 }
 
 // Handle clicking an item - select and toggle expand

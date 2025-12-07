@@ -1,5 +1,5 @@
 <template>
-  <div :class="['chat-sidebar', { collapsed: isSidebarCollapsed }]">
+  <div :class="['chat-sidebar', { collapsed: isSidebarCollapsed && !fullPage, 'full-page': fullPage }]">
     <div class="sidebar-header">
       <div class="header-buttons">
         <button
@@ -11,26 +11,30 @@
         >
           <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
         </button>
-        <button
-          @click="$emit('back-home')"
+        <Button
+          variant="type-4"
           class="back-home-button"
           :class="{ 'drop-target': isNotebooksDropTarget }"
           title="Back to Notebooks"
+          @click="$emit('back-home')"
           @dragover.prevent="handleDragOverNotebooks"
           @dragleave="handleDragLeaveNotebooks"
           @drop="handleDropOnNotebooks"
         >
           <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
           <span v-if="!isSidebarCollapsed" class="button-text">Notebooks</span>
-        </button>
+        </Button>
       </div>
       <!-- Notebook title -->
       <div v-if="!isSidebarCollapsed && currentNotebook" class="notebook-title-container">
         <InlineEdit
+          ref="notebookTitleEdit"
           :model-value="currentNotebook.title"
-          text-class="notebook-title"
+          text-class="notebook-title notebook-title-link"
           input-class="notebook-title-input"
+          :title="'Click to view all questions, double-click to edit'"
           @save="handleNotebookRename"
+          @click="navigateToNotebookOverview"
         />
       </div>
       <!-- Search input -->
@@ -93,27 +97,25 @@
       <template v-else>
         <!-- Root messages as main items - draggable -->
         <div class="root-messages-container">
-          <DraggableTreeItem
-            v-for="(rootMsg, index) in rootMessages"
-            :key="rootMsg.id"
-            :item="rootMsg"
-            :index="index"
-            :parent-id="null"
-            :is-active="isInActivePath(rootMsg.id)"
-            :is-expanded="isRootExpanded(rootMsg.id) && hasChildren(rootMsg.id) && !isSidebarCollapsed"
-            :draggable="!isSidebarCollapsed"
-            :hide-drop-zones="isSidebarCollapsed"
-            :editable="!isSidebarCollapsed"
-            :show-delete-button="!isSidebarCollapsed"
-            :is-streaming="isMessageStreaming(rootMsg.id)"
-            :item-class="{ 'root-header': true, 'is-current-root': rootMsg.id === currentRootId }"
-            @click="handleRootClick"
-            @drop="handleDrop"
-            @rename="handleRename"
-            @delete="handleDeleteRoot"
-          >
-            <!-- Override default slot only when collapsed -->
-            <template v-if="isSidebarCollapsed" #default>
+          <!-- Collapsed view: simple icons -->
+          <template v-if="isSidebarCollapsed">
+            <!-- Overview button in collapsed state -->
+            <Button
+              variant="type-4"
+              class="collapsed-overview-button"
+              title="View all questions"
+              @click="navigateToNotebookOverview"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+                <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
+              </svg>
+            </Button>
+            <div
+              v-for="rootMsg in rootMessages"
+              :key="rootMsg.id"
+              :class="['root-header', { active: isInActivePath(rootMsg.id), 'is-current-root': rootMsg.id === currentRootId }]"
+              @click="handleRootClick(rootMsg)"
+            >
               <div
                 class="root-title"
                 :title="rootMsg.questionSummarized || rootMsg.question"
@@ -122,25 +124,22 @@
                   {{ (rootMsg.questionSummarized || rootMsg.question || 'Q').charAt(0).toUpperCase() }}
                 </span>
               </div>
-            </template>
+            </div>
+          </template>
 
-            <!-- Children tree -->
-            <template #children>
-              <MessageTree
-                v-if="!isSidebarCollapsed"
-                :parent-id="rootMsg.id"
-                :current-message-id="currentMessageId"
-                :expanded-path="expandedPath"
-                :editable="!isSidebarCollapsed"
-                :show-delete-button="!isSidebarCollapsed"
-                @select="handleSelectChild"
-                @toggle-expand="handleToggleExpand"
-                @move-to-parent="handleMoveToParent"
-                @rename="handleRename"
-                @delete="handleDeleteChild"
-              />
-            </template>
-          </DraggableTreeItem>
+          <!-- Expanded view: full tree -->
+          <QuestionTree
+            v-else
+            ref="questionTreeRef"
+            :root-messages="rootMessages"
+            :current-message-id="currentMessageId"
+            :expand-all="fullPage"
+            @select="handleTreeSelect"
+            @delete-root="handleDeleteRoot"
+            @delete-child="handleDeleteChild"
+            @rename="handleRename"
+            @drop="handleDrop"
+          />
         </div>
 
         <!-- New Question button when there are existing messages -->
@@ -160,7 +159,7 @@
       </template>
     </div>
 
-    <div class="sidebar-footer">
+    <div v-if="!fullPage" class="sidebar-footer">
       <Button
         v-if="!isSidebarCollapsed"
         @click="showSettings = true"
@@ -193,13 +192,12 @@
 </template>
 
 <script setup>
-import { ref, computed, provide, toRef } from 'vue'
+import { ref, computed, provide, inject, toRef, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from './Button.vue'
 import SettingsModal from './Modal/SettingsModal.vue'
 import MoveToNotebookModal from './Modal/MoveToNotebookModal.vue'
-import MessageTree from './MessageTree.vue'
-import DraggableTreeItem from './DraggableTreeItem.vue'
+import QuestionTree from './QuestionTree.vue'
 import InlineEdit from './InlineEdit.vue'
 import { useChatStore } from '../stores/chat.js'
 import { useSidebarCollapse } from '../composables/useSidebarCollapse.js'
@@ -222,6 +220,10 @@ const props = defineProps({
   isAddingNewQuestion: {
     type: Boolean,
     default: false
+  },
+  fullPage: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -234,24 +236,12 @@ const router = useRouter()
 const { isCollapsed: isSidebarCollapsed, toggle: toggleSidebar } = useSidebarCollapse('chatSidebarCollapsed')
 
 const {
-  expandedRootId,
-  expandedPath,
-  buildPathToChild: buildExpandedPathToChild,
   findRootId,
-  isInActivePath: treeIsInActivePath,
-  isRootExpanded,
-  toggleExpand,
-  toggleRoot,
-  expandToMessage
+  isInActivePath: treeIsInActivePath
 } = useTreeExpansion({
   getMessageById: (id) => chatStore.messagesById[id],
   currentMessageId: toRef(props, 'currentMessageId')
 })
-
-// Wrapper to always expand on click (never collapse when selecting)
-const handleToggleExpand = (messageId) => {
-  toggleExpand(messageId, { expandOnly: true })
-}
 
 // Chat questions computed for search
 const chatQuestions = computed(() => {
@@ -276,9 +266,9 @@ const pendingMoveMessageId = ref(null)
 
 // Previous location is now tracked in the store via chatStore.previousLocation
 
-// Drag state - shared with MessageTree via provide
-const draggedItem = ref(null)
-const dropTarget = ref(null)
+// Drag state - inject from parent (ChatView) or create new, then provide to children
+const draggedItem = inject('draggedItem', ref(null))
+const dropTarget = inject('dropTarget', ref(null))
 
 provide('draggedItem', draggedItem)
 provide('dropTarget', dropTarget)
@@ -309,19 +299,11 @@ const isInActivePath = (messageId) => {
   return treeIsInActivePath(messageId, props.currentMessageId)
 }
 
-// Check if a message has children
-const hasChildren = (messageId) => {
-  const msg = chatStore.messagesById[messageId]
-  return msg?.childIds?.length > 0
-}
-
-// Check if a message is currently streaming
-const isMessageStreaming = (messageId) => {
-  return chatStore.streamingMessageId === messageId
-}
+// Ref for the QuestionTree component
+const questionTreeRef = ref(null)
 
 // Handle clicking a search result
-const handleSearchResultClick = (result) => {
+const handleSearchResultClick = async (result) => {
   const currentChat = props.chats.find(c => c.id === props.currentChatId)
   if (!currentChat) return
 
@@ -332,14 +314,17 @@ const handleSearchResultClick = (result) => {
     rootIndex: result.rootIndex
   })
 
-  // Expand the tree to show the selected message
-  expandToMessage(result.id)
-
-  // Clear search
+  // Clear search first so QuestionTree renders
   clearSearch()
+
+  // Wait for Vue to update the DOM, then expand the tree
+  await nextTick()
+  if (questionTreeRef.value) {
+    questionTreeRef.value.expandToMessage(result.id)
+  }
 }
 
-// Handle clicking a root message - select and always expand on first click
+// Handle clicking a root message (collapsed sidebar mode)
 const handleRootClick = (rootMsg) => {
   const currentChat = props.chats.find(c => c.id === props.currentChatId)
   if (!currentChat) return
@@ -348,27 +333,21 @@ const handleRootClick = (rootMsg) => {
   if (question) {
     emit('select-question', question)
   }
-
-  // Always expand on click (never collapse when selecting)
-  toggleRoot(rootMsg.id, { expandOnly: true })
 }
 
-// Handle selecting a child message
-const handleSelectChild = (childMsg) => {
+// Handle selection from QuestionTree component
+const handleTreeSelect = (selection) => {
   const currentChat = props.chats.find(c => c.id === props.currentChatId)
-  if (currentChat) {
-    const rootId = findRootId(childMsg.id)
-    const rootIndex = currentChat.questions.findIndex(q => q.id === rootId)
+  if (!currentChat) return
 
-    emit('select-question', {
-      id: childMsg.id,
-      chatId: currentChat.id,
-      rootIndex: rootIndex >= 0 ? rootIndex : 0
-    })
+  const rootId = selection.rootId || selection.id
+  const rootIndex = currentChat.questions.findIndex(q => q.id === rootId)
 
-    // Rebuild expanded path to show full tree to selected child (includes the child itself)
-    buildExpandedPathToChild(childMsg.id)
-  }
+  emit('select-question', {
+    id: selection.id,
+    chatId: currentChat.id,
+    rootIndex: rootIndex >= 0 ? rootIndex : 0
+  })
 }
 
 // Handle deleting a root message
@@ -396,6 +375,11 @@ const handleNotebookRename = (newTitle) => {
   }
 }
 
+// Navigate to notebook overview (no question selected)
+const navigateToNotebookOverview = () => {
+  router.push({ name: 'notebook', params: { id: props.currentChatId } })
+}
+
 // Handle drop event from DraggableTreeItem
 const handleDrop = (dropData) => {
   const { messageId, targetId, position, targetIndex } = dropData
@@ -407,11 +391,6 @@ const handleDrop = (dropData) => {
     // Move as first child of target
     chatStore.moveMessage(messageId, targetId, 0)
   }
-}
-
-// Handle moving a child message to its grandparent (promoting it up)
-const handleMoveToParent = (data) => {
-  chatStore.moveMessage(data.messageId, data.newParentId, data.newIndex)
 }
 
 // Handle drag over notebooks button
@@ -565,42 +544,13 @@ const handleCancelMove = () => {
   cursor: not-allowed;
 }
 
-.back-home-button {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  color: var(--color-text-muted);
-  font-size: 0.875rem;
-  font-family: inherit;
-  cursor: pointer;
-  transition: background-color 0.15s, color 0.15s;
-}
-
-.back-home-button:hover {
-  background-color: var(--color-bg-hover);
-  color: var(--color-text-secondary);
-}
-
 .back-home-button.drop-target {
   background-color: var(--color-primary, #6366f1);
   color: white;
   box-shadow: 0 0 0 2px var(--color-primary, #6366f1);
 }
 
-.back-home-button svg {
-  flex-shrink: 0;
-}
-
-.back-home-button .button-text {
-  font-weight: 500;
-}
-
 .chat-sidebar.collapsed .back-home-button {
-  justify-content: center;
   padding: 0.5rem;
 }
 
@@ -625,6 +575,10 @@ const handleCancelMove = () => {
 
 .notebook-title:hover {
   color: var(--color-primary);
+}
+
+.notebook-title-link {
+  cursor: pointer;
 }
 
 :deep(.notebook-title-input) {
@@ -698,6 +652,11 @@ const handleCancelMove = () => {
   background-color: var(--color-bg-hover);
 }
 
+.collapsed-overview-button {
+  margin-bottom: 0.5rem;
+  padding: 0.5rem;
+}
+
 .chat-sidebar.collapsed .root-header {
   justify-content: center;
   padding: 0.5rem;
@@ -705,6 +664,12 @@ const handleCancelMove = () => {
 
 .chat-sidebar.collapsed .root-title {
   flex: none;
+}
+
+.chat-sidebar.collapsed .root-messages-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .root-messages-container {
@@ -958,5 +923,52 @@ const handleCancelMove = () => {
   padding: 2rem 1rem;
   color: var(--color-text-muted);
   font-size: 0.875rem;
+}
+
+/* Full page mode styles */
+.chat-sidebar.full-page {
+  width: 100%;
+  height: 100vh;
+  max-width: none;
+  border-right: none;
+}
+
+.chat-sidebar.full-page .sidebar-header {
+  padding: 1.5rem 2rem;
+  max-width: 900px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.chat-sidebar.full-page .notebook-title-container {
+  margin: 1.5rem 0;
+}
+
+.chat-sidebar.full-page .notebook-title {
+  font-size: 1.5rem;
+}
+
+.chat-sidebar.full-page .chat-list {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1.5rem 2rem;
+}
+
+.chat-sidebar.full-page .root-header {
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.chat-sidebar.full-page .root-title {
+  font-size: 1.05rem;
+}
+
+.chat-sidebar.full-page .search-container {
+  max-width: 400px;
+}
+
+.chat-sidebar.full-page .search-input {
+  font-size: 0.95rem;
+  padding: 0.6rem 2.5rem 0.6rem 1rem;
 }
 </style>

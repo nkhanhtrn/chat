@@ -16,7 +16,7 @@
       <DevToolbar v-if="isDev" @reset="prepopulatedQuestions = $event" />
 
       <!-- Fixed Navigation Header -->
-      <div v-if="chatStore.currentRootMessage && chatStore.currentMessage" class="fixed-nav-header">
+      <div v-if="!showingOverview && chatStore.currentRootMessage && chatStore.currentMessage" class="fixed-nav-header">
         <div class="fixed-nav-content">
           <MessageNavigation
             :current-message="chatStore.currentMessage"
@@ -26,7 +26,15 @@
 
       <div class="messages-container" ref="messagesContainer">
         <SlideTransition>
-          <div v-if="chatStore.rootMessages.length === 0 || isAddingNewQuestion" key="welcome" class="welcome-message">
+          <!-- Notebook Overview -->
+          <NotebookOverview
+            v-if="showingOverview && chatStore.currentChatId"
+            key="overview"
+            :notebook-id="chatStore.currentChatId"
+            @select-question="handleOverviewSelectQuestion"
+          />
+
+          <div v-else-if="chatStore.rootMessages.length === 0 || isAddingNewQuestion" key="welcome" class="welcome-message">
             <h2>{{ isAddingNewQuestion ? 'Ask a new question' : 'Welcome to your Study Assistant!' }}</h2>
             <p>{{ isAddingNewQuestion ? 'Enter your question below to continue learning.' : 'Start by asking a question about any topic you\'d like to learn.' }}</p>
             <div v-if="!isAddingNewQuestion" class="example-prompts">
@@ -84,6 +92,7 @@ import ChatMessage from '../components/ChatMessage.vue'
 import ChatInput from '../components/ChatInput.vue'
 import ChatSidebar from '../components/ChatSidebar.vue'
 import MessageNavigation from '../components/MessageNavigation.vue'
+import NotebookOverview from '../components/NotebookOverview.vue'
 import Scratchpad from '../components/Scratchpad.vue'
 import SlideTransition from '../components/SlideTransition.vue'
 import { sendChatMessage, fetchModels } from '../services/api.js'
@@ -98,9 +107,16 @@ const error = ref(null)
 const messagesContainer = ref(null)
 const chatStore = useChatStore()
 const isAddingNewQuestion = ref(false)
+const showingOverview = ref(false)
 
 const isDev = getIsDev()
 const prepopulatedQuestions = ref(getDefaultQuestions())
+
+// Shared drag state for tree components (ChatSidebar and NotebookOverview)
+const draggedItem = ref(null)
+const dropTarget = ref(null)
+provide('draggedItem', draggedItem)
+provide('dropTarget', dropTarget)
 
 // Helper to navigate to a question by ID within current notebook
 const navigateToQuestion = (questionId) => {
@@ -149,10 +165,14 @@ onMounted(async () => {
 
       // If a question ID is specified, navigate to it
       if (questionId) {
+        showingOverview.value = false
         if (!navigateToQuestion(questionId)) {
           // Question doesn't exist, redirect to notebook
           router.replace({ name: 'notebook', params: { id: notebookId } })
         }
+      } else if (chatStore.rootMessages.length > 0) {
+        // No question specified but notebook has questions - show overview
+        showingOverview.value = true
       }
     } else {
       // Notebook doesn't exist, redirect to home
@@ -184,14 +204,22 @@ watch(() => route.params, (newParams) => {
       chatStore.switchToChat(newId)
       // Navigate to question if specified
       if (questionId) {
+        showingOverview.value = false
         navigateToQuestion(questionId)
+      } else if (chatStore.rootMessages.length > 0) {
+        // No question specified but notebook has questions - show overview
+        showingOverview.value = true
       }
     } else {
       router.push({ name: 'home' })
     }
   } else if (newId && questionId) {
     // Same notebook, different question
+    showingOverview.value = false
     navigateToQuestion(questionId)
+  } else if (newId && !questionId && chatStore.rootMessages.length > 0) {
+    // Same notebook, no question - show overview
+    showingOverview.value = true
   }
 }, { deep: true })
 
@@ -289,6 +317,7 @@ const goToHome = () => {
 
 const handleSelectQuestion = (question) => {
   isAddingNewQuestion.value = false
+  showingOverview.value = false
 
   // Save scroll position of current message before switching
   const currentScrollPos = getScrollPosition()
@@ -321,6 +350,11 @@ const handleDeleteQuestion = (messageId, chatId) => {
 
 const handleNewQuestion = () => {
   isAddingNewQuestion.value = true
+}
+
+const handleOverviewSelectQuestion = (question) => {
+  showingOverview.value = false
+  handleSelectQuestion(question)
 }
 
 const handleScratchpadUpdate = (content) => {

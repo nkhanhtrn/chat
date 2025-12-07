@@ -7,7 +7,12 @@
       "Bash(for file in dagre cose-bilkent)",
       "Bash(do echo '=== $file ===')",
       "Bash(done)",
-      "Bash(npm run test:*)"
+      "Bash(npm run test:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx vue-tsc:*)",
+      "Bash(npm run test:unit:*)",
+      "Bash(npm run:*)",
+      "Bash(npx vitest:*)"
     ],
     "deny": [],
     "ask": []

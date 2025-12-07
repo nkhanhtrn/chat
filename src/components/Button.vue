@@ -20,6 +20,7 @@ defineProps({
       'primary',      // Type 1: New Chat, Send button
       'secondary',    // Type 2: Collapse, DevTool buttons
       'tertiary',     // Type 3: Navigation buttons (grey icon style)
+      'type-4',       // Type 4: Sidebar navigation buttons (home, overview)
       'danger'        // Special: Delete button (red)
     ].includes(value)
   },
@@ -116,6 +117,31 @@ defineProps({
 
 .btn-tertiary:active:not(:disabled) {
   background: var(--color-bg-button-active);
+}
+
+/* Type 4 Button - For sidebar navigation (home, overview) */
+.btn-type-4 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.btn-type-4:hover:not(:disabled) {
+  background-color: var(--color-bg-hover);
+  color: var(--color-text-secondary);
+}
+
+.btn-type-4 svg {
+  flex-shrink: 0;
 }
 
 /* Ghost Button - No background */

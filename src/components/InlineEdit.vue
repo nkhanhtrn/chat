@@ -3,6 +3,7 @@
     v-if="!isEditing"
     :class="['inline-edit-text', textClass]"
     v-bind="attrs"
+    @click="$emit('click', $event)"
     @dblclick.stop="startEditing"
   >
     <slot>{{ modelValue }}</slot>
@@ -67,7 +68,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update:modelValue', 'save', 'editing-start', 'editing-end'])
+const emit = defineEmits(['update:modelValue', 'save', 'editing-start', 'editing-end', 'click'])
 
 const isEditing = ref(false)
 const editText = ref('')

@@ -75,6 +75,15 @@ describe('Button', () => {
       expect(wrapper.classes()).toContain('btn-danger')
     })
 
+    it('should apply type-4 variant class', () => {
+      wrapper = mount(Button, {
+        props: {
+          variant: 'type-4'
+        }
+      })
+      expect(wrapper.classes()).toContain('btn-type-4')
+    })
+
     it('should always have base btn class', () => {
       wrapper = mount(Button, {
         props: {
@@ -292,6 +301,33 @@ describe('Button', () => {
       expect(wrapper.classes()).toContain('btn-danger')
       expect(wrapper.text()).toBe('×')
       expect(wrapper.attributes('disabled')).toBeUndefined()
+    })
+
+    it('should handle type-4 variant with icon slot content', () => {
+      wrapper = mount(Button, {
+        props: {
+          variant: 'type-4'
+        },
+        slots: {
+          default: '<svg viewBox="0 0 24 24"></svg><span>Notebooks</span>'
+        }
+      })
+      expect(wrapper.classes()).toContain('btn-type-4')
+      expect(wrapper.html()).toContain('<svg')
+      expect(wrapper.html()).toContain('Notebooks')
+    })
+
+    it('should handle type-4 variant with icon only (collapsed state)', () => {
+      wrapper = mount(Button, {
+        props: {
+          variant: 'type-4'
+        },
+        slots: {
+          default: '<svg viewBox="0 0 24 24"></svg>'
+        }
+      })
+      expect(wrapper.classes()).toContain('btn-type-4')
+      expect(wrapper.html()).toContain('<svg')
     })
   })
 

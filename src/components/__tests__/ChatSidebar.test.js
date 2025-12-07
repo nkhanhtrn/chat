@@ -609,6 +609,105 @@ describe('ChatSidebar', () => {
 
       expect(wrapper.find('.tree-children').exists()).toBe(false)
     })
+
+    it('should render overview button when sidebar is collapsed', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Question 1', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Question 1' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      // Overview button should not be visible when expanded
+      expect(wrapper.find('.collapsed-overview-button').exists()).toBe(false)
+
+      // Collapse sidebar
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+
+      // Overview button should be visible when collapsed
+      expect(wrapper.find('.collapsed-overview-button').exists()).toBe(true)
+    })
+
+    it('should use Button component with type-4 variant for collapsed overview button', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Question 1', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Question 1' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      // Collapse sidebar
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+
+      const overviewButton = wrapper.find('.collapsed-overview-button')
+      expect(overviewButton.exists()).toBe(true)
+      expect(overviewButton.classes()).toContain('btn-type-4')
+    })
+
+    it('should navigate to notebook overview when collapsed overview button is clicked', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Question 1', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Question 1' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      mockRouterPush.mockClear()
+
+      // Collapse sidebar
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+
+      // Click overview button
+      await wrapper.find('.collapsed-overview-button').trigger('click')
+
+      expect(mockRouterPush).toHaveBeenCalledWith({
+        name: 'notebook',
+        params: { id: 'chat1' }
+      })
+    })
+
+    it('should render overview button with list icon', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Question 1', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Question 1' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      // Collapse sidebar
+      await wrapper.find('.collapse-sidebar-button').trigger('click')
+
+      const overviewButton = wrapper.find('.collapsed-overview-button')
+      expect(overviewButton.find('svg').exists()).toBe(true)
+    })
   })
 
   describe('LocalStorage Persistence', () => {
@@ -1203,38 +1302,6 @@ describe('ChatSidebar', () => {
     })
   })
 
-  describe('Move to Parent (Promoting Child)', () => {
-    it('should move child message to grandparent when move-to-parent is emitted', async () => {
-      setupMessagesInStore([
-        { id: 'q1', question: 'Question 1', response: '', childIds: ['child1'] },
-        { id: 'child1', question: 'Child', response: '', parentId: 'q1', childIds: ['grandchild1'] },
-        { id: 'grandchild1', question: 'Grandchild', response: '', parentId: 'child1' }
-      ])
-
-      const chats = [{
-        id: 'chat1',
-        title: 'Chat 1',
-        questions: [{ id: 'q1', text: 'Question 1' }]
-      }]
-
-      chatStore.moveMessage = vi.fn()
-
-      wrapper = mount(ChatSidebar, {
-        props: { chats, currentChatId: 'chat1', currentMessageId: 'grandchild1' }
-      })
-
-      // Find MessageTree and emit move-to-parent event
-      const messageTree = wrapper.findComponent({ name: 'MessageTree' })
-      await messageTree.vm.$emit('move-to-parent', {
-        messageId: 'grandchild1',
-        newParentId: 'q1',
-        newIndex: 1
-      })
-
-      expect(chatStore.moveMessage).toHaveBeenCalledWith('grandchild1', 'q1', 1)
-    })
-  })
-
   describe('Edge Cases', () => {
     it('should handle root message with empty question', () => {
       setupMessagesInStore([
@@ -1648,6 +1715,9 @@ describe('ChatSidebar', () => {
 
       await wrapper.find('.search-input').setValue('JavaScript')
       await wrapper.find('.search-result-item').trigger('click')
+
+      // Wait for Vue to process the nextTick in handleSearchResultClick
+      await wrapper.vm.$nextTick()
 
       // After clicking, tree should be visible and expanded
       expect(wrapper.find('.tree-children').exists()).toBe(true)
