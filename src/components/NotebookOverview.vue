@@ -1,12 +1,20 @@
 <template>
   <div class="notebook-overview">
     <div class="overview-header">
-      <InlineEdit
-        :model-value="notebook?.title || 'Untitled Notebook'"
-        text-class="overview-title"
-        input-class="overview-title-input"
-        @save="handleNotebookRename"
-      />
+      <div class="title-row">
+        <InlineEdit
+          ref="titleEditRef"
+          :model-value="notebook?.title || 'Untitled Notebook'"
+          text-class="overview-title"
+          input-class="overview-title-input"
+          @save="handleNotebookRename"
+        />
+        <button class="title-edit-button" @click="titleEditRef?.startEditing()" title="Edit title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M17 3l4 4L7 21H3v-4L17 3z"/>
+          </svg>
+        </button>
+      </div>
       <p class="overview-subtitle">{{ questionCount }} question{{ questionCount !== 1 ? 's' : '' }}</p>
     </div>
 
@@ -33,10 +41,12 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useChatStore } from '../stores/chat.js'
 import QuestionTree from './QuestionTree.vue'
 import InlineEdit from './InlineEdit.vue'
+
+const titleEditRef = ref(null)
 
 const props = defineProps({
   notebookId: {
@@ -62,7 +72,7 @@ const rootMessages = computed(() => {
 })
 
 const questionCount = computed(() => {
-  return notebook.value?.questions?.length || 0
+  return chatStore.getTotalMessageCount(props.notebookId)
 })
 
 const handleSelect = (selection) => {
@@ -107,6 +117,39 @@ const handleDrop = (dropData) => {
   margin-bottom: 2rem;
   padding-bottom: 1.5rem;
   border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.title-edit-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  opacity: 0;
+  transition: all 0.15s;
+  padding: 0;
+}
+
+.title-row:hover .title-edit-button {
+  opacity: 0.6;
+}
+
+.title-edit-button:hover {
+  opacity: 1 !important;
+  color: var(--color-text-strong);
+  background-color: var(--color-bg-hover);
 }
 
 .overview-title {

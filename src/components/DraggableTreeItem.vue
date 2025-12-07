@@ -87,6 +87,16 @@
         </div>
 
         <button
+          v-if="editable && !isEditing"
+          class="edit-button"
+          @click.stop="startEditing"
+          title="Edit"
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M17 3l4 4L7 21H3v-4L17 3z"/>
+          </svg>
+        </button>
+        <button
           v-if="showDeleteButton && !isEditing"
           class="delete-button"
           @click.stop="$emit('delete', item)"
@@ -340,6 +350,27 @@ defineExpose({ startEditing })
   flex-shrink: 0;
   width: 1.25rem;
 }
+
+/* Edit Button */
+.edit-button {
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.15s;
+  padding: 0;
+}
+.tree-item:hover .edit-button { opacity: 0.6; }
+.edit-button:hover { opacity: 1 !important; color: var(--color-text-strong); background-color: var(--color-bg-hover); }
 
 /* Delete Button */
 .delete-button {

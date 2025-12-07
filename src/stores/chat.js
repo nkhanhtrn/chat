@@ -36,8 +36,69 @@ export const useChatStore = defineStore('chat', {
   },
 
   getters: {
+    // Count all messages recursively including children
+    countMessagesWithChildren: (state) => (messageId) => {
+      const msg = state.messagesById[messageId]
+      if (!msg) return 1
+      let count = 1
+      if (msg.childIds?.length) {
+        for (const childId of msg.childIds) {
+          const countFn = (id) => {
+            const m = state.messagesById[id]
+            if (!m) return 1
+            let c = 1
+            if (m.childIds?.length) {
+              for (const cid of m.childIds) {
+                c += countFn(cid)
+              }
+            }
+            return c
+          }
+          count += countFn(childId)
+        }
+      }
+      return count
+    },
+
+    // Get total message count for a chat (including all children)
+    getTotalMessageCount: (state) => (chatId) => {
+      const chat = state.chats.find(c => c.id === chatId)
+      if (!chat) return 0
+
+      const countWithChildren = (messageId) => {
+        const msg = state.messagesById[messageId]
+        if (!msg) return 1
+        let count = 1
+        if (msg.childIds?.length) {
+          for (const childId of msg.childIds) {
+            count += countWithChildren(childId)
+          }
+        }
+        return count
+      }
+
+      let total = 0
+      for (const rootId of chat.rootMessageIds) {
+        total += countWithChildren(rootId)
+      }
+      return total
+    },
+
     // Get all chats with computed title and questions from messages
     chatList: (state) => {
+      // Helper to count messages with children
+      const countWithChildren = (messageId) => {
+        const msg = state.messagesById[messageId]
+        if (!msg) return 1
+        let count = 1
+        if (msg.childIds?.length) {
+          for (const childId of msg.childIds) {
+            count += countWithChildren(childId)
+          }
+        }
+        return count
+      }
+
       return state.chats.map(chat => {
         const questions = chat.rootMessageIds
           .map(id => state.messagesById[id])
@@ -49,10 +110,16 @@ export const useChatStore = defineStore('chat', {
             rootIndex: chat.rootMessageIds.indexOf(msg.id)
           }))
 
+        // Calculate total message count including children
+        let totalMessageCount = 0
+        for (const rootId of chat.rootMessageIds) {
+          totalMessageCount += countWithChildren(rootId)
+        }
+
         return {
           id: chat.id,
           title: chat.name || 'New Subject',
-          messageCount: chat.rootMessageIds.length,
+          messageCount: totalMessageCount,
           questions
         }
       })

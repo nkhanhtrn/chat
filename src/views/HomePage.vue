@@ -75,7 +75,7 @@
         <div class="notebook-info">
           <h3 class="notebook-title">{{ chat.title || 'Untitled Notebook' }}</h3>
           <p class="notebook-meta">
-            {{ chat.questions.length }} {{ chat.questions.length === 1 ? 'question' : 'questions' }}
+            {{ chat.messageCount }} {{ chat.messageCount === 1 ? 'question' : 'questions' }}
           </p>
         </div>
         <button

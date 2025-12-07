@@ -519,6 +519,66 @@ describe('DraggableTreeItem', () => {
     })
   })
 
+  describe('Edit Button', () => {
+    it('should render edit button when editable is true', () => {
+      wrapper = mount(DraggableTreeItem, {
+        props: { ...defaultProps, editable: true },
+        global: createGlobalConfig(createProvide())
+      })
+      expect(wrapper.find('.edit-button').exists()).toBe(true)
+    })
+
+    it('should not render edit button when editable is false', () => {
+      wrapper = mount(DraggableTreeItem, {
+        props: { ...defaultProps, editable: false },
+        global: createGlobalConfig(createProvide())
+      })
+      expect(wrapper.find('.edit-button').exists()).toBe(false)
+    })
+
+    it('should hide edit button while editing', async () => {
+      wrapper = mount(DraggableTreeItem, {
+        props: { ...defaultProps, editable: true },
+        global: createGlobalConfig(createProvide())
+      })
+      expect(wrapper.find('.edit-button').exists()).toBe(true)
+
+      await wrapper.find('.tree-item-text').trigger('dblclick')
+
+      expect(wrapper.find('.edit-button').exists()).toBe(false)
+    })
+
+    it('should start editing when edit button is clicked', async () => {
+      wrapper = mount(DraggableTreeItem, {
+        props: { ...defaultProps, editable: true },
+        global: createGlobalConfig(createProvide())
+      })
+      await wrapper.find('.edit-button').trigger('click')
+      expect(wrapper.find('.inline-edit-input').exists()).toBe(true)
+    })
+
+    it('should stop propagation on edit button click', async () => {
+      wrapper = mount(DraggableTreeItem, {
+        props: { ...defaultProps, editable: true },
+        global: createGlobalConfig(createProvide())
+      })
+      const editBtn = wrapper.find('.edit-button')
+      const event = new MouseEvent('click', { bubbles: true })
+      const stopPropagation = vi.spyOn(event, 'stopPropagation')
+      editBtn.element.dispatchEvent(event)
+      expect(stopPropagation).toHaveBeenCalled()
+    })
+
+    it('should not emit click event when edit button is clicked', async () => {
+      wrapper = mount(DraggableTreeItem, {
+        props: { ...defaultProps, editable: true },
+        global: createGlobalConfig(createProvide())
+      })
+      await wrapper.find('.edit-button').trigger('click')
+      expect(wrapper.emitted('click')).toBeFalsy()
+    })
+  })
+
   describe('Exposed Methods', () => {
     it('should expose startEditing method', async () => {
       wrapper = mount(DraggableTreeItem, {

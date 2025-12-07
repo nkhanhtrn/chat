@@ -109,6 +109,52 @@ describe('NotebookOverview', () => {
       expect(wrapper.find('.overview-subtitle').text()).toBe('2 questions')
     })
 
+    it('should count children in question count', () => {
+      const Message = require('../../stores/Message.js').default
+
+      // Clear and set up manually to control root vs child messages
+      chatStore.chats = []
+      chatStore.messagesById = {}
+
+      // Only q1 is a root message
+      chatStore.chats.push({
+        id: 'notebook1',
+        name: 'Test',
+        rootMessageIds: ['q1']
+      })
+
+      // Add all messages including children
+      chatStore.messagesById['q1'] = new Message({
+        id: 'q1',
+        question: 'Question 1',
+        childIds: ['child1', 'child2']
+      })
+      chatStore.messagesById['child1'] = new Message({
+        id: 'child1',
+        question: 'Child 1',
+        parentId: 'q1'
+      })
+      chatStore.messagesById['child2'] = new Message({
+        id: 'child2',
+        question: 'Child 2',
+        parentId: 'q1',
+        childIds: ['grandchild1']
+      })
+      chatStore.messagesById['grandchild1'] = new Message({
+        id: 'grandchild1',
+        question: 'Grandchild 1',
+        parentId: 'child2'
+      })
+
+      wrapper = mount(NotebookOverview, {
+        props: { notebookId: 'notebook1' },
+        global: { provide: createProvide() }
+      })
+
+      // 1 root + 2 children + 1 grandchild = 4 total
+      expect(wrapper.find('.overview-subtitle').text()).toBe('4 questions')
+    })
+
     it('should show empty state when no questions', () => {
       setupNotebook('notebook1', 'Test', [])
 
@@ -202,6 +248,43 @@ describe('NotebookOverview', () => {
 
       // chatList getter transforms empty title to 'New Subject'
       expect(wrapper.text()).toContain('New Subject')
+    })
+
+    it('should render title edit button', () => {
+      setupNotebook('notebook1', 'Test Notebook', [])
+
+      wrapper = mount(NotebookOverview, {
+        props: { notebookId: 'notebook1' },
+        global: { provide: createProvide() }
+      })
+
+      expect(wrapper.find('.title-edit-button').exists()).toBe(true)
+    })
+
+    it('should start editing when title edit button is clicked', async () => {
+      setupNotebook('notebook1', 'Test Notebook', [])
+
+      wrapper = mount(NotebookOverview, {
+        props: { notebookId: 'notebook1' },
+        global: { provide: createProvide() }
+      })
+
+      await wrapper.find('.title-edit-button').trigger('click')
+
+      const inlineEdit = wrapper.findComponent({ name: 'InlineEdit' })
+      expect(inlineEdit.find('input').exists()).toBe(true)
+    })
+
+    it('should render title row with InlineEdit and edit button', () => {
+      setupNotebook('notebook1', 'Test Notebook', [])
+
+      wrapper = mount(NotebookOverview, {
+        props: { notebookId: 'notebook1' },
+        global: { provide: createProvide() }
+      })
+
+      expect(wrapper.find('.title-row').exists()).toBe(true)
+      expect(wrapper.find('.title-row .title-edit-button').exists()).toBe(true)
     })
   })
 

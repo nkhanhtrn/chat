@@ -38,9 +38,6 @@
       </div>
       <!-- Notebook title -->
       <div v-if="!isSidebarCollapsed && currentNotebook" class="notebook-title-container">
-        <svg class="notebook-icon" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-          <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
-        </svg>
         <InlineEdit
           ref="notebookTitleEdit"
           :model-value="currentNotebook.title"
@@ -49,7 +46,12 @@
           :title="'Click to view all questions, double-click to edit'"
           @save="handleNotebookRename"
           @click="navigateToNotebookOverview"
-        />
+        >
+          <svg class="notebook-icon" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+            <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
+          </svg>
+          {{ currentNotebook.title }}
+        </InlineEdit>
       </div>
       <!-- Search input -->
       <div v-if="!isSidebarCollapsed" class="search-container">
@@ -581,6 +583,8 @@ const handleCancelMove = () => {
 .notebook-icon {
   flex-shrink: 0;
   color: var(--color-text-muted);
+  position: relative;
+  top: 2px;
 }
 
 .notebook-title {
