@@ -166,6 +166,28 @@
             {{ connectionStatus.message }}
           </div>
         </div>
+
+        <!-- Backup & Restore Section -->
+        <div class="setting-item setting-item-vertical backup-section">
+          <label class="setting-label">Backup & Restore</label>
+          <div class="backup-buttons">
+            <button class="backup-btn" @click="downloadNotebooks">
+              Download Notebooks
+            </button>
+            <label class="backup-btn restore-btn">
+              Restore Notebooks
+              <input
+                type="file"
+                accept=".json"
+                @change="restoreNotebooks"
+                class="file-input"
+              />
+            </label>
+          </div>
+          <div v-if="restoreStatus" :class="['connection-status', restoreStatus.type]">
+            {{ restoreStatus.message }}
+          </div>
+        </div>
           </div>
         </Transition>
       </div>
@@ -208,6 +230,7 @@ const providerConfigs = ref({
 })
 const showApiKey = ref(false)
 const connectionStatus = ref(null)
+const restoreStatus = ref(null)
 const availableModels = ref([])
 const selectedModel = ref('')
 const chatStore = useChatStore()
@@ -502,6 +525,71 @@ const setContentWidth = (width) => {
 
 const close = () => {
   emit('update:modelValue', false)
+}
+
+const downloadNotebooks = () => {
+  const data = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    chats: chatStore.chats,
+    messagesById: chatStore.messagesById
+  }
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `notebooks-${new Date().toISOString().split('T')[0]}.json`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+const restoreNotebooks = async (event) => {
+  const file = event.target.files?.[0]
+  if (!file) return
+
+  try {
+    const text = await file.text()
+    const data = JSON.parse(text)
+
+    // Validate the data structure
+    if (!data.chats || !Array.isArray(data.chats)) {
+      throw new Error('Invalid file: missing chats array')
+    }
+    if (!data.messagesById || typeof data.messagesById !== 'object') {
+      throw new Error('Invalid file: missing messagesById')
+    }
+
+    // Merge imported data with existing data
+    // Add new messages (don't overwrite existing ones)
+    for (const [id, message] of Object.entries(data.messagesById)) {
+      if (!chatStore.messagesById[id]) {
+        chatStore.messagesById[id] = message
+      }
+    }
+
+    // Add new chats (don't overwrite existing ones with same ID)
+    for (const chat of data.chats) {
+      const existingChat = chatStore.chats.find(c => c.id === chat.id)
+      if (!existingChat) {
+        chatStore.chats.push(chat)
+      }
+    }
+
+    // Persist the merged state
+    chatStore._persistState()
+
+    restoreStatus.value = { type: 'success', message: `Restored ${data.chats.length} notebook(s)` }
+    setTimeout(() => { restoreStatus.value = null }, 3000)
+  } catch (error) {
+    restoreStatus.value = { type: 'error', message: error.message || 'Failed to restore notebooks' }
+    setTimeout(() => { restoreStatus.value = null }, 3000)
+  }
+
+  // Reset file input
+  event.target.value = ''
 }
 </script>
 
@@ -868,5 +956,43 @@ const close = () => {
   color: var(--color-text-muted);
   font-family: system-ui, -apple-system, sans-serif;
   text-align: right;
+}
+
+.backup-section {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.backup-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.backup-btn {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--color-border-base);
+  border-radius: 4px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-base);
+  font-size: 0.9rem;
+  font-family: system-ui, -apple-system, sans-serif;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.backup-btn:hover {
+  background: var(--color-bg-hover);
+  border-color: var(--color-border-strong);
+}
+
+.restore-btn {
+  display: inline-flex;
+  align-items: center;
+}
+
+.file-input {
+  display: none;
 }
 </style>

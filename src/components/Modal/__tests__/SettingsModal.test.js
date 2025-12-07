@@ -41,11 +41,22 @@ const mockUserSettings = (settings) => {
 }
 
 // Mock the chat store
+const mockChatStore = {
+  currentModel: 'model-1',
+  setCurrentModel: vi.fn(),
+  chats: [
+    { id: 'chat-1', name: 'Test Chat 1', rootMessageIds: ['msg-1'] },
+    { id: 'chat-2', name: 'Test Chat 2', rootMessageIds: ['msg-2'] }
+  ],
+  messagesById: {
+    'msg-1': { id: 'msg-1', question: 'Hello', response: 'Hi there' },
+    'msg-2': { id: 'msg-2', question: 'Test', response: 'Response' }
+  },
+  _persistState: vi.fn()
+}
+
 vi.mock('../../../stores/chat.js', () => ({
-  useChatStore: vi.fn(() => ({
-    currentModel: 'model-1',
-    setCurrentModel: vi.fn()
-  }))
+  useChatStore: vi.fn(() => mockChatStore)
 }))
 
 describe('SettingsModal', () => {
@@ -1658,6 +1669,413 @@ describe('SettingsModal', () => {
       const widthButtons = buttonGroups[WIDTH_GROUP_INDEX].querySelectorAll('.toggle-button')
       expect(widthButtons[2].classList.contains('active')).toBe(true)
       expect(document.documentElement.style.getPropertyValue('--content-max-width')).toBe('1000px')
+    })
+  })
+
+  describe('Notebook Backup & Restore', () => {
+    beforeEach(() => {
+      // Reset mock chat store data
+      mockChatStore.chats = [
+        { id: 'chat-1', name: 'Test Chat 1', rootMessageIds: ['msg-1'] },
+        { id: 'chat-2', name: 'Test Chat 2', rootMessageIds: ['msg-2'] }
+      ]
+      mockChatStore.messagesById = {
+        'msg-1': { id: 'msg-1', question: 'Hello', response: 'Hi there' },
+        'msg-2': { id: 'msg-2', question: 'Test', response: 'Response' }
+      }
+      mockChatStore._persistState.mockClear()
+    })
+
+    it('should render backup section in LLM tab', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const backupSection = findInBody('.backup-section')
+      expect(backupSection).toBeTruthy()
+    })
+
+    it('should render Backup & Restore label', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const labels = findAllInBody('.setting-label')
+      const backupLabel = Array.from(labels).find(label => label.textContent === 'Backup & Restore')
+      expect(backupLabel).toBeTruthy()
+    })
+
+    it('should render Download Notebooks button', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const buttons = findAllInBody('.backup-btn')
+      const downloadBtn = Array.from(buttons).find(btn => btn.textContent.includes('Download Notebooks'))
+      expect(downloadBtn).toBeTruthy()
+    })
+
+    it('should render Restore Notebooks button', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const buttons = findAllInBody('.backup-btn')
+      const restoreBtn = Array.from(buttons).find(btn => btn.textContent.includes('Restore Notebooks'))
+      expect(restoreBtn).toBeTruthy()
+    })
+
+    it('should render hidden file input for restore', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const fileInput = findInBody('.file-input')
+      expect(fileInput).toBeTruthy()
+      expect(fileInput.getAttribute('type')).toBe('file')
+      expect(fileInput.getAttribute('accept')).toBe('.json')
+    })
+
+    it('should trigger download when Download Notebooks is clicked', async () => {
+      // Mock URL.createObjectURL and URL.revokeObjectURL
+      const mockUrl = 'blob:mock-url'
+      const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue(mockUrl)
+      const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+
+      // Store the original createElement
+      const originalCreateElement = document.createElement.bind(document)
+
+      // Mock document.createElement to capture the anchor element
+      const mockAnchor = {
+        href: '',
+        download: '',
+        click: vi.fn()
+      }
+      const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation((tag) => {
+        if (tag === 'a') return mockAnchor
+        return originalCreateElement(tag)
+      })
+      const appendChildSpy = vi.spyOn(document.body, 'appendChild').mockImplementation(() => {})
+      const removeChildSpy = vi.spyOn(document.body, 'removeChild').mockImplementation(() => {})
+
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const buttons = findAllInBody('.backup-btn')
+      const downloadBtn = Array.from(buttons).find(btn => btn.textContent.includes('Download Notebooks'))
+      downloadBtn.click()
+      await wrapper.vm.$nextTick()
+
+      expect(createObjectURLSpy).toHaveBeenCalled()
+      expect(mockAnchor.click).toHaveBeenCalled()
+      expect(mockAnchor.download).toMatch(/^notebooks-\d{4}-\d{2}-\d{2}\.json$/)
+      expect(revokeObjectURLSpy).toHaveBeenCalledWith(mockUrl)
+
+      createObjectURLSpy.mockRestore()
+      revokeObjectURLSpy.mockRestore()
+      createElementSpy.mockRestore()
+      appendChildSpy.mockRestore()
+      removeChildSpy.mockRestore()
+    })
+
+    it('should include chats and messagesById in downloaded data', async () => {
+      let capturedBlob = null
+      const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
+        capturedBlob = blob
+        return 'blob:mock-url'
+      })
+      vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+
+      const mockAnchor = { href: '', download: '', click: vi.fn() }
+      vi.spyOn(document, 'createElement').mockImplementation((tag) => {
+        if (tag === 'a') return mockAnchor
+        return document.createElement.wrappedMethod?.call(document, tag) || document.createElementNS('http://www.w3.org/1999/xhtml', tag)
+      })
+      vi.spyOn(document.body, 'appendChild').mockImplementation(() => {})
+      vi.spyOn(document.body, 'removeChild').mockImplementation(() => {})
+
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const buttons = findAllInBody('.backup-btn')
+      const downloadBtn = Array.from(buttons).find(btn => btn.textContent.includes('Download Notebooks'))
+      downloadBtn.click()
+      await wrapper.vm.$nextTick()
+
+      expect(capturedBlob).toBeTruthy()
+      const text = await capturedBlob.text()
+      const data = JSON.parse(text)
+
+      expect(data.version).toBe(1)
+      expect(data.exportedAt).toBeTruthy()
+      expect(data.chats).toEqual(mockChatStore.chats)
+      expect(data.messagesById).toEqual(mockChatStore.messagesById)
+
+      vi.restoreAllMocks()
+    })
+
+    it('should restore notebooks from valid JSON file', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const importData = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        chats: [
+          { id: 'imported-chat', name: 'Imported Chat', rootMessageIds: ['imported-msg'] }
+        ],
+        messagesById: {
+          'imported-msg': { id: 'imported-msg', question: 'Imported Q', response: 'Imported R' }
+        }
+      }
+
+      const file = new File([JSON.stringify(importData)], 'backup.json', { type: 'application/json' })
+      const fileInput = findInBody('.file-input')
+
+      // Create a mock event with the file
+      Object.defineProperty(fileInput, 'files', {
+        value: [file],
+        writable: true
+      })
+
+      fileInput.dispatchEvent(new Event('change'))
+      await wrapper.vm.$nextTick()
+      await new Promise(r => setTimeout(r, 10))
+
+      // Verify the imported chat was added
+      expect(mockChatStore.chats).toContainEqual(
+        expect.objectContaining({ id: 'imported-chat', name: 'Imported Chat' })
+      )
+      expect(mockChatStore.messagesById['imported-msg']).toBeTruthy()
+      expect(mockChatStore._persistState).toHaveBeenCalled()
+    })
+
+    it('should show success status after successful restore', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const importData = {
+        version: 1,
+        chats: [{ id: 'new-chat', name: 'New', rootMessageIds: [] }],
+        messagesById: {}
+      }
+
+      const file = new File([JSON.stringify(importData)], 'backup.json', { type: 'application/json' })
+      const fileInput = findInBody('.file-input')
+
+      Object.defineProperty(fileInput, 'files', {
+        value: [file],
+        writable: true
+      })
+
+      fileInput.dispatchEvent(new Event('change'))
+      await wrapper.vm.$nextTick()
+      await new Promise(r => setTimeout(r, 10))
+
+      const successStatus = findInBody('.connection-status.success')
+      expect(successStatus).toBeTruthy()
+      expect(successStatus.textContent).toContain('Restored')
+    })
+
+    it('should show error status for invalid JSON file', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const file = new File(['not valid json'], 'backup.json', { type: 'application/json' })
+      const fileInput = findInBody('.file-input')
+
+      Object.defineProperty(fileInput, 'files', {
+        value: [file],
+        writable: true
+      })
+
+      fileInput.dispatchEvent(new Event('change'))
+      await wrapper.vm.$nextTick()
+      await new Promise(r => setTimeout(r, 10))
+
+      const errorStatus = findInBody('.connection-status.error')
+      expect(errorStatus).toBeTruthy()
+    })
+
+    it('should show error status for missing chats array', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const invalidData = { messagesById: {} } // Missing chats
+      const file = new File([JSON.stringify(invalidData)], 'backup.json', { type: 'application/json' })
+      const fileInput = findInBody('.file-input')
+
+      Object.defineProperty(fileInput, 'files', {
+        value: [file],
+        writable: true
+      })
+
+      fileInput.dispatchEvent(new Event('change'))
+      await wrapper.vm.$nextTick()
+      await new Promise(r => setTimeout(r, 10))
+
+      const errorStatus = findInBody('.connection-status.error')
+      expect(errorStatus).toBeTruthy()
+      expect(errorStatus.textContent).toContain('missing chats')
+    })
+
+    it('should show error status for missing messagesById', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const invalidData = { chats: [] } // Missing messagesById
+      const file = new File([JSON.stringify(invalidData)], 'backup.json', { type: 'application/json' })
+      const fileInput = findInBody('.file-input')
+
+      Object.defineProperty(fileInput, 'files', {
+        value: [file],
+        writable: true
+      })
+
+      fileInput.dispatchEvent(new Event('change'))
+      await wrapper.vm.$nextTick()
+      await new Promise(r => setTimeout(r, 10))
+
+      const errorStatus = findInBody('.connection-status.error')
+      expect(errorStatus).toBeTruthy()
+      expect(errorStatus.textContent).toContain('missing messagesById')
+    })
+
+    it('should not overwrite existing chats with same ID', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      // Try to import a chat with existing ID
+      const importData = {
+        version: 1,
+        chats: [
+          { id: 'chat-1', name: 'Overwritten Name', rootMessageIds: ['msg-1'] }
+        ],
+        messagesById: {
+          'msg-1': { id: 'msg-1', question: 'Overwritten', response: 'Overwritten' }
+        }
+      }
+
+      const file = new File([JSON.stringify(importData)], 'backup.json', { type: 'application/json' })
+      const fileInput = findInBody('.file-input')
+
+      Object.defineProperty(fileInput, 'files', {
+        value: [file],
+        writable: true
+      })
+
+      fileInput.dispatchEvent(new Event('change'))
+      await wrapper.vm.$nextTick()
+      await new Promise(r => setTimeout(r, 10))
+
+      // Original chat should still have its original name
+      const chat1 = mockChatStore.chats.find(c => c.id === 'chat-1')
+      expect(chat1.name).toBe('Test Chat 1')
+      // Original message should not be overwritten
+      expect(mockChatStore.messagesById['msg-1'].question).toBe('Hello')
+    })
+
+    it('should have backup-buttons container with proper class', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const backupButtons = findInBody('.backup-buttons')
+      expect(backupButtons).toBeTruthy()
+      // Verify the container has the backup-buttons class (CSS centering is applied via scoped styles)
+      expect(backupButtons.classList.contains('backup-buttons')).toBe(true)
     })
   })
 })
