@@ -159,11 +159,6 @@ onMounted(async () => {
     }
   }
 
-  // Add scroll listener
-  if (messagesContainer.value) {
-    messagesContainer.value.addEventListener('scroll', handleScroll)
-  }
-
   try {
     const models = await fetchModels()
     if (models.length > 0) {

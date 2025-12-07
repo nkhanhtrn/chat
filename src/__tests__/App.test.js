@@ -806,22 +806,6 @@ describe('ChatView', () => {
   })
 
   describe('Fixed Navigation Header', () => {
-    it('should not show fixed nav header initially (scroll position 0)', async () => {
-      wrapper = mount(ChatView, {
-        global: {
-          plugins: [createPiniaWithTestChat()],
-          stubs: {
-            ChatMessage: true,
-            ChatInput: true
-          }
-        }
-      })
-
-      await flushPromises()
-
-      expect(wrapper.find('.fixed-nav-header').exists()).toBe(false)
-    })
-
     it('should not show fixed nav header when no root message exists', async () => {
       wrapper = mount(ChatView, {
         global: {
@@ -835,20 +819,11 @@ describe('ChatView', () => {
 
       await flushPromises()
 
-      // Simulate scrolling past threshold
-      const messagesContainer = wrapper.find('.messages-container')
-      Object.defineProperty(messagesContainer.element, 'scrollTop', {
-        value: 200,
-        writable: true
-      })
-      await messagesContainer.trigger('scroll')
-      await wrapper.vm.$nextTick()
-
-      // Still should not show because no root message
+      // No root message, so header should not be shown
       expect(wrapper.find('.fixed-nav-header').exists()).toBe(false)
     })
 
-    it('should show fixed nav header when scrolled past threshold with messages', async () => {
+    it('should show fixed nav header when messages exist', async () => {
       wrapper = mount(ChatView, {
         global: {
           plugins: [createPiniaWithTestChat()],
@@ -867,19 +842,11 @@ describe('ChatView', () => {
       await chatInput.vm.$emit('send', 'Test message')
       await flushPromises()
 
-      // Simulate scrolling past threshold (100px)
-      const messagesContainer = wrapper.find('.messages-container')
-      Object.defineProperty(messagesContainer.element, 'scrollTop', {
-        value: 150,
-        writable: true
-      })
-      await messagesContainer.trigger('scroll')
-      await wrapper.vm.$nextTick()
-
+      // Header should be visible immediately (no scroll required)
       expect(wrapper.find('.fixed-nav-header').exists()).toBe(true)
     })
 
-    it('should hide fixed nav header when scrolled back to top', async () => {
+    it('should always show fixed nav header regardless of scroll position', async () => {
       wrapper = mount(ChatView, {
         global: {
           plugins: [createPiniaWithTestChat()],
@@ -898,9 +865,11 @@ describe('ChatView', () => {
       await chatInput.vm.$emit('send', 'Test message')
       await flushPromises()
 
-      const messagesContainer = wrapper.find('.messages-container')
+      // Header should be visible at top
+      expect(wrapper.find('.fixed-nav-header').exists()).toBe(true)
 
-      // First scroll down
+      // Simulate scroll - header should still be visible
+      const messagesContainer = wrapper.find('.messages-container')
       Object.defineProperty(messagesContainer.element, 'scrollTop', {
         value: 150,
         writable: true,
@@ -910,56 +879,6 @@ describe('ChatView', () => {
       await wrapper.vm.$nextTick()
 
       expect(wrapper.find('.fixed-nav-header').exists()).toBe(true)
-
-      // Then scroll back up
-      Object.defineProperty(messagesContainer.element, 'scrollTop', {
-        value: 50,
-        writable: true,
-        configurable: true
-      })
-      await messagesContainer.trigger('scroll')
-      await wrapper.vm.$nextTick()
-
-      expect(wrapper.find('.fixed-nav-header').exists()).toBe(false)
-    })
-
-    it('should add scroll listener on mount', async () => {
-      wrapper = mount(ChatView, {
-        global: {
-          plugins: [createPiniaWithTestChat()],
-          stubs: {
-            ChatMessage: true,
-            ChatInput: true
-          }
-        }
-      })
-
-      await flushPromises()
-
-      // Unmount and re-mount to verify scroll listener works
-      wrapper.unmount()
-      wrapper = mount(ChatView, {
-        global: {
-          plugins: [createPiniaWithTestChat()],
-          stubs: {
-            ChatMessage: true,
-            ChatInput: true
-          }
-        }
-      })
-
-      await flushPromises()
-
-      const newMessagesContainer = wrapper.find('.messages-container')
-      // Verify the scroll handler is working by triggering scroll
-      Object.defineProperty(newMessagesContainer.element, 'scrollTop', {
-        value: 150,
-        writable: true
-      })
-      await newMessagesContainer.trigger('scroll')
-
-      // If scroll listener wasn't added, isScrolledDown wouldn't change
-      expect(wrapper.vm.isScrolledDown).toBe(true)
     })
   })
 
