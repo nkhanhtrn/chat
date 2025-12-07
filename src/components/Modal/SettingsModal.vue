@@ -272,7 +272,7 @@ const loadProviderSettings = async () => {
   providers.value = listProviders()
   currentProvider.value = getCurrentProviderId()
 
-  // Load all provider configs from settings
+  // Load all provider configs from settings (uses cache, no Firestore read)
   const settings = await loadUserSettings()
   if (settings?.providerConfigs) {
     // Merge saved configs with defaults
@@ -392,11 +392,11 @@ const testProviderConnection = async () => {
 }
 
 onMounted(async () => {
-  // Load settings from Firestore
+  // Load settings from cache (no Firestore read - already loaded in main.js)
   const settings = await loadUserSettings()
 
   if (settings) {
-    // Apply theme settings from Firestore
+    // Sync local state with cached settings and apply them
     if (settings.theme) {
       currentTheme.value = settings.theme
       window.__setTheme?.(settings.theme)
@@ -427,7 +427,7 @@ onMounted(async () => {
     currentTheme.value = window.__getTheme?.() || 'light'
   }
 
-  // Initialize LLM provider from Firestore
+  // Initialize LLM provider (uses cache)
   await initProvider()
   loadProviderSettings()
 })

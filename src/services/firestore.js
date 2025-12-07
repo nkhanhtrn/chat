@@ -3,6 +3,24 @@ import { doc, setDoc, getDoc, onSnapshot, serverTimestamp } from 'firebase/fires
 import { onAuthStateChanged } from 'firebase/auth'
 import { getFirebaseDb, getFirebaseAuth } from './firebase.js'
 
+// ============================================
+// Settings Cache & Debouncing
+// ============================================
+
+// Cache for loaded settings to avoid redundant Firestore reads
+let settingsCache = null
+let settingsCacheTimestamp = 0
+const CACHE_TTL_MS = 30000 // 30 seconds cache validity
+
+// Pending settings to be saved (for batching)
+let pendingSettings = {}
+let saveDebounceTimer = null
+const SAVE_DEBOUNCE_MS = 1000 // Debounce saves by 1 second
+
+// Active subscriptions
+let settingsUnsubscribe = null
+let chatStateUnsubscribe = null
+
 /**
  * Wait for Firebase Auth to be ready and return the current user
  * @returns {Promise<User|null>}
@@ -182,18 +200,21 @@ const loadSettingsFromLocalStorage = () => {
 }
 
 /**
- * Save user settings to Firestore (or localStorage if not authenticated)
- * @param {Object} settings - The settings to save
+ * Flush pending settings to Firestore immediately
  * @returns {Promise<void>}
  */
-export const saveUserSettings = async (settings) => {
+const flushPendingSettings = async () => {
+  if (Object.keys(pendingSettings).length === 0) return
+
+  const settingsToSave = { ...pendingSettings }
+  pendingSettings = {}
+
   try {
     const auth = getFirebaseAuth()
     const user = auth.currentUser
 
     if (!user) {
-      // Fall back to localStorage when not authenticated
-      saveSettingsToLocalStorage(settings)
+      saveSettingsToLocalStorage(settingsToSave)
       console.log('User settings saved to localStorage (not authenticated)')
       return
     }
@@ -202,23 +223,72 @@ export const saveUserSettings = async (settings) => {
     const settingsDocRef = doc(db, 'users', user.uid, 'settings', 'preferences')
 
     await setDoc(settingsDocRef, {
-      ...settings,
+      ...settingsToSave,
       lastUpdated: serverTimestamp()
     }, { merge: true })
 
-    console.log('User settings synced to Firestore')
+    // Update cache with saved settings
+    if (settingsCache) {
+      settingsCache = { ...settingsCache, ...settingsToSave }
+    }
+
+    console.log('User settings synced to Firestore (batched)')
   } catch (error) {
-    // Fall back to localStorage on Firestore error
-    saveSettingsToLocalStorage(settings)
+    saveSettingsToLocalStorage(settingsToSave)
     console.warn('Failed to sync to Firestore, saved to localStorage:', error)
   }
 }
 
 /**
- * Load user settings from Firestore (or localStorage if not authenticated)
+ * Save user settings to Firestore (debounced and batched)
+ * @param {Object} settings - The settings to save
+ */
+export const saveUserSettings = (settings) => {
+  // Merge new settings into pending batch
+  pendingSettings = { ...pendingSettings, ...settings }
+
+  // Also update cache immediately for responsive UI
+  if (settingsCache) {
+    settingsCache = { ...settingsCache, ...settings }
+  }
+
+  // Save to localStorage immediately for responsiveness
+  saveSettingsToLocalStorage(settings)
+
+  // Debounce Firestore save
+  if (saveDebounceTimer) {
+    clearTimeout(saveDebounceTimer)
+  }
+  saveDebounceTimer = setTimeout(() => {
+    flushPendingSettings()
+    saveDebounceTimer = null
+  }, SAVE_DEBOUNCE_MS)
+}
+
+/**
+ * Force flush any pending settings (call before page unload)
+ */
+export const flushSettings = () => {
+  if (saveDebounceTimer) {
+    clearTimeout(saveDebounceTimer)
+    saveDebounceTimer = null
+  }
+  flushPendingSettings()
+}
+
+/**
+ * Load user settings from Firestore (with caching to reduce reads)
+ * @param {boolean} forceRefresh - If true, bypass cache and fetch fresh data
  * @returns {Promise<Object|null>}
  */
-export const loadUserSettings = async () => {
+export const loadUserSettings = async (forceRefresh = false) => {
+  // Check cache first (unless force refresh requested)
+  const now = Date.now()
+  if (!forceRefresh && settingsCache && (now - settingsCacheTimestamp) < CACHE_TTL_MS) {
+    console.log('User settings loaded from cache')
+    return settingsCache
+  }
+
   try {
     const user = await waitForAuth()
 
@@ -227,6 +297,8 @@ export const loadUserSettings = async () => {
       const localSettings = loadSettingsFromLocalStorage()
       if (localSettings) {
         console.log('User settings loaded from localStorage (not authenticated)')
+        settingsCache = localSettings
+        settingsCacheTimestamp = now
       }
       return localSettings
     }
@@ -239,6 +311,9 @@ export const loadUserSettings = async () => {
       const data = docSnap.data()
       delete data.lastUpdated
       console.log('User settings loaded from Firestore')
+      // Update cache
+      settingsCache = data
+      settingsCacheTimestamp = now
       return data
     }
 
@@ -246,6 +321,8 @@ export const loadUserSettings = async () => {
     const localSettings = loadSettingsFromLocalStorage()
     if (localSettings) {
       console.log('User settings loaded from localStorage (no Firestore data)')
+      settingsCache = localSettings
+      settingsCacheTimestamp = now
     }
     return localSettings
   } catch (error) {
@@ -256,11 +333,25 @@ export const loadUserSettings = async () => {
 }
 
 /**
+ * Invalidate the settings cache (call when settings might have changed externally)
+ */
+export const invalidateSettingsCache = () => {
+  settingsCache = null
+  settingsCacheTimestamp = 0
+}
+
+/**
  * Subscribe to real-time user settings updates from Firestore
  * @param {Function} callback - Function to call when settings update
  * @returns {Function} Unsubscribe function
  */
 export const subscribeToUserSettings = (callback) => {
+  // Unsubscribe from any existing subscription
+  if (settingsUnsubscribe) {
+    settingsUnsubscribe()
+    settingsUnsubscribe = null
+  }
+
   try {
     const auth = getFirebaseAuth()
     const user = auth.currentUser
@@ -273,10 +364,13 @@ export const subscribeToUserSettings = (callback) => {
     const db = getFirebaseDb()
     const settingsDocRef = doc(db, 'users', user.uid, 'settings', 'preferences')
 
-    const unsubscribe = onSnapshot(settingsDocRef, (doc) => {
+    settingsUnsubscribe = onSnapshot(settingsDocRef, (doc) => {
       if (doc.exists()) {
         const data = doc.data()
         delete data.lastUpdated
+        // Update cache from subscription
+        settingsCache = data
+        settingsCacheTimestamp = Date.now()
         callback(data)
       }
     }, (error) => {
@@ -284,10 +378,29 @@ export const subscribeToUserSettings = (callback) => {
     })
 
     console.log('Subscribed to Firestore user settings updates')
-    return unsubscribe
+    return () => {
+      if (settingsUnsubscribe) {
+        settingsUnsubscribe()
+        settingsUnsubscribe = null
+      }
+    }
   } catch (error) {
     console.error('Failed to subscribe to user settings:', error)
     return () => {}
+  }
+}
+
+/**
+ * Unsubscribe from all Firestore subscriptions
+ */
+export const unsubscribeAll = () => {
+  if (settingsUnsubscribe) {
+    settingsUnsubscribe()
+    settingsUnsubscribe = null
+  }
+  if (chatStateUnsubscribe) {
+    chatStateUnsubscribe()
+    chatStateUnsubscribe = null
   }
 }
 

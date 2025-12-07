@@ -17,6 +17,28 @@ const setTheme = (theme) => {
   document.documentElement.setAttribute('data-theme', theme)
 }
 
+// Apply all settings to the document
+const applySettings = (settings) => {
+  if (!settings) return
+
+  if (settings.theme) {
+    setTheme(settings.theme)
+  }
+  if (settings.fontSize) {
+    document.documentElement.style.setProperty('--message-font-size', `${settings.fontSize}px`)
+  }
+  if (settings.fontFamily) {
+    document.documentElement.style.setProperty('--message-font-family', settings.fontFamily)
+  }
+  if (settings.lineHeight) {
+    document.documentElement.style.setProperty('--message-line-height', settings.lineHeight.toString())
+  }
+  if (settings.contentWidth) {
+    const widthMap = { narrow: '600px', medium: '800px', wide: '1000px' }
+    document.documentElement.style.setProperty('--content-max-width', widthMap[settings.contentWidth] || '800px')
+  }
+}
+
 // Start with light theme, will be updated after Firestore loads
 setTheme('light')
 
@@ -40,40 +62,22 @@ const initializeApp = async () => {
     console.warn('Firebase initialization failed (this is ok if not configured yet):', error)
   }
 
-  // Load user settings from Firestore
+  // Load user settings from Firestore (initial load)
   try {
-    const { loadUserSettings } = await import('./services/firestore.js')
+    const { loadUserSettings, subscribeToUserSettings, flushSettings } = await import('./services/firestore.js')
     const settings = await loadUserSettings()
+    applySettings(settings)
 
-    if (settings) {
-      // Apply theme
-      if (settings.theme) {
-        setTheme(settings.theme)
-      }
+    // Subscribe to real-time settings updates (replaces repeated reads)
+    subscribeToUserSettings((updatedSettings) => {
+      console.log('Settings updated from Firestore subscription')
+      applySettings(updatedSettings)
+    })
 
-      // Apply font size
-      if (settings.fontSize) {
-        document.documentElement.style.setProperty('--message-font-size', `${settings.fontSize}px`)
-      }
-
-      // Apply font family
-      if (settings.fontFamily) {
-        document.documentElement.style.setProperty('--message-font-family', settings.fontFamily)
-      }
-
-      // Apply line height
-      if (settings.lineHeight) {
-        document.documentElement.style.setProperty('--message-line-height', settings.lineHeight.toString())
-      }
-
-      // Apply content width
-      if (settings.contentWidth) {
-        const widthMap = { narrow: '600px', medium: '800px', wide: '1000px' }
-        document.documentElement.style.setProperty('--content-max-width', widthMap[settings.contentWidth] || '800px')
-      }
-
-      console.log('User settings loaded from Firestore')
-    }
+    // Flush pending settings on page unload
+    window.addEventListener('beforeunload', () => {
+      flushSettings()
+    })
 
     // Initialize LLM provider
     const { initProvider } = await import('./services/llm/index.js')

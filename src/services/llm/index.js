@@ -20,13 +20,14 @@ let currentConfig = {}
 let firestoreInitialized = false
 
 /**
- * Initialize provider from Firestore
+ * Initialize provider from Firestore (uses cached settings)
  * @returns {Promise<void>}
  */
 export const initProvider = async () => {
   if (firestoreInitialized) return
 
   try {
+    // Uses cached settings - no additional Firestore read
     const settings = await loadUserSettings()
 
     if (settings?.llmProvider && providers[settings.llmProvider]) {

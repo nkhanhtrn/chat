@@ -37,6 +37,7 @@ import MathInline from './MathInline.vue'
 import MarkdownStrong from './MarkdownStrong.vue'
 import MarkdownEmphasis from './MarkdownEmphasis.vue'
 import MarkdownLink from './MarkdownLink.vue'
+import HtmlInline from './HtmlInline.vue'
 
 export default {
   name: 'TableCell',
@@ -48,7 +49,8 @@ export default {
     MathInline,
     MarkdownStrong,
     MarkdownEmphasis,
-    MarkdownLink
+    MarkdownLink,
+    HtmlInline
   },
   props: {
     children: {
@@ -67,7 +69,8 @@ export default {
         'math_inline': MathInline,
         'strong': MarkdownStrong,
         'em': MarkdownEmphasis,
-        'link': MarkdownLink
+        'link': MarkdownLink,
+        'html_inline': HtmlInline
       }
       return map[type] || 'span'
     },
@@ -114,6 +117,10 @@ export default {
           return {
             href: node.href,
             title: node.title
+          }
+        case 'html_inline':
+          return {
+            content: node.content
           }
         default:
           return {}

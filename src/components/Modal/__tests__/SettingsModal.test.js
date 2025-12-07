@@ -29,7 +29,10 @@ vi.mock('../../../services/firestore.js', () => ({
   loadChatStateFromFirestore: vi.fn(() => Promise.resolve(null)),
   subscribeToChatState: vi.fn(() => () => {}),
   deleteChatStateFromFirestore: vi.fn(() => Promise.resolve()),
-  subscribeToUserSettings: vi.fn(() => () => {})
+  subscribeToUserSettings: vi.fn(() => () => {}),
+  invalidateSettingsCache: vi.fn(),
+  flushSettings: vi.fn(),
+  unsubscribeAll: vi.fn()
 }))
 
 // Helper to mock user settings from Firestore

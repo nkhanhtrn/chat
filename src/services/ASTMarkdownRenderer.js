@@ -265,6 +265,9 @@ function tokenToASTNode(token, customContentItems) {
     case 'hr':
       return { type: 'hr' }
 
+    case 'html_inline':
+      return { type: 'html_inline', content: token.content }
+
     default:
       return null
   }
@@ -766,7 +769,7 @@ export function parseMarkdownToAST(content, customContentItems = []) {
 
   // Initialize markdown-it with sensible defaults
   const md = new MarkdownIt({
-    html: false, // Disable raw HTML for security
+    html: true, // Enable raw HTML for table cells and other inline HTML
     breaks: true, // Convert \n to <br>
     linkify: false, // Disabled to preserve exact character positions for highlighting
     typographer: false // Disabled to preserve exact character positions for highlighting
