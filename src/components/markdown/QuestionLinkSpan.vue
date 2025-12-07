@@ -6,6 +6,7 @@
     :data-question-id="questionId"
     :data-md-start="startOffset"
     :data-md-end="endOffset"
+    @click="handleClick"
   >
     <slot>{{ text }}</slot>
   </a>
@@ -13,6 +14,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useChatStore } from '../../stores/chat.js'
 
 const props = defineProps({
@@ -37,6 +39,44 @@ const props = defineProps({
     required: true
   }
 })
+
+const router = useRouter()
+const emit = defineEmits(['highlight-click'])
+
+// Handle click - navigate via Vue Router, but Ctrl+click opens context menu
+function handleClick(event) {
+  // Ctrl+click: emit highlight-click to open context menu
+  if (event.ctrlKey || event.metaKey) {
+    event.preventDefault()
+    event.stopPropagation()
+    emit('highlight-click', {
+      highlightId: props.questionId,
+      text: props.text,
+      colorIndex: 0,
+      startOffset: props.startOffset,
+      endOffset: props.endOffset,
+      x: event.clientX,
+      y: event.clientY
+    })
+    return
+  }
+
+  event.preventDefault()
+
+  try {
+    const chatStore = useChatStore()
+    const notebookId = findNotebookForMessage(chatStore, props.targetMessageId)
+
+    if (notebookId) {
+      router.push({
+        name: 'question',
+        params: { id: notebookId, questionId: props.targetMessageId }
+      })
+    }
+  } catch {
+    // Fallback: if router fails, do nothing (link won't work in tests)
+  }
+}
 
 // Compute the href for the question link
 const questionHref = computed(() => {

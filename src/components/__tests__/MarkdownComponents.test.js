@@ -837,6 +837,139 @@ describe('Markdown Components', () => {
       // When store is not available (like in tests), should return '#' as fallback
       expect(wrapper.attributes('href')).toBe('#')
     })
+
+    it('should prevent default on regular click', async () => {
+      const wrapper = mount(QuestionLinkSpan, {
+        props: {
+          text: 'link text',
+          targetMessageId: 'msg-1',
+          questionId: 'q-123',
+          startOffset: 0,
+          endOffset: 9
+        }
+      })
+
+      const preventDefaultMock = vi.fn()
+      await wrapper.find('a').trigger('click', {
+        preventDefault: preventDefaultMock
+      })
+
+      expect(preventDefaultMock).toHaveBeenCalled()
+    })
+
+    it('should not emit highlight-click on regular click', async () => {
+      const wrapper = mount(QuestionLinkSpan, {
+        props: {
+          text: 'link text',
+          targetMessageId: 'msg-1',
+          questionId: 'q-123',
+          startOffset: 0,
+          endOffset: 9
+        }
+      })
+
+      await wrapper.find('a').trigger('click')
+
+      expect(wrapper.emitted('highlight-click')).toBeFalsy()
+    })
+
+    it('should emit highlight-click on Ctrl+click', async () => {
+      const wrapper = mount(QuestionLinkSpan, {
+        props: {
+          text: 'link text',
+          targetMessageId: 'msg-1',
+          questionId: 'q-123',
+          startOffset: 5,
+          endOffset: 14
+        }
+      })
+
+      await wrapper.find('a').trigger('click', {
+        ctrlKey: true,
+        clientX: 100,
+        clientY: 200
+      })
+
+      expect(wrapper.emitted('highlight-click')).toBeTruthy()
+      expect(wrapper.emitted('highlight-click')).toHaveLength(1)
+    })
+
+    it('should emit highlight-click with correct data on Ctrl+click', async () => {
+      const wrapper = mount(QuestionLinkSpan, {
+        props: {
+          text: 'test link',
+          targetMessageId: 'msg-2',
+          questionId: 'q-456',
+          startOffset: 10,
+          endOffset: 19
+        }
+      })
+
+      await wrapper.find('a').trigger('click', {
+        ctrlKey: true,
+        clientX: 150,
+        clientY: 250
+      })
+
+      const emittedEvents = wrapper.emitted('highlight-click')
+      expect(emittedEvents).toHaveLength(1)
+
+      const [eventData] = emittedEvents[0]
+      expect(eventData).toEqual({
+        highlightId: 'q-456',
+        text: 'test link',
+        colorIndex: 0,
+        startOffset: 10,
+        endOffset: 19,
+        x: 150,
+        y: 250
+      })
+    })
+
+    it('should emit highlight-click on Meta+click (Cmd on Mac)', async () => {
+      const wrapper = mount(QuestionLinkSpan, {
+        props: {
+          text: 'link text',
+          targetMessageId: 'msg-1',
+          questionId: 'q-123',
+          startOffset: 0,
+          endOffset: 9
+        }
+      })
+
+      await wrapper.find('a').trigger('click', {
+        metaKey: true,
+        clientX: 100,
+        clientY: 200
+      })
+
+      expect(wrapper.emitted('highlight-click')).toBeTruthy()
+      expect(wrapper.emitted('highlight-click')).toHaveLength(1)
+    })
+
+    it('should prevent default and stop propagation on Ctrl+click', async () => {
+      const wrapper = mount(QuestionLinkSpan, {
+        props: {
+          text: 'link text',
+          targetMessageId: 'msg-1',
+          questionId: 'q-123',
+          startOffset: 0,
+          endOffset: 9
+        }
+      })
+
+      const preventDefaultMock = vi.fn()
+      const stopPropagationMock = vi.fn()
+
+      await wrapper.find('a').trigger('click', {
+        ctrlKey: true,
+        preventDefault: preventDefaultMock,
+        stopPropagation: stopPropagationMock
+      })
+
+      expect(preventDefaultMock).toHaveBeenCalled()
+      expect(stopPropagationMock).toHaveBeenCalled()
+    })
   })
 
   describe('TextSpan', () => {
