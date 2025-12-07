@@ -205,4 +205,82 @@ describe('chat store getters', () => {
       expect(chatList[0].questions[0].rootIndex).toBe(0)
     })
   })
+
+  describe('getMessageTreeStats', () => {
+    let chatStore
+    beforeEach(() => {
+      setActivePinia(createPinia())
+      chatStore = useChatStore()
+      chatStore.messagesById = {}
+      chatStore.rootMessageIds = []
+    })
+
+    it('should return zero counts for message without children or custom content', () => {
+      chatStore.messagesById['msg1'] = makeMessage({ id: 'msg1' })
+
+      const stats = chatStore.getMessageTreeStats('msg1')
+
+      expect(stats.descendantCount).toBe(0)
+      expect(stats.customContentCount).toBe(0)
+    })
+
+    it('should return zero counts for non-existent message', () => {
+      const stats = chatStore.getMessageTreeStats('nonexistent')
+
+      expect(stats.descendantCount).toBe(0)
+      expect(stats.customContentCount).toBe(0)
+    })
+
+    it('should count direct children', () => {
+      chatStore.messagesById['parent'] = makeMessage({ id: 'parent', childIds: ['child1', 'child2'] })
+      chatStore.messagesById['child1'] = makeMessage({ id: 'child1', parentId: 'parent' })
+      chatStore.messagesById['child2'] = makeMessage({ id: 'child2', parentId: 'parent' })
+
+      const stats = chatStore.getMessageTreeStats('parent')
+
+      expect(stats.descendantCount).toBe(2)
+    })
+
+    it('should count nested descendants', () => {
+      chatStore.messagesById['root'] = makeMessage({ id: 'root', childIds: ['child'] })
+      chatStore.messagesById['child'] = makeMessage({ id: 'child', parentId: 'root', childIds: ['grandchild'] })
+      chatStore.messagesById['grandchild'] = makeMessage({ id: 'grandchild', parentId: 'child' })
+
+      const stats = chatStore.getMessageTreeStats('root')
+
+      expect(stats.descendantCount).toBe(2)
+    })
+
+    it('should count custom content on root message', () => {
+      const msg = makeMessage({ id: 'msg1' })
+      msg.customContent = [
+        { id: 'note1', type: 'note' },
+        { id: 'highlight1', type: 'highlight' }
+      ]
+      chatStore.messagesById['msg1'] = msg
+
+      const stats = chatStore.getMessageTreeStats('msg1')
+
+      expect(stats.customContentCount).toBe(2)
+    })
+
+    it('should count custom content across all descendants', () => {
+      const parent = makeMessage({ id: 'parent', childIds: ['child'] })
+      parent.customContent = [{ id: 'note1', type: 'note' }]
+
+      const child = makeMessage({ id: 'child', parentId: 'parent' })
+      child.customContent = [
+        { id: 'note2', type: 'note' },
+        { id: 'highlight1', type: 'highlight' }
+      ]
+
+      chatStore.messagesById['parent'] = parent
+      chatStore.messagesById['child'] = child
+
+      const stats = chatStore.getMessageTreeStats('parent')
+
+      expect(stats.descendantCount).toBe(1)
+      expect(stats.customContentCount).toBe(3)
+    })
+  })
 })

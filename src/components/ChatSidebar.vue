@@ -366,13 +366,25 @@ const handleTreeSelect = (selection) => {
   })
 }
 
+// Check if question needs delete confirmation (has children or custom content)
+const needsDeleteConfirmation = (messageId) => {
+  const stats = chatStore.getMessageTreeStats(messageId)
+  return stats.descendantCount > 0 || stats.customContentCount > 0
+}
+
 // Handle deleting a root message
 const handleDeleteRoot = (rootMsg) => {
+  if (needsDeleteConfirmation(rootMsg.id)) {
+    if (!confirm('This question has custom content. Are you sure you want to delete it?')) return
+  }
   emit('delete-question', rootMsg.id, props.currentChatId)
 }
 
 // Handle deleting a child message (subquestion) - uses store action
 const handleDeleteChild = (childMsg) => {
+  if (needsDeleteConfirmation(childMsg.id)) {
+    if (!confirm('This question has custom content. Are you sure you want to delete it?')) return
+  }
   const { navigateTo } = chatStore.deleteChildMessage(childMsg.id)
   if (navigateTo) {
     emit('select-question', { id: navigateTo })

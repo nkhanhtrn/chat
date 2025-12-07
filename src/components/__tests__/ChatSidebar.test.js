@@ -52,6 +52,9 @@ describe('ChatSidebar', () => {
     // Setup pinia
     setActivePinia(createPinia())
     chatStore = useChatStore()
+
+    // Mock window.confirm to always return true for delete confirmations
+    window.confirm = vi.fn(() => true)
   })
 
   afterEach(() => {
@@ -2897,6 +2900,137 @@ describe('ChatSidebar', () => {
         name: 'question',
         params: { id: 'chat2', questionId: 'q1' }
       })
+    })
+  })
+
+  describe('Delete Confirmation', () => {
+    it('should show confirmation when deleting question with children', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Question 1', response: '', childIds: ['child1'] },
+        { id: 'child1', question: 'Child Question', response: '', parentId: 'q1' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Question 1' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1', currentMessageId: 'q1' }
+      })
+
+      // Click q1's delete button
+      const deleteButtons = wrapper.findAll('.delete-button')
+      await deleteButtons[0].trigger('click')
+
+      // Confirm should have been called
+      expect(window.confirm).toHaveBeenCalledWith(
+        'This question has custom content. Are you sure you want to delete it?'
+      )
+    })
+
+    it('should show confirmation when deleting question with custom content', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Question 1', response: '', customContent: [
+          { id: 'note1', type: 'note', text: 'A note' }
+        ] }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Question 1' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1', currentMessageId: 'q1' }
+      })
+
+      const deleteButtons = wrapper.findAll('.delete-button')
+      await deleteButtons[0].trigger('click')
+
+      expect(window.confirm).toHaveBeenCalledWith(
+        'This question has custom content. Are you sure you want to delete it?'
+      )
+    })
+
+    it('should not show confirmation when deleting question without children or custom content', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Question 1', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Question 1' }]
+      }]
+
+      window.confirm.mockClear()
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1', currentMessageId: 'q1' }
+      })
+
+      const deleteButtons = wrapper.findAll('.delete-button')
+      await deleteButtons[0].trigger('click')
+
+      // Confirm should NOT have been called
+      expect(window.confirm).not.toHaveBeenCalled()
+    })
+
+    it('should not delete when user cancels confirmation', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Question 1', response: '', childIds: ['child1'] },
+        { id: 'child1', question: 'Child Question', response: '', parentId: 'q1' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Question 1' }]
+      }]
+
+      // Make confirm return false (user cancels)
+      window.confirm.mockReturnValueOnce(false)
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1', currentMessageId: 'q1' }
+      })
+
+      const deleteButtons = wrapper.findAll('.delete-button')
+      await deleteButtons[0].trigger('click')
+
+      // Question should still exist
+      expect(chatStore.messagesById['q1']).toBeDefined()
+      expect(chatStore.messagesById['child1']).toBeDefined()
+    })
+
+    it('should delete when user confirms', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Question 1', response: '', childIds: ['child1'] },
+        { id: 'child1', question: 'Child Question', response: '', parentId: 'q1' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'Chat 1',
+        questions: [{ id: 'q1', text: 'Question 1' }]
+      }]
+
+      // Make confirm return true (user confirms)
+      window.confirm.mockReturnValueOnce(true)
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1', currentMessageId: 'child1' }
+      })
+
+      // Delete child1
+      const deleteButtons = wrapper.findAll('.delete-button')
+      await deleteButtons[1].trigger('click')
+
+      // Child should be deleted
+      expect(chatStore.messagesById['child1']).toBeUndefined()
     })
   })
 })

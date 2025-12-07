@@ -83,11 +83,23 @@ const handleNotebookRename = (newTitle) => {
   chatStore.renameChat(props.notebookId, newTitle)
 }
 
+// Check if question needs delete confirmation (has children or custom content)
+const needsDeleteConfirmation = (messageId) => {
+  const stats = chatStore.getMessageTreeStats(messageId)
+  return stats.descendantCount > 0 || stats.customContentCount > 0
+}
+
 const handleDeleteRoot = (rootMsg) => {
+  if (needsDeleteConfirmation(rootMsg.id)) {
+    if (!confirm('This question has custom content. Are you sure you want to delete it?')) return
+  }
   chatStore.deleteQuestion(rootMsg.id, props.notebookId)
 }
 
 const handleDeleteChild = (childMsg) => {
+  if (needsDeleteConfirmation(childMsg.id)) {
+    if (!confirm('This question has custom content. Are you sure you want to delete it?')) return
+  }
   chatStore.deleteChildMessage(childMsg.id)
 }
 

@@ -904,6 +904,32 @@ export const useChatStore = defineStore('chat', {
       this._persistState()
     },
 
+    // Get statistics about a message tree (for delete confirmation)
+    // Returns { descendantCount, customContentCount }
+    getMessageTreeStats(messageId) {
+      const message = this.messagesById[messageId]
+      if (!message) return { descendantCount: 0, customContentCount: 0 }
+
+      let descendantCount = 0
+      let customContentCount = message.customContent?.length || 0
+
+      const countDescendants = (id) => {
+        const msg = this.messagesById[id]
+        if (!msg?.childIds) return
+        for (const childId of msg.childIds) {
+          descendantCount++
+          const childMsg = this.messagesById[childId]
+          if (childMsg?.customContent) {
+            customContentCount += childMsg.customContent.length
+          }
+          countDescendants(childId)
+        }
+      }
+
+      countDescendants(messageId)
+      return { descendantCount, customContentCount }
+    },
+
     // Check if potentialDescendantId is a descendant of ancestorId
     _isDescendantOf(potentialDescendantId, ancestorId) {
       if (!potentialDescendantId || !ancestorId) return false
