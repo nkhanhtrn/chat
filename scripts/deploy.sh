@@ -68,7 +68,10 @@ else
   cp README.md dist/README.md
 fi
 
+echo "📄 Adding .nojekyll file..."
+touch dist/.nojekyll
+
 echo "🚀 Deploying to gh-pages..."
-npx gh-pages -d dist
+npx gh-pages -d dist --no-history --dotfiles
 
 echo "✨ Deployment complete!"

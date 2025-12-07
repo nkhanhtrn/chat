@@ -15,11 +15,11 @@ defineProps({
   },
   startOffset: {
     type: Number,
-    required: true
+    default: undefined
   },
   endOffset: {
     type: Number,
-    required: true
+    default: undefined
   }
 })
 </script>

@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(grep:*)",
-      "Bash(npm test:*)"
+      "Bash(npm test:*)",
+      "Bash(curl:*)",
+      "Bash(for file in dagre cose-bilkent)",
+      "Bash(do echo '=== $file ===')",
+      "Bash(done)"
     ],
     "deny": [],
     "ask": []

@@ -390,13 +390,7 @@ describe('ChatMessage context menu integration', () => {
       }
 
       // Mock the API calls to prevent actual requests
-      const mockGetQuestionSummary = vi.fn().mockResolvedValue('Summary')
-      const mockSendChatMessage = vi.fn().mockResolvedValue(undefined)
-
-      vi.doMock('../../services/api.js', () => ({
-        getQuestionSummary: mockGetQuestionSummary,
-        sendChatMessage: mockSendChatMessage
-      }))
+      vi.spyOn(api, 'sendChatMessage').mockResolvedValue(undefined)
 
       await wrapper.vm.handleAskQuestion('What is this?')
 
@@ -433,13 +427,7 @@ describe('ChatMessage context menu integration', () => {
       expect(state.popup.highlightId).toBe(null)
 
       // Mock the API calls
-      const mockGetQuestionSummary = vi.fn().mockResolvedValue('Summary')
-      const mockSendChatMessage = vi.fn().mockResolvedValue(undefined)
-
-      vi.doMock('../../services/api.js', () => ({
-        getQuestionSummary: mockGetQuestionSummary,
-        sendChatMessage: mockSendChatMessage
-      }))
+      vi.spyOn(api, 'sendChatMessage').mockResolvedValue(undefined)
 
       // Should work without errors
       await wrapper.vm.handleAskQuestion('Explain this')
@@ -619,13 +607,7 @@ describe('ChatMessage context menu integration', () => {
       expect(state.popup.selectedText).toBe('highlighted')
 
       // User can now ask question using the stored highlight data
-      const mockGetQuestionSummary = vi.fn().mockResolvedValue('Summary')
-      const mockSendChatMessage = vi.fn().mockResolvedValue(undefined)
-
-      vi.doMock('../../services/api.js', () => ({
-        getQuestionSummary: mockGetQuestionSummary,
-        sendChatMessage: mockSendChatMessage
-      }))
+      vi.spyOn(api, 'sendChatMessage').mockResolvedValue(undefined)
 
       await wrapper.vm.handleAskQuestion('What does this mean?')
 
