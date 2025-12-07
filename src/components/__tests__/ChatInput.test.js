@@ -34,7 +34,13 @@ describe('ChatInput', () => {
     it('should render send button', () => {
       wrapper = mountWithStore()
       expect(wrapper.find('.send-button').exists()).toBe(true)
-      expect(wrapper.find('.send-button').text()).toBe('Send')
+      expect(wrapper.find('.send-text').text()).toBe('Send')
+    })
+
+    it('should render send icon for mobile display', () => {
+      wrapper = mountWithStore()
+      expect(wrapper.find('.send-icon').exists()).toBe(true)
+      expect(wrapper.find('.send-icon').element.tagName.toLowerCase()).toBe('svg')
     })
 
     it('should show placeholder text', () => {
@@ -305,7 +311,7 @@ describe('ChatInput', () => {
       })
 
       expect(wrapper.find('.spinner').exists()).toBe(false)
-      expect(wrapper.find('.send-button').text()).toBe('Send')
+      expect(wrapper.find('.send-text').text()).toBe('Send')
     })
   })
 
@@ -946,6 +952,69 @@ describe('ChatInput', () => {
       await wrapper.find('.send-button').trigger('click')
 
       expect(wrapper.emitted('send')[0][1]).toEqual([])
+    })
+  })
+
+  describe('Mobile Send Button Display', () => {
+    it('should have both send-text and send-icon elements', () => {
+      wrapper = mountWithStore()
+      expect(wrapper.find('.send-text').exists()).toBe(true)
+      expect(wrapper.find('.send-icon').exists()).toBe(true)
+    })
+
+    it('should have send-text containing "Send"', () => {
+      wrapper = mountWithStore()
+      expect(wrapper.find('.send-text').text()).toBe('Send')
+    })
+
+    it('should have send-icon as SVG element', () => {
+      wrapper = mountWithStore()
+      const icon = wrapper.find('.send-icon')
+      expect(icon.element.tagName.toLowerCase()).toBe('svg')
+    })
+
+    it('should have send-icon with correct SVG attributes', () => {
+      wrapper = mountWithStore()
+      const icon = wrapper.find('.send-icon')
+      expect(icon.attributes('viewBox')).toBe('0 0 24 24')
+      expect(icon.attributes('width')).toBe('18')
+      expect(icon.attributes('height')).toBe('18')
+    })
+
+    it('should have send-icon with paper plane path elements', () => {
+      wrapper = mountWithStore()
+      const icon = wrapper.find('.send-icon')
+      expect(icon.find('line').exists()).toBe(true)
+      expect(icon.find('polygon').exists()).toBe(true)
+    })
+
+    it('should wrap send-text and send-icon in send-button', () => {
+      wrapper = mountWithStore()
+      const sendButton = wrapper.find('.send-button')
+      expect(sendButton.find('.send-text').exists()).toBe(true)
+      expect(sendButton.find('.send-icon').exists()).toBe(true)
+    })
+
+    it('should still send message when clicking button with both elements', async () => {
+      wrapper = mountWithStore()
+      const textarea = wrapper.find('textarea')
+
+      await textarea.setValue('Test message')
+      await wrapper.find('.send-button').trigger('click')
+
+      expect(wrapper.emitted('send')).toBeTruthy()
+      expect(wrapper.emitted('send')[0][0]).toBe('Test message')
+    })
+
+    it('should clear input after sending with icon button', async () => {
+      wrapper = mountWithStore()
+      const textarea = wrapper.find('textarea')
+
+      await textarea.setValue('Test message')
+      await wrapper.find('.send-button').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(textarea.element.value).toBe('')
     })
   })
 })

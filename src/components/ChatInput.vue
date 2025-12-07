@@ -42,7 +42,11 @@
         class="send-button"
         variant="primary"
       >
-        Send
+        <span class="send-text">Send</span>
+        <svg class="send-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
       </Button>
     </div>
     <div class="input-hint">
@@ -261,7 +265,7 @@ const handleSend = () => {
 .input-wrapper {
   display: flex;
   gap: 1rem;
-  align-items: flex-end;
+  align-items: center;
 }
 
 textarea {
@@ -308,6 +312,10 @@ textarea::placeholder {
   font-family: 'Georgia', serif;
 }
 
+.send-icon {
+  display: none;
+}
+
 .input-hint {
   margin-top: 0.5rem;
   font-size: 0.75rem;
@@ -315,5 +323,46 @@ textarea::placeholder {
   text-align: center;
   font-style: italic;
   font-family: 'Georgia', serif;
+}
+
+/* Mobile styles */
+@media (max-width: 768px) {
+  .chat-input-container {
+    padding: 1rem 1rem;
+  }
+
+  .input-wrapper {
+    position: relative;
+    gap: 0;
+  }
+
+  textarea {
+    padding-right: 4rem;
+  }
+
+  .send-button {
+    position: absolute;
+    right: 0.5rem;
+    bottom: 0.5rem;
+    min-width: auto;
+    width: 2.75rem;
+    height: 2.5rem;
+    padding: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .send-text {
+    display: none;
+  }
+
+  .send-icon {
+    display: block;
+  }
+
+  .input-hint {
+    font-size: 0.65rem;
+  }
 }
 </style>

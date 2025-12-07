@@ -404,10 +404,11 @@ const handleInput = () => {
   transform: scale(0.8);
 }
 
-/* Mobile: align with sidebar expand button */
+/* Mobile: move to top-right */
 @media (max-width: 768px) {
   .scratchpad-container {
-    bottom: 12px;
+    top: 12px;
+    bottom: auto;
     right: 12px;
   }
 
@@ -415,6 +416,18 @@ const handleInput = () => {
   .streaming-toggle {
     width: 40px;
     height: 40px;
+  }
+
+  .streaming-toggle {
+    margin-bottom: 8px;
+  }
+
+  .scratchpad-panel {
+    position: fixed;
+    top: 60px;
+    right: 12px;
+    bottom: auto;
+    max-height: calc(100vh - 180px);
   }
 }
 </style>

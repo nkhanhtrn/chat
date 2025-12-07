@@ -66,7 +66,7 @@
       </div>
 
       <ChatInput
-        v-if="chatStore.rootMessages.length === 0 || isAddingNewQuestion"
+        v-if="chatStore.rootMessages.length === 0 || isAddingNewQuestion || showingOverview"
         @send="handleSendMessage"
         :disabled="chatStore.isStreaming"
         :is-loading="chatStore.isStreaming"

@@ -820,7 +820,7 @@ const handleCancelMove = () => {
 .mobile-expand-button {
   display: none;
   position: fixed;
-  bottom: 12px;
+  top: 12px;
   left: 12px;
   z-index: 999;
   width: 40px;
