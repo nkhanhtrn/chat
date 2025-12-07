@@ -9,9 +9,6 @@
       </div>
     </div>
 
-     <!-- Breadcrumb navigation (shown when message has children) -->
-     <MessageNavigation v-if="hasChildren" :current-message="currentMessage" />
-
      <!-- Assistant answer with streaming -->
      <div v-if="isStreaming || currentResponse" class="message message-assistant">
        <div class="message-content" style="position: relative;">
@@ -78,7 +75,6 @@ import { useChatStore } from '../stores/chat.js'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import ContextMenu from './ContextMenu.vue'
 import Note from './Note.vue'
-import MessageNavigation from './MessageNavigation.vue'
 import QuestionSearchModal from './Modal/QuestionSearchModal.vue'
 import { sendChatMessage } from '../services/api.js'
 import { getMainPrompts, getQuickExplainPrompts } from '../services/extraPrompt.js'
@@ -156,14 +152,7 @@ const isStreaming = computed(() => {
   return props.isAppStreaming || isChildStreaming.value
 })
 
-// Show breadcrumb when there are children or we're viewing a child message
-const hasChildren = computed(() => {
-  const children = chatStore.getChildren(currentMessage.value?.id)
-  if (children && children.length > 0) return true
-  return currentMessage.value?.id !== rootMessage.value.id
-})
-
-function showContextMenu(e) {
+function showContextMenu() {
   const getSel = props.getSelectedTextAndPosition || getSelectionWithOffsets
   const selectionData = getSel()
   const { selectedText, x, y, visible, startOffset, endOffset } = selectionData

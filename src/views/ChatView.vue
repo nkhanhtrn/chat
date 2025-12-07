@@ -16,16 +16,13 @@
       <DevToolbar v-if="isDev" @reset="prepopulatedQuestions = $event" />
 
       <!-- Fixed Navigation Header -->
-      <Transition name="slide-down">
-        <div v-if="isScrolledDown && chatStore.currentRootMessage" class="fixed-nav-header">
-          <div class="fixed-nav-content">
-            <MessageNavigation
-              v-if="chatStore.currentMessage"
-              :current-message="chatStore.currentMessage"
-            />
-          </div>
+      <div v-if="chatStore.currentRootMessage && chatStore.currentMessage" class="fixed-nav-header">
+        <div class="fixed-nav-content">
+          <MessageNavigation
+            :current-message="chatStore.currentMessage"
+          />
         </div>
-      </Transition>
+      </div>
 
       <div class="messages-container" ref="messagesContainer">
         <div v-if="chatStore.rootMessages.length === 0 || isAddingNewQuestion" class="welcome-message">
@@ -80,7 +77,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted, onUnmounted, provide, watch } from 'vue'
+import { ref, nextTick, onMounted, provide, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ChatMessage from '../components/ChatMessage.vue'
 import ChatInput from '../components/ChatInput.vue'
@@ -98,21 +95,7 @@ const router = useRouter()
 const error = ref(null)
 const messagesContainer = ref(null)
 const chatStore = useChatStore()
-const isScrolledDown = ref(false)
 const isAddingNewQuestion = ref(false)
-const SCROLL_THRESHOLD = 100
-
-const handleScroll = () => {
-  if (messagesContainer.value) {
-    isScrolledDown.value = messagesContainer.value.scrollTop > SCROLL_THRESHOLD
-  }
-}
-
-onUnmounted(() => {
-  if (messagesContainer.value) {
-    messagesContainer.value.removeEventListener('scroll', handleScroll)
-  }
-})
 
 const isDev = getIsDev()
 const prepopulatedQuestions = ref(getDefaultQuestions())
@@ -548,15 +531,4 @@ const handleScratchpadUpdate = (content) => {
   max-width: 100%;
 }
 
-/* Slide down transition */
-.slide-down-enter-active,
-.slide-down-leave-active {
-  transition: transform 0.2s ease, opacity 0.2s ease;
-}
-
-.slide-down-enter-from,
-.slide-down-leave-to {
-  transform: translateY(-100%);
-  opacity: 0;
-}
 </style>
