@@ -582,6 +582,60 @@ export const useChatStore = defineStore('chat', {
       return { newChatId: newChat.id, messageId }
     },
 
+    /**
+     * Move a message tree to an existing notebook
+     * @param {string} messageId - ID of the message to move
+     * @param {string} sourceChatId - ID of the source chat/notebook
+     * @param {string} targetChatId - ID of the target chat/notebook
+     * @returns {{ targetChatId: string, messageId: string }|null} - Target chat info or null if failed
+     */
+    moveMessageToExistingNotebook(messageId, sourceChatId, targetChatId) {
+      const message = this.messagesById[messageId]
+      if (!message) return null
+
+      const sourceChat = this.chats.find(c => c.id === sourceChatId)
+      if (!sourceChat) return null
+
+      const targetChat = this.chats.find(c => c.id === targetChatId)
+      if (!targetChat) return null
+
+      // Can't move to the same notebook
+      if (sourceChatId === targetChatId) return null
+
+      // Remove from current location
+      if (message.parentId) {
+        // Remove from parent's childIds
+        const parent = this.messagesById[message.parentId]
+        if (parent?.childIds) {
+          const idx = parent.childIds.indexOf(messageId)
+          if (idx !== -1) {
+            parent.childIds.splice(idx, 1)
+          }
+        }
+      } else {
+        // Remove from source chat's root messages
+        const idx = sourceChat.rootMessageIds.indexOf(messageId)
+        if (idx !== -1) {
+          sourceChat.rootMessageIds.splice(idx, 1)
+        }
+      }
+
+      // Clear parentId since it's now a root in the target notebook
+      message.parentId = null
+
+      // Add to target chat's root messages
+      targetChat.rootMessageIds.push(messageId)
+
+      // Update store state
+      this.currentChatId = targetChatId
+      this.currentMessageId = messageId
+      this.rootMessageIds = [...targetChat.rootMessageIds]
+
+      this._persistState()
+
+      return { targetChatId, messageId }
+    },
+
     // Streaming control actions
     startStreaming() {
       this.streamAbortController = new AbortController()

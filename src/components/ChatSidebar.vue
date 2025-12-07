@@ -169,6 +169,14 @@
     </div>
 
     <SettingsModal v-model="showSettings" />
+    <MoveToNotebookModal
+      :visible="showMoveModal"
+      :notebooks="chatStore.chatList"
+      :current-notebook-id="currentChatId"
+      @select-new="handleMoveToNewNotebook"
+      @select-existing="handleMoveToExistingNotebook"
+      @cancel="handleCancelMove"
+    />
   </div>
 </template>
 
@@ -177,6 +185,7 @@ import { ref, computed, provide, toRef } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from './Button.vue'
 import SettingsModal from './SettingsModal.vue'
+import MoveToNotebookModal from './MoveToNotebookModal.vue'
 import MessageTree from './MessageTree.vue'
 import DraggableTreeItem from './DraggableTreeItem.vue'
 import InlineEdit from './InlineEdit.vue'
@@ -250,6 +259,8 @@ const {
 
 const showSettings = ref(false)
 const isNotebooksDropTarget = ref(false)
+const showMoveModal = ref(false)
+const pendingMoveMessageId = ref(null)
 
 // Drag state - shared with MessageTree via provide
 const draggedItem = ref(null)
@@ -396,7 +407,7 @@ const handleDragLeaveNotebooks = () => {
   isNotebooksDropTarget.value = false
 }
 
-// Handle drop on notebooks button - move question tree to new notebook
+// Handle drop on notebooks button - show modal to choose destination
 const handleDropOnNotebooks = (event) => {
   event.preventDefault()
   isNotebooksDropTarget.value = false
@@ -407,29 +418,55 @@ const handleDropOnNotebooks = (event) => {
   const message = chatStore.messagesById[messageId]
   if (!message) return
 
-  // Confirm with user
-  const questionText = message.questionSummarized || message.question || 'this question'
-  const confirmed = confirm(
-    `Move "${questionText}" and all its children to a new notebook?\n\n` +
-    'This action cannot be undone.'
-  )
-
-  if (!confirmed) {
-    draggedItem.value = null
-    return
-  }
-
-  // Use store action to move message to new notebook
-  const result = chatStore.moveMessageToNewNotebook(messageId, props.currentChatId)
+  // Store the message ID and show the modal
+  pendingMoveMessageId.value = messageId
+  showMoveModal.value = true
 
   // Clear drag state
   draggedItem.value = null
   dropTarget.value = null
+}
+
+// Handle moving to a new notebook
+const handleMoveToNewNotebook = () => {
+  if (!pendingMoveMessageId.value) return
+
+  const result = chatStore.moveMessageToNewNotebook(pendingMoveMessageId.value, props.currentChatId)
+
+  // Close modal and clear state
+  showMoveModal.value = false
+  pendingMoveMessageId.value = null
 
   // Navigate to the new notebook and the moved question
   if (result) {
     router.push({ name: 'question', params: { id: result.newChatId, questionId: result.messageId } })
   }
+}
+
+// Handle moving to an existing notebook
+const handleMoveToExistingNotebook = (notebook) => {
+  if (!pendingMoveMessageId.value) return
+
+  const result = chatStore.moveMessageToExistingNotebook(
+    pendingMoveMessageId.value,
+    props.currentChatId,
+    notebook.id
+  )
+
+  // Close modal and clear state
+  showMoveModal.value = false
+  pendingMoveMessageId.value = null
+
+  // Navigate to the target notebook and the moved question
+  if (result) {
+    router.push({ name: 'question', params: { id: result.targetChatId, questionId: result.messageId } })
+  }
+}
+
+// Handle canceling the move
+const handleCancelMove = () => {
+  showMoveModal.value = false
+  pendingMoveMessageId.value = null
 }
 </script>
 
