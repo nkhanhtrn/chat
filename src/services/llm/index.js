@@ -4,6 +4,7 @@
  */
 import { lmstudioProvider } from './providers/lmstudio.js'
 import { googleProvider } from './providers/google.js'
+import { cerebrasProvider } from './providers/cerebras.js'
 
 const STORAGE_KEY_PROVIDER = 'llm-provider'
 const STORAGE_KEY_PROVIDER_CONFIG = 'llm-provider-config'
@@ -11,7 +12,8 @@ const STORAGE_KEY_PROVIDER_CONFIG = 'llm-provider-config'
 // Registry of available providers
 const providers = {
   lmstudio: lmstudioProvider,
-  google: googleProvider
+  google: googleProvider,
+  cerebras: cerebrasProvider
 }
 
 // Current provider state

@@ -139,7 +139,8 @@
               </button>
             </div>
             <div class="api-key-hint">
-              <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get Google AI API key</a>
+              <a v-if="currentProvider === 'google'" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get Google AI API key</a>
+              <a v-else-if="currentProvider === 'cerebras'" href="https://cloud.cerebras.ai/" target="_blank" rel="noopener">Get Cerebras API key</a>
             </div>
           </div>
           <div v-if="!selectedProviderRequiresKey && currentProvider === 'lmstudio'" class="api-key-section">

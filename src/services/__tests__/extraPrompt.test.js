@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getMainPrompts, getShortenContentPrompts, getQuickExplainPrompts } from '../extraPrompt.js'
+import { getMainPrompts, getNextPrompts, getShortenContentPrompts, getQuickExplainPrompts } from '../extraPrompt.js'
 
 describe('extraPrompt', () => {
   describe('getMainPrompts', () => {
@@ -74,6 +74,70 @@ describe('extraPrompt', () => {
       expect(messages.length).toBe(2)
       expect(messages[0].role).toBe('system')
       expect(messages[1].role).toBe('user')
+    })
+  })
+
+  describe('getNextPrompts', () => {
+    it('should return an array of messages', () => {
+      const messages = getNextPrompts('follow-up question')
+      expect(Array.isArray(messages)).toBe(true)
+    })
+
+    it('should include system prompt as first message', () => {
+      const messages = getNextPrompts('follow-up question')
+      expect(messages[0].role).toBe('system')
+      expect(typeof messages[0].content).toBe('string')
+      expect(messages[0].content.length).toBeGreaterThan(0)
+    })
+
+    it('should include user message as last message', () => {
+      const userMessage = 'Tell me more about this'
+      const messages = getNextPrompts(userMessage)
+      const lastMessage = messages[messages.length - 1]
+      expect(lastMessage.role).toBe('user')
+      expect(lastMessage.content).toBe(userMessage)
+    })
+
+    it('should return exactly 2 messages without previous messages', () => {
+      const messages = getNextPrompts('test')
+      expect(messages.length).toBe(2)
+    })
+
+    it('should include conversation history when previous messages provided', () => {
+      const previousMessages = [
+        { question: 'What is JavaScript?' },
+        { question: 'How do closures work?' }
+      ]
+      const messages = getNextPrompts('Tell me more', previousMessages)
+      expect(messages.length).toBe(3)
+      expect(messages[1].role).toBe('system')
+      expect(messages[1].content).toContain('Previous questions')
+      expect(messages[1].content).toContain('What is JavaScript?')
+      expect(messages[1].content).toContain('How do closures work?')
+    })
+
+    it('should handle empty previous messages array', () => {
+      const messages = getNextPrompts('question', [])
+      expect(messages.length).toBe(2)
+    })
+
+    it('should preserve exact user message content', () => {
+      const userMessage = 'Special chars: @#$%\nNewlines too'
+      const messages = getNextPrompts(userMessage)
+      const lastMessage = messages[messages.length - 1]
+      expect(lastMessage.content).toBe(userMessage)
+    })
+
+    it('should filter out previous messages without questions', () => {
+      const previousMessages = [
+        { question: 'Valid question' },
+        { question: null },
+        { question: '' },
+        { question: 'Another valid question' }
+      ]
+      const messages = getNextPrompts('New question', previousMessages)
+      expect(messages[1].content).toContain('Valid question')
+      expect(messages[1].content).toContain('Another valid question')
     })
   })
 

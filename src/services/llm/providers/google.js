@@ -81,32 +81,19 @@ export const googleProvider = {
   defaultBaseUrl: DEFAULT_BASE_URL,
 
   async fetchModels(config = {}) {
-    const { apiKey, baseUrl = DEFAULT_BASE_URL } = config
+    const { apiKey } = config
 
     if (!apiKey) {
       throw new Error('Google AI API key is required')
     }
 
-    try {
-      const response = await fetch(`${baseUrl}/models?key=${apiKey}`)
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw new Error(error.error?.message || `HTTP ${response.status}`)
+    // Only use gemini-2.5-flash model
+    return [
+      {
+        id: 'models/gemini-2.5-flash',
+        name: 'Gemini 2.5 Flash'
       }
-
-      const data = await response.json()
-
-      // Filter to models that support generateContent (chat)
-      return data.models
-        .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
-        .map(m => ({
-          id: m.name, // e.g., "models/gemini-1.5-flash"
-          name: m.displayName || m.name.replace('models/', '')
-        }))
-    } catch (error) {
-      throw new Error(error.message || 'Failed to fetch models')
-    }
+    ]
   },
 
   async sendMessage(model, messages, onChunk = null, signal = null, config = {}) {
