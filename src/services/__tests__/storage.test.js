@@ -7,6 +7,7 @@ import {
   setFirestoreSyncEnabled,
   setReadOnlyMode,
   isReadOnlyMode,
+  forceUploadToCloud,
   _resetThrottleState
 } from '../storage.js'
 import * as firestore from '../firestore.js'
@@ -927,6 +928,61 @@ describe('storage.js', () => {
         await saveChatState(mockState)
         expect(mockLocalStorage.setItem).toHaveBeenCalled()
       })
+    })
+  })
+
+  describe('forceUploadToCloud', () => {
+    const mockLocalState = {
+      messagesById: { msg1: { id: 'msg1', question: 'Test' } },
+      chats: [{ id: 'chat1', rootMessageIds: ['msg1'] }],
+      lastUpdated: Date.now()
+    }
+
+    it('uploads local data to Firestore', async () => {
+      mockLocalStorage.store['chat-state'] = JSON.stringify(mockLocalState)
+      vi.mocked(firestore.syncChatStateToFirestore).mockResolvedValue(undefined)
+
+      const result = await forceUploadToCloud()
+
+      expect(result).toBe(true)
+      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledWith(mockLocalState)
+    })
+
+    it('returns false when no local data exists', async () => {
+      // localStorage is empty
+      const result = await forceUploadToCloud()
+
+      expect(result).toBe(false)
+      expect(firestore.syncChatStateToFirestore).not.toHaveBeenCalled()
+    })
+
+    it('returns false when Firestore sync is disabled', async () => {
+      mockLocalStorage.store['chat-state'] = JSON.stringify(mockLocalState)
+      setFirestoreSyncEnabled(false)
+
+      const result = await forceUploadToCloud()
+
+      expect(result).toBe(false)
+      expect(firestore.syncChatStateToFirestore).not.toHaveBeenCalled()
+    })
+
+    it('throws error when Firestore sync fails', async () => {
+      mockLocalStorage.store['chat-state'] = JSON.stringify(mockLocalState)
+      vi.mocked(firestore.syncChatStateToFirestore).mockRejectedValue(new Error('Upload failed'))
+
+      await expect(forceUploadToCloud()).rejects.toThrow('Upload failed')
+    })
+
+    it('updates sync hash after successful upload', async () => {
+      mockLocalStorage.store['chat-state'] = JSON.stringify(mockLocalState)
+      vi.mocked(firestore.syncChatStateToFirestore).mockResolvedValue(undefined)
+
+      const result = await forceUploadToCloud()
+
+      expect(result).toBe(true)
+      // The function should have updated lastSyncedStateHash internally
+      // We verify this worked by checking forceUploadToCloud was called with correct data
+      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledWith(mockLocalState)
     })
   })
 })

@@ -2,6 +2,12 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import SyncConflictModal from '../SyncConflictModal.vue'
 import Modal from '../Modal.vue'
+import * as storageModule from '../../../services/storage.js'
+
+// Mock the storage module
+vi.mock('../../../services/storage.js', () => ({
+  forceUploadToCloud: vi.fn()
+}))
 
 describe('SyncConflictModal', () => {
   const mockLocalData = {
@@ -307,6 +313,133 @@ describe('SyncConflictModal', () => {
 
       const modal = wrapper.findComponent(Modal)
       expect(modal.props('size')).toBe('medium')
+    })
+  })
+
+  describe('force upload functionality', () => {
+    beforeEach(() => {
+      vi.mocked(storageModule.forceUploadToCloud).mockReset()
+    })
+
+    it('renders force upload button', () => {
+      const wrapper = mountComponent()
+
+      const forceUploadBtn = wrapper.find('.force-upload-btn')
+      expect(forceUploadBtn.exists()).toBe(true)
+      expect(forceUploadBtn.text()).toBe('Force Upload Local to Cloud')
+    })
+
+    it('renders force upload section with separator', () => {
+      const wrapper = mountComponent()
+
+      const section = wrapper.find('.force-upload-section')
+      expect(section.exists()).toBe(true)
+    })
+
+    it('calls forceUploadToCloud when button is clicked', async () => {
+      vi.mocked(storageModule.forceUploadToCloud).mockResolvedValue(true)
+      const wrapper = mountComponent()
+
+      const forceUploadBtn = wrapper.find('.force-upload-btn')
+      await forceUploadBtn.trigger('click')
+
+      expect(storageModule.forceUploadToCloud).toHaveBeenCalled()
+    })
+
+    it('shows uploading state while upload is in progress', async () => {
+      vi.mocked(storageModule.forceUploadToCloud).mockImplementation(
+        () => new Promise(resolve => setTimeout(() => resolve(true), 100))
+      )
+      const wrapper = mountComponent()
+
+      const forceUploadBtn = wrapper.find('.force-upload-btn')
+      await forceUploadBtn.trigger('click')
+
+      expect(forceUploadBtn.text()).toBe('Uploading...')
+      expect(forceUploadBtn.attributes('disabled')).toBeDefined()
+    })
+
+    it('shows success status after successful upload', async () => {
+      vi.mocked(storageModule.forceUploadToCloud).mockResolvedValue(true)
+      const wrapper = mountComponent()
+
+      const forceUploadBtn = wrapper.find('.force-upload-btn')
+      await forceUploadBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      const successStatus = wrapper.find('.upload-status.success')
+      expect(successStatus.exists()).toBe(true)
+      expect(successStatus.text()).toContain('Successfully uploaded')
+    })
+
+    it('shows error status after failed upload', async () => {
+      vi.mocked(storageModule.forceUploadToCloud).mockRejectedValue(new Error('Upload failed'))
+      const wrapper = mountComponent()
+
+      const forceUploadBtn = wrapper.find('.force-upload-btn')
+      await forceUploadBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      const errorStatus = wrapper.find('.upload-status.error')
+      expect(errorStatus.exists()).toBe(true)
+      expect(errorStatus.text()).toContain('Upload failed')
+    })
+
+    it('emits resolve with "local" after successful upload', async () => {
+      vi.useFakeTimers()
+      vi.mocked(storageModule.forceUploadToCloud).mockResolvedValue(true)
+      const wrapper = mountComponent()
+
+      const forceUploadBtn = wrapper.find('.force-upload-btn')
+      await forceUploadBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      // Advance timer to trigger the auto-resolve
+      await vi.advanceTimersByTimeAsync(1500)
+
+      expect(wrapper.emitted('resolve')).toBeTruthy()
+      expect(wrapper.emitted('resolve')[0]).toEqual(['local'])
+      vi.useRealTimers()
+    })
+
+    it('does not emit resolve after failed upload', async () => {
+      vi.useFakeTimers()
+      vi.mocked(storageModule.forceUploadToCloud).mockRejectedValue(new Error('Upload failed'))
+      const wrapper = mountComponent()
+
+      const forceUploadBtn = wrapper.find('.force-upload-btn')
+      await forceUploadBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      // Advance timer
+      await vi.advanceTimersByTimeAsync(2000)
+
+      expect(wrapper.emitted('resolve')).toBeFalsy()
+      vi.useRealTimers()
+    })
+
+    it('re-enables button after upload completes', async () => {
+      vi.mocked(storageModule.forceUploadToCloud).mockResolvedValue(true)
+      const wrapper = mountComponent()
+
+      const forceUploadBtn = wrapper.find('.force-upload-btn')
+      await forceUploadBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(forceUploadBtn.attributes('disabled')).toBeUndefined()
+      expect(forceUploadBtn.text()).toBe('Force Upload Local to Cloud')
+    })
+
+    it('re-enables button after upload fails', async () => {
+      vi.mocked(storageModule.forceUploadToCloud).mockRejectedValue(new Error('Upload failed'))
+      const wrapper = mountComponent()
+
+      const forceUploadBtn = wrapper.find('.force-upload-btn')
+      await forceUploadBtn.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(forceUploadBtn.attributes('disabled')).toBeUndefined()
+      expect(forceUploadBtn.text()).toBe('Force Upload Local to Cloud')
     })
   })
 })

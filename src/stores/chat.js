@@ -1,6 +1,6 @@
 import Message from './Message.js'
 import { defineStore } from 'pinia'
-import { saveChatState, loadChatState } from '../services/storage.js'
+import { saveChatState, loadChatState, resolveConflict as resolveStorageConflict } from '../services/storage.js'
 
 export const useChatStore = defineStore('chat', {
   state: () => {
@@ -233,8 +233,7 @@ export const useChatStore = defineStore('chat', {
 
     // Resolve a sync conflict and apply the chosen state
     async resolveConflict(choice, localData, cloudData) {
-      const { resolveConflict } = await import('../services/storage.js')
-      const chosenState = await resolveConflict(choice, localData, cloudData)
+      const chosenState = await resolveStorageConflict(choice, localData, cloudData)
       this._applyState(chosenState)
       this.isInitialized = true
       console.log(`Conflict resolved, applied ${choice} data`)

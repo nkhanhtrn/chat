@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import SettingsModal from '../SettingsModal.vue'
 import * as firestoreModule from '../../../services/firestore.js'
+import * as storageModule from '../../../services/storage.js'
 
 // Mock the LLM API module
 vi.mock('../../../services/api.js', () => ({
@@ -33,6 +34,11 @@ vi.mock('../../../services/firestore.js', () => ({
   invalidateSettingsCache: vi.fn(),
   flushSettings: vi.fn(),
   unsubscribeAll: vi.fn()
+}))
+
+// Mock storage module for force upload
+vi.mock('../../../services/storage.js', () => ({
+  forceUploadToCloud: vi.fn(() => Promise.resolve(true))
 }))
 
 // Helper to mock user settings from Firestore
@@ -2076,6 +2082,183 @@ describe('SettingsModal', () => {
       expect(backupButtons).toBeTruthy()
       // Verify the container has the backup-buttons class (CSS centering is applied via scoped styles)
       expect(backupButtons.classList.contains('backup-buttons')).toBe(true)
+    })
+  })
+
+  describe('Cloud Sync - Force Upload', () => {
+    beforeEach(() => {
+      vi.mocked(storageModule.forceUploadToCloud).mockReset()
+      vi.mocked(storageModule.forceUploadToCloud).mockResolvedValue(true)
+    })
+
+    it('should render Cloud Sync section in LLM tab', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const backupSections = findAllInBody('.backup-section')
+      expect(backupSections.length).toBeGreaterThanOrEqual(2)
+    })
+
+    it('should render Force Upload to Cloud button', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const buttons = findAllInBody('.backup-btn')
+      const forceUploadBtn = Array.from(buttons).find(btn => btn.textContent.includes('Force Upload to Cloud'))
+      expect(forceUploadBtn).toBeTruthy()
+    })
+
+    it('should call forceUploadToCloud when button is clicked', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const buttons = findAllInBody('.backup-btn')
+      const forceUploadBtn = Array.from(buttons).find(btn => btn.textContent.includes('Force Upload to Cloud'))
+      forceUploadBtn.click()
+      await wrapper.vm.$nextTick()
+
+      expect(storageModule.forceUploadToCloud).toHaveBeenCalled()
+    })
+
+    it('should show uploading state while upload is in progress', async () => {
+      vi.mocked(storageModule.forceUploadToCloud).mockImplementation(
+        () => new Promise(resolve => setTimeout(() => resolve(true), 100))
+      )
+
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const buttons = findAllInBody('.backup-btn')
+      const forceUploadBtn = Array.from(buttons).find(btn => btn.textContent.includes('Force Upload to Cloud'))
+      forceUploadBtn.click()
+      await wrapper.vm.$nextTick()
+
+      expect(forceUploadBtn.textContent).toBe('Uploading...')
+      expect(forceUploadBtn.disabled).toBe(true)
+    })
+
+    it('should show success status after successful upload', async () => {
+      vi.mocked(storageModule.forceUploadToCloud).mockResolvedValue(true)
+
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const buttons = findAllInBody('.backup-btn')
+      const forceUploadBtn = Array.from(buttons).find(btn => btn.textContent.includes('Force Upload to Cloud'))
+      forceUploadBtn.click()
+      await wrapper.vm.$nextTick()
+      await new Promise(r => setTimeout(r, 10))
+
+      const successStatus = findInBody('.connection-status.success')
+      expect(successStatus).toBeTruthy()
+      expect(successStatus.textContent).toContain('Successfully uploaded')
+    })
+
+    it('should show error status after failed upload', async () => {
+      vi.mocked(storageModule.forceUploadToCloud).mockRejectedValue(new Error('Upload failed'))
+
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const buttons = findAllInBody('.backup-btn')
+      const forceUploadBtn = Array.from(buttons).find(btn => btn.textContent.includes('Force Upload to Cloud'))
+      forceUploadBtn.click()
+      await wrapper.vm.$nextTick()
+      await new Promise(r => setTimeout(r, 10))
+
+      const errorStatus = findInBody('.connection-status.error')
+      expect(errorStatus).toBeTruthy()
+      expect(errorStatus.textContent).toContain('Upload failed')
+    })
+
+    it('should re-enable button after upload completes', async () => {
+      vi.mocked(storageModule.forceUploadToCloud).mockResolvedValue(true)
+
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const buttons = findAllInBody('.backup-btn')
+      const forceUploadBtn = Array.from(buttons).find(btn => btn.textContent.includes('Force Upload'))
+      forceUploadBtn.click()
+      await wrapper.vm.$nextTick()
+      await new Promise(r => setTimeout(r, 10))
+
+      expect(forceUploadBtn.disabled).toBe(false)
+      expect(forceUploadBtn.textContent).toBe('Force Upload to Cloud')
+    })
+
+    it('should display success status message with correct text', async () => {
+      vi.mocked(storageModule.forceUploadToCloud).mockResolvedValue(true)
+
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const buttons = findAllInBody('.backup-btn')
+      const forceUploadBtn = Array.from(buttons).find(btn => btn.textContent.includes('Force Upload'))
+      forceUploadBtn.click()
+      await wrapper.vm.$nextTick()
+      await new Promise(r => setTimeout(r, 10))
+
+      // Status should be visible with correct message
+      const successStatus = findInBody('.connection-status.success')
+      expect(successStatus).toBeTruthy()
+      expect(successStatus.textContent).toContain('Successfully uploaded to cloud')
     })
   })
 })

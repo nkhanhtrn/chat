@@ -1,6 +1,6 @@
 
 // Storage service for persisting chat data (localStorage + Firestore sync)
-import { syncChatStateToFirestore, loadChatStateFromFirestore } from './firestore.js'
+import { syncChatStateToFirestore, loadChatStateFromFirestore, deleteChatStateFromFirestore } from './firestore.js'
 
 const STORAGE_KEY_CHAT_STATE = 'chat-state'
 
@@ -313,6 +313,35 @@ export const resolveConflict = async (choice, localData, cloudData) => {
 }
 
 /**
+ * Force upload local data to cloud, overwriting cloud data
+ * @returns {Promise<boolean>} True if successful
+ */
+export const forceUploadToCloud = async () => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_CHAT_STATE)
+    if (!saved) {
+      console.warn('No local data to upload')
+      return false
+    }
+
+    const localState = JSON.parse(saved)
+
+    if (!ENABLE_FIRESTORE_SYNC) {
+      console.warn('Firestore sync is disabled')
+      return false
+    }
+
+    await syncChatStateToFirestore(localState)
+    lastSyncedStateHash = hashState(localState)
+    console.log('Force uploaded local data to cloud')
+    return true
+  } catch (error) {
+    console.error('Failed to force upload to cloud:', error)
+    throw error
+  }
+}
+
+/**
  * Clear all storage data (localStorage and Firestore)
  */
 export const clearAllStorage = async () => {
@@ -323,7 +352,6 @@ export const clearAllStorage = async () => {
     // Clear Firestore if sync is enabled
     if (ENABLE_FIRESTORE_SYNC) {
       try {
-        const { deleteChatStateFromFirestore } = await import('./firestore.js')
         await deleteChatStateFromFirestore()
       } catch (firestoreError) {
         console.warn('Failed to clear Firestore data:', firestoreError)

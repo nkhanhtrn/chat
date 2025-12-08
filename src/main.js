@@ -8,6 +8,8 @@ import { createPinia } from 'pinia'
 import { useChatStore } from './stores/chat.js'
 import router from './router'
 import { initializeTheme, applySettings, exposeGlobally } from './services/settings.js'
+import { initializeFirebase } from './services/firebase.js'
+import { loadUserSettings, subscribeToUserSettings, flushSettings } from './services/firestore.js'
 
 // Initialize theme from localStorage cache (or default to light)
 initializeTheme()
@@ -24,7 +26,6 @@ app.use(router)
 const initializeApp = async () => {
   try {
     // Initialize Firebase (optional - will use default config)
-    const { initializeFirebase } = await import('./services/firebase.js')
     initializeFirebase()
     console.log('Firebase initialized')
   } catch (error) {
@@ -33,7 +34,6 @@ const initializeApp = async () => {
 
   // Load user settings from Firestore (initial load)
   try {
-    const { loadUserSettings, subscribeToUserSettings, flushSettings } = await import('./services/firestore.js')
     const settings = await loadUserSettings()
     applySettings(settings)
 

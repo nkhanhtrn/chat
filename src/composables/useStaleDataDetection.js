@@ -1,5 +1,6 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { setReadOnlyMode as setStorageReadOnlyMode } from '../services/storage.js'
+import { loadChatStateFromFirestore } from '../services/firestore.js'
 
 // Inactivity timeout: 5 minutes
 const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000
@@ -23,8 +24,6 @@ export function useStaleDataDetection() {
    */
   const hasCloudDifference = async () => {
     try {
-      // Dynamic import to avoid initialization issues with firebase
-      const { loadChatStateFromFirestore } = await import('../services/firestore.js')
       const cloudState = await loadChatStateFromFirestore()
       if (!cloudState) {
         // No cloud data, no difference
