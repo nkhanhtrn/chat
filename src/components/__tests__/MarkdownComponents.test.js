@@ -954,6 +954,135 @@ describe('Markdown Components', () => {
         expect(wrapper.emitted('note-click')).toBeFalsy()
       })
     })
+
+    describe('Long Press (Mobile)', () => {
+      it('should emit highlight-click after long press', async () => {
+        vi.useFakeTimers()
+
+        const wrapper = mount(HighlightSpan, {
+          props: {
+            text: 'highlighted text',
+            highlightId: 'h-longpress',
+            colorIndex: 2,
+            startOffset: 0,
+            endOffset: 16
+          }
+        })
+
+        const touchEvent = {
+          touches: [{ clientX: 100, clientY: 200 }]
+        }
+
+        await wrapper.find('.custom-highlight').trigger('touchstart', touchEvent)
+
+        // Fast-forward 500ms (the long press duration)
+        vi.advanceTimersByTime(500)
+
+        expect(wrapper.emitted('highlight-click')).toBeTruthy()
+        expect(wrapper.emitted('highlight-click')).toHaveLength(1)
+
+        const [eventData] = wrapper.emitted('highlight-click')[0]
+        expect(eventData).toEqual({
+          highlightId: 'h-longpress',
+          text: 'highlighted text',
+          colorIndex: 2,
+          startOffset: 0,
+          endOffset: 16,
+          x: 100,
+          y: 200
+        })
+
+        vi.useRealTimers()
+      })
+
+      it('should not emit highlight-click if touch ends before long press duration', async () => {
+        vi.useFakeTimers()
+
+        const wrapper = mount(HighlightSpan, {
+          props: {
+            text: 'text',
+            highlightId: 'h-short',
+            startOffset: 0,
+            endOffset: 4
+          }
+        })
+
+        const touchEvent = {
+          touches: [{ clientX: 100, clientY: 200 }]
+        }
+
+        await wrapper.find('.custom-highlight').trigger('touchstart', touchEvent)
+
+        // Only advance 300ms (less than 500ms threshold)
+        vi.advanceTimersByTime(300)
+
+        await wrapper.find('.custom-highlight').trigger('touchend')
+
+        // Advance past the threshold to ensure timer was cleared
+        vi.advanceTimersByTime(300)
+
+        expect(wrapper.emitted('highlight-click')).toBeFalsy()
+
+        vi.useRealTimers()
+      })
+
+      it('should not emit highlight-click if touch moves', async () => {
+        vi.useFakeTimers()
+
+        const wrapper = mount(HighlightSpan, {
+          props: {
+            text: 'text',
+            highlightId: 'h-move',
+            startOffset: 0,
+            endOffset: 4
+          }
+        })
+
+        const touchEvent = {
+          touches: [{ clientX: 100, clientY: 200 }]
+        }
+
+        await wrapper.find('.custom-highlight').trigger('touchstart', touchEvent)
+
+        // Move finger during long press
+        vi.advanceTimersByTime(200)
+        await wrapper.find('.custom-highlight').trigger('touchmove')
+
+        // Advance past the threshold
+        vi.advanceTimersByTime(400)
+
+        expect(wrapper.emitted('highlight-click')).toBeFalsy()
+
+        vi.useRealTimers()
+      })
+
+      it('should cancel long press timer on touchend', async () => {
+        vi.useFakeTimers()
+
+        const wrapper = mount(HighlightSpan, {
+          props: {
+            text: 'text',
+            highlightId: 'h-cancel',
+            startOffset: 0,
+            endOffset: 4
+          }
+        })
+
+        const touchEvent = {
+          touches: [{ clientX: 100, clientY: 200 }]
+        }
+
+        await wrapper.find('.custom-highlight').trigger('touchstart', touchEvent)
+        await wrapper.find('.custom-highlight').trigger('touchend')
+
+        // Advance past the threshold
+        vi.advanceTimersByTime(600)
+
+        expect(wrapper.emitted('highlight-click')).toBeFalsy()
+
+        vi.useRealTimers()
+      })
+    })
   })
 
   describe('QuestionLinkSpan', () => {
@@ -1309,6 +1438,138 @@ describe('Markdown Components', () => {
         })
         const noteButton = wrapper.find('.note-button')
         expect(noteButton.attributes('title')).toBe('Open note')
+      })
+    })
+
+    describe('Long Press (Mobile)', () => {
+      it('should emit highlight-click after long press', async () => {
+        vi.useFakeTimers()
+
+        const wrapper = mount(QuestionLinkSpan, {
+          props: {
+            text: 'question text',
+            targetMessageId: 'msg-longpress',
+            questionId: 'q-longpress',
+            startOffset: 0,
+            endOffset: 13
+          }
+        })
+
+        const touchEvent = {
+          touches: [{ clientX: 150, clientY: 250 }]
+        }
+
+        await wrapper.find('.question-link').trigger('touchstart', touchEvent)
+
+        // Fast-forward 500ms (the long press duration)
+        vi.advanceTimersByTime(500)
+
+        expect(wrapper.emitted('highlight-click')).toBeTruthy()
+        expect(wrapper.emitted('highlight-click')).toHaveLength(1)
+
+        const [eventData] = wrapper.emitted('highlight-click')[0]
+        expect(eventData).toEqual({
+          highlightId: 'q-longpress',
+          text: 'question text',
+          colorIndex: 0,
+          startOffset: 0,
+          endOffset: 13,
+          x: 150,
+          y: 250
+        })
+
+        vi.useRealTimers()
+      })
+
+      it('should not emit highlight-click if touch ends before long press duration', async () => {
+        vi.useFakeTimers()
+
+        const wrapper = mount(QuestionLinkSpan, {
+          props: {
+            text: 'text',
+            targetMessageId: 'msg-short',
+            questionId: 'q-short',
+            startOffset: 0,
+            endOffset: 4
+          }
+        })
+
+        const touchEvent = {
+          touches: [{ clientX: 100, clientY: 200 }]
+        }
+
+        await wrapper.find('.question-link').trigger('touchstart', touchEvent)
+
+        // Only advance 300ms (less than 500ms threshold)
+        vi.advanceTimersByTime(300)
+
+        await wrapper.find('.question-link').trigger('touchend')
+
+        // Advance past the threshold to ensure timer was cleared
+        vi.advanceTimersByTime(300)
+
+        expect(wrapper.emitted('highlight-click')).toBeFalsy()
+
+        vi.useRealTimers()
+      })
+
+      it('should not emit highlight-click if touch moves', async () => {
+        vi.useFakeTimers()
+
+        const wrapper = mount(QuestionLinkSpan, {
+          props: {
+            text: 'text',
+            targetMessageId: 'msg-move',
+            questionId: 'q-move',
+            startOffset: 0,
+            endOffset: 4
+          }
+        })
+
+        const touchEvent = {
+          touches: [{ clientX: 100, clientY: 200 }]
+        }
+
+        await wrapper.find('.question-link').trigger('touchstart', touchEvent)
+
+        // Move finger during long press
+        vi.advanceTimersByTime(200)
+        await wrapper.find('.question-link').trigger('touchmove')
+
+        // Advance past the threshold
+        vi.advanceTimersByTime(400)
+
+        expect(wrapper.emitted('highlight-click')).toBeFalsy()
+
+        vi.useRealTimers()
+      })
+
+      it('should cancel long press timer on touchend', async () => {
+        vi.useFakeTimers()
+
+        const wrapper = mount(QuestionLinkSpan, {
+          props: {
+            text: 'text',
+            targetMessageId: 'msg-cancel',
+            questionId: 'q-cancel',
+            startOffset: 0,
+            endOffset: 4
+          }
+        })
+
+        const touchEvent = {
+          touches: [{ clientX: 100, clientY: 200 }]
+        }
+
+        await wrapper.find('.question-link').trigger('touchstart', touchEvent)
+        await wrapper.find('.question-link').trigger('touchend')
+
+        // Advance past the threshold
+        vi.advanceTimersByTime(600)
+
+        expect(wrapper.emitted('highlight-click')).toBeFalsy()
+
+        vi.useRealTimers()
       })
     })
   })

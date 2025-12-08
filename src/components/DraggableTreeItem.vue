@@ -20,6 +20,7 @@
       @dragstart="handleDragStart"
       @dragend="handleDragEnd"
       @click="handleClick"
+      @touchstart="handleTouchStart"
     >
       <!-- Custom content slot or default content -->
       <slot :item="item" :dragHandleClass="'drag-handle'" :isEditing="isEditing">
@@ -113,7 +114,7 @@
 </template>
 
 <script setup>
-import { inject, ref, nextTick } from 'vue'
+import { inject, ref, nextTick, onUnmounted } from 'vue'
 import { useChatStore } from '../stores/chat.js'
 
 // ============================================
@@ -215,6 +216,55 @@ const handleDropOnItem = (event) => {
   draggedItem.value = null
   dropTarget.value = null
 }
+
+// ============================================
+// Touch Drag & Drop (Mobile Support)
+// ============================================
+
+import { startTouchDrag, moveTouchDrag, endTouchDrag, cancelTouchDrag } from '../utils/touchDrag.js'
+
+const handleTouchStart = (event) => {
+  if (props.isEditing || !props.draggable) return
+
+  const messageData = {
+    id: props.item.id,
+    question: props.item.question,
+    questionSummarized: props.item.questionSummarized,
+    response: props.item.response
+  }
+
+  startTouchDrag(event, props.item.id, messageData)
+
+  // Add global listeners
+  document.addEventListener('touchmove', handleTouchMove, { passive: false })
+  document.addEventListener('touchend', handleTouchEnd)
+  document.addEventListener('touchcancel', handleTouchCancel)
+}
+
+const handleTouchMove = (event) => {
+  moveTouchDrag(event)
+}
+
+const handleTouchEnd = () => {
+  endTouchDrag()
+  removeGlobalTouchListeners()
+}
+
+const handleTouchCancel = () => {
+  cancelTouchDrag()
+  removeGlobalTouchListeners()
+}
+
+const removeGlobalTouchListeners = () => {
+  document.removeEventListener('touchmove', handleTouchMove)
+  document.removeEventListener('touchend', handleTouchEnd)
+  document.removeEventListener('touchcancel', handleTouchCancel)
+}
+
+// Clean up on unmount
+onUnmounted(() => {
+  removeGlobalTouchListeners()
+})
 
 // ============================================
 // Inline Editing

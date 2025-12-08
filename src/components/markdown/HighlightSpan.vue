@@ -7,6 +7,9 @@
       :data-md-start="startOffset"
       :data-md-end="endOffset"
       @click="handleClick"
+      @touchstart.passive="handleTouchStart"
+      @touchend="handleTouchEnd"
+      @touchmove.passive="handleTouchMove"
     >
       <slot>{{ text }}</slot>
     </mark>
@@ -23,8 +26,10 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { highlightColors } from '../../constants/highlightColors.js'
+
+const LONG_PRESS_DURATION = 500
 
 const props = defineProps({
   text: {
@@ -117,6 +122,44 @@ function handleNoteClick(event) {
     y: event.clientY
   })
 }
+
+// Long-press handling for mobile
+const longPressTimer = ref(null)
+const touchMoved = ref(false)
+
+function handleTouchStart(event) {
+  touchMoved.value = false
+  const touch = event.touches[0]
+
+  longPressTimer.value = setTimeout(() => {
+    if (!touchMoved.value) {
+      emit('highlight-click', {
+        highlightId: props.highlightId,
+        text: props.text,
+        colorIndex: props.colorIndex,
+        startOffset: props.startOffset,
+        endOffset: props.endOffset,
+        x: touch.clientX,
+        y: touch.clientY
+      })
+    }
+  }, LONG_PRESS_DURATION)
+}
+
+function handleTouchEnd() {
+  if (longPressTimer.value) {
+    clearTimeout(longPressTimer.value)
+    longPressTimer.value = null
+  }
+}
+
+function handleTouchMove() {
+  touchMoved.value = true
+  if (longPressTimer.value) {
+    clearTimeout(longPressTimer.value)
+    longPressTimer.value = null
+  }
+}
 </script>
 
 <style scoped>
@@ -126,7 +169,7 @@ function handleNoteClick(event) {
 }
 
 .custom-highlight {
-  padding: 2px 0;
+  padding: 0;
   border-radius: 0;
   background-color: var(--color-highlight);
   transition: background-color 0.2s ease;

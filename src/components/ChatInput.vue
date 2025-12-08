@@ -1,5 +1,6 @@
 <template>
   <div
+    ref="containerRef"
     class="chat-input-container"
     :class="{ 'drag-over': isDragOver }"
     @dragover.prevent="handleDragOver"
@@ -49,16 +50,20 @@
         </svg>
       </Button>
     </div>
-    <div class="input-hint">
+    <div class="input-hint desktop-hint">
       Press Enter to send • Shift + Enter for new line • Drag questions here to add context
+    </div>
+    <div class="input-hint mobile-hint">
+      Long-press and drag questions here to add context
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted, watch } from 'vue'
+import { ref, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import Button from './Button.vue'
 import { useChatStore } from '../stores/chat.js'
+import { touchDragState, endTouchDrag, isPointInElement } from '../utils/touchDrag.js'
 
 const props = defineProps({
   disabled: {
@@ -89,12 +94,7 @@ const focus = () => {
   })
 }
 
-// Auto-focus on mount if autofocus prop is true
-onMounted(() => {
-  if (props.autofocus) {
-    focus()
-  }
-})
+// Auto-focus handled in main onMounted below
 
 // Watch for autofocus changes
 watch(() => props.autofocus, (newVal) => {
@@ -161,6 +161,61 @@ const removeContext = (id) => {
     contextQuestions.value.splice(index, 1)
   }
 }
+
+// Touch drag drop detection (for mobile)
+const containerRef = ref(null)
+
+const handleGlobalTouchMove = () => {
+  if (!touchDragState.isDragging) return
+
+  // Check if touch is over this input container
+  const isOver = isPointInElement(
+    touchDragState.currentX,
+    touchDragState.currentY,
+    containerRef.value
+  )
+
+  isDragOver.value = isOver
+}
+
+const handleGlobalTouchEnd = () => {
+  if (!touchDragState.isDragging) return
+
+  // Check if dropped on this input container
+  const isOver = isPointInElement(
+    touchDragState.currentX,
+    touchDragState.currentY,
+    containerRef.value
+  )
+
+  if (isOver && touchDragState.messageData) {
+    const message = touchDragState.messageData
+    if (!contextQuestions.value.some(ctx => ctx.id === message.id)) {
+      contextQuestions.value.push({
+        id: message.id,
+        question: message.question,
+        questionSummarized: message.questionSummarized,
+        response: message.response
+      })
+    }
+  }
+
+  isDragOver.value = false
+}
+
+onMounted(() => {
+  if (props.autofocus) {
+    focus()
+  }
+  // Add global touch listeners for drop detection
+  document.addEventListener('touchmove', handleGlobalTouchMove)
+  document.addEventListener('touchend', handleGlobalTouchEnd)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('touchmove', handleGlobalTouchMove)
+  document.removeEventListener('touchend', handleGlobalTouchEnd)
+})
 
 function clearContext() {
   contextQuestions.value = []
@@ -325,6 +380,10 @@ textarea::placeholder {
   font-family: 'Georgia', serif;
 }
 
+.mobile-hint {
+  display: none;
+}
+
 /* Mobile styles */
 @media (max-width: 768px) {
   .chat-input-container {
@@ -363,6 +422,14 @@ textarea::placeholder {
 
   .input-hint {
     font-size: 0.65rem;
+  }
+
+  .desktop-hint {
+    display: none;
+  }
+
+  .mobile-hint {
+    display: block;
   }
 }
 </style>

@@ -1,11 +1,12 @@
 <template>
   <teleport to="body">
     <template v-if="visible">
-      <div class="context-menu-backdrop" @click="onClickOutside"></div>
+      <div class="context-menu-backdrop" @click="onClickOutside" @touchend.prevent="onClickOutside"></div>
       <div
         class="context-menu"
         :style="{ left: `${x}px`, top: `${y}px`, display: visible ? 'block' : 'none' }"
         @mousedown.stop
+        @touchstart.stop
       >
         <div class="context-menu-row highlight-row">
           <Button class="context-menu-btn highlight-btn" @click="onHighlightAction" variant="tertiary">{{ hasExistingHighlight ? 'Remove' : 'Highlight' }}</Button>

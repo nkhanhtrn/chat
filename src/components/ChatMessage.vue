@@ -14,7 +14,7 @@
         <!-- Assistant answer with streaming -->
         <div v-if="isStreaming || currentResponse" class="message message-assistant">
           <div class="message-content" style="position: relative;">
-            <div class="assistant-message" @mouseup="showContextMenu">
+            <div ref="assistantMessageRef" class="assistant-message" @mouseup="showContextMenu" @contextmenu="handleContextMenu">
               <MarkdownRenderer
                 :content="currentResponse"
                 :custom-content="effectiveCustomContent"
@@ -75,7 +75,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useChatStore } from '../stores/chat.js'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import ContextMenu from './ContextMenu.vue'
@@ -127,6 +127,11 @@ const error = ref(null)
 const tempHighlight = ref(null)
 const showQuestionSearch = ref(false)
 const questionSearchContext = ref(null)
+const assistantMessageRef = ref(null)
+
+// Mobile selection handling
+const isMobile = ref(false)
+const selectionCheckTimeout = ref(null)
 
 // Use composables
 const popup = usePopupState()
@@ -520,6 +525,74 @@ function handleQuestionSearchCancel() {
   questionSearchContext.value = null
   tempHighlight.value = null
 }
+
+// Mobile text selection handling
+function checkMobileSelection() {
+  const selection = window.getSelection()
+  if (!selection || selection.isCollapsed || !selection.toString().trim()) {
+    return
+  }
+
+  // Check if selection is within our assistant message
+  if (!assistantMessageRef.value) return
+
+  const range = selection.getRangeAt(0)
+  if (!assistantMessageRef.value.contains(range.commonAncestorContainer)) {
+    return
+  }
+
+  // Show context menu for the selection
+  showContextMenu()
+}
+
+function handleSelectionChange() {
+  if (!isMobile.value) return
+
+  // Don't interfere if popup is already open
+  if (popup.state.mode) return
+
+  // Debounce the selection check to wait for user to finish selecting
+  if (selectionCheckTimeout.value) {
+    clearTimeout(selectionCheckTimeout.value)
+  }
+
+  selectionCheckTimeout.value = setTimeout(() => {
+    checkMobileSelection()
+  }, 500) // Wait longer to let user finish selecting
+}
+
+// Prevent default context menu on mobile to show ours instead
+function handleContextMenu(event) {
+  if (!isMobile.value) return
+
+  const selection = window.getSelection()
+  if (selection && !selection.isCollapsed && selection.toString().trim()) {
+    // Check if selection is within our assistant message
+    if (assistantMessageRef.value) {
+      const range = selection.getRangeAt(0)
+      if (assistantMessageRef.value.contains(range.commonAncestorContainer)) {
+        event.preventDefault()
+        showContextMenu()
+      }
+    }
+  }
+}
+
+onMounted(() => {
+  // Detect mobile
+  isMobile.value = 'ontouchstart' in window || navigator.maxTouchPoints > 0
+
+  if (isMobile.value) {
+    document.addEventListener('selectionchange', handleSelectionChange)
+  }
+})
+
+onUnmounted(() => {
+  if (selectionCheckTimeout.value) {
+    clearTimeout(selectionCheckTimeout.value)
+  }
+  document.removeEventListener('selectionchange', handleSelectionChange)
+})
 
 </script>
 <style scoped>

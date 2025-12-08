@@ -8,6 +8,9 @@
       :data-md-start="startOffset"
       :data-md-end="endOffset"
       @click="handleClick"
+      @touchstart.passive="handleTouchStart"
+      @touchend="handleTouchEnd"
+      @touchmove.passive="handleTouchMove"
     >
       <slot>{{ text }}</slot>
     </a>
@@ -24,9 +27,11 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useChatStore } from '../../stores/chat.js'
+
+const LONG_PRESS_DURATION = 500
 
 const props = defineProps({
   text: {
@@ -111,6 +116,44 @@ function handleNoteClick(event) {
     x: event.clientX,
     y: event.clientY
   })
+}
+
+// Long-press handling for mobile
+const longPressTimer = ref(null)
+const touchMoved = ref(false)
+
+function handleTouchStart(event) {
+  touchMoved.value = false
+  const touch = event.touches[0]
+
+  longPressTimer.value = setTimeout(() => {
+    if (!touchMoved.value) {
+      emit('highlight-click', {
+        highlightId: props.questionId,
+        text: props.text,
+        colorIndex: 0,
+        startOffset: props.startOffset,
+        endOffset: props.endOffset,
+        x: touch.clientX,
+        y: touch.clientY
+      })
+    }
+  }, LONG_PRESS_DURATION)
+}
+
+function handleTouchEnd() {
+  if (longPressTimer.value) {
+    clearTimeout(longPressTimer.value)
+    longPressTimer.value = null
+  }
+}
+
+function handleTouchMove() {
+  touchMoved.value = true
+  if (longPressTimer.value) {
+    clearTimeout(longPressTimer.value)
+    longPressTimer.value = null
+  }
 }
 
 // Compute the href for the question link
