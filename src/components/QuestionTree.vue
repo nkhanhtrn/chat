@@ -241,7 +241,8 @@ defineExpose({
   border-radius: 4px;
 }
 
-:deep(.root-header:hover) {
+:deep(.root-header:hover),
+:deep(.root-header:active) {
   background-color: var(--color-bg-hover);
 }
 

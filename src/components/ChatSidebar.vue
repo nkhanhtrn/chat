@@ -28,9 +28,10 @@
         >
           <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
         </button>
+        <!-- Desktop only: full Notebooks button in header -->
         <Button
           variant="type-4"
-          class="back-home-button"
+          class="back-home-button desktop-only"
           :class="{ 'drop-target': isNotebooksDropTarget }"
           title="Back to Notebooks"
           @click="$emit('back-home')"
@@ -42,38 +43,36 @@
           <span v-if="!isSidebarCollapsed" class="button-text">Notebooks</span>
         </Button>
       </div>
-      <!-- Notebook title -->
-      <div v-if="!isSidebarCollapsed && currentNotebook" class="notebook-title-container">
-        <InlineEdit
-          ref="notebookTitleEdit"
-          :model-value="currentNotebook.title"
-          text-class="notebook-title notebook-title-link"
-          input-class="notebook-title-input"
-          :title="'Click to view all questions, double-click to edit'"
-          @save="handleNotebookRename"
-          @click="navigateToNotebookOverview"
-        >
-          <svg class="notebook-icon" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-            <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
-          </svg>
-          {{ currentNotebook.title }}
-        </InlineEdit>
-      </div>
       <!-- Search input -->
       <div v-if="!isSidebarCollapsed" class="search-container">
-        <input
-          v-model="searchQuery"
-          type="text"
-          class="search-input"
-          placeholder="Search questions..."
-          @keydown.escape="searchQuery = ''"
-        />
-        <button
-          v-if="searchQuery"
-          class="search-clear-btn"
-          @click="searchQuery = ''"
-          title="Clear search"
-        >×</button>
+        <Button
+          variant="type-4"
+          class="search-home-button"
+          :class="{ 'drop-target': isNotebooksDropTarget }"
+          title="Back to Notebooks"
+          @click="$emit('back-home')"
+          @dragover.prevent="handleDragOverNotebooks"
+          @dragleave="handleDragLeaveNotebooks"
+          @drop="handleDropOnNotebooks"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+          <span class="button-text">Notebooks</span>
+        </Button>
+        <div class="search-input-wrapper">
+          <input
+            v-model="searchQuery"
+            type="text"
+            class="search-input"
+            placeholder="Search questions..."
+            @keydown.escape="searchQuery = ''"
+          />
+          <button
+            v-if="searchQuery"
+            class="search-clear-btn"
+            @click="searchQuery = ''"
+            title="Clear search"
+          >×</button>
+        </div>
       </div>
     </div>
 
@@ -150,18 +149,26 @@
           </template>
 
           <!-- Expanded view: full tree -->
-          <QuestionTree
-            v-else
-            ref="questionTreeRef"
-            :root-messages="rootMessages"
-            :current-message-id="currentMessageId"
-            :expand-all="fullPage"
-            @select="handleTreeSelect"
-            @delete-root="handleDeleteRoot"
-            @delete-child="handleDeleteChild"
-            @rename="handleRename"
-            @drop="handleDrop"
-          />
+          <template v-else>
+            <!-- Overview header -->
+            <div v-if="currentNotebook" class="overview-header-item" @click="navigateToNotebookOverview">
+              <svg class="overview-icon" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
+              </svg>
+              <span class="overview-text">{{ currentNotebook.title }}</span>
+            </div>
+            <QuestionTree
+              ref="questionTreeRef"
+              :root-messages="rootMessages"
+              :current-message-id="currentMessageId"
+              :expand-all="fullPage"
+              @select="handleTreeSelect"
+              @delete-root="handleDeleteRoot"
+              @delete-child="handleDeleteChild"
+              @rename="handleRename"
+              @drop="handleDrop"
+            />
+          </template>
         </div>
 
         <!-- New Question button when there are existing messages -->
@@ -220,7 +227,6 @@ import Button from './Button.vue'
 import SettingsModal from './Modal/SettingsModal.vue'
 import MoveToNotebookModal from './Modal/MoveToNotebookModal.vue'
 import QuestionTree from './QuestionTree.vue'
-import InlineEdit from './InlineEdit.vue'
 import { useChatStore } from '../stores/chat.js'
 import { useSidebarCollapse } from '../composables/useSidebarCollapse.js'
 import { useTreeExpansion } from '../composables/useTreeExpansion.js'
@@ -402,13 +408,6 @@ const handleRename = (item, newText) => {
   emit('rename-question', item.id, newText)
 }
 
-// Handle renaming the notebook
-const handleNotebookRename = (newTitle) => {
-  if (props.currentChatId) {
-    chatStore.renameChat(props.currentChatId, newTitle)
-  }
-}
-
 // Navigate to notebook overview (no question selected)
 const navigateToNotebookOverview = () => {
   router.push({ name: 'notebook', params: { id: props.currentChatId } })
@@ -578,7 +577,8 @@ const handleCancelMove = () => {
   cursor: not-allowed;
 }
 
-.back-home-button.drop-target {
+.back-home-button.drop-target,
+.search-home-button.drop-target {
   background-color: var(--color-primary, #6366f1);
   color: white;
   box-shadow: 0 0 0 2px var(--color-primary, #6366f1);
@@ -588,48 +588,38 @@ const handleCancelMove = () => {
   padding: 0.5rem;
 }
 
-/* Notebook title */
-.notebook-title-container {
-  margin: 1rem 0;
-  padding: 0 1rem 0 0;
+/* Overview header item */
+.overview-header-item {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.25rem;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.15s;
 }
 
-.notebook-icon {
+.overview-header-item:hover {
+  background-color: var(--color-bg-hover);
+}
+
+.overview-icon {
   flex-shrink: 0;
   color: var(--color-text-muted);
-  position: relative;
-  top: 2px;
 }
 
-.notebook-title {
-  font-size: 1rem;
+.overview-text {
+  font-size: 0.9rem;
   font-weight: 600;
   color: var(--color-text-strong);
-  display: inline-block;
-  line-height: 1.4;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 100%;
 }
 
-.notebook-title:hover {
+.overview-header-item:hover .overview-text {
   color: var(--color-primary);
-}
-
-.notebook-title-link {
-  cursor: pointer;
-}
-
-:deep(.notebook-title-input) {
-  width: 100%;
-  padding: 0.25rem 0.5rem;
-  font-size: 1rem;
-  font-weight: 600;
 }
 
 .chat-list {
@@ -870,6 +860,7 @@ const handleCancelMove = () => {
     left: 0;
     top: 0;
     z-index: 1000;
+    width: min(85vw, 320px);
     box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
   }
 
@@ -880,12 +871,93 @@ const handleCancelMove = () => {
   .mobile-expand-button {
     display: flex;
   }
+
+  /* Larger touch targets for mobile */
+  .sidebar-header {
+    padding: 0.75rem;
+  }
+
+  .header-buttons {
+    gap: 0.5rem;
+  }
+
+  .back-button {
+    width: 36px;
+    height: 36px;
+  }
+
+  .overview-header-item {
+    padding: 0.6rem 0.5rem;
+    min-height: 44px;
+  }
+
+  /* Tree items - larger touch targets */
+  :deep(.tree-item) {
+    padding: 0.6rem 0.5rem;
+    min-height: 44px;
+  }
+
+  :deep(.root-header) {
+    padding: 0.6rem 0.5rem;
+    min-height: 44px;
+  }
+
+  /* Always show action buttons on mobile (no hover state) */
+  :deep(.collapse-button),
+  :deep(.edit-button),
+  :deep(.delete-button) {
+    opacity: 0.5;
+  }
+
+  :deep(.drag-handle) {
+    opacity: 0.4;
+  }
+
+  .new-question-button {
+    padding: 0.75rem;
+    min-height: 44px;
+  }
 }
 
 /* Search styles */
 .search-container {
   position: relative;
   margin-top: 0.75rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+/* Home button in search row - hidden on desktop, icon-only on mobile */
+.search-home-button {
+  display: none;
+  flex-shrink: 0;
+}
+
+.search-home-button .button-text {
+  display: none;
+}
+
+/* Desktop: hide the search row home button, show the header one */
+.desktop-only {
+  display: flex;
+}
+
+@media (max-width: 768px) {
+  /* Mobile: show search row home button (icon only), hide header one */
+  .search-home-button {
+    display: flex;
+  }
+
+  .desktop-only {
+    display: none;
+  }
+}
+
+.search-input-wrapper {
+  position: relative;
+  flex: 1;
+  min-width: 0;
 }
 
 .search-input {

@@ -222,4 +222,53 @@ const handleDrop = (dropData) => {
 :deep(.tree-children) {
   border-left: none;
 }
+
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+  .notebook-overview {
+    padding: 0.75rem 0.5rem;
+  }
+
+  .overview-header {
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .overview-title {
+    font-size: 1.35rem;
+  }
+
+  :deep(.overview-title-input) {
+    font-size: 1.35rem;
+  }
+
+  .overview-subtitle {
+    font-size: 0.875rem;
+  }
+
+  .empty-state {
+    padding: 2.5rem 1rem;
+  }
+
+  /* Larger touch targets for tree items on mobile */
+  :deep(.tree-item) {
+    padding: 0.6rem 0.5rem;
+    min-height: 44px;
+  }
+
+  :deep(.root-header) {
+    padding: 0.6rem 0.5rem;
+    min-height: 44px;
+  }
+
+  .title-row {
+    position: relative;
+    justify-content: center;
+  }
+
+  .title-edit-button {
+    position: absolute;
+    right: 0;
+  }
+}
 </style>

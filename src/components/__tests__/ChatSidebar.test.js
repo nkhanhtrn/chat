@@ -1169,55 +1169,8 @@ describe('ChatSidebar', () => {
     })
   })
 
-  describe('Notebook Rename', () => {
-    it('should rename notebook via InlineEdit when currentChatId is set', async () => {
-      setupMessagesInStore([
-        { id: 'q1', question: 'Question 1', response: '' }
-      ])
-
-      const chats = [{
-        id: 'chat1',
-        title: 'Original Title',
-        questions: [{ id: 'q1', text: 'Question 1' }]
-      }]
-
-      chatStore.chats = [{
-        id: 'chat1',
-        title: 'Original Title',
-        rootMessageIds: ['q1']
-      }]
-      chatStore.renameChat = vi.fn()
-
-      wrapper = mount(ChatSidebar, {
-        props: { chats, currentChatId: 'chat1' }
-      })
-
-      // Find the notebook title InlineEdit and trigger save
-      const notebookTitleContainer = wrapper.find('.notebook-title-container')
-      expect(notebookTitleContainer.exists()).toBe(true)
-
-      const inlineEdit = notebookTitleContainer.findComponent({ name: 'InlineEdit' })
-      expect(inlineEdit.exists()).toBe(true)
-
-      // Trigger save event
-      await inlineEdit.vm.$emit('save', 'New Notebook Title')
-
-      expect(chatStore.renameChat).toHaveBeenCalledWith('chat1', 'New Notebook Title')
-    })
-
-    it('should not rename notebook when currentChatId is null', async () => {
-      wrapper = mount(ChatSidebar, {
-        props: { chats: [], currentChatId: null }
-      })
-
-      chatStore.renameChat = vi.fn()
-
-      // Notebook title container should not exist when no current chat
-      const notebookTitleContainer = wrapper.find('.notebook-title-container')
-      expect(notebookTitleContainer.exists()).toBe(false)
-    })
-
-    it('should display current notebook title in InlineEdit', () => {
+  describe('Overview Header', () => {
+    it('should display overview header item with notebook title', () => {
       setupMessagesInStore([
         { id: 'q1', question: 'Question 1', response: '' }
       ])
@@ -1232,8 +1185,42 @@ describe('ChatSidebar', () => {
         props: { chats, currentChatId: 'chat1' }
       })
 
-      const inlineEdit = wrapper.find('.notebook-title-container').findComponent({ name: 'InlineEdit' })
-      expect(inlineEdit.props('modelValue')).toBe('My Notebook')
+      const overviewHeader = wrapper.find('.overview-header-item')
+      expect(overviewHeader.exists()).toBe(true)
+      expect(overviewHeader.find('.overview-text').text()).toBe('My Notebook')
+    })
+
+    it('should not display overview header item when no current chat', () => {
+      wrapper = mount(ChatSidebar, {
+        props: { chats: [], currentChatId: null }
+      })
+
+      const overviewHeader = wrapper.find('.overview-header-item')
+      expect(overviewHeader.exists()).toBe(false)
+    })
+
+    it('should navigate to overview when clicking header item', async () => {
+      setupMessagesInStore([
+        { id: 'q1', question: 'Question 1', response: '' }
+      ])
+
+      const chats = [{
+        id: 'chat1',
+        title: 'My Notebook',
+        questions: [{ id: 'q1', text: 'Question 1' }]
+      }]
+
+      wrapper = mount(ChatSidebar, {
+        props: { chats, currentChatId: 'chat1' }
+      })
+
+      const overviewHeader = wrapper.find('.overview-header-item')
+      await overviewHeader.trigger('click')
+
+      expect(mockRouterPush).toHaveBeenCalledWith({
+        name: 'notebook',
+        params: { id: 'chat1' }
+      })
     })
   })
 

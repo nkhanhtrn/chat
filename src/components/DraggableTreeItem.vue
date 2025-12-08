@@ -277,6 +277,7 @@ defineExpose({ startEditing })
   gap: 0.25rem;
 }
 .tree-item:hover,
+.tree-item:active,
 .tree-item.active,
 .tree-item.is-editing { background-color: var(--color-bg-hover); }
 .tree-item.active .tree-item-text { color: var(--color-text-secondary); font-weight: 500; }
