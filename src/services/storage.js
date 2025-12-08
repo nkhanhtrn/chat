@@ -1,8 +1,13 @@
 
 // Storage service for persisting chat data (localStorage + Firestore sync)
-import { syncChatStateToFirestore, loadChatStateFromFirestore, deleteChatStateFromFirestore } from './firestore.js'
+import { syncChatStateToFirestore, loadChatStateFromFirestore, deleteChatStateFromFirestore, syncChatStateWithSubcollections, migrateToSubcollections } from './firestore.js'
 
 const STORAGE_KEY_CHAT_STATE = 'chat-state'
+
+// Track changed and deleted messages for incremental sync
+let changedMessageIds = new Set()
+let deletedMessageIds = new Set()
+let previousMessagesById = {}
 
 // Configuration flag - set to false to disable Firestore sync
 let ENABLE_FIRESTORE_SYNC = true
@@ -44,6 +49,9 @@ export const _resetThrottleState = () => {
   pendingFirestoreSync = null
   pendingState = null
   lastSyncedStateHash = null
+  changedMessageIds = new Set()
+  deletedMessageIds = new Set()
+  previousMessagesById = {}
 }
 
 /**
@@ -73,11 +81,50 @@ const serializeState = (state) => {
 }
 
 /**
+ * Detect which messages have changed between previous and current state
+ * @param {Object} currentMessagesById - Current messages
+ */
+const detectChangedMessages = (currentMessagesById) => {
+  const currentIds = new Set(Object.keys(currentMessagesById || {}))
+  const previousIds = new Set(Object.keys(previousMessagesById))
+
+  // Find new and modified messages
+  for (const id of currentIds) {
+    if (!previousIds.has(id)) {
+      // New message
+      changedMessageIds.add(id)
+    } else {
+      // Check if message content changed
+      const current = JSON.stringify(currentMessagesById[id])
+      const previous = JSON.stringify(previousMessagesById[id])
+      if (current !== previous) {
+        changedMessageIds.add(id)
+      }
+    }
+  }
+
+  // Find deleted messages
+  for (const id of previousIds) {
+    if (!currentIds.has(id)) {
+      deletedMessageIds.add(id)
+      // Remove from changed set if it was there
+      changedMessageIds.delete(id)
+    }
+  }
+
+  // Update previous state for next comparison
+  previousMessagesById = JSON.parse(JSON.stringify(currentMessagesById || {}))
+}
+
+/**
  * Throttled Firestore sync - ensures writes happen at most once per FIRESTORE_SYNC_THROTTLE_MS
  * @param {Object} serializedState - The serialized state to sync
  */
 const throttledFirestoreSync = (serializedState) => {
-  // Skip sync if data hasn't changed
+  // Detect which messages changed
+  detectChangedMessages(serializedState.messagesById)
+
+  // Skip sync if no data has changed
   const stateHash = hashState(serializedState)
   if (stateHash === lastSyncedStateHash) {
     return
@@ -111,16 +158,26 @@ const performFirestoreSync = async () => {
   if (!pendingState) return
 
   const stateToSync = pendingState
+  const messagesToSync = new Set(changedMessageIds)
+  const messagesToDelete = new Set(deletedMessageIds)
+
+  // Clear pending state and change tracking
   pendingState = null
   pendingFirestoreSync = null
+  changedMessageIds = new Set()
+  deletedMessageIds = new Set()
   lastFirestoreSyncTime = Date.now()
 
   try {
-    await syncChatStateToFirestore(stateToSync)
+    // Use incremental sync with subcollections
+    await syncChatStateWithSubcollections(stateToSync, messagesToSync, messagesToDelete)
     // Update hash after successful sync
     lastSyncedStateHash = hashState(stateToSync)
   } catch (firestoreError) {
     console.warn('Firestore sync failed:', firestoreError)
+    // On failure, add the messages back to be retried
+    messagesToSync.forEach(id => changedMessageIds.add(id))
+    messagesToDelete.forEach(id => deletedMessageIds.add(id))
   }
 }
 
@@ -242,6 +299,9 @@ export const loadChatState = async () => {
     // Try to load from Firestore if sync is enabled
     if (ENABLE_FIRESTORE_SYNC) {
       try {
+        // Attempt migration from legacy format to subcollections
+        await migrateToSubcollections()
+
         cloudState = await loadChatStateFromFirestore()
         if (cloudState) {
           console.log('Loaded cloud state from Firestore')
@@ -257,6 +317,7 @@ export const loadChatState = async () => {
       if (cloudIsSupersetOfLocal(localState, cloudState)) {
         console.log('Cloud has all local data plus more - auto-syncing from cloud')
         localStorage.setItem(STORAGE_KEY_CHAT_STATE, JSON.stringify(cloudState))
+        initializePreviousState(cloudState)
         return { hasConflict: false, state: cloudState }
       }
 
@@ -273,10 +334,12 @@ export const loadChatState = async () => {
     if (cloudState) {
       // Sync cloud to localStorage
       localStorage.setItem(STORAGE_KEY_CHAT_STATE, JSON.stringify(cloudState))
+      initializePreviousState(cloudState)
       return { hasConflict: false, state: cloudState }
     }
 
     if (localState) {
+      initializePreviousState(localState)
       return { hasConflict: false, state: localState }
     }
 
@@ -285,6 +348,19 @@ export const loadChatState = async () => {
     console.error('Failed to load chat state:', error)
     return { hasConflict: false, state: null }
   }
+}
+
+/**
+ * Initialize previous state for change detection
+ * Call this after loading state to avoid treating all messages as "changed"
+ * @param {Object} state - The loaded state
+ */
+const initializePreviousState = (state) => {
+  if (state?.messagesById) {
+    previousMessagesById = JSON.parse(JSON.stringify(state.messagesById))
+  }
+  changedMessageIds = new Set()
+  deletedMessageIds = new Set()
 }
 
 /**
@@ -300,9 +376,13 @@ export const resolveConflict = async (choice, localData, cloudData) => {
   // Save chosen state to both localStorage and Firestore
   localStorage.setItem(STORAGE_KEY_CHAT_STATE, JSON.stringify(chosenState))
 
+  // Initialize previous state for change tracking
+  initializePreviousState(chosenState)
+
   if (ENABLE_FIRESTORE_SYNC) {
     try {
-      await syncChatStateToFirestore(chosenState)
+      // Sync all messages when resolving conflict (full sync)
+      await syncChatStateWithSubcollections(chosenState, null, null)
       console.log(`Conflict resolved: using ${choice} data, synced to both storage`)
     } catch (error) {
       console.warn('Failed to sync resolved state to Firestore:', error)
@@ -331,8 +411,10 @@ export const forceUploadToCloud = async () => {
       return false
     }
 
-    await syncChatStateToFirestore(localState)
+    // Full sync - upload all messages
+    await syncChatStateWithSubcollections(localState, null, null)
     lastSyncedStateHash = hashState(localState)
+    initializePreviousState(localState)
     console.log('Force uploaded local data to cloud')
     return true
   } catch (error) {

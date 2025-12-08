@@ -16,8 +16,12 @@ vi.mock('firebase/firestore', () => ({
   doc: vi.fn(),
   setDoc: vi.fn(),
   getDoc: vi.fn(),
+  getDocs: vi.fn(),
+  deleteDoc: vi.fn(),
   onSnapshot: vi.fn(),
-  serverTimestamp: vi.fn(() => ({ _serverTimestamp: true }))
+  serverTimestamp: vi.fn(() => ({ _serverTimestamp: true })),
+  collection: vi.fn(),
+  writeBatch: vi.fn()
 }))
 
 // Mock firebase/auth
@@ -35,10 +39,13 @@ import {
   flushSettings,
   invalidateSettingsCache,
   subscribeToUserSettings,
-  unsubscribeAll
+  unsubscribeAll,
+  syncChatStateWithSubcollections,
+  loadChatStateWithSubcollections,
+  migrateToSubcollections
 } from '../firestore.js'
 import * as firebase from '../firebase.js'
-import { doc, setDoc, getDoc, onSnapshot, serverTimestamp } from 'firebase/firestore'
+import { doc, setDoc, getDoc, getDocs, onSnapshot, serverTimestamp, collection, writeBatch } from 'firebase/firestore'
 import { onAuthStateChanged } from 'firebase/auth'
 
 describe('firestore.js', () => {
@@ -728,6 +735,416 @@ describe('firestore.js', () => {
       unsubscribeAll()
 
       expect(mockUnsubscribe).toHaveBeenCalled()
+    })
+  })
+
+  // ============================================
+  // NEW TESTS: Subcollection-based sync
+  // ============================================
+
+  describe('syncChatStateWithSubcollections', () => {
+    const mockMetadataRef = { path: 'users/user123/chatData/metadata' }
+    const mockMessageRef = { path: 'users/user123/chatData/messages/msg1' }
+    const mockBatch = {
+      set: vi.fn(),
+      delete: vi.fn(),
+      commit: vi.fn()
+    }
+
+    beforeEach(() => {
+      vi.mocked(writeBatch).mockReturnValue(mockBatch)
+      mockBatch.set.mockClear()
+      mockBatch.delete.mockClear()
+      mockBatch.commit.mockReset()
+      mockBatch.commit.mockResolvedValue(undefined)
+      vi.mocked(doc).mockImplementation((db, ...pathSegments) => {
+        // Path: users/{uid}/chatData/metadata/messages/{messageId}
+        // pathSegments = ['users', uid, 'chatData', 'metadata', 'messages', messageId]
+        if (pathSegments.includes('messages')) {
+          // Message document under metadata subcollection
+          return { path: `users/user123/chatData/metadata/messages/${pathSegments[pathSegments.length - 1]}` }
+        }
+        if (pathSegments.includes('metadata')) {
+          // Metadata document itself
+          return mockMetadataRef
+        }
+        return mockDocRef
+      })
+    })
+
+    it('syncs metadata and messages to Firestore', async () => {
+      mockAuth.currentUser = mockUser
+      const state = {
+        messagesById: { msg1: { id: 'msg1', question: 'Test' } },
+        chats: [{ id: 'chat1' }],
+        currentModel: 'gpt-4'
+      }
+
+      await syncChatStateWithSubcollections(state)
+
+      expect(writeBatch).toHaveBeenCalledWith(mockDb)
+      expect(mockBatch.set).toHaveBeenCalledWith(
+        mockMetadataRef,
+        expect.objectContaining({
+          chats: [{ id: 'chat1' }],
+          currentModel: 'gpt-4',
+          schemaVersion: 2
+        })
+      )
+      expect(mockBatch.set).toHaveBeenCalledWith(
+        expect.objectContaining({ path: 'users/user123/chatData/metadata/messages/msg1' }),
+        { id: 'msg1', question: 'Test' }
+      )
+      expect(mockBatch.commit).toHaveBeenCalled()
+    })
+
+    it('only syncs changed messages when changedMessageIds is provided', async () => {
+      mockAuth.currentUser = mockUser
+      const state = {
+        messagesById: {
+          msg1: { id: 'msg1', question: 'Test1' },
+          msg2: { id: 'msg2', question: 'Test2' },
+          msg3: { id: 'msg3', question: 'Test3' }
+        },
+        chats: []
+      }
+      const changedIds = new Set(['msg2'])
+
+      await syncChatStateWithSubcollections(state, changedIds)
+
+      // Should only set msg2, not msg1 or msg3
+      const messageSets = mockBatch.set.mock.calls.filter(
+        call => call[0].path?.includes('messages')
+      )
+      expect(messageSets).toHaveLength(1)
+      expect(messageSets[0][1]).toEqual({ id: 'msg2', question: 'Test2' })
+    })
+
+    it('deletes messages when deletedMessageIds is provided', async () => {
+      mockAuth.currentUser = mockUser
+      const state = {
+        messagesById: { msg1: { id: 'msg1' } },
+        chats: []
+      }
+      const deletedIds = new Set(['msg2', 'msg3'])
+
+      await syncChatStateWithSubcollections(state, null, deletedIds)
+
+      expect(mockBatch.delete).toHaveBeenCalledTimes(2)
+    })
+
+    it('skips sync when no user is authenticated', async () => {
+      mockAuth.currentUser = null
+      const state = { messagesById: {}, chats: [] }
+
+      await syncChatStateWithSubcollections(state)
+
+      expect(writeBatch).not.toHaveBeenCalled()
+    })
+
+    it('throws error when batch commit fails', async () => {
+      mockAuth.currentUser = mockUser
+      mockBatch.commit.mockRejectedValue(new Error('Batch failed'))
+
+      await expect(syncChatStateWithSubcollections({ messagesById: {}, chats: [] }))
+        .rejects.toThrow('Batch failed')
+    })
+
+    it('excludes messagesById from metadata document', async () => {
+      mockAuth.currentUser = mockUser
+      const state = {
+        messagesById: { msg1: { id: 'msg1' } },
+        chats: [{ id: 'chat1' }]
+      }
+
+      await syncChatStateWithSubcollections(state)
+
+      const metadataCall = mockBatch.set.mock.calls.find(
+        call => call[0] === mockMetadataRef
+      )
+      expect(metadataCall[1]).not.toHaveProperty('messagesById')
+      expect(metadataCall[1]).toHaveProperty('chats')
+    })
+  })
+
+  describe('loadChatStateWithSubcollections', () => {
+    const mockMetadataRef = { path: 'users/user123/chatData/metadata' }
+    const mockMessagesRef = { path: 'users/user123/chatData/messages' }
+
+    beforeEach(() => {
+      vi.mocked(doc).mockImplementation((db, ...pathSegments) => {
+        if (pathSegments.includes('metadata')) {
+          return mockMetadataRef
+        }
+        if (pathSegments.includes('state')) {
+          return mockDocRef
+        }
+        return mockDocRef
+      })
+      vi.mocked(collection).mockReturnValue(mockMessagesRef)
+    })
+
+    it('loads from subcollections when schemaVersion is 2', async () => {
+      vi.mocked(onAuthStateChanged).mockImplementation((auth, callback) => {
+        callback(mockUser)
+        return vi.fn()
+      })
+
+      vi.mocked(getDoc).mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          chats: [{ id: 'chat1' }],
+          currentModel: 'gpt-4',
+          schemaVersion: 2,
+          lastUpdated: { seconds: 123 }
+        })
+      })
+
+      const mockMessages = [
+        { id: 'msg1', data: () => ({ id: 'msg1', question: 'Test1' }) },
+        { id: 'msg2', data: () => ({ id: 'msg2', question: 'Test2' }) }
+      ]
+      vi.mocked(getDocs).mockResolvedValue({
+        forEach: (cb) => mockMessages.forEach(cb)
+      })
+
+      const result = await loadChatStateWithSubcollections()
+
+      expect(result).toEqual({
+        chats: [{ id: 'chat1' }],
+        currentModel: 'gpt-4',
+        messagesById: {
+          msg1: { id: 'msg1', question: 'Test1' },
+          msg2: { id: 'msg2', question: 'Test2' }
+        }
+      })
+      expect(result).not.toHaveProperty('schemaVersion')
+      expect(result).not.toHaveProperty('lastUpdated')
+    })
+
+    it('falls back to legacy format when schemaVersion is not 2', async () => {
+      vi.mocked(onAuthStateChanged).mockImplementation((auth, callback) => {
+        callback(mockUser)
+        return vi.fn()
+      })
+
+      // Metadata doesn't exist or doesn't have schemaVersion 2
+      vi.mocked(getDoc).mockImplementation((ref) => {
+        if (ref === mockMetadataRef) {
+          return Promise.resolve({ exists: () => false })
+        }
+        // Legacy state document
+        return Promise.resolve({
+          exists: () => true,
+          data: () => ({
+            messagesById: { msg1: { id: 'msg1' } },
+            chats: [{ id: 'chat1' }],
+            lastUpdated: { seconds: 123 }
+          })
+        })
+      })
+
+      const result = await loadChatStateWithSubcollections()
+
+      expect(result).toEqual({
+        messagesById: { msg1: { id: 'msg1' } },
+        chats: [{ id: 'chat1' }]
+      })
+      expect(getDocs).not.toHaveBeenCalled()
+    })
+
+    it('returns null when no data exists', async () => {
+      vi.mocked(onAuthStateChanged).mockImplementation((auth, callback) => {
+        callback(mockUser)
+        return vi.fn()
+      })
+
+      vi.mocked(getDoc).mockResolvedValue({ exists: () => false })
+
+      const result = await loadChatStateWithSubcollections()
+
+      expect(result).toBeNull()
+    })
+
+    it('returns null when not authenticated', async () => {
+      vi.mocked(onAuthStateChanged).mockImplementation((auth, callback) => {
+        callback(null)
+        return vi.fn()
+      })
+
+      const result = await loadChatStateWithSubcollections()
+
+      expect(result).toBeNull()
+    })
+  })
+
+  describe('migrateToSubcollections', () => {
+    const mockMetadataRef = { path: 'users/user123/chatData/metadata' }
+    const mockLegacyRef = { path: 'users/user123/chatData/state' }
+    const mockBatch = {
+      set: vi.fn(),
+      delete: vi.fn(),
+      commit: vi.fn().mockResolvedValue(undefined)
+    }
+
+    beforeEach(() => {
+      vi.mocked(writeBatch).mockReturnValue(mockBatch)
+      mockBatch.set.mockClear()
+      mockBatch.delete.mockClear()
+      mockBatch.commit.mockClear()
+      vi.mocked(doc).mockImplementation((db, ...pathSegments) => {
+        // Path: users/{uid}/chatData/metadata/messages/{messageId}
+        if (pathSegments.includes('messages')) {
+          return { path: `users/user123/chatData/metadata/messages/${pathSegments[pathSegments.length - 1]}` }
+        }
+        if (pathSegments.includes('metadata')) {
+          return mockMetadataRef
+        }
+        if (pathSegments.includes('state')) {
+          return mockLegacyRef
+        }
+        return mockDocRef
+      })
+    })
+
+    it('migrates legacy data to subcollections', async () => {
+      vi.mocked(onAuthStateChanged).mockImplementation((auth, callback) => {
+        callback(mockUser)
+        return vi.fn()
+      })
+
+      // Metadata doesn't exist yet
+      vi.mocked(getDoc).mockImplementation((ref) => {
+        if (ref === mockMetadataRef) {
+          return Promise.resolve({ exists: () => false })
+        }
+        // Legacy data exists
+        return Promise.resolve({
+          exists: () => true,
+          data: () => ({
+            messagesById: {
+              msg1: { id: 'msg1', question: 'Test1' },
+              msg2: { id: 'msg2', question: 'Test2' }
+            },
+            chats: [{ id: 'chat1' }],
+            currentModel: 'gpt-4',
+            lastUpdated: { seconds: 123 }
+          })
+        })
+      })
+
+      const result = await migrateToSubcollections()
+
+      expect(result).toBe(true)
+      expect(mockBatch.set).toHaveBeenCalledWith(
+        mockMetadataRef,
+        expect.objectContaining({
+          chats: [{ id: 'chat1' }],
+          currentModel: 'gpt-4',
+          schemaVersion: 2
+        })
+      )
+      // Should set both messages
+      expect(mockBatch.set).toHaveBeenCalledTimes(3) // metadata + 2 messages
+      expect(mockBatch.commit).toHaveBeenCalled()
+    })
+
+    it('returns false when already migrated', async () => {
+      vi.mocked(onAuthStateChanged).mockImplementation((auth, callback) => {
+        callback(mockUser)
+        return vi.fn()
+      })
+
+      vi.mocked(getDoc).mockResolvedValue({
+        exists: () => true,
+        data: () => ({ schemaVersion: 2 })
+      })
+
+      const result = await migrateToSubcollections()
+
+      expect(result).toBe(false)
+      expect(writeBatch).not.toHaveBeenCalled()
+    })
+
+    it('returns false when no legacy data exists', async () => {
+      vi.mocked(onAuthStateChanged).mockImplementation((auth, callback) => {
+        callback(mockUser)
+        return vi.fn()
+      })
+
+      vi.mocked(getDoc).mockResolvedValue({ exists: () => false })
+
+      const result = await migrateToSubcollections()
+
+      expect(result).toBe(false)
+    })
+
+    it('returns false when not authenticated', async () => {
+      vi.mocked(onAuthStateChanged).mockImplementation((auth, callback) => {
+        callback(null)
+        return vi.fn()
+      })
+
+      const result = await migrateToSubcollections()
+
+      expect(result).toBe(false)
+    })
+
+    it('returns false when no messages to migrate', async () => {
+      vi.mocked(onAuthStateChanged).mockImplementation((auth, callback) => {
+        callback(mockUser)
+        return vi.fn()
+      })
+
+      vi.mocked(getDoc).mockImplementation((ref) => {
+        if (ref === mockMetadataRef) {
+          return Promise.resolve({ exists: () => false })
+        }
+        return Promise.resolve({
+          exists: () => true,
+          data: () => ({
+            messagesById: {},
+            chats: []
+          })
+        })
+      })
+
+      const result = await migrateToSubcollections()
+
+      expect(result).toBe(false)
+    })
+
+    it('handles large migrations in batches', async () => {
+      vi.mocked(onAuthStateChanged).mockImplementation((auth, callback) => {
+        callback(mockUser)
+        return vi.fn()
+      })
+
+      // Create 500 messages to trigger batching
+      const messagesById = {}
+      for (let i = 0; i < 500; i++) {
+        messagesById[`msg${i}`] = { id: `msg${i}`, question: `Test${i}` }
+      }
+
+      vi.mocked(getDoc).mockImplementation((ref) => {
+        if (ref === mockMetadataRef) {
+          return Promise.resolve({ exists: () => false })
+        }
+        return Promise.resolve({
+          exists: () => true,
+          data: () => ({
+            messagesById,
+            chats: [{ id: 'chat1' }]
+          })
+        })
+      })
+
+      const result = await migrateToSubcollections()
+
+      expect(result).toBe(true)
+      // Should have created 2 batches (450 per batch + metadata in first)
+      expect(writeBatch).toHaveBeenCalledTimes(2)
+      expect(mockBatch.commit).toHaveBeenCalledTimes(2)
     })
   })
 })

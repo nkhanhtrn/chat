@@ -21,7 +21,9 @@ vi.mock('../firestore.js', () => ({
   saveUserSettings: vi.fn(() => Promise.resolve()),
   subscribeToChatState: vi.fn(() => () => {}),
   subscribeToUserSettings: vi.fn(() => () => {}),
-  migrateSettingsToFirestore: vi.fn(() => Promise.resolve())
+  migrateSettingsToFirestore: vi.fn(() => Promise.resolve()),
+  syncChatStateWithSubcollections: vi.fn(),
+  migrateToSubcollections: vi.fn(() => Promise.resolve(false))
 }))
 
 describe('storage.js', () => {
@@ -73,7 +75,7 @@ describe('storage.js', () => {
     }
 
     it('saves state to localStorage with timestamp', async () => {
-      vi.mocked(firestore.syncChatStateToFirestore).mockResolvedValue(undefined)
+      vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
 
       await saveChatState(mockState)
 
@@ -86,11 +88,11 @@ describe('storage.js', () => {
     })
 
     it('syncs to Firestore when not streaming', async () => {
-      vi.mocked(firestore.syncChatStateToFirestore).mockResolvedValue(undefined)
+      vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
 
       await saveChatState(mockState)
 
-      expect(firestore.syncChatStateToFirestore).toHaveBeenCalled()
+      expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalled()
     })
 
     it('skips Firestore sync when streaming', async () => {
@@ -98,11 +100,11 @@ describe('storage.js', () => {
 
       await saveChatState(streamingState)
 
-      expect(firestore.syncChatStateToFirestore).not.toHaveBeenCalled()
+      expect(firestore.syncChatStateWithSubcollections).not.toHaveBeenCalled()
     })
 
     it('still saves to localStorage when Firestore sync fails', async () => {
-      vi.mocked(firestore.syncChatStateToFirestore).mockRejectedValue(new Error('Firestore error'))
+      vi.mocked(firestore.syncChatStateWithSubcollections).mockRejectedValue(new Error('Firestore error'))
 
       await saveChatState(mockState)
 
@@ -114,7 +116,7 @@ describe('storage.js', () => {
 
       await saveChatState(mockState)
 
-      expect(firestore.syncChatStateToFirestore).not.toHaveBeenCalled()
+      expect(firestore.syncChatStateWithSubcollections).not.toHaveBeenCalled()
     })
 
     it('serializes Message objects to plain objects', async () => {
@@ -130,7 +132,7 @@ describe('storage.js', () => {
         isStreaming: false
       }
 
-      vi.mocked(firestore.syncChatStateToFirestore).mockResolvedValue(undefined)
+      vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
 
       await saveChatState(stateWithClass)
 
@@ -451,7 +453,7 @@ describe('storage.js', () => {
     }
 
     it('resolves with local data when chosen', async () => {
-      vi.mocked(firestore.syncChatStateToFirestore).mockResolvedValue(undefined)
+      vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
 
       const result = await resolveConflict('local', mockLocalData, mockCloudData)
 
@@ -459,7 +461,7 @@ describe('storage.js', () => {
     })
 
     it('resolves with cloud data when chosen', async () => {
-      vi.mocked(firestore.syncChatStateToFirestore).mockResolvedValue(undefined)
+      vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
 
       const result = await resolveConflict('cloud', mockLocalData, mockCloudData)
 
@@ -467,7 +469,7 @@ describe('storage.js', () => {
     })
 
     it('saves chosen state to localStorage', async () => {
-      vi.mocked(firestore.syncChatStateToFirestore).mockResolvedValue(undefined)
+      vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
 
       await resolveConflict('local', mockLocalData, mockCloudData)
 
@@ -477,16 +479,16 @@ describe('storage.js', () => {
       )
     })
 
-    it('syncs chosen state to Firestore', async () => {
-      vi.mocked(firestore.syncChatStateToFirestore).mockResolvedValue(undefined)
+    it('syncs chosen state to Firestore using subcollections', async () => {
+      vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
 
       await resolveConflict('cloud', mockLocalData, mockCloudData)
 
-      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledWith(mockCloudData)
+      expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalledWith(mockCloudData, null, null)
     })
 
     it('handles Firestore sync failure gracefully', async () => {
-      vi.mocked(firestore.syncChatStateToFirestore).mockRejectedValue(new Error('Sync failed'))
+      vi.mocked(firestore.syncChatStateWithSubcollections).mockRejectedValue(new Error('Sync failed'))
 
       const result = await resolveConflict('local', mockLocalData, mockCloudData)
 
@@ -531,11 +533,11 @@ describe('storage.js', () => {
   describe('setFirestoreSyncEnabled', () => {
     it('enables Firestore sync', async () => {
       setFirestoreSyncEnabled(true)
-      vi.mocked(firestore.syncChatStateToFirestore).mockResolvedValue(undefined)
+      vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
 
       await saveChatState({ messagesById: {}, chats: [], isStreaming: false })
 
-      expect(firestore.syncChatStateToFirestore).toHaveBeenCalled()
+      expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalled()
     })
 
     it('disables Firestore sync', async () => {
@@ -543,14 +545,14 @@ describe('storage.js', () => {
 
       await saveChatState({ messagesById: {}, chats: [], isStreaming: false })
 
-      expect(firestore.syncChatStateToFirestore).not.toHaveBeenCalled()
+      expect(firestore.syncChatStateWithSubcollections).not.toHaveBeenCalled()
     })
   })
 
   describe('Firestore sync throttling', () => {
     beforeEach(() => {
       vi.useFakeTimers()
-      vi.mocked(firestore.syncChatStateToFirestore).mockResolvedValue(undefined)
+      vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
     })
 
     afterEach(() => {
@@ -562,7 +564,7 @@ describe('storage.js', () => {
 
       await saveChatState(state)
 
-      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+      expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalledTimes(1)
     })
 
     it('throttles rapid successive calls to once per second', async () => {
@@ -572,16 +574,16 @@ describe('storage.js', () => {
 
       // First call - syncs immediately
       await saveChatState(state1)
-      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+      expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalledTimes(1)
 
       // Rapid calls within 1 second - should NOT trigger additional syncs
       await saveChatState(state2)
       await saveChatState(state3)
-      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+      expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalledTimes(1)
 
       // Advance time by 1 second - pending sync should execute
       await vi.advanceTimersByTimeAsync(1000)
-      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(2)
+      expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalledTimes(2)
     })
 
     it('syncs the latest state when throttle period expires', async () => {
@@ -597,7 +599,7 @@ describe('storage.js', () => {
       await vi.advanceTimersByTimeAsync(1000)
 
       // Should have synced state3 (the latest), not state2
-      const lastCall = vi.mocked(firestore.syncChatStateToFirestore).mock.calls.slice(-1)[0][0]
+      const lastCall = vi.mocked(firestore.syncChatStateWithSubcollections).mock.calls.slice(-1)[0][0]
       expect(Object.keys(lastCall.messagesById)).toHaveLength(3)
     })
 
@@ -607,14 +609,14 @@ describe('storage.js', () => {
 
       // First call
       await saveChatState(state1)
-      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+      expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalledTimes(1)
 
       // Wait for throttle period to pass
       await vi.advanceTimersByTimeAsync(1000)
 
       // Second call after throttle period - should sync immediately
       await saveChatState(state2)
-      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(2)
+      expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalledTimes(2)
     })
 
     it('does not sync during streaming even with throttle', async () => {
@@ -623,7 +625,7 @@ describe('storage.js', () => {
       await saveChatState(streamingState)
       await vi.advanceTimersByTimeAsync(2000)
 
-      expect(firestore.syncChatStateToFirestore).not.toHaveBeenCalled()
+      expect(firestore.syncChatStateWithSubcollections).not.toHaveBeenCalled()
     })
 
     it('schedules sync for remaining time in throttle period', async () => {
@@ -632,18 +634,18 @@ describe('storage.js', () => {
 
       // First call at time 0
       await saveChatState(state1)
-      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+      expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalledTimes(1)
 
       // Second call at time 300ms
       await vi.advanceTimersByTimeAsync(300)
       await saveChatState(state2)
 
       // Should still be 1 call
-      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+      expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalledTimes(1)
 
       // Advance 700ms more (total 1000ms from first call)
       await vi.advanceTimersByTimeAsync(700)
-      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(2)
+      expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalledTimes(2)
     })
 
     it('does not schedule duplicate timers for multiple rapid calls', async () => {
@@ -664,17 +666,17 @@ describe('storage.js', () => {
       await vi.advanceTimersByTimeAsync(1000)
 
       // Should only have 2 total syncs: initial + one throttled
-      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(2)
+      expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalledTimes(2)
 
       // The second sync should have the latest state (state4)
-      const lastCall = vi.mocked(firestore.syncChatStateToFirestore).mock.calls[1][0]
+      const lastCall = vi.mocked(firestore.syncChatStateWithSubcollections).mock.calls[1][0]
       expect(lastCall.messagesById).toHaveProperty('m4')
     })
   })
 
   describe('UI state exclusions from Firestore sync', () => {
     beforeEach(() => {
-      vi.mocked(firestore.syncChatStateToFirestore).mockResolvedValue(undefined)
+      vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
     })
 
     it('excludes currentMessageId from Firestore sync', async () => {
@@ -687,7 +689,7 @@ describe('storage.js', () => {
 
       await saveChatState(state)
 
-      const syncedState = vi.mocked(firestore.syncChatStateToFirestore).mock.calls[0][0]
+      const syncedState = vi.mocked(firestore.syncChatStateWithSubcollections).mock.calls[0][0]
       expect(syncedState).not.toHaveProperty('currentMessageId')
     })
 
@@ -701,7 +703,7 @@ describe('storage.js', () => {
 
       await saveChatState(state)
 
-      const syncedState = vi.mocked(firestore.syncChatStateToFirestore).mock.calls[0][0]
+      const syncedState = vi.mocked(firestore.syncChatStateWithSubcollections).mock.calls[0][0]
       expect(syncedState).not.toHaveProperty('currentChatId')
     })
 
@@ -715,7 +717,7 @@ describe('storage.js', () => {
 
       await saveChatState(state)
 
-      const syncedState = vi.mocked(firestore.syncChatStateToFirestore).mock.calls[0][0]
+      const syncedState = vi.mocked(firestore.syncChatStateWithSubcollections).mock.calls[0][0]
       expect(syncedState).not.toHaveProperty('currentRootIndex')
     })
 
@@ -729,7 +731,7 @@ describe('storage.js', () => {
 
       await saveChatState(state)
 
-      const syncedState = vi.mocked(firestore.syncChatStateToFirestore).mock.calls[0][0]
+      const syncedState = vi.mocked(firestore.syncChatStateWithSubcollections).mock.calls[0][0]
       expect(syncedState).not.toHaveProperty('previousLocation')
     })
 
@@ -763,7 +765,7 @@ describe('storage.js', () => {
 
       await saveChatState(state)
 
-      const syncedState = vi.mocked(firestore.syncChatStateToFirestore).mock.calls[0][0]
+      const syncedState = vi.mocked(firestore.syncChatStateWithSubcollections).mock.calls[0][0]
       expect(syncedState.messagesById).toEqual({ m1: { id: 'm1', question: 'Test' } })
       expect(syncedState.chats).toEqual([{ id: 'chat1', rootMessageIds: ['m1'] }])
     })
@@ -772,7 +774,7 @@ describe('storage.js', () => {
   describe('skip sync when data unchanged', () => {
     beforeEach(() => {
       vi.useFakeTimers()
-      vi.mocked(firestore.syncChatStateToFirestore).mockResolvedValue(undefined)
+      vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
     })
 
     afterEach(() => {
@@ -794,11 +796,11 @@ describe('storage.js', () => {
       }
 
       await saveChatState(state1)
-      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+      expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalledTimes(1)
 
       await saveChatState(state2)
       // Should still be 1 because data state hasn't changed
-      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+      expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalledTimes(1)
     })
 
     it('syncs when data state changes', async () => {
@@ -816,13 +818,13 @@ describe('storage.js', () => {
       }
 
       await saveChatState(state1)
-      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+      expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalledTimes(1)
 
       // Advance past throttle period
       await vi.advanceTimersByTimeAsync(1000)
 
       await saveChatState(state2)
-      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(2)
+      expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalledTimes(2)
     })
 
     it('skips sync for navigation-only changes', async () => {
@@ -834,11 +836,11 @@ describe('storage.js', () => {
 
       // First save
       await saveChatState({ ...baseState, currentMessageId: 'm1', currentChatId: 'chat1' })
-      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+      expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalledTimes(1)
 
       // Navigate to different message (only UI state changes)
       await saveChatState({ ...baseState, currentMessageId: 'm2', currentChatId: 'chat1' })
-      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+      expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalledTimes(1)
 
       // Navigate with previousLocation set (only UI state changes)
       await saveChatState({
@@ -847,7 +849,7 @@ describe('storage.js', () => {
         currentChatId: 'chat1',
         previousLocation: { messageId: 'm2', chatId: 'chat1' }
       })
-      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledTimes(1)
+      expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalledTimes(1)
     })
   })
 
@@ -899,16 +901,16 @@ describe('storage.js', () => {
 
       it('should not sync to Firestore when read-only mode is enabled', async () => {
         setReadOnlyMode(true)
-        vi.mocked(firestore.syncChatStateToFirestore).mockResolvedValue(undefined)
+        vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
 
         await saveChatState(mockState)
 
-        expect(firestore.syncChatStateToFirestore).not.toHaveBeenCalled()
+        expect(firestore.syncChatStateWithSubcollections).not.toHaveBeenCalled()
       })
 
       it('should save normally when read-only mode is disabled', async () => {
         setReadOnlyMode(false)
-        vi.mocked(firestore.syncChatStateToFirestore).mockResolvedValue(undefined)
+        vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
 
         await saveChatState(mockState)
 
@@ -916,7 +918,7 @@ describe('storage.js', () => {
       })
 
       it('should resume saving after read-only mode is disabled', async () => {
-        vi.mocked(firestore.syncChatStateToFirestore).mockResolvedValue(undefined)
+        vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
 
         // Enable read-only mode
         setReadOnlyMode(true)
@@ -938,14 +940,15 @@ describe('storage.js', () => {
       lastUpdated: Date.now()
     }
 
-    it('uploads local data to Firestore', async () => {
+    it('uploads local data to Firestore using subcollections', async () => {
       mockLocalStorage.store['chat-state'] = JSON.stringify(mockLocalState)
-      vi.mocked(firestore.syncChatStateToFirestore).mockResolvedValue(undefined)
+      vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
 
       const result = await forceUploadToCloud()
 
       expect(result).toBe(true)
-      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledWith(mockLocalState)
+      // Should use syncChatStateWithSubcollections with null for full sync
+      expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalledWith(mockLocalState, null, null)
     })
 
     it('returns false when no local data exists', async () => {
@@ -953,7 +956,7 @@ describe('storage.js', () => {
       const result = await forceUploadToCloud()
 
       expect(result).toBe(false)
-      expect(firestore.syncChatStateToFirestore).not.toHaveBeenCalled()
+      expect(firestore.syncChatStateWithSubcollections).not.toHaveBeenCalled()
     })
 
     it('returns false when Firestore sync is disabled', async () => {
@@ -963,26 +966,205 @@ describe('storage.js', () => {
       const result = await forceUploadToCloud()
 
       expect(result).toBe(false)
-      expect(firestore.syncChatStateToFirestore).not.toHaveBeenCalled()
+      expect(firestore.syncChatStateWithSubcollections).not.toHaveBeenCalled()
     })
 
     it('throws error when Firestore sync fails', async () => {
       mockLocalStorage.store['chat-state'] = JSON.stringify(mockLocalState)
-      vi.mocked(firestore.syncChatStateToFirestore).mockRejectedValue(new Error('Upload failed'))
+      vi.mocked(firestore.syncChatStateWithSubcollections).mockRejectedValue(new Error('Upload failed'))
 
       await expect(forceUploadToCloud()).rejects.toThrow('Upload failed')
     })
 
     it('updates sync hash after successful upload', async () => {
       mockLocalStorage.store['chat-state'] = JSON.stringify(mockLocalState)
-      vi.mocked(firestore.syncChatStateToFirestore).mockResolvedValue(undefined)
+      vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
 
       const result = await forceUploadToCloud()
 
       expect(result).toBe(true)
-      // The function should have updated lastSyncedStateHash internally
-      // We verify this worked by checking forceUploadToCloud was called with correct data
-      expect(firestore.syncChatStateToFirestore).toHaveBeenCalledWith(mockLocalState)
+      expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalledWith(mockLocalState, null, null)
+    })
+  })
+
+  // ============================================
+  // NEW TESTS: Incremental sync with subcollections
+  // ============================================
+
+  describe('incremental sync with subcollections', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+      vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('uses syncChatStateWithSubcollections instead of legacy sync', async () => {
+      const state = { messagesById: { m1: { id: 'm1' } }, chats: [], isStreaming: false }
+
+      await saveChatState(state)
+
+      expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalled()
+      expect(firestore.syncChatStateToFirestore).not.toHaveBeenCalled()
+    })
+
+    it('tracks new messages for incremental sync', async () => {
+      // First save - establishes baseline
+      const state1 = { messagesById: { m1: { id: 'm1' } }, chats: [], isStreaming: false }
+      await saveChatState(state1)
+
+      // Wait for throttle period
+      await vi.advanceTimersByTimeAsync(1000)
+
+      // Second save - adds new message
+      const state2 = { messagesById: { m1: { id: 'm1' }, m2: { id: 'm2' } }, chats: [], isStreaming: false }
+      await saveChatState(state2)
+
+      // Check the second call includes only the changed message
+      const calls = vi.mocked(firestore.syncChatStateWithSubcollections).mock.calls
+      expect(calls.length).toBe(2)
+
+      // Second call should have m2 in changedMessageIds
+      const [, changedIds] = calls[1]
+      expect(changedIds).toBeInstanceOf(Set)
+      expect(changedIds.has('m2')).toBe(true)
+    })
+
+    it('tracks modified messages for incremental sync', async () => {
+      // First save
+      const state1 = { messagesById: { m1: { id: 'm1', question: 'v1' } }, chats: [], isStreaming: false }
+      await saveChatState(state1)
+
+      await vi.advanceTimersByTimeAsync(1000)
+
+      // Second save - modifies existing message
+      const state2 = { messagesById: { m1: { id: 'm1', question: 'v2' } }, chats: [], isStreaming: false }
+      await saveChatState(state2)
+
+      const calls = vi.mocked(firestore.syncChatStateWithSubcollections).mock.calls
+      expect(calls.length).toBe(2)
+
+      // Second call should have m1 in changedMessageIds (modified)
+      const [, changedIds] = calls[1]
+      expect(changedIds.has('m1')).toBe(true)
+    })
+
+    it('tracks deleted messages for incremental sync', async () => {
+      // First save with two messages
+      const state1 = {
+        messagesById: { m1: { id: 'm1' }, m2: { id: 'm2' } },
+        chats: [],
+        isStreaming: false
+      }
+      await saveChatState(state1)
+
+      await vi.advanceTimersByTimeAsync(1000)
+
+      // Second save - removes m2
+      const state2 = { messagesById: { m1: { id: 'm1' } }, chats: [], isStreaming: false }
+      await saveChatState(state2)
+
+      const calls = vi.mocked(firestore.syncChatStateWithSubcollections).mock.calls
+      expect(calls.length).toBe(2)
+
+      // Second call should have m2 in deletedMessageIds
+      const [, , deletedIds] = calls[1]
+      expect(deletedIds).toBeInstanceOf(Set)
+      expect(deletedIds.has('m2')).toBe(true)
+    })
+
+    it('does not include unchanged messages in sync', async () => {
+      // First save
+      const state1 = {
+        messagesById: { m1: { id: 'm1' }, m2: { id: 'm2' } },
+        chats: [],
+        isStreaming: false
+      }
+      await saveChatState(state1)
+
+      await vi.advanceTimersByTimeAsync(1000)
+
+      // Second save - only modifies m1
+      const state2 = {
+        messagesById: { m1: { id: 'm1', question: 'changed' }, m2: { id: 'm2' } },
+        chats: [],
+        isStreaming: false
+      }
+      await saveChatState(state2)
+
+      const calls = vi.mocked(firestore.syncChatStateWithSubcollections).mock.calls
+      const [, changedIds] = calls[1]
+
+      // Only m1 should be in changed set, not m2
+      expect(changedIds.has('m1')).toBe(true)
+      expect(changedIds.has('m2')).toBe(false)
+    })
+
+    it('retries failed messages on next sync', async () => {
+      // First save succeeds
+      const state1 = { messagesById: { m1: { id: 'm1' } }, chats: [], isStreaming: false }
+      await saveChatState(state1)
+
+      await vi.advanceTimersByTimeAsync(1000)
+
+      // Second save fails
+      vi.mocked(firestore.syncChatStateWithSubcollections).mockRejectedValueOnce(new Error('Network error'))
+      const state2 = { messagesById: { m1: { id: 'm1' }, m2: { id: 'm2' } }, chats: [], isStreaming: false }
+      await saveChatState(state2)
+
+      await vi.advanceTimersByTimeAsync(1000)
+
+      // Third save - should retry m2
+      vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
+      const state3 = { messagesById: { m1: { id: 'm1' }, m2: { id: 'm2' }, m3: { id: 'm3' } }, chats: [], isStreaming: false }
+      await saveChatState(state3)
+
+      const calls = vi.mocked(firestore.syncChatStateWithSubcollections).mock.calls
+      const lastCall = calls[calls.length - 1]
+      const [, changedIds] = lastCall
+
+      // Should include both the retried m2 and new m3
+      expect(changedIds.has('m2')).toBe(true)
+      expect(changedIds.has('m3')).toBe(true)
+    })
+  })
+
+  describe('migration on load', () => {
+    it('attempts migration when loading chat state', async () => {
+      vi.mocked(firestore.migrateToSubcollections).mockResolvedValue(false)
+      vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(null)
+
+      await loadChatState()
+
+      expect(firestore.migrateToSubcollections).toHaveBeenCalled()
+    })
+
+    it('continues loading even if migration fails', async () => {
+      vi.mocked(firestore.migrateToSubcollections).mockRejectedValue(new Error('Migration failed'))
+      vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(null)
+
+      const mockLocalState = { messagesById: { m1: { id: 'm1' } }, chats: [] }
+      mockLocalStorage.store['chat-state'] = JSON.stringify(mockLocalState)
+
+      const result = await loadChatState()
+
+      expect(result.state).toEqual(mockLocalState)
+    })
+  })
+
+  describe('resolveConflict with subcollections', () => {
+    it('uses syncChatStateWithSubcollections for conflict resolution', async () => {
+      const localData = { messagesById: { m1: { id: 'm1' } }, chats: [] }
+      const cloudData = { messagesById: { m2: { id: 'm2' } }, chats: [] }
+
+      vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
+
+      await resolveConflict('local', localData, cloudData)
+
+      // Should do full sync (null for changedIds)
+      expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalledWith(localData, null, null)
     })
   })
 })
