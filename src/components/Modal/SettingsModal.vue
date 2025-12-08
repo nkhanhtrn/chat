@@ -188,22 +188,6 @@
             {{ restoreStatus.message }}
           </div>
         </div>
-
-        <!-- Cloud Sync Section -->
-        <div class="setting-item setting-item-vertical backup-section">
-          <div class="backup-buttons">
-            <button
-              class="backup-btn"
-              :disabled="isUploading"
-              @click="handleForceUpload"
-            >
-              {{ isUploading ? 'Uploading...' : 'Force Upload to Cloud' }}
-            </button>
-          </div>
-          <div v-if="uploadStatus" :class="['connection-status', uploadStatus.type]">
-            {{ uploadStatus.message }}
-          </div>
-        </div>
           </div>
         </Transition>
       </div>
@@ -226,7 +210,6 @@ import {
 } from '../../services/api.js'
 import { useChatStore } from '../../stores/chat.js'
 import { saveUserSettings, loadUserSettings } from '../../services/firestore.js'
-import { forceUploadToCloud } from '../../services/storage.js'
 
 const props = defineProps({
   modelValue: {
@@ -248,8 +231,6 @@ const providerConfigs = ref({
 const showApiKey = ref(false)
 const connectionStatus = ref(null)
 const restoreStatus = ref(null)
-const uploadStatus = ref(null)
-const isUploading = ref(false)
 const availableModels = ref([])
 const selectedModel = ref('')
 const chatStore = useChatStore()
@@ -609,22 +590,6 @@ const restoreNotebooks = async (event) => {
 
   // Reset file input
   event.target.value = ''
-}
-
-const handleForceUpload = async () => {
-  isUploading.value = true
-  uploadStatus.value = null
-
-  try {
-    await forceUploadToCloud()
-    uploadStatus.value = { type: 'success', message: 'Successfully uploaded to cloud' }
-    setTimeout(() => { uploadStatus.value = null }, 3000)
-  } catch (error) {
-    uploadStatus.value = { type: 'error', message: error.message || 'Failed to upload to cloud' }
-    setTimeout(() => { uploadStatus.value = null }, 3000)
-  } finally {
-    isUploading.value = false
-  }
 }
 </script>
 

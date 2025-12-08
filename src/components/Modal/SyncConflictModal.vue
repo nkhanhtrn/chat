@@ -53,19 +53,6 @@
       <div class="conflict-warning">
         ⚠️ The data you don't choose will be permanently overwritten.
       </div>
-
-      <div class="force-upload-section">
-        <button
-          class="force-upload-btn"
-          :disabled="isUploading"
-          @click="handleForceUpload"
-        >
-          {{ isUploading ? 'Uploading...' : 'Force Upload Local to Cloud' }}
-        </button>
-        <div v-if="uploadStatus" :class="['upload-status', uploadStatus.type]">
-          {{ uploadStatus.message }}
-        </div>
-      </div>
     </div>
 
     <template #footer>
@@ -83,7 +70,6 @@
 <script setup>
 import { ref, computed } from 'vue'
 import Modal from './Modal.vue'
-import { forceUploadToCloud } from '../../services/storage.js'
 
 const props = defineProps({
   visible: {
@@ -103,8 +89,6 @@ const props = defineProps({
 const emit = defineEmits(['resolve'])
 
 const selectedOption = ref(null)
-const isUploading = ref(false)
-const uploadStatus = ref(null)
 
 const localTimestamp = computed(() => {
   return props.localData?.lastUpdated || null
@@ -148,24 +132,6 @@ const formatTimestamp = (timestamp) => {
 const handleConfirm = () => {
   if (selectedOption.value) {
     emit('resolve', selectedOption.value)
-  }
-}
-
-const handleForceUpload = async () => {
-  isUploading.value = true
-  uploadStatus.value = null
-
-  try {
-    await forceUploadToCloud()
-    uploadStatus.value = { type: 'success', message: 'Successfully uploaded local data to cloud' }
-    // Auto-resolve with local after successful upload
-    setTimeout(() => {
-      emit('resolve', 'local')
-    }, 1500)
-  } catch (error) {
-    uploadStatus.value = { type: 'error', message: error.message || 'Failed to upload to cloud' }
-  } finally {
-    isUploading.value = false
   }
 }
 </script>
@@ -276,52 +242,5 @@ const handleForceUpload = async () => {
 .confirm-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.force-upload-section {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--color-border-subtle, #ddd);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.force-upload-btn {
-  padding: 0.5rem 1rem;
-  background: var(--color-bg-elevated, #fff);
-  border: 1px solid var(--color-border-base, #ccc);
-  border-radius: 4px;
-  color: var(--color-text-base, #333);
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.force-upload-btn:hover:not(:disabled) {
-  background: var(--color-bg-hover, #f5f5f5);
-  border-color: var(--color-border-accent, #aaa);
-}
-
-.force-upload-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.upload-status {
-  font-size: 0.8125rem;
-  padding: 0.4rem 0.6rem;
-  border-radius: 4px;
-}
-
-.upload-status.success {
-  color: #166534;
-  background: #dcfce7;
-}
-
-.upload-status.error {
-  color: #991b1b;
-  background: #fee2e2;
 }
 </style>
