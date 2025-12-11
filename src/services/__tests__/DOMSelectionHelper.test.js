@@ -200,4 +200,125 @@ describe('DOMSelectionHelper', () => {
       expect(result.endOffset).toBe(16)
     })
   })
+
+  describe('Multi-word mobile selection scenarios', () => {
+    it('should handle selection when common ancestor is the positioned element itself', () => {
+      // When selecting multiple words within a single span, the common ancestor
+      // is the span itself (the positioned element)
+      container.innerHTML = '<span data-md-start="0" data-md-end="26">The quick brown fox jumps</span>'
+
+      // Select "quick brown" (multiple words)
+      const range = document.createRange()
+      const textNode = container.firstChild.firstChild
+      range.setStart(textNode, 4)  // Start of "quick"
+      range.setEnd(textNode, 15)   // End of "brown"
+
+      const selection = window.getSelection()
+      selection.removeAllRanges()
+      selection.addRange(range)
+
+      const result = getMarkdownOffsetsFromSelection(selection)
+
+      expect(result).not.toBeNull()
+      expect(result.selectedText).toBe('quick brown')
+      expect(result.startOffset).toBe(4)
+      expect(result.endOffset).toBe(15)
+    })
+
+    it('should handle selection across sibling spans (multi-word on mobile)', () => {
+      // Simulate formatted text where words might be in separate spans
+      // This can happen with mixed formatting: "Hello **world** today"
+      container.innerHTML = '<p><span data-md-start="0" data-md-end="6">Hello </span><strong><span data-md-start="8" data-md-end="13">world</span></strong><span data-md-start="15" data-md-end="21"> today</span></p>'
+
+      // Select "world today" (across formatting boundary)
+      const range = document.createRange()
+      const worldText = container.querySelector('strong span').firstChild
+      const todayText = container.querySelectorAll('span')[2].firstChild
+
+      range.setStart(worldText, 0)
+      range.setEnd(todayText, 6)
+
+      const selection = window.getSelection()
+      selection.removeAllRanges()
+      selection.addRange(range)
+
+      const result = getMarkdownOffsetsFromSelection(selection)
+
+      expect(result).not.toBeNull()
+      expect(result.selectedText).toBe('world today')
+      expect(result.startOffset).toBe(8)
+      expect(result.endOffset).toBe(21)
+    })
+
+    it('should find positioned elements by walking up DOM tree when none in direct children', () => {
+      // Scenario where selection is inside deeply nested elements
+      // and we need to walk up to find positioned siblings
+      container.innerHTML = '<div class="paragraph"><span data-md-start="0" data-md-end="5">Hello</span><span data-md-start="5" data-md-end="6"> </span><span data-md-start="6" data-md-end="11">world</span></div>'
+
+      // Select "Hello world" - starts in first span, ends in last span
+      const range = document.createRange()
+      const helloText = container.querySelectorAll('span')[0].firstChild
+      const worldText = container.querySelectorAll('span')[2].firstChild
+
+      range.setStart(helloText, 0)
+      range.setEnd(worldText, 5)
+
+      const selection = window.getSelection()
+      selection.removeAllRanges()
+      selection.addRange(range)
+
+      const result = getMarkdownOffsetsFromSelection(selection)
+
+      expect(result).not.toBeNull()
+      expect(result.selectedText).toBe('Hello world')
+      expect(result.startOffset).toBe(0)
+      expect(result.endOffset).toBe(11)
+    })
+
+    it('should handle selection across multiple separate text spans (typical paragraph)', () => {
+      // A typical paragraph with inline elements
+      container.innerHTML = '<p><span data-md-start="0" data-md-end="4">This</span><span data-md-start="4" data-md-end="8"> is </span><span data-md-start="8" data-md-end="9">a</span><span data-md-start="9" data-md-end="14"> test</span></p>'
+
+      // Select "is a test" (spans multiple elements)
+      const range = document.createRange()
+      const isText = container.querySelectorAll('span')[1].firstChild
+      const testText = container.querySelectorAll('span')[3].firstChild
+
+      range.setStart(isText, 1)  // Start after space, at "is"
+      range.setEnd(testText, 5)  // End of " test"
+
+      const selection = window.getSelection()
+      selection.removeAllRanges()
+      selection.addRange(range)
+
+      const result = getMarkdownOffsetsFromSelection(selection)
+
+      expect(result).not.toBeNull()
+      expect(result.selectedText).toBe('is a test')
+      expect(result.startOffset).toBe(5)  // 4 + 1
+      expect(result.endOffset).toBe(14)
+    })
+
+    it('should handle selection where root element has position attributes', () => {
+      // Edge case: the root/positioned element itself is selected
+      container.innerHTML = '<span data-md-start="10" data-md-end="20">some text!</span>'
+
+      // Select entire content
+      const range = document.createRange()
+      const textNode = container.firstChild.firstChild
+      range.setStart(textNode, 0)
+      range.setEnd(textNode, 10)
+
+      const selection = window.getSelection()
+      selection.removeAllRanges()
+      selection.addRange(range)
+
+      const result = getMarkdownOffsetsFromSelection(selection)
+
+      expect(result).not.toBeNull()
+      expect(result.selectedText).toBe('some text!')
+      expect(result.startOffset).toBe(10)
+      expect(result.endOffset).toBe(20)
+    })
+  })
 })

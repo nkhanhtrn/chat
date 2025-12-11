@@ -47,16 +47,33 @@ function getMarkdownOffset(element, offset) {
  * @returns {Array} - Array of positioned elements in order
  */
 function getElementsInRange(range) {
-  const elements = []
   const container = range.commonAncestorContainer
   const root = container.nodeType === Node.ELEMENT_NODE
     ? container
     : container.parentElement
 
-  if (!root) return elements
+  if (!root) return []
 
   // Get all elements with position data within the root
   const positionedElements = Array.from(root.querySelectorAll('[data-md-start][data-md-end]'))
+
+  // Also include the root itself if it has position data (handles single-element selections)
+  if (root.hasAttribute && root.hasAttribute('data-md-start') && root.hasAttribute('data-md-end')) {
+    positionedElements.unshift(root)
+  }
+
+  // If no positioned elements found in descendants, walk up to find parent container
+  // and search for siblings that might be in the selection
+  if (positionedElements.length === 0) {
+    let searchRoot = root.parentElement
+    while (searchRoot && positionedElements.length === 0) {
+      const found = Array.from(searchRoot.querySelectorAll('[data-md-start][data-md-end]'))
+      if (found.length > 0) {
+        positionedElements.push(...found)
+      }
+      searchRoot = searchRoot.parentElement
+    }
+  }
 
   // Check each element to see if it intersects with the range
   // Sort by markdown position to ensure correct order
