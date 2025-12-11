@@ -64,8 +64,8 @@ describe('ContextMenu', () => {
   it('disables Explain button when isStreaming is true', () => {
     wrapper = mount(ContextMenu, { props: { ...baseProps, isStreaming: true }, attachTo: root })
     const buttons = document.body.querySelectorAll('.context-menu-btn')
-    // Button order: Highlight (0), Copy (1), Link to Question (2), Note (3), Explain (4), Deep Dive (5)
-    const explainBtn = buttons[4]
+    // Button order: Highlight (0), Copy (1), Dictionary (2), Link to Question (3), Note (4), Explain (5), Deep Dive (6)
+    const explainBtn = buttons[5]
     expect(explainBtn).toBeTruthy()
     expect(explainBtn.disabled).toBe(true)
   })
@@ -73,7 +73,7 @@ describe('ContextMenu', () => {
   it('enables Explain button when isStreaming is false', () => {
     wrapper = mount(ContextMenu, { props: { ...baseProps, isStreaming: false }, attachTo: root })
     const buttons = document.body.querySelectorAll('.context-menu-btn')
-    const explainBtn = buttons[4]
+    const explainBtn = buttons[5]
     expect(explainBtn).toBeTruthy()
     expect(explainBtn.disabled).toBe(false)
   })
@@ -301,8 +301,8 @@ describe('ContextMenu', () => {
   })
 
   describe('Note functionality', () => {
-    // Button order: Highlight (0), Copy (1), Link to Question (2), Note (3), Explain (4), Deep Dive (5)
-    const NOTE_BTN_INDEX = 3
+    // Button order: Highlight (0), Copy (1), Dictionary (2), Link to Question (3), Note (4), Explain (5), Deep Dive (6)
+    const NOTE_BTN_INDEX = 4
 
     it('shows "Add Note" button by default', () => {
       wrapper = mount(ContextMenu, { props: baseProps, attachTo: root })
@@ -370,8 +370,8 @@ describe('ContextMenu', () => {
   })
 
   describe('Link to Question functionality', () => {
-    // Button order: Highlight (0), Copy (1), Link to Question (2), Note (3), Explain (4), Deep Dive (5)
-    const LINK_BTN_INDEX = 2
+    // Button order: Highlight (0), Copy (1), Dictionary (2), Link to Question (3), Note (4), Explain (5), Deep Dive (6)
+    const LINK_BTN_INDEX = 3
 
     it('renders Link to Question button', () => {
       wrapper = mount(ContextMenu, { props: baseProps, attachTo: root })
@@ -394,6 +394,41 @@ describe('ContextMenu', () => {
       const buttons = document.body.querySelectorAll('.context-menu-btn')
       const linkBtn = buttons[LINK_BTN_INDEX]
       expect(linkBtn.disabled).toBe(false)
+    })
+  })
+
+  describe('Dictionary functionality', () => {
+    // Button order: Highlight (0), Copy (1), Dictionary (2), Link to Question (3), Note (4), Explain (5), Deep Dive (6)
+    const DICTIONARY_BTN_INDEX = 2
+
+    it('renders Dictionary button', () => {
+      wrapper = mount(ContextMenu, { props: baseProps, attachTo: root })
+      const buttons = document.body.querySelectorAll('.context-menu-btn')
+      expect(buttons[DICTIONARY_BTN_INDEX].textContent).toBe('Dictionary')
+    })
+
+    it('emits dictionary event when button is clicked', async () => {
+      wrapper = mount(ContextMenu, { props: baseProps, attachTo: root })
+      const buttons = document.body.querySelectorAll('.context-menu-btn')
+
+      await buttons[DICTIONARY_BTN_INDEX].click()
+
+      expect(wrapper.emitted('dictionary')).toBeTruthy()
+      expect(wrapper.emitted('dictionary')).toHaveLength(1)
+    })
+
+    it('disables Dictionary button when isStreaming is true', () => {
+      wrapper = mount(ContextMenu, { props: { ...baseProps, isStreaming: true }, attachTo: root })
+      const buttons = document.body.querySelectorAll('.context-menu-btn')
+      const dictBtn = buttons[DICTIONARY_BTN_INDEX]
+      expect(dictBtn.disabled).toBe(true)
+    })
+
+    it('enables Dictionary button when isStreaming is false', () => {
+      wrapper = mount(ContextMenu, { props: { ...baseProps, isStreaming: false }, attachTo: root })
+      const buttons = document.body.querySelectorAll('.context-menu-btn')
+      const dictBtn = buttons[DICTIONARY_BTN_INDEX]
+      expect(dictBtn.disabled).toBe(false)
     })
   })
 

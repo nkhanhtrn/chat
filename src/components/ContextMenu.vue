@@ -23,6 +23,7 @@
         </div>
         <div class="context-menu-row">
           <Button class="context-menu-btn" @click="onCopy" variant="tertiary">Copy</Button>
+          <Button class="context-menu-btn" @click="onDictionary" :disabled="isStreaming" variant="tertiary">Dictionary</Button>
           <Button class="context-menu-btn" @click="onLinkToQuestion" variant="tertiary">Link to Question</Button>
         </div>
         <div class="context-menu-row">
@@ -71,7 +72,7 @@ const props = defineProps({
     default: false
   }
 })
-const emit = defineEmits(['close', 'keep-highlight', 'ask-question', 'change-color', 'remove-highlight', 'add-note', 'quick-explain', 'custom-prompt', 'custom-prompt-deep-dive', 'link-to-question'])
+const emit = defineEmits(['close', 'keep-highlight', 'ask-question', 'change-color', 'remove-highlight', 'add-note', 'quick-explain', 'custom-prompt', 'custom-prompt-deep-dive', 'link-to-question', 'dictionary'])
 
 const selectedColorIndex = ref(0)
 
@@ -113,6 +114,10 @@ function onLinkToQuestion() {
 
 function onQuickExplain() {
   emit('quick-explain')
+}
+
+function onDictionary() {
+  emit('dictionary')
 }
 
 function onSendCustomPrompt(customPrompt) {

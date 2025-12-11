@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getMainPrompts, getNextPrompts, getShortenContentPrompts, getQuickExplainPrompts } from '../extraPrompt.js'
+import { getMainPrompts, getNextPrompts, getShortenContentPrompts, getQuickExplainPrompts, getDictionaryPrompts } from '../extraPrompt.js'
 
 describe('extraPrompt', () => {
   describe('getMainPrompts', () => {
@@ -307,6 +307,71 @@ describe('extraPrompt', () => {
       expect(messages.length).toBe(3)
       expect(messages[1].content).toContain('Reference 1')
       expect(messages[1].content).not.toContain('Reference 2')
+    })
+  })
+
+  describe('getDictionaryPrompts', () => {
+    it('should return an array of messages', () => {
+      const messages = getDictionaryPrompts('ephemeral')
+      expect(Array.isArray(messages)).toBe(true)
+    })
+
+    it('should return exactly 1 message without previous messages', () => {
+      const messages = getDictionaryPrompts('word')
+      expect(messages.length).toBe(1)
+    })
+
+    it('should have user role', () => {
+      const messages = getDictionaryPrompts('test')
+      expect(messages[0].role).toBe('user')
+    })
+
+    it('should include the word to define in the message', () => {
+      const word = 'serendipity'
+      const messages = getDictionaryPrompts(word)
+      expect(messages[0].content).toContain(word)
+    })
+
+    it('should prepend a dictionary request prefix', () => {
+      const word = 'ephemeral'
+      const messages = getDictionaryPrompts(word)
+      // The content should be longer than just the word (due to prefix)
+      expect(messages[0].content.length).toBeGreaterThan(word.length)
+    })
+
+    it('should request pronunciation information', () => {
+      const messages = getDictionaryPrompts('word')
+      const content = messages[0].content.toLowerCase()
+      expect(content).toContain('pronunciation')
+    })
+
+    it('should request definition(s)', () => {
+      const messages = getDictionaryPrompts('word')
+      const content = messages[0].content.toLowerCase()
+      expect(content).toContain('definition')
+    })
+
+    it('should include conversation history when previous messages provided', () => {
+      const previousMessages = [
+        { question: 'What is JavaScript?' },
+        { question: 'How do closures work?' }
+      ]
+      const messages = getDictionaryPrompts('ephemeral', previousMessages)
+      expect(messages.length).toBe(2)
+      expect(messages[0].role).toBe('system')
+      expect(messages[0].content).toContain('Previous questions')
+      expect(messages[0].content).toContain('What is JavaScript?')
+    })
+
+    it('should handle empty previous messages array', () => {
+      const messages = getDictionaryPrompts('word', [])
+      expect(messages.length).toBe(1)
+    })
+
+    it('should preserve exact word content', () => {
+      const word = 'café'
+      const messages = getDictionaryPrompts(word)
+      expect(messages[0].content).toContain(word)
     })
   })
 })

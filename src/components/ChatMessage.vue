@@ -49,6 +49,7 @@
       @custom-prompt="handleCustomPrompt"
       @customPromptDeepDive="handleCustomPromptDeepDive"
       @link-to-question="handleLinkToQuestion"
+      @dictionary="handleDictionary"
     />
     <Note
       :visible="popup.state.mode === 'note'"
@@ -83,7 +84,7 @@ import SlideTransition from './SlideTransition.vue'
 import Note from './Note.vue'
 import QuestionSearchModal from './Modal/QuestionSearchModal.vue'
 import { sendChatMessage } from '../services/api.js'
-import { getMainPrompts, getQuickExplainPrompts } from '../services/extraPrompt.js'
+import { getMainPrompts, getQuickExplainPrompts, getDictionaryPrompts } from '../services/extraPrompt.js'
 import Message from '../stores/Message.js'
 import { getSelectedTextAndPosition as getSelectionWithOffsets } from '../services/DOMSelectionHelper.js'
 import { usePopupState } from '../composables/usePopupState.js'
@@ -375,6 +376,61 @@ async function handleQuickExplain(customPrompt = null) {
 
   try {
     const messages = getQuickExplainPrompts(promptText, previousMessages)
+    await chatServiceImpl.sendMessage(
+      chatStore.currentModel,
+      messages,
+      (chunk) => {
+        popup.appendToNoteContent(chunk)
+      }
+    )
+  } catch (err) {
+    error.value = err.message
+    closePopup()
+  } finally {
+    isChildStreaming.value = false
+    popup.stopStreaming()
+  }
+}
+
+async function handleDictionary() {
+  const { selectedText, startOffset, endOffset, colorIndex, highlightId } = popup.state
+
+  if (!selectedText || startOffset === undefined || endOffset === undefined) {
+    console.error('Invalid selection data for dictionary')
+    return
+  }
+
+  const existingHighlightId = highlightId
+  const targetHighlightId = existingHighlightId || crypto.randomUUID()
+
+  popup.openNoteForStreaming({
+    highlightId: targetHighlightId,
+    selectedText,
+    startOffset,
+    endOffset,
+    isCustomPrompt: true,
+    customPromptText: `Dictionary: ${selectedText}`
+  })
+
+  if (!existingHighlightId) {
+    tempHighlight.value = createTempHighlight({
+      text: selectedText,
+      startOffset,
+      endOffset,
+      colorIndex: colorIndex || 0,
+      hasNote: true,
+      noteContent: ''
+    })
+    tempHighlight.value.id = targetHighlightId
+  }
+
+  isChildStreaming.value = true
+  error.value = null
+
+  const previousMessages = buildConversationChain(chatStore.messagesById, currentMessage.value?.id)
+
+  try {
+    const messages = getDictionaryPrompts(selectedText, previousMessages)
     await chatServiceImpl.sendMessage(
       chatStore.currentModel,
       messages,

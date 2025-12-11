@@ -116,6 +116,12 @@ Otherwise, follow the above guidelines to provide comprehensive educational cont
 const mainPrompt = contextSettingPrompt + exercisePrompt + deepDivePrompt + newTopicPrompt + otherPrompt;
 const summaryPrompt = `Provide a concise 2-5 word summary of the following content: `;
 const quickExplainPrompt = `Provide a very short and concise explanation of the following concept or text. Be concise but informative. You can divide into a few paragraphs if needed. You can use simple markdown elements (no block elements) to format the explanation if needed. Here's the content to explain: `;
+const dictionaryPrompt = `Provide a dictionary-style definition for the following word or phrase. Include:
+1. the word itself, in big and bold font + honetic pronunciation
+2. **Type**: (noun, verb, adjective, etc.)
+3. **Definition(s)**: Clear, concise definition(s)
+
+Keep the response concise and formatted clearly. Here's the word/phrase: `;
 
 /**
  * Build context from referenced questions (dragged into input)
@@ -169,5 +175,12 @@ export const getQuickExplainPrompts = (textToExplain, previousMessages = []) => 
   const messages = [];
   messages.push(...buildConversationHistory(previousMessages));
   messages.push({ role: 'user', content: quickExplainPrompt + textToExplain });
+  return messages;
+}
+
+export const getDictionaryPrompts = (word, previousMessages = []) => {
+  const messages = [];
+  messages.push(...buildConversationHistory(previousMessages));
+  messages.push({ role: 'user', content: dictionaryPrompt + word });
   return messages;
 }

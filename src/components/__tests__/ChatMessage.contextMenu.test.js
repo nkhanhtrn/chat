@@ -2348,6 +2348,291 @@ describe('ChatMessage context menu integration', () => {
     })
   })
 
+  describe('Dictionary Behavior', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('handleDictionary switches to note mode with streaming state', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-dict',
+        question: 'Q',
+        response: 'word to define here',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-dict'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'word'
+      state.popup.startOffset = 0
+      state.popup.endOffset = 4
+      state.popup.colorIndex = 0
+      state.popup.mode = 'context-menu'
+
+      // Mock the API to resolve immediately
+      vi.spyOn(api, 'sendChatMessage').mockResolvedValue('Definition response')
+
+      // Start the dictionary lookup (don't await yet)
+      const promise = wrapper.vm.handleDictionary()
+
+      // Check immediate state changes
+      expect(state.popup.mode).toBe('note')
+      expect(state.popup.isStreaming).toBe(true)
+      expect(state.popup.isCustomPrompt).toBe(true)
+      expect(state.popup.customPromptText).toBe('Dictionary: word')
+
+      await promise
+    })
+
+    it('handleDictionary creates temp highlight when no existing highlight', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-dict-temp',
+        question: 'Q',
+        response: 'some word here',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-dict-temp'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'word'
+      state.popup.startOffset = 5
+      state.popup.endOffset = 9
+      state.popup.colorIndex = 2
+      state.popup.highlightId = null
+      state.popup.mode = 'context-menu'
+
+      vi.spyOn(api, 'sendChatMessage').mockResolvedValue('Definition')
+
+      const promise = wrapper.vm.handleDictionary()
+
+      // Should create temp highlight
+      expect(state.tempHighlight).not.toBe(null)
+      expect(state.tempHighlight.text).toBe('word')
+      expect(state.tempHighlight.colorIndex).toBe(2)
+      expect(state.tempHighlight.hasNote).toBe(true)
+
+      await promise
+    })
+
+    it('handleDictionary does NOT create temp highlight for existing highlight', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-dict-existing',
+        question: 'Q',
+        response: 'highlighted word here',
+        customContent: [{
+          id: 'existing-h',
+          type: 'highlight',
+          text: 'word',
+          startOffset: 12,
+          endOffset: 16,
+          colorIndex: 1
+        }],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-dict-existing'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'word'
+      state.popup.startOffset = 12
+      state.popup.endOffset = 16
+      state.popup.colorIndex = 1
+      state.popup.highlightId = 'existing-h'
+      state.popup.mode = 'context-menu'
+
+      vi.spyOn(api, 'sendChatMessage').mockResolvedValue('Definition')
+
+      const promise = wrapper.vm.handleDictionary()
+
+      // Should NOT create temp highlight for existing
+      expect(state.tempHighlight).toBe(null)
+
+      await promise
+    })
+
+    it('handleDictionary validates selection data before proceeding', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const state = getState(wrapper)
+
+      state.popup.selectedText = 'word'
+      state.popup.startOffset = undefined
+      state.popup.endOffset = undefined
+
+      await wrapper.vm.handleDictionary()
+
+      expect(consoleSpy).toHaveBeenCalledWith('Invalid selection data for dictionary')
+      consoleSpy.mockRestore()
+    })
+
+    it('handleDictionary streams content to noteContent', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-dict-stream',
+        question: 'Q',
+        response: 'dictionary test',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      // Create mock chat service
+      const mockChatService = {
+        sendMessage: vi.fn((model, messages, callback) => {
+          callback('**Spelling**: ')
+          callback('word')
+          return Promise.resolve('**Spelling**: word')
+        })
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage, chatService: mockChatService },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-dict-stream'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'word'
+      state.popup.startOffset = 0
+      state.popup.endOffset = 4
+      state.popup.mode = 'context-menu'
+
+      await wrapper.vm.handleDictionary()
+
+      // After streaming completes, noteContent should have the streamed content
+      expect(state.popup.noteContent).toBe('**Spelling**: word')
+    })
+
+    it('handleDictionary sets isStreaming to false after completion', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-dict-end',
+        question: 'Q',
+        response: 'test word',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-dict-end'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'word'
+      state.popup.startOffset = 5
+      state.popup.endOffset = 9
+      state.popup.mode = 'context-menu'
+
+      vi.spyOn(api, 'sendChatMessage').mockResolvedValue('Done')
+
+      await wrapper.vm.handleDictionary()
+
+      expect(state.popup.isStreaming).toBe(false)
+      expect(state.isChildStreaming).toBe(false)
+    })
+
+    it('handleDictionary closes popup and sets error on API failure', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-dict-error',
+        question: 'Q',
+        response: 'error word',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      // Create mock chat service that rejects
+      const mockChatService = {
+        sendMessage: vi.fn().mockRejectedValue(new Error('API Error'))
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage, chatService: mockChatService },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-dict-error'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'word'
+      state.popup.startOffset = 6
+      state.popup.endOffset = 10
+      state.popup.mode = 'context-menu'
+
+      await wrapper.vm.handleDictionary()
+
+      expect(state.popup.mode).toBe(null)
+      expect(state.popup.isStreaming).toBe(false)
+      expect(state.error).toBe('API Error')
+    })
+
+    it('handleDictionary uses getDictionaryPrompts', async () => {
+      const pinia = createPinia()
+      const testMessage = {
+        id: 'msg-dict-prompts',
+        question: 'Q',
+        response: 'ephemeral word here',
+        customContent: [],
+        childIds: [],
+        parentId: null
+      }
+
+      wrapper = mount(ChatMessage, {
+        props: { message: testMessage },
+        global: { plugins: [pinia] }
+      })
+
+      wrapper.vm.chatStore.messagesById['msg-dict-prompts'] = testMessage
+
+      const state = getState(wrapper)
+      state.popup.selectedText = 'ephemeral'
+      state.popup.startOffset = 0
+      state.popup.endOffset = 9
+      state.popup.mode = 'context-menu'
+
+      // Spy on getDictionaryPrompts
+      const getDictionaryPromptsSpy = vi.spyOn(extraPrompt, 'getDictionaryPrompts')
+      vi.spyOn(api, 'sendChatMessage').mockResolvedValue('Definition')
+
+      await wrapper.vm.handleDictionary()
+
+      expect(getDictionaryPromptsSpy).toHaveBeenCalled()
+      expect(getDictionaryPromptsSpy).toHaveBeenCalledWith('ephemeral', expect.any(Array))
+
+      getDictionaryPromptsSpy.mockRestore()
+    })
+  })
+
   describe('Note Save/Cancel/Delete Behavior', () => {
     it('handleNoteSave creates new highlight with note from tempHighlight when isNewNote', () => {
       const pinia = createPinia()
