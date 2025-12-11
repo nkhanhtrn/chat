@@ -25,13 +25,22 @@
       Reset SR ({{ srCardCount }})
     </Button>
     <Button
-      @click="handleGenerateSummaries"
+      @click="handleGenerateNotebookSummaries"
       class="dev-button"
-      :disabled="isGeneratingSummaries || missingSummaryCount === 0"
-      title="Generate summaries for all SR cards missing them"
+      :disabled="isGeneratingNotebookSummaries || notebookMissingSummaryCount === 0 || !currentNotebookId"
+      title="Generate summaries for all questions in current notebook"
       variant="secondary"
     >
-      {{ summaryButtonText }}
+      {{ notebookSummaryButtonText }}
+    </Button>
+    <Button
+      @click="handleClearNotebookSummaries"
+      class="dev-button"
+      :disabled="notebookSummaryCount === 0 || !currentNotebookId"
+      title="Clear all summaries in current notebook"
+      variant="secondary"
+    >
+      {{ clearSummariesButtonText }}
     </Button>
   </div>
 </template>
@@ -49,11 +58,17 @@ const staleDataTriggered = ref(false)
 
 // Spaced repetition
 const chatStore = useChatStore()
-const { uninitializedCount, initializeAllExisting, missingSummaryCount, generateAllMissingSummaries } = useSpacedRepetition()
+const {
+  uninitializedCount,
+  initializeAllExisting,
+  getMissingSummaryCountInNotebook,
+  generateSummariesForNotebook,
+  getSummaryCountInNotebook,
+  clearSummariesInNotebook
+} = useSpacedRepetition()
 
-// Summary generation state
-const isGeneratingSummaries = ref(false)
-const summaryProgress = ref({ completed: 0, total: 0, status: 'idle' })
+// Current notebook
+const currentNotebookId = computed(() => chatStore.currentChatId)
 
 // Count of cards in SR system
 const srCardCount = computed(() => Object.keys(chatStore.srData).length)
@@ -65,20 +80,48 @@ const srButtonText = computed(() => {
   return `Add ${uninitializedCount.value} to SR`
 })
 
-const summaryButtonText = computed(() => {
-  if (isGeneratingSummaries.value) {
-    const { completed, total, status } = summaryProgress.value
+// Notebook-specific summary generation state
+const isGeneratingNotebookSummaries = ref(false)
+const notebookSummaryProgress = ref({ completed: 0, total: 0, status: 'idle' })
+
+const notebookMissingSummaryCount = computed(() => {
+  if (!currentNotebookId.value) return 0
+  return getMissingSummaryCountInNotebook(currentNotebookId.value)
+})
+
+const notebookSummaryButtonText = computed(() => {
+  if (!currentNotebookId.value) {
+    return 'No notebook'
+  }
+  if (isGeneratingNotebookSummaries.value) {
+    const { completed, total, status } = notebookSummaryProgress.value
     if (status === 'generating') {
-      return `Generating ${completed + 1}/${total}...`
+      return `Notebook ${completed + 1}/${total}...`
     } else if (status === 'waiting') {
-      return `${completed}/${total} - waiting...`
+      return `Notebook ${completed}/${total} - waiting...`
     }
-    return `${completed}/${total}`
+    return `Notebook ${completed}/${total}`
   }
-  if (missingSummaryCount.value === 0) {
-    return 'All summaries done'
+  if (notebookMissingSummaryCount.value === 0) {
+    return 'Notebook summaries done'
   }
-  return `Gen ${missingSummaryCount.value} summaries`
+  return `Gen ${notebookMissingSummaryCount.value} notebook summaries`
+})
+
+// Count of summaries in current notebook
+const notebookSummaryCount = computed(() => {
+  if (!currentNotebookId.value) return 0
+  return getSummaryCountInNotebook(currentNotebookId.value)
+})
+
+const clearSummariesButtonText = computed(() => {
+  if (!currentNotebookId.value) {
+    return 'No notebook'
+  }
+  if (notebookSummaryCount.value === 0) {
+    return 'No summaries'
+  }
+  return `Clear ${notebookSummaryCount.value} summaries`
 })
 
 const handleClearCache = () => {
@@ -111,24 +154,33 @@ const handleResetSR = () => {
   }
 }
 
-const handleGenerateSummaries = async () => {
-  if (isGeneratingSummaries.value || missingSummaryCount.value === 0) return
+const handleGenerateNotebookSummaries = async () => {
+  if (isGeneratingNotebookSummaries.value || notebookMissingSummaryCount.value === 0 || !currentNotebookId.value) return
 
-  isGeneratingSummaries.value = true
-  summaryProgress.value = { completed: 0, total: missingSummaryCount.value, status: 'generating' }
+  isGeneratingNotebookSummaries.value = true
+  notebookSummaryProgress.value = { completed: 0, total: notebookMissingSummaryCount.value, status: 'generating' }
 
   try {
-    await generateAllMissingSummaries(
+    await generateSummariesForNotebook(
+      currentNotebookId.value,
       chatStore.currentModel,
       (progress) => {
-        summaryProgress.value = progress
+        notebookSummaryProgress.value = progress
       }
     )
   } catch (error) {
-    console.error('Failed to generate summaries:', error)
+    console.error('Failed to generate notebook summaries:', error)
   } finally {
-    isGeneratingSummaries.value = false
-    summaryProgress.value = { completed: 0, total: 0, status: 'idle' }
+    isGeneratingNotebookSummaries.value = false
+    notebookSummaryProgress.value = { completed: 0, total: 0, status: 'idle' }
+  }
+}
+
+const handleClearNotebookSummaries = () => {
+  if (!currentNotebookId.value || notebookSummaryCount.value === 0) return
+
+  if (confirm(`Are you sure you want to clear all ${notebookSummaryCount.value} summaries in this notebook?`)) {
+    clearSummariesInNotebook(currentNotebookId.value)
   }
 }
 </script>

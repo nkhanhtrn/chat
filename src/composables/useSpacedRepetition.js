@@ -160,6 +160,86 @@ export function useSpacedRepetition() {
     return count
   })
 
+  // Helper to collect all message IDs in a tree (including children)
+  const collectAllMessageIds = (messageId, result = []) => {
+    const message = chatStore.messagesById[messageId]
+    if (!message) return result
+    result.push(messageId)
+    if (message.childIds?.length) {
+      for (const childId of message.childIds) {
+        collectAllMessageIds(childId, result)
+      }
+    }
+    return result
+  }
+
+  // Get all messages in a notebook that are missing summaries (regardless of SR status)
+  const getMessagesMissingSummaryInNotebook = (notebookId) => {
+    const chat = chatStore.chats.find(c => c.id === notebookId)
+    if (!chat) return []
+
+    const missing = []
+    // Collect all message IDs from all root messages in this notebook
+    const allMessageIds = []
+    for (const rootId of chat.rootMessageIds) {
+      collectAllMessageIds(rootId, allMessageIds)
+    }
+
+    // Filter to those missing summaries
+    for (const messageId of allMessageIds) {
+      const message = chatStore.messagesById[messageId]
+      if (message?.response && !message?.responseSummary) {
+        missing.push({ messageId, message })
+      }
+    }
+    return missing
+  }
+
+  // Count of messages missing summaries in a specific notebook
+  const getMissingSummaryCountInNotebook = (notebookId) => {
+    return getMessagesMissingSummaryInNotebook(notebookId).length
+  }
+
+  // Get all messages in a notebook that have summaries
+  const getMessagesWithSummaryInNotebook = (notebookId) => {
+    const chat = chatStore.chats.find(c => c.id === notebookId)
+    if (!chat) return []
+
+    const withSummary = []
+    const allMessageIds = []
+    for (const rootId of chat.rootMessageIds) {
+      collectAllMessageIds(rootId, allMessageIds)
+    }
+
+    for (const messageId of allMessageIds) {
+      const message = chatStore.messagesById[messageId]
+      if (message?.responseSummary) {
+        withSummary.push({ messageId, message })
+      }
+    }
+    return withSummary
+  }
+
+  // Count of messages with summaries in a specific notebook
+  const getSummaryCountInNotebook = (notebookId) => {
+    return getMessagesWithSummaryInNotebook(notebookId).length
+  }
+
+  // Clear all summaries in a notebook
+  const clearSummariesInNotebook = (notebookId) => {
+    const withSummary = getMessagesWithSummaryInNotebook(notebookId)
+    for (const { messageId } of withSummary) {
+      const message = chatStore.messagesById[messageId]
+      if (message) {
+        message.responseSummary = null
+      }
+    }
+    if (withSummary.length > 0) {
+      chatStore._persistState()
+    }
+    return withSummary.length
+  }
+
   // Generate summaries for all SR cards missing them
   // onProgress callback receives: { completed, total, status }
   // status: 'generating' | 'waiting' | 'done'
@@ -199,6 +279,51 @@ export function useSpacedRepetition() {
     return completed
   }
 
+  // Generate summaries for all messages in a specific notebook that are missing them
+  // Also initializes SR cards for messages that aren't in the SR system yet
+  // onProgress callback receives: { completed, total, status }
+  // status: 'generating' | 'waiting' | 'done'
+  const generateSummariesForNotebook = async (notebookId, model, onProgress = null, abortSignal = null) => {
+    const missing = getMessagesMissingSummaryInNotebook(notebookId)
+    const total = missing.length
+    let completed = 0
+
+    for (let i = 0; i < missing.length; i++) {
+      if (abortSignal?.aborted) {
+        throw new Error('Cancelled')
+      }
+
+      const { messageId, message } = missing[i]
+
+      if (onProgress) {
+        onProgress({ completed, total, status: 'generating' })
+      }
+
+      // Initialize SR card if not already in SR system
+      if (!chatStore.srData[messageId]) {
+        chatStore.initializeSRCard(messageId)
+      }
+
+      const summary = await generateResponseSummary(message.response, model)
+      chatStore.updateSRResponseSummary(messageId, summary)
+      completed++
+
+      // Add delay between calls (except for the last one)
+      if (i < missing.length - 1) {
+        if (onProgress) {
+          onProgress({ completed, total, status: 'waiting' })
+        }
+        await delay(DELAY_BETWEEN_CALLS_MS, abortSignal)
+      }
+    }
+
+    if (onProgress) {
+      onProgress({ completed, total, status: 'done' })
+    }
+
+    return completed
+  }
+
   return {
     cardsDue,
     dueCount,
@@ -213,6 +338,12 @@ export function useSpacedRepetition() {
     getCardData,
     getUninitializedMessages,
     initializeAllExisting,
-    generateAllMissingSummaries
+    generateAllMissingSummaries,
+    getMessagesMissingSummaryInNotebook,
+    getMissingSummaryCountInNotebook,
+    generateSummariesForNotebook,
+    getMessagesWithSummaryInNotebook,
+    getSummaryCountInNotebook,
+    clearSummariesInNotebook
   }
 }

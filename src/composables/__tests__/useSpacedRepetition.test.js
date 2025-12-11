@@ -289,4 +289,393 @@ describe('useSpacedRepetition', () => {
       })
     })
   })
+
+  describe('getMessagesMissingSummaryInNotebook', () => {
+    it('returns empty array when notebook does not exist', () => {
+      const { getMessagesMissingSummaryInNotebook } = useSpacedRepetition()
+      expect(getMessagesMissingSummaryInNotebook('nonexistent')).toEqual([])
+    })
+
+    it('returns empty array when notebook has no messages', () => {
+      chatStore.chats = [{ id: 'notebook-1', rootMessageIds: [] }]
+
+      const { getMessagesMissingSummaryInNotebook } = useSpacedRepetition()
+      expect(getMessagesMissingSummaryInNotebook('notebook-1')).toEqual([])
+    })
+
+    it('returns messages missing summaries in notebook', () => {
+      chatStore.chats = [{ id: 'notebook-1', rootMessageIds: ['msg-1', 'msg-2'] }]
+      chatStore.messagesById = {
+        'msg-1': { id: 'msg-1', question: 'Q1', response: 'R1', responseSummary: null },
+        'msg-2': { id: 'msg-2', question: 'Q2', response: 'R2', responseSummary: 'Summary exists' }
+      }
+
+      const { getMessagesMissingSummaryInNotebook } = useSpacedRepetition()
+      const result = getMessagesMissingSummaryInNotebook('notebook-1')
+
+      expect(result).toHaveLength(1)
+      expect(result[0].messageId).toBe('msg-1')
+    })
+
+    it('includes child messages missing summaries', () => {
+      chatStore.chats = [{ id: 'notebook-1', rootMessageIds: ['msg-1'] }]
+      chatStore.messagesById = {
+        'msg-1': { id: 'msg-1', question: 'Q1', response: 'R1', responseSummary: 'Has summary', childIds: ['msg-2'] },
+        'msg-2': { id: 'msg-2', question: 'Q2', response: 'R2', responseSummary: null, childIds: ['msg-3'] },
+        'msg-3': { id: 'msg-3', question: 'Q3', response: 'R3', responseSummary: null }
+      }
+
+      const { getMessagesMissingSummaryInNotebook } = useSpacedRepetition()
+      const result = getMessagesMissingSummaryInNotebook('notebook-1')
+
+      expect(result).toHaveLength(2)
+      expect(result.map(r => r.messageId)).toEqual(['msg-2', 'msg-3'])
+    })
+
+    it('excludes messages without responses', () => {
+      chatStore.chats = [{ id: 'notebook-1', rootMessageIds: ['msg-1'] }]
+      chatStore.messagesById = {
+        'msg-1': { id: 'msg-1', question: 'Q1', response: '', responseSummary: null }
+      }
+
+      const { getMessagesMissingSummaryInNotebook } = useSpacedRepetition()
+      expect(getMessagesMissingSummaryInNotebook('notebook-1')).toEqual([])
+    })
+
+    it('only returns messages from specified notebook', () => {
+      chatStore.chats = [
+        { id: 'notebook-1', rootMessageIds: ['msg-1'] },
+        { id: 'notebook-2', rootMessageIds: ['msg-2'] }
+      ]
+      chatStore.messagesById = {
+        'msg-1': { id: 'msg-1', question: 'Q1', response: 'R1', responseSummary: null },
+        'msg-2': { id: 'msg-2', question: 'Q2', response: 'R2', responseSummary: null }
+      }
+
+      const { getMessagesMissingSummaryInNotebook } = useSpacedRepetition()
+      const result = getMessagesMissingSummaryInNotebook('notebook-1')
+
+      expect(result).toHaveLength(1)
+      expect(result[0].messageId).toBe('msg-1')
+    })
+  })
+
+  describe('getMissingSummaryCountInNotebook', () => {
+    it('returns 0 when notebook does not exist', () => {
+      const { getMissingSummaryCountInNotebook } = useSpacedRepetition()
+      expect(getMissingSummaryCountInNotebook('nonexistent')).toBe(0)
+    })
+
+    it('returns count of messages missing summaries', () => {
+      chatStore.chats = [{ id: 'notebook-1', rootMessageIds: ['msg-1', 'msg-2', 'msg-3'] }]
+      chatStore.messagesById = {
+        'msg-1': { id: 'msg-1', question: 'Q1', response: 'R1', responseSummary: null },
+        'msg-2': { id: 'msg-2', question: 'Q2', response: 'R2', responseSummary: 'Has summary' },
+        'msg-3': { id: 'msg-3', question: 'Q3', response: 'R3', responseSummary: null }
+      }
+
+      const { getMissingSummaryCountInNotebook } = useSpacedRepetition()
+      expect(getMissingSummaryCountInNotebook('notebook-1')).toBe(2)
+    })
+
+    it('includes nested children in count', () => {
+      chatStore.chats = [{ id: 'notebook-1', rootMessageIds: ['msg-1'] }]
+      chatStore.messagesById = {
+        'msg-1': { id: 'msg-1', question: 'Q1', response: 'R1', responseSummary: null, childIds: ['msg-2'] },
+        'msg-2': { id: 'msg-2', question: 'Q2', response: 'R2', responseSummary: null, childIds: ['msg-3'] },
+        'msg-3': { id: 'msg-3', question: 'Q3', response: 'R3', responseSummary: null }
+      }
+
+      const { getMissingSummaryCountInNotebook } = useSpacedRepetition()
+      expect(getMissingSummaryCountInNotebook('notebook-1')).toBe(3)
+    })
+  })
+
+  describe('getMessagesWithSummaryInNotebook', () => {
+    it('returns empty array when notebook does not exist', () => {
+      const { getMessagesWithSummaryInNotebook } = useSpacedRepetition()
+      expect(getMessagesWithSummaryInNotebook('nonexistent')).toEqual([])
+    })
+
+    it('returns messages with summaries in notebook', () => {
+      chatStore.chats = [{ id: 'notebook-1', rootMessageIds: ['msg-1', 'msg-2'] }]
+      chatStore.messagesById = {
+        'msg-1': { id: 'msg-1', question: 'Q1', response: 'R1', responseSummary: 'Summary 1' },
+        'msg-2': { id: 'msg-2', question: 'Q2', response: 'R2', responseSummary: null }
+      }
+
+      const { getMessagesWithSummaryInNotebook } = useSpacedRepetition()
+      const result = getMessagesWithSummaryInNotebook('notebook-1')
+
+      expect(result).toHaveLength(1)
+      expect(result[0].messageId).toBe('msg-1')
+    })
+
+    it('includes child messages with summaries', () => {
+      chatStore.chats = [{ id: 'notebook-1', rootMessageIds: ['msg-1'] }]
+      chatStore.messagesById = {
+        'msg-1': { id: 'msg-1', question: 'Q1', response: 'R1', responseSummary: 'Summary 1', childIds: ['msg-2'] },
+        'msg-2': { id: 'msg-2', question: 'Q2', response: 'R2', responseSummary: 'Summary 2' }
+      }
+
+      const { getMessagesWithSummaryInNotebook } = useSpacedRepetition()
+      const result = getMessagesWithSummaryInNotebook('notebook-1')
+
+      expect(result).toHaveLength(2)
+      expect(result.map(r => r.messageId)).toEqual(['msg-1', 'msg-2'])
+    })
+  })
+
+  describe('getSummaryCountInNotebook', () => {
+    it('returns 0 when notebook does not exist', () => {
+      const { getSummaryCountInNotebook } = useSpacedRepetition()
+      expect(getSummaryCountInNotebook('nonexistent')).toBe(0)
+    })
+
+    it('returns count of messages with summaries', () => {
+      chatStore.chats = [{ id: 'notebook-1', rootMessageIds: ['msg-1', 'msg-2', 'msg-3'] }]
+      chatStore.messagesById = {
+        'msg-1': { id: 'msg-1', question: 'Q1', response: 'R1', responseSummary: 'Summary 1' },
+        'msg-2': { id: 'msg-2', question: 'Q2', response: 'R2', responseSummary: null },
+        'msg-3': { id: 'msg-3', question: 'Q3', response: 'R3', responseSummary: 'Summary 3' }
+      }
+
+      const { getSummaryCountInNotebook } = useSpacedRepetition()
+      expect(getSummaryCountInNotebook('notebook-1')).toBe(2)
+    })
+  })
+
+  describe('clearSummariesInNotebook', () => {
+    it('returns 0 when notebook does not exist', () => {
+      const { clearSummariesInNotebook } = useSpacedRepetition()
+      expect(clearSummariesInNotebook('nonexistent')).toBe(0)
+    })
+
+    it('clears all summaries in notebook', () => {
+      chatStore.chats = [{ id: 'notebook-1', rootMessageIds: ['msg-1', 'msg-2'] }]
+      chatStore.messagesById = {
+        'msg-1': { id: 'msg-1', question: 'Q1', response: 'R1', responseSummary: 'Summary 1' },
+        'msg-2': { id: 'msg-2', question: 'Q2', response: 'R2', responseSummary: 'Summary 2' }
+      }
+
+      const { clearSummariesInNotebook } = useSpacedRepetition()
+      const result = clearSummariesInNotebook('notebook-1')
+
+      expect(result).toBe(2)
+      expect(chatStore.messagesById['msg-1'].responseSummary).toBe(null)
+      expect(chatStore.messagesById['msg-2'].responseSummary).toBe(null)
+    })
+
+    it('clears summaries from child messages', () => {
+      chatStore.chats = [{ id: 'notebook-1', rootMessageIds: ['msg-1'] }]
+      chatStore.messagesById = {
+        'msg-1': { id: 'msg-1', question: 'Q1', response: 'R1', responseSummary: 'Summary 1', childIds: ['msg-2'] },
+        'msg-2': { id: 'msg-2', question: 'Q2', response: 'R2', responseSummary: 'Summary 2' }
+      }
+
+      const { clearSummariesInNotebook } = useSpacedRepetition()
+      const result = clearSummariesInNotebook('notebook-1')
+
+      expect(result).toBe(2)
+      expect(chatStore.messagesById['msg-1'].responseSummary).toBe(null)
+      expect(chatStore.messagesById['msg-2'].responseSummary).toBe(null)
+    })
+
+    it('only clears summaries from specified notebook', () => {
+      chatStore.chats = [
+        { id: 'notebook-1', rootMessageIds: ['msg-1'] },
+        { id: 'notebook-2', rootMessageIds: ['msg-2'] }
+      ]
+      chatStore.messagesById = {
+        'msg-1': { id: 'msg-1', question: 'Q1', response: 'R1', responseSummary: 'Summary 1' },
+        'msg-2': { id: 'msg-2', question: 'Q2', response: 'R2', responseSummary: 'Summary 2' }
+      }
+
+      const { clearSummariesInNotebook } = useSpacedRepetition()
+      clearSummariesInNotebook('notebook-1')
+
+      expect(chatStore.messagesById['msg-1'].responseSummary).toBe(null)
+      expect(chatStore.messagesById['msg-2'].responseSummary).toBe('Summary 2')
+    })
+
+    it('returns 0 when no summaries to clear', () => {
+      chatStore.chats = [{ id: 'notebook-1', rootMessageIds: ['msg-1'] }]
+      chatStore.messagesById = {
+        'msg-1': { id: 'msg-1', question: 'Q1', response: 'R1', responseSummary: null }
+      }
+
+      const { clearSummariesInNotebook } = useSpacedRepetition()
+      expect(clearSummariesInNotebook('notebook-1')).toBe(0)
+    })
+  })
+
+  describe('generateSummariesForNotebook', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+      api.sendChatMessage.mockImplementation(async (model, messages, onChunk) => {
+        onChunk('Generated summary')
+      })
+    })
+
+    it('returns 0 when notebook does not exist', async () => {
+      const { generateSummariesForNotebook } = useSpacedRepetition()
+      const result = await generateSummariesForNotebook('nonexistent', 'gpt-4')
+      expect(result).toBe(0)
+    })
+
+    it('returns 0 when no messages missing summaries', async () => {
+      chatStore.chats = [{ id: 'notebook-1', rootMessageIds: ['msg-1'] }]
+      chatStore.messagesById = {
+        'msg-1': { id: 'msg-1', question: 'Q1', response: 'R1', responseSummary: 'Already has summary' }
+      }
+
+      const { generateSummariesForNotebook } = useSpacedRepetition()
+      const result = await generateSummariesForNotebook('notebook-1', 'gpt-4')
+      expect(result).toBe(0)
+    })
+
+    it('generates summaries for all messages missing them', async () => {
+      chatStore.chats = [{ id: 'notebook-1', rootMessageIds: ['msg-1', 'msg-2'] }]
+      chatStore.messagesById = {
+        'msg-1': { id: 'msg-1', question: 'Q1', response: 'R1', responseSummary: null },
+        'msg-2': { id: 'msg-2', question: 'Q2', response: 'R2', responseSummary: null }
+      }
+
+      const updateSpy = vi.spyOn(chatStore, 'updateSRResponseSummary')
+
+      const { generateSummariesForNotebook } = useSpacedRepetition()
+      const promise = generateSummariesForNotebook('notebook-1', 'gpt-4')
+
+      await vi.runAllTimersAsync()
+      const result = await promise
+
+      expect(result).toBe(2)
+      expect(updateSpy).toHaveBeenCalledTimes(2)
+      expect(updateSpy).toHaveBeenCalledWith('msg-1', 'Generated summary')
+      expect(updateSpy).toHaveBeenCalledWith('msg-2', 'Generated summary')
+    })
+
+    it('generates summaries for nested child messages', async () => {
+      chatStore.chats = [{ id: 'notebook-1', rootMessageIds: ['msg-1'] }]
+      chatStore.messagesById = {
+        'msg-1': { id: 'msg-1', question: 'Q1', response: 'R1', responseSummary: 'Has summary', childIds: ['msg-2'] },
+        'msg-2': { id: 'msg-2', question: 'Q2', response: 'R2', responseSummary: null }
+      }
+
+      const updateSpy = vi.spyOn(chatStore, 'updateSRResponseSummary')
+
+      const { generateSummariesForNotebook } = useSpacedRepetition()
+      const promise = generateSummariesForNotebook('notebook-1', 'gpt-4')
+
+      await vi.runAllTimersAsync()
+      await promise
+
+      expect(updateSpy).toHaveBeenCalledTimes(1)
+      expect(updateSpy).toHaveBeenCalledWith('msg-2', 'Generated summary')
+    })
+
+    it('initializes SR cards for messages not in SR system', async () => {
+      chatStore.chats = [{ id: 'notebook-1', rootMessageIds: ['msg-1', 'msg-2'] }]
+      chatStore.messagesById = {
+        'msg-1': { id: 'msg-1', question: 'Q1', response: 'R1', responseSummary: null },
+        'msg-2': { id: 'msg-2', question: 'Q2', response: 'R2', responseSummary: null }
+      }
+      // msg-1 is already in SR, msg-2 is not
+      chatStore.srData = { 'msg-1': { messageId: 'msg-1' } }
+
+      const initSpy = vi.spyOn(chatStore, 'initializeSRCard')
+
+      const { generateSummariesForNotebook } = useSpacedRepetition()
+      const promise = generateSummariesForNotebook('notebook-1', 'gpt-4')
+
+      await vi.runAllTimersAsync()
+      await promise
+
+      // Should only initialize msg-2 (msg-1 was already in SR)
+      expect(initSpy).toHaveBeenCalledTimes(1)
+      expect(initSpy).toHaveBeenCalledWith('msg-2')
+      // Both should now be in SR
+      expect(chatStore.srData['msg-1']).toBeDefined()
+      expect(chatStore.srData['msg-2']).toBeDefined()
+    })
+
+    it('calls onProgress callback with correct status', async () => {
+      chatStore.chats = [{ id: 'notebook-1', rootMessageIds: ['msg-1', 'msg-2'] }]
+      chatStore.messagesById = {
+        'msg-1': { id: 'msg-1', question: 'Q1', response: 'R1', responseSummary: null },
+        'msg-2': { id: 'msg-2', question: 'Q2', response: 'R2', responseSummary: null }
+      }
+
+      const progressCalls = []
+      const onProgress = (p) => progressCalls.push({ ...p })
+
+      const { generateSummariesForNotebook } = useSpacedRepetition()
+      const promise = generateSummariesForNotebook('notebook-1', 'gpt-4', onProgress)
+
+      await vi.runAllTimersAsync()
+      await promise
+
+      // Should have: generating(0), waiting(1), generating(1), done(2)
+      expect(progressCalls.length).toBeGreaterThanOrEqual(3)
+      expect(progressCalls[0]).toEqual({ completed: 0, total: 2, status: 'generating' })
+      expect(progressCalls[progressCalls.length - 1]).toEqual({ completed: 2, total: 2, status: 'done' })
+    })
+
+    it('only generates summaries for specified notebook', async () => {
+      chatStore.chats = [
+        { id: 'notebook-1', rootMessageIds: ['msg-1'] },
+        { id: 'notebook-2', rootMessageIds: ['msg-2'] }
+      ]
+      chatStore.messagesById = {
+        'msg-1': { id: 'msg-1', question: 'Q1', response: 'R1', responseSummary: null },
+        'msg-2': { id: 'msg-2', question: 'Q2', response: 'R2', responseSummary: null }
+      }
+
+      const updateSpy = vi.spyOn(chatStore, 'updateSRResponseSummary')
+
+      const { generateSummariesForNotebook } = useSpacedRepetition()
+      const promise = generateSummariesForNotebook('notebook-1', 'gpt-4')
+
+      await vi.runAllTimersAsync()
+      await promise
+
+      // Only msg-1 should be updated (from notebook-1)
+      expect(updateSpy).toHaveBeenCalledTimes(1)
+      expect(updateSpy).toHaveBeenCalledWith('msg-1', 'Generated summary')
+    })
+
+    it('can be cancelled with abort signal', async () => {
+      chatStore.chats = [{ id: 'notebook-1', rootMessageIds: ['msg-1', 'msg-2'] }]
+      chatStore.messagesById = {
+        'msg-1': { id: 'msg-1', question: 'Q1', response: 'R1', responseSummary: null },
+        'msg-2': { id: 'msg-2', question: 'Q2', response: 'R2', responseSummary: null }
+      }
+
+      const abortController = new AbortController()
+      const updateSpy = vi.spyOn(chatStore, 'updateSRResponseSummary')
+
+      const { generateSummariesForNotebook } = useSpacedRepetition()
+
+      // Start the generation and immediately set up rejection handling
+      const promise = generateSummariesForNotebook('notebook-1', 'gpt-4', null, abortController.signal)
+        .catch(err => err) // Convert rejection to resolved value for testing
+
+      // Let first message complete
+      await vi.advanceTimersByTimeAsync(100)
+
+      // Abort before second message
+      abortController.abort()
+
+      // Try to complete remaining timers
+      await vi.runAllTimersAsync()
+
+      // Should have thrown cancelled error (now resolved as the error object)
+      const result = await promise
+      expect(result).toBeInstanceOf(Error)
+      expect(result.message).toBe('Cancelled')
+
+      // Only first message should have been processed
+      expect(updateSpy).toHaveBeenCalledTimes(1)
+    })
+  })
 })
