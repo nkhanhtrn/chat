@@ -16,6 +16,14 @@
         <div class="question-content">
           "{{ currentCard.question }}"
         </div>
+        <router-link
+          v-if="currentCard.chatId"
+          :to="{ name: 'question', params: { id: currentCard.chatId, questionId: currentCard.messageId } }"
+          class="go-to-question-link"
+          @click="handleClose"
+        >
+          Go to question
+        </router-link>
         <button class="show-answer-btn" @click="flipCard">
           Show Answer
         </button>
@@ -213,8 +221,21 @@ const handleClose = () => {
   flex: 1;
 }
 
+.go-to-question-link {
+  display: block;
+  text-align: center;
+  color: var(--color-accent);
+  font-size: 0.875rem;
+  text-decoration: none;
+  margin-top: 1rem;
+}
+
+.go-to-question-link:hover {
+  text-decoration: underline;
+}
+
 .show-answer-btn {
-  margin-top: auto;
+  margin-top: 1rem;
   padding: 0.875rem 1.5rem;
   font-size: 1rem;
   font-weight: 500;

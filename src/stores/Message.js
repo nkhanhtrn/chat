@@ -11,11 +11,12 @@ export default class Message {
     });
   }
 
-  constructor({ id, question, response, parentId = null, childIds = [], highlightedText = null, questionSummarized = null, lastVisitedChild = null, customContent = [], scrollPosition = 0 }) {
+  constructor({ id, question, response, parentId = null, childIds = [], highlightedText = null, questionSummarized = null, lastVisitedChild = null, customContent = [], scrollPosition = 0, responseSummary = '' }) {
     this.id = id
     this.question = question
     this.questionSummarized = questionSummarized || (question.length > 100 ? question.slice(0, 100) + '...' : question)
     this.response = response
+    this.responseSummary = responseSummary // Summary of response for SR review
     this.parentId = parentId
     this.childIds = childIds
     this.highlightedText = highlightedText

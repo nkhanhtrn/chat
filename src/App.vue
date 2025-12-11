@@ -29,9 +29,8 @@ import StaleDataBanner from './components/StaleDataBanner.vue'
 import DevToolbar from './components/DevToolbar.vue'
 import { useChatStore } from './stores/chat.js'
 import { useStaleDataDetection } from './composables/useStaleDataDetection.js'
-import { getIsDev, getDevToolbarEnabled, setDevToolbarEnabled } from './composables/useEnvironment.js'
+import { getDevToolbarEnabled, setDevToolbarEnabled } from './composables/useEnvironment.js'
 
-const isDev = getIsDev()
 const showDevToolbar = ref(getDevToolbarEnabled())
 
 const toggleDevToolbar = (enabled) => {
@@ -48,7 +47,6 @@ const { showStaleDataBanner, isReadOnlyMode, refresh, dismissBanner, triggerBann
 provide('triggerStaleDataBanner', triggerBanner)
 
 // Provide DevToolbar toggle for Settings
-provide('isDev', isDev)
 provide('showDevToolbar', showDevToolbar)
 provide('toggleDevToolbar', toggleDevToolbar)
 

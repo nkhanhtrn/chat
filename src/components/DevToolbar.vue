@@ -9,7 +9,7 @@
     <Button
       @click="handleInitializeSR"
       class="dev-button"
-      :disabled="isInitializingSR || uninitializedCount === 0"
+      :disabled="uninitializedCount === 0"
       title="Add all existing questions to spaced repetition"
       variant="secondary"
     >
@@ -23,6 +23,15 @@
       variant="secondary"
     >
       Reset SR ({{ srCardCount }})
+    </Button>
+    <Button
+      @click="handleGenerateSummaries"
+      class="dev-button"
+      :disabled="isGeneratingSummaries || missingSummaryCount === 0"
+      title="Generate summaries for all SR cards missing them"
+      variant="secondary"
+    >
+      {{ summaryButtonText }}
     </Button>
   </div>
 </template>
@@ -40,29 +49,36 @@ const staleDataTriggered = ref(false)
 
 // Spaced repetition
 const chatStore = useChatStore()
-const { uninitializedCount, initializeAllExisting } = useSpacedRepetition()
-const isInitializingSR = ref(false)
-const srProgress = ref({ completed: 0, total: 0, delayRemaining: 0, status: 'idle' })
-const abortController = ref(null)
+const { uninitializedCount, initializeAllExisting, missingSummaryCount, generateAllMissingSummaries } = useSpacedRepetition()
+
+// Summary generation state
+const isGeneratingSummaries = ref(false)
+const summaryProgress = ref({ completed: 0, total: 0, status: 'idle' })
 
 // Count of cards in SR system
 const srCardCount = computed(() => Object.keys(chatStore.srData).length)
 
 const srButtonText = computed(() => {
-  if (isInitializingSR.value) {
-    const { completed, total, delayRemaining, status } = srProgress.value
-    if (status === 'generating') {
-      return `Generating ${completed + 1}/${total}...`
-    } else if (status === 'waiting') {
-      const seconds = Math.ceil(delayRemaining / 1000)
-      return `${completed}/${total} - next in ${seconds}s`
-    }
-    return `${completed}/${total}`
-  }
   if (uninitializedCount.value === 0) {
     return 'All questions in SR'
   }
   return `Add ${uninitializedCount.value} to SR`
+})
+
+const summaryButtonText = computed(() => {
+  if (isGeneratingSummaries.value) {
+    const { completed, total, status } = summaryProgress.value
+    if (status === 'generating') {
+      return `Generating ${completed + 1}/${total}...`
+    } else if (status === 'waiting') {
+      return `${completed}/${total} - waiting...`
+    }
+    return `${completed}/${total}`
+  }
+  if (missingSummaryCount.value === 0) {
+    return 'All summaries done'
+  }
+  return `Gen ${missingSummaryCount.value} summaries`
 })
 
 const handleClearCache = () => {
@@ -79,30 +95,9 @@ const handleTriggerStaleData = () => {
   }
 }
 
-const handleInitializeSR = async () => {
-  if (isInitializingSR.value || uninitializedCount.value === 0) return
-
-  isInitializingSR.value = true
-  abortController.value = new AbortController()
-  srProgress.value = { completed: 0, total: uninitializedCount.value, delayRemaining: 0, status: 'generating' }
-
-  try {
-    await initializeAllExisting(
-      chatStore.currentModel,
-      (progress) => {
-        srProgress.value = progress
-      },
-      abortController.value.signal
-    )
-  } catch (error) {
-    if (error.message !== 'Cancelled') {
-      console.error('Failed to initialize SR cards:', error)
-    }
-  } finally {
-    isInitializingSR.value = false
-    abortController.value = null
-    srProgress.value = { completed: 0, total: 0, delayRemaining: 0, status: 'idle' }
-  }
+const handleInitializeSR = () => {
+  if (uninitializedCount.value === 0) return
+  initializeAllExisting()
 }
 
 const handleResetSR = () => {
@@ -110,9 +105,30 @@ const handleResetSR = () => {
   if (count === 0) return
 
   if (confirm(`Are you sure you want to reset all ${count} spaced repetition cards? This will clear all review progress.`)) {
-    // Clear all SR data
+    // Clear all SR data (keeps summaries on messages)
     chatStore.srData = {}
     chatStore._persistState()
+  }
+}
+
+const handleGenerateSummaries = async () => {
+  if (isGeneratingSummaries.value || missingSummaryCount.value === 0) return
+
+  isGeneratingSummaries.value = true
+  summaryProgress.value = { completed: 0, total: missingSummaryCount.value, status: 'generating' }
+
+  try {
+    await generateAllMissingSummaries(
+      chatStore.currentModel,
+      (progress) => {
+        summaryProgress.value = progress
+      }
+    )
+  } catch (error) {
+    console.error('Failed to generate summaries:', error)
+  } finally {
+    isGeneratingSummaries.value = false
+    summaryProgress.value = { completed: 0, total: 0, status: 'idle' }
   }
 }
 </script>

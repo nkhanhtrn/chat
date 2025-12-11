@@ -37,15 +37,14 @@ describe('Chat Store - Spaced Repetition', () => {
         'msg-1': new Message({ id: 'msg-1', question: 'Q', response: 'R' })
       }
 
-      store.initializeSRCard('msg-1', 'Test summary')
+      store.initializeSRCard('msg-1')
 
       expect(store.srData['msg-1']).toBeDefined()
       expect(store.srData['msg-1'].messageId).toBe('msg-1')
-      expect(store.srData['msg-1'].responseSummary).toBe('Test summary')
     })
 
     it('does not create card for non-existent message', () => {
-      store.initializeSRCard('non-existent', 'Summary')
+      store.initializeSRCard('non-existent')
       expect(store.srData['non-existent']).toBeUndefined()
     })
 
@@ -55,13 +54,11 @@ describe('Chat Store - Spaced Repetition', () => {
       }
       store.srData['msg-1'] = new SRCard({
         messageId: 'msg-1',
-        responseSummary: 'Original',
         repetitions: 5
       })
 
-      store.initializeSRCard('msg-1', 'New summary')
+      store.initializeSRCard('msg-1')
 
-      expect(store.srData['msg-1'].responseSummary).toBe('Original')
       expect(store.srData['msg-1'].repetitions).toBe(5)
     })
 
@@ -79,17 +76,19 @@ describe('Chat Store - Spaced Repetition', () => {
   })
 
   describe('updateSRResponseSummary', () => {
-    it('updates summary for existing card', () => {
-      store.srData['msg-1'] = new SRCard({ messageId: 'msg-1' })
+    it('updates summary on message object', () => {
+      store.messagesById = {
+        'msg-1': new Message({ id: 'msg-1', question: 'Q', response: 'R' })
+      }
 
       store.updateSRResponseSummary('msg-1', 'Updated summary')
 
-      expect(store.srData['msg-1'].responseSummary).toBe('Updated summary')
+      expect(store.messagesById['msg-1'].responseSummary).toBe('Updated summary')
     })
 
-    it('does nothing for non-existent card', () => {
+    it('does nothing for non-existent message', () => {
       store.updateSRResponseSummary('non-existent', 'Summary')
-      expect(store.srData['non-existent']).toBeUndefined()
+      expect(store.messagesById['non-existent']).toBeUndefined()
     })
   })
 
@@ -182,13 +181,12 @@ describe('Chat Store - Spaced Repetition', () => {
 
     it('returns cards due for review', () => {
       store.messagesById = {
-        'msg-1': new Message({ id: 'msg-1', question: 'Q1', response: 'R1' })
+        'msg-1': new Message({ id: 'msg-1', question: 'Q1', response: 'R1', responseSummary: 'Summary' })
       }
       store.srData = {
         'msg-1': new SRCard({
           messageId: 'msg-1',
-          nextReviewDate: Date.now() - 1000, // Past
-          responseSummary: 'Summary'
+          nextReviewDate: Date.now() - 1000 // Past
         })
       }
 
@@ -297,8 +295,7 @@ describe('Chat Store - Spaced Repetition', () => {
             messageId: 'msg-1',
             easiness: 2.3,
             interval: 6,
-            repetitions: 2,
-            responseSummary: 'Summary'
+            repetitions: 2
           }
         },
         chats: [],
@@ -317,16 +314,14 @@ describe('Chat Store - Spaced Repetition', () => {
   describe('_persistState includes srData', () => {
     it('includes srData in state when serialized', () => {
       store.srData = {
-        'msg-1': new SRCard({ messageId: 'msg-1', responseSummary: 'Summary' })
+        'msg-1': new SRCard({ messageId: 'msg-1' })
       }
 
-      // The store's srData should have the SRCard with summary
+      // The store's srData should have the SRCard
       expect(store.srData['msg-1']).toBeDefined()
-      expect(store.srData['msg-1'].responseSummary).toBe('Summary')
 
       // Verify SRCard can be serialized (toJSON is used by _persistState)
       const serialized = store.srData['msg-1'].toJSON()
-      expect(serialized.responseSummary).toBe('Summary')
       expect(serialized.messageId).toBe('msg-1')
     })
   })

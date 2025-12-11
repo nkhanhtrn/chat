@@ -189,8 +189,8 @@
           </div>
         </div>
 
-        <!-- Dev Toolbar Toggle (only in dev mode) -->
-        <div v-if="isDev" class="setting-item dev-toolbar-section">
+        <!-- Dev Toolbar Toggle -->
+        <div class="setting-item dev-toolbar-section">
           <label class="setting-label">Dev Toolbar</label>
           <button
             :class="['toggle-button', { active: showDevToolbar }]"
@@ -232,7 +232,6 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'provider-changed'])
 
 // Dev toolbar (injected from App.vue)
-const isDev = inject('isDev', false)
 const showDevToolbar = inject('showDevToolbar', ref(false))
 const toggleDevToolbar = inject('toggleDevToolbar', () => {})
 

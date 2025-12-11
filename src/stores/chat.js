@@ -177,6 +177,23 @@ export const useChatStore = defineStore('chat', {
       const now = Date.now()
       const dueCards = []
 
+      // Build a map of messageId -> chatId for quick lookup
+      const messageToChatId = {}
+      for (const chat of state.chats) {
+        const collectMessageIds = (messageId) => {
+          messageToChatId[messageId] = chat.id
+          const msg = state.messagesById[messageId]
+          if (msg?.childIds) {
+            for (const childId of msg.childIds) {
+              collectMessageIds(childId)
+            }
+          }
+        }
+        for (const rootId of chat.rootMessageIds) {
+          collectMessageIds(rootId)
+        }
+      }
+
       for (const [messageId, srInfo] of Object.entries(state.srData)) {
         // Skip if message no longer exists
         if (!state.messagesById[messageId]) continue
@@ -186,9 +203,10 @@ export const useChatStore = defineStore('chat', {
           const message = state.messagesById[messageId]
           dueCards.push({
             messageId,
+            chatId: messageToChatId[messageId] || null,
             question: message.question,
             questionSummarized: message.questionSummarized,
-            responseSummary: srInfo.responseSummary || '',
+            responseSummary: message.responseSummary || '',
             response: message.response,
             ...srInfo
           })
@@ -1142,21 +1160,23 @@ export const useChatStore = defineStore('chat', {
     // ============================================
 
     // Initialize SR card for a message (called when response is complete)
-    initializeSRCard(messageId, responseSummary = '') {
+    // Note: responseSummary is stored on the Message object, not the SR card
+    initializeSRCard(messageId) {
       if (!this.messagesById[messageId]) return
 
       // Only initialize if not already in SR system
       if (!this.srData[messageId]) {
-        const card = new SRCard({ messageId, responseSummary })
+        const card = new SRCard({ messageId })
         this.srData[messageId] = card
         this._persistState()
       }
     },
 
-    // Update response summary for a card
+    // Update response summary on message object
     updateSRResponseSummary(messageId, responseSummary) {
-      if (this.srData[messageId]) {
-        this.srData[messageId].setResponseSummary(responseSummary)
+      const message = this.messagesById[messageId]
+      if (message) {
+        message.responseSummary = responseSummary
         this._persistState()
       }
     },

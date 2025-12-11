@@ -48,15 +48,8 @@ describe('useSpacedRepetition', () => {
     it('calls store initializeSRCard', () => {
       const spy = vi.spyOn(chatStore, 'initializeSRCard')
       const { initializeCard } = useSpacedRepetition()
-      initializeCard('msg-1', 'Test summary')
-      expect(spy).toHaveBeenCalledWith('msg-1', 'Test summary')
-    })
-
-    it('uses empty string as default summary', () => {
-      const spy = vi.spyOn(chatStore, 'initializeSRCard')
-      const { initializeCard } = useSpacedRepetition()
       initializeCard('msg-1')
-      expect(spy).toHaveBeenCalledWith('msg-1', '')
+      expect(spy).toHaveBeenCalledWith('msg-1')
     })
   })
 
@@ -99,7 +92,7 @@ describe('useSpacedRepetition', () => {
   })
 
   describe('initializeCardWithSummary', () => {
-    it('initializes card immediately with empty summary', async () => {
+    it('initializes card and generates summary', async () => {
       api.sendChatMessage.mockImplementation(async (model, messages, onChunk) => {
         onChunk('Generated summary')
       })
@@ -110,7 +103,7 @@ describe('useSpacedRepetition', () => {
       const { initializeCardWithSummary } = useSpacedRepetition()
       await initializeCardWithSummary('msg-1', 'Response text', 'gpt-4')
 
-      expect(initSpy).toHaveBeenCalledWith('msg-1', '')
+      expect(initSpy).toHaveBeenCalledWith('msg-1')
       expect(updateSpy).toHaveBeenCalledWith('msg-1', 'Generated summary')
     })
 
@@ -239,24 +232,17 @@ describe('useSpacedRepetition', () => {
       expect(chatStore.srData['msg-2']).toBeDefined()
     })
 
-    it('calls onProgress callback', async () => {
+    it('calls onProgress callback with done status', async () => {
       chatStore.messagesById = {
         'msg-1': { id: 'msg-1', question: 'Q1', response: 'R1' }
       }
 
       const onProgress = vi.fn()
       const { initializeAllExisting } = useSpacedRepetition()
-      const promise = initializeAllExisting('gpt-4', onProgress)
+      await initializeAllExisting('gpt-4', onProgress)
 
-      await vi.runAllTimersAsync()
-      await promise
-
-      expect(onProgress).toHaveBeenCalledWith({
-        completed: 0,
-        total: 1,
-        delayRemaining: 0,
-        status: 'generating'
-      })
+      // Since initializeAllExisting is now instant (no API calls), only done status is reported
+      expect(onProgress).toHaveBeenCalledTimes(1)
       expect(onProgress).toHaveBeenCalledWith({
         completed: 1,
         total: 1,
@@ -265,35 +251,23 @@ describe('useSpacedRepetition', () => {
       })
     })
 
-    it('can be cancelled with abort signal', async () => {
+    it('completes immediately without delays', async () => {
       chatStore.messagesById = {
         'msg-1': { id: 'msg-1', question: 'Q1', response: 'R1' },
         'msg-2': { id: 'msg-2', question: 'Q2', response: 'R2' }
       }
 
-      const abortController = new AbortController()
       const { initializeAllExisting } = useSpacedRepetition()
 
-      // Start initialization and immediately attach error handler to prevent unhandled rejection
-      const promise = initializeAllExisting('gpt-4', null, abortController.signal)
+      // Should complete synchronously without needing timers
+      const result = await initializeAllExisting('gpt-4')
 
-      // Attach catch handler immediately to prevent unhandled rejection
-      let thrownError
-      const handledPromise = promise.catch(e => {
-        thrownError = e
-      })
-
-      // Abort before completion
-      abortController.abort()
-
-      await vi.runAllTimersAsync()
-      await handledPromise
-
-      expect(thrownError).toBeDefined()
-      expect(thrownError.message).toBe('Cancelled')
+      expect(result).toBe(2)
+      expect(chatStore.srData['msg-1']).toBeDefined()
+      expect(chatStore.srData['msg-2']).toBeDefined()
     })
 
-    it('reports waiting status with delay countdown', async () => {
+    it('reports done status immediately', async () => {
       chatStore.messagesById = {
         'msg-1': { id: 'msg-1', question: 'Q1', response: 'R1' },
         'msg-2': { id: 'msg-2', question: 'Q2', response: 'R2' }
@@ -303,14 +277,16 @@ describe('useSpacedRepetition', () => {
       const onProgress = (p) => progressCalls.push({ ...p })
 
       const { initializeAllExisting } = useSpacedRepetition()
-      const promise = initializeAllExisting('gpt-4', onProgress)
+      await initializeAllExisting('gpt-4', onProgress)
 
-      await vi.runAllTimersAsync()
-      await promise
-
-      // Should have waiting status calls
-      const waitingCalls = progressCalls.filter(p => p.status === 'waiting')
-      expect(waitingCalls.length).toBeGreaterThan(0)
+      // Should only have done status (no generating/waiting since no API calls)
+      expect(progressCalls).toHaveLength(1)
+      expect(progressCalls[0]).toEqual({
+        completed: 2,
+        total: 2,
+        delayRemaining: 0,
+        status: 'done'
+      })
     })
   })
 })

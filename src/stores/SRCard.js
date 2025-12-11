@@ -1,4 +1,5 @@
 // Spaced Repetition Card class using SM-2 algorithm
+// Note: responseSummary is stored on the Message object, not here
 export default class SRCard {
   static DAY_IN_MS = 24 * 60 * 60 * 1000
 
@@ -8,8 +9,7 @@ export default class SRCard {
     interval = 1,
     repetitions = 0,
     nextReviewDate = null,
-    lastReviewDate = null,
-    responseSummary = ''
+    lastReviewDate = null
   }) {
     this.messageId = messageId
     this.easiness = easiness
@@ -17,7 +17,6 @@ export default class SRCard {
     this.repetitions = repetitions
     this.nextReviewDate = nextReviewDate ?? Date.now() // Due immediately for new cards
     this.lastReviewDate = lastReviewDate
-    this.responseSummary = responseSummary
   }
 
   // Check if this card is due for review
@@ -65,11 +64,6 @@ export default class SRCard {
     this.nextReviewDate = now + (this.interval * SRCard.DAY_IN_MS)
   }
 
-  // Update the response summary
-  setResponseSummary(summary) {
-    this.responseSummary = summary
-  }
-
   // Serialize to plain object for storage
   toJSON() {
     return {
@@ -78,8 +72,7 @@ export default class SRCard {
       interval: this.interval,
       repetitions: this.repetitions,
       nextReviewDate: this.nextReviewDate,
-      lastReviewDate: this.lastReviewDate,
-      responseSummary: this.responseSummary
+      lastReviewDate: this.lastReviewDate
     }
   }
 }

@@ -7,10 +7,9 @@ export const getIsDev = () => import.meta.env.DEV
 const DEV_TOOLBAR_KEY = 'devToolbarEnabled'
 
 export const getDevToolbarEnabled = () => {
-  if (!getIsDev()) return false
   const stored = localStorage.getItem(DEV_TOOLBAR_KEY)
-  // Default to true in dev mode if not set
-  return stored === null ? true : stored === 'true'
+  // Default to false if not set
+  return stored === 'true'
 }
 
 export const setDevToolbarEnabled = (enabled) => {

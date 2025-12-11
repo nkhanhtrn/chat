@@ -22,8 +22,8 @@ export function useSpacedRepetition() {
   }
 
   // Initialize a card for spaced repetition
-  const initializeCard = (messageId, responseSummary = '') => {
-    chatStore.initializeSRCard(messageId, responseSummary)
+  const initializeCard = (messageId) => {
+    chatStore.initializeSRCard(messageId)
   }
 
   // Generate response summary using LLM
@@ -52,10 +52,10 @@ export function useSpacedRepetition() {
 
   // Initialize card with LLM-generated summary
   const initializeCardWithSummary = async (messageId, response, model) => {
-    // Initialize immediately with empty summary
-    chatStore.initializeSRCard(messageId, '')
+    // Initialize SR card
+    chatStore.initializeSRCard(messageId)
 
-    // Generate summary asynchronously
+    // Generate summary and save to message
     const summary = await generateResponseSummary(response, model)
     chatStore.updateSRResponseSummary(messageId, summary)
 
@@ -120,47 +120,80 @@ export function useSpacedRepetition() {
   const initializeAllExisting = async (model, onProgress = null, abortSignal = null) => {
     const uninitialized = getUninitializedMessages()
     const total = uninitialized.length
+
+    // Add all cards without generating summaries (summaries stored on message object)
+    for (const { messageId } of uninitialized) {
+      if (abortSignal?.aborted) {
+        throw new Error('Cancelled')
+      }
+      initializeCard(messageId)
+    }
+
+    if (onProgress) {
+      onProgress({ completed: total, total, delayRemaining: 0, status: 'done' })
+    }
+
+    return total
+  }
+
+  // Get all SR cards that are missing response summaries on the message
+  const getCardsMissingSummary = () => {
+    const missing = []
+    for (const [messageId] of Object.entries(chatStore.srData)) {
+      const message = chatStore.messagesById[messageId]
+      if (!message?.responseSummary && message?.response) {
+        missing.push({ messageId, message })
+      }
+    }
+    return missing
+  }
+
+  // Count of SR cards missing summaries
+  const missingSummaryCount = computed(() => {
+    let count = 0
+    for (const [messageId] of Object.entries(chatStore.srData)) {
+      const message = chatStore.messagesById[messageId]
+      if (!message?.responseSummary && message?.response) {
+        count++
+      }
+    }
+    return count
+  })
+
+  // Generate summaries for all SR cards missing them
+  // onProgress callback receives: { completed, total, status }
+  // status: 'generating' | 'waiting' | 'done'
+  const generateAllMissingSummaries = async (model, onProgress = null, abortSignal = null) => {
+    const missing = getCardsMissingSummary()
+    const total = missing.length
     let completed = 0
 
-    for (let i = 0; i < uninitialized.length; i++) {
+    for (let i = 0; i < missing.length; i++) {
       if (abortSignal?.aborted) {
         throw new Error('Cancelled')
       }
 
-      const { messageId, message } = uninitialized[i]
+      const { messageId, message } = missing[i]
 
-      // Report generating status
       if (onProgress) {
-        onProgress({ completed, total, delayRemaining: 0, status: 'generating' })
+        onProgress({ completed, total, status: 'generating' })
       }
 
-      await initializeCardWithSummary(messageId, message.response, model)
+      const summary = await generateResponseSummary(message.response, model)
+      chatStore.updateSRResponseSummary(messageId, summary)
       completed++
 
       // Add delay between calls (except for the last one)
-      if (i < uninitialized.length - 1) {
-        // Countdown the delay
-        const delayMs = DELAY_BETWEEN_CALLS_MS
-        const intervalMs = 100 // Update every 100ms
-        let remaining = delayMs
-
-        while (remaining > 0) {
-          if (abortSignal?.aborted) {
-            throw new Error('Cancelled')
-          }
-
-          if (onProgress) {
-            onProgress({ completed, total, delayRemaining: remaining, status: 'waiting' })
-          }
-
-          await delay(Math.min(intervalMs, remaining), abortSignal)
-          remaining -= intervalMs
+      if (i < missing.length - 1) {
+        if (onProgress) {
+          onProgress({ completed, total, status: 'waiting' })
         }
+        await delay(DELAY_BETWEEN_CALLS_MS, abortSignal)
       }
     }
 
     if (onProgress) {
-      onProgress({ completed, total, delayRemaining: 0, status: 'done' })
+      onProgress({ completed, total, status: 'done' })
     }
 
     return completed
@@ -170,6 +203,7 @@ export function useSpacedRepetition() {
     cardsDue,
     dueCount,
     uninitializedCount,
+    missingSummaryCount,
     recordReview,
     initializeCard,
     initializeCardWithSummary,
@@ -178,6 +212,7 @@ export function useSpacedRepetition() {
     removeCard,
     getCardData,
     getUninitializedMessages,
-    initializeAllExisting
+    initializeAllExisting,
+    generateAllMissingSummaries
   }
 }

@@ -1,62 +1,29 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { getDevToolbarEnabled, setDevToolbarEnabled } from '../useEnvironment.js'
 
 describe('useEnvironment', () => {
-  // Store original import.meta.env
-  let originalEnv
-
-  beforeEach(() => {
-    originalEnv = import.meta.env.DEV
-  })
-
-  afterEach(() => {
-    // Restore original environment
-    import.meta.env.DEV = originalEnv
-  })
-
   describe('getDevToolbarEnabled', () => {
     beforeEach(() => {
       localStorage.clear()
     })
 
-    describe('in production mode', () => {
-      beforeEach(() => {
-        import.meta.env.DEV = false
-      })
-
-      it('should return false regardless of localStorage', () => {
-        localStorage.setItem('devToolbarEnabled', 'true')
-        expect(getDevToolbarEnabled()).toBe(false)
-      })
-
-      it('should return false when localStorage is not set', () => {
-        expect(getDevToolbarEnabled()).toBe(false)
-      })
+    it('should return false when localStorage is not set', () => {
+      expect(getDevToolbarEnabled()).toBe(false)
     })
 
-    describe('in development mode', () => {
-      beforeEach(() => {
-        import.meta.env.DEV = true
-      })
+    it('should return true when localStorage is set to "true"', () => {
+      localStorage.setItem('devToolbarEnabled', 'true')
+      expect(getDevToolbarEnabled()).toBe(true)
+    })
 
-      it('should default to true when localStorage is not set', () => {
-        expect(getDevToolbarEnabled()).toBe(true)
-      })
+    it('should return false when localStorage is set to "false"', () => {
+      localStorage.setItem('devToolbarEnabled', 'false')
+      expect(getDevToolbarEnabled()).toBe(false)
+    })
 
-      it('should return true when localStorage is set to "true"', () => {
-        localStorage.setItem('devToolbarEnabled', 'true')
-        expect(getDevToolbarEnabled()).toBe(true)
-      })
-
-      it('should return false when localStorage is set to "false"', () => {
-        localStorage.setItem('devToolbarEnabled', 'false')
-        expect(getDevToolbarEnabled()).toBe(false)
-      })
-
-      it('should return false for any non-"true" string value', () => {
-        localStorage.setItem('devToolbarEnabled', 'yes')
-        expect(getDevToolbarEnabled()).toBe(false)
-      })
+    it('should return false for any non-"true" string value', () => {
+      localStorage.setItem('devToolbarEnabled', 'yes')
+      expect(getDevToolbarEnabled()).toBe(false)
     })
   })
 
@@ -84,8 +51,6 @@ describe('useEnvironment', () => {
     })
 
     it('should persist value that getDevToolbarEnabled can read', () => {
-      import.meta.env.DEV = true
-
       setDevToolbarEnabled(false)
       expect(getDevToolbarEnabled()).toBe(false)
 

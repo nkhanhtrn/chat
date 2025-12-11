@@ -15,7 +15,6 @@ describe('SRCard', () => {
       expect(card.easiness).toBe(2.5)
       expect(card.interval).toBe(1)
       expect(card.repetitions).toBe(0)
-      expect(card.responseSummary).toBe('')
       expect(card.lastReviewDate).toBe(null)
       expect(card.nextReviewDate).toBeDefined()
     })
@@ -27,15 +26,13 @@ describe('SRCard', () => {
         interval: 6,
         repetitions: 2,
         nextReviewDate: 12345,
-        lastReviewDate: 12340,
-        responseSummary: 'Test summary'
+        lastReviewDate: 12340
       })
       expect(card.easiness).toBe(2.0)
       expect(card.interval).toBe(6)
       expect(card.repetitions).toBe(2)
       expect(card.nextReviewDate).toBe(12345)
       expect(card.lastReviewDate).toBe(12340)
-      expect(card.responseSummary).toBe('Test summary')
     })
 
     it('sets nextReviewDate to now for new cards', () => {
@@ -227,13 +224,7 @@ describe('SRCard', () => {
     })
   })
 
-  describe('setResponseSummary', () => {
-    it('updates the response summary', () => {
-      const card = new SRCard({ messageId: 'msg-1' })
-      card.setResponseSummary('New summary')
-      expect(card.responseSummary).toBe('New summary')
-    })
-  })
+  // Note: responseSummary is now stored on the Message object, not SRCard
 
   describe('toJSON', () => {
     it('serializes all properties', () => {
@@ -243,8 +234,7 @@ describe('SRCard', () => {
         interval: 6,
         repetitions: 2,
         nextReviewDate: 12345,
-        lastReviewDate: 12340,
-        responseSummary: 'Summary'
+        lastReviewDate: 12340
       })
       const json = card.toJSON()
       expect(json).toEqual({
@@ -253,8 +243,7 @@ describe('SRCard', () => {
         interval: 6,
         repetitions: 2,
         nextReviewDate: 12345,
-        lastReviewDate: 12340,
-        responseSummary: 'Summary'
+        lastReviewDate: 12340
       })
     })
 
