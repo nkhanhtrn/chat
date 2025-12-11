@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { getIsDev, getDefaultQuestions } from '../useEnvironment.js'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { getDevToolbarEnabled, setDevToolbarEnabled } from '../useEnvironment.js'
 
 describe('useEnvironment', () => {
   // Store original import.meta.env
@@ -14,62 +14,83 @@ describe('useEnvironment', () => {
     import.meta.env.DEV = originalEnv
   })
 
-  describe('getIsDev', () => {
-    it('should return true when in development mode', () => {
-      import.meta.env.DEV = true
-      expect(getIsDev()).toBe(true)
+  describe('getDevToolbarEnabled', () => {
+    beforeEach(() => {
+      localStorage.clear()
     })
 
-    it('should return false when in production mode', () => {
-      import.meta.env.DEV = false
-      expect(getIsDev()).toBe(false)
-    })
-  })
-
-  describe('getDefaultQuestions', () => {
     describe('in production mode', () => {
       beforeEach(() => {
         import.meta.env.DEV = false
       })
 
-      it('should return production questions', () => {
-        const questions = getDefaultQuestions()
-        expect(questions).toEqual([
-          'Explain quantum physics in simple terms',
-          'How does photosynthesis work?',
-          'Teach me about the French Revolution',
-        ])
+      it('should return false regardless of localStorage', () => {
+        localStorage.setItem('devToolbarEnabled', 'true')
+        expect(getDevToolbarEnabled()).toBe(false)
       })
 
-      it('should return an array of 3 questions', () => {
-        const questions = getDefaultQuestions()
-        expect(questions).toHaveLength(3)
-      })
-
-      it('should return educational questions', () => {
-        const questions = getDefaultQuestions()
-        expect(questions.every(q => typeof q === 'string' && q.length > 0)).toBe(true)
+      it('should return false when localStorage is not set', () => {
+        expect(getDevToolbarEnabled()).toBe(false)
       })
     })
 
-    describe('environment-based behavior', () => {
-      it('should return different questions based on environment', () => {
+    describe('in development mode', () => {
+      beforeEach(() => {
         import.meta.env.DEV = true
-        const devQuestions = getDefaultQuestions()
-
-        import.meta.env.DEV = false
-        const prodQuestions = getDefaultQuestions()
-
-        expect(devQuestions).not.toEqual(prodQuestions)
       })
 
-      it('should consistently return the same questions for the same environment', () => {
-        import.meta.env.DEV = true
-        const questions1 = getDefaultQuestions()
-        const questions2 = getDefaultQuestions()
-
-        expect(questions1).toEqual(questions2)
+      it('should default to true when localStorage is not set', () => {
+        expect(getDevToolbarEnabled()).toBe(true)
       })
+
+      it('should return true when localStorage is set to "true"', () => {
+        localStorage.setItem('devToolbarEnabled', 'true')
+        expect(getDevToolbarEnabled()).toBe(true)
+      })
+
+      it('should return false when localStorage is set to "false"', () => {
+        localStorage.setItem('devToolbarEnabled', 'false')
+        expect(getDevToolbarEnabled()).toBe(false)
+      })
+
+      it('should return false for any non-"true" string value', () => {
+        localStorage.setItem('devToolbarEnabled', 'yes')
+        expect(getDevToolbarEnabled()).toBe(false)
+      })
+    })
+  })
+
+  describe('setDevToolbarEnabled', () => {
+    beforeEach(() => {
+      localStorage.clear()
+    })
+
+    it('should store "true" in localStorage when enabled is true', () => {
+      setDevToolbarEnabled(true)
+      expect(localStorage.getItem('devToolbarEnabled')).toBe('true')
+    })
+
+    it('should store "false" in localStorage when enabled is false', () => {
+      setDevToolbarEnabled(false)
+      expect(localStorage.getItem('devToolbarEnabled')).toBe('false')
+    })
+
+    it('should overwrite existing value', () => {
+      setDevToolbarEnabled(true)
+      expect(localStorage.getItem('devToolbarEnabled')).toBe('true')
+
+      setDevToolbarEnabled(false)
+      expect(localStorage.getItem('devToolbarEnabled')).toBe('false')
+    })
+
+    it('should persist value that getDevToolbarEnabled can read', () => {
+      import.meta.env.DEV = true
+
+      setDevToolbarEnabled(false)
+      expect(getDevToolbarEnabled()).toBe(false)
+
+      setDevToolbarEnabled(true)
+      expect(getDevToolbarEnabled()).toBe(true)
     })
   })
 })

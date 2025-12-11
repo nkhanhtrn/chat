@@ -1,7 +1,7 @@
 <template>
   <!-- Dev Toolbar (fixed at top, outside app flow) -->
-  <DevToolbar v-if="isDev" />
-  <div v-if="isDev" class="dev-toolbar-spacer"></div>
+  <DevToolbar v-if="showDevToolbar" />
+  <div v-if="showDevToolbar" class="dev-toolbar-spacer"></div>
 
   <!-- Stale Data Banner -->
   <StaleDataBanner
@@ -29,9 +29,15 @@ import StaleDataBanner from './components/StaleDataBanner.vue'
 import DevToolbar from './components/DevToolbar.vue'
 import { useChatStore } from './stores/chat.js'
 import { useStaleDataDetection } from './composables/useStaleDataDetection.js'
-import { getIsDev } from './composables/useEnvironment.js'
+import { getIsDev, getDevToolbarEnabled, setDevToolbarEnabled } from './composables/useEnvironment.js'
 
 const isDev = getIsDev()
+const showDevToolbar = ref(getDevToolbarEnabled())
+
+const toggleDevToolbar = (enabled) => {
+  setDevToolbarEnabled(enabled)
+  showDevToolbar.value = enabled
+}
 
 const chatStore = useChatStore()
 
@@ -40,6 +46,11 @@ const { showStaleDataBanner, isReadOnlyMode, refresh, dismissBanner, triggerBann
 
 // Provide trigger function for DevToolbar
 provide('triggerStaleDataBanner', triggerBanner)
+
+// Provide DevToolbar toggle for Settings
+provide('isDev', isDev)
+provide('showDevToolbar', showDevToolbar)
+provide('toggleDevToolbar', toggleDevToolbar)
 
 const showConflictModal = ref(false)
 const conflictData = ref({

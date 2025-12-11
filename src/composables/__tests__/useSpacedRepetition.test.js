@@ -274,21 +274,21 @@ describe('useSpacedRepetition', () => {
       const abortController = new AbortController()
       const { initializeAllExisting } = useSpacedRepetition()
 
-      // Start initialization
+      // Start initialization and immediately attach error handler to prevent unhandled rejection
       const promise = initializeAllExisting('gpt-4', null, abortController.signal)
+
+      // Attach catch handler immediately to prevent unhandled rejection
+      let thrownError
+      const handledPromise = promise.catch(e => {
+        thrownError = e
+      })
 
       // Abort before completion
       abortController.abort()
 
       await vi.runAllTimersAsync()
+      await handledPromise
 
-      // Wrap in try/catch to handle the rejection properly
-      let thrownError
-      try {
-        await promise
-      } catch (e) {
-        thrownError = e
-      }
       expect(thrownError).toBeDefined()
       expect(thrownError.message).toBe('Cancelled')
     })

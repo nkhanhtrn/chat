@@ -3,6 +3,20 @@
 
 export const getIsDev = () => import.meta.env.DEV
 
+// DevToolbar visibility (persisted in localStorage)
+const DEV_TOOLBAR_KEY = 'devToolbarEnabled'
+
+export const getDevToolbarEnabled = () => {
+  if (!getIsDev()) return false
+  const stored = localStorage.getItem(DEV_TOOLBAR_KEY)
+  // Default to true in dev mode if not set
+  return stored === null ? true : stored === 'true'
+}
+
+export const setDevToolbarEnabled = (enabled) => {
+  localStorage.setItem(DEV_TOOLBAR_KEY, String(enabled))
+}
+
 export const getDefaultQuestions = () => {
   const isDev = getIsDev()
   let answers = [

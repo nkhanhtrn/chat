@@ -188,6 +188,17 @@
             {{ restoreStatus.message }}
           </div>
         </div>
+
+        <!-- Dev Toolbar Toggle (only in dev mode) -->
+        <div v-if="isDev" class="setting-item dev-toolbar-section">
+          <label class="setting-label">Dev Toolbar</label>
+          <button
+            :class="['toggle-button', { active: showDevToolbar }]"
+            @click="handleToggleDevToolbar"
+          >
+            {{ showDevToolbar ? 'Visible' : 'Hidden' }}
+          </button>
+        </div>
           </div>
         </Transition>
       </div>
@@ -196,7 +207,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, inject } from 'vue'
 import Modal from './Modal.vue'
 import Button from '../Button.vue'
 import {
@@ -219,6 +230,15 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:modelValue', 'provider-changed'])
+
+// Dev toolbar (injected from App.vue)
+const isDev = inject('isDev', false)
+const showDevToolbar = inject('showDevToolbar', ref(false))
+const toggleDevToolbar = inject('toggleDevToolbar', () => {})
+
+const handleToggleDevToolbar = () => {
+  toggleDevToolbar(!showDevToolbar.value)
+}
 
 // LLM Provider state
 const providers = ref([])
@@ -994,5 +1014,16 @@ const restoreNotebooks = async (event) => {
 
 .file-input {
   display: none;
+}
+
+.dev-toolbar-section {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.dev-toolbar-section .toggle-button {
+  border: 1px solid var(--color-border-base);
+  border-radius: 4px;
 }
 </style>

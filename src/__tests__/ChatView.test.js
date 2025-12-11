@@ -68,6 +68,10 @@ vi.mock('../composables/useEnvironment.js', () => ({
 vi.mock('../services/extraPrompt.js', () => ({
   getMainPrompts: vi.fn((question, prev, ctx) => [
     { role: 'user', content: question }
+  ]),
+  getSRSummaryPrompts: vi.fn((response) => [
+    { role: 'system', content: 'Summarize' },
+    { role: 'user', content: response }
   ])
 }))
 
