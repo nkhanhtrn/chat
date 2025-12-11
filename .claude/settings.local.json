@@ -16,7 +16,8 @@
       "Bash(cat:*)",
       "Bash(npm install:*)",
       "Bash(ls:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(wc:*)"
     ],
     "deny": [],
     "ask": []

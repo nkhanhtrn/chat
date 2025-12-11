@@ -100,12 +100,14 @@ import { useChatStore } from '../stores/chat.js'
 import DevToolbar from '../components/DevToolbar.vue'
 import { getIsDev, getDefaultQuestions } from '../composables/useEnvironment.js'
 import { getMainPrompts } from '../services/extraPrompt.js'
+import { useSpacedRepetition } from '../composables/useSpacedRepetition.js'
 
 const route = useRoute()
 const router = useRouter()
 const error = ref(null)
 const messagesContainer = ref(null)
 const chatStore = useChatStore()
+const { initializeCardWithSummary } = useSpacedRepetition()
 const isAddingNewQuestion = ref(false)
 const showingOverview = ref(false)
 
@@ -294,6 +296,12 @@ const handleSendMessage = async (userMessage, contextQuestions = []) => {
       },
       signal
     )
+
+    // Initialize spaced repetition card with LLM-generated summary
+    const response = chatStore.messagesById[msg.id]?.response
+    if (response) {
+      initializeCardWithSummary(msg.id, response, chatStore.currentModel)
+    }
   } catch (err) {
     error.value = err.message
     // Remove message from store on error

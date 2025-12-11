@@ -89,6 +89,7 @@ import Message from '../stores/Message.js'
 import { getSelectedTextAndPosition as getSelectionWithOffsets } from '../services/DOMSelectionHelper.js'
 import { usePopupState } from '../composables/usePopupState.js'
 import { useHighlights } from '../composables/useHighlights.js'
+import { useSpacedRepetition } from '../composables/useSpacedRepetition.js'
 import { buildConversationChain, createTempHighlight, isMessageInTree } from '../utils/highlightUtils.js'
 
 const props = defineProps({
@@ -137,6 +138,7 @@ const selectionCheckTimeout = ref(null)
 // Use composables
 const popup = usePopupState()
 const highlights = useHighlights(chatStore, () => currentMessage.value)
+const { initializeCardWithSummary } = useSpacedRepetition()
 
 // Computed property to always get the root/original message (from props)
 const rootMessage = computed(() => props.message)
@@ -256,6 +258,12 @@ async function handleAskQuestion(question) {
         chatStore.appendToResponse(childMsg.id, chunk)
       }
     )
+
+    // Initialize spaced repetition card with LLM-generated summary
+    const response = chatStore.messagesById[childMsg.id]?.response
+    if (response) {
+      initializeCardWithSummary(childMsg.id, response, chatStore.currentModel)
+    }
   } catch (err) {
     error.value = err.message
   } finally {

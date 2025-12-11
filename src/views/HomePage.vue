@@ -97,10 +97,14 @@
       </div>
     </div>
 
-    <!-- Settings button in bottom-left corner -->
+    <!-- Footer buttons -->
     <div class="homepage-footer">
       <button class="settings-btn" @click="showSettingsModal = true" title="Settings">
         <svg class="settings-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97s-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1s.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66z"/></svg>
+      </button>
+      <button class="review-btn" @click="showReviewModal = true" title="Review cards">
+        <svg class="review-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+        <span v-if="dueCount > 0" class="review-badge">{{ dueCount }}</span>
       </button>
     </div>
 
@@ -113,6 +117,12 @@
 
     <!-- Settings Modal -->
     <SettingsModal v-model="showSettingsModal" />
+
+    <!-- Review Modal -->
+    <ReviewModal
+      :visible="showReviewModal"
+      @close="showReviewModal = false"
+    />
   </div>
 </template>
 
@@ -123,14 +133,18 @@ import { useChatStore } from '../stores/chat.js'
 import Button from '../components/Button.vue'
 import LoginModal from '../components/Modal/LoginModal.vue'
 import SettingsModal from '../components/Modal/SettingsModal.vue'
+import ReviewModal from '../components/Modal/ReviewModal.vue'
 import { onAuthChange, signOutUser } from '../services/auth.js'
 import { useGlobalSearch } from '../composables/useGlobalSearch.js'
+import { useSpacedRepetition } from '../composables/useSpacedRepetition.js'
 
 const router = useRouter()
 const chatStore = useChatStore()
+const { dueCount } = useSpacedRepetition()
 
 const showLoginModal = ref(false)
 const showSettingsModal = ref(false)
+const showReviewModal = ref(false)
 const currentUser = ref(null)
 
 // Drag and drop state
@@ -324,9 +338,12 @@ const handleDrop = (event, targetIndex) => {
   bottom: 0;
   left: 0;
   padding: 0.75rem;
+  display: flex;
+  gap: 0.5rem;
 }
 
-.settings-btn {
+.settings-btn,
+.review-btn {
   width: 40px;
   height: 40px;
   padding: 0;
@@ -339,18 +356,37 @@ const handleDrop = (event, targetIndex) => {
   color: var(--color-text-muted);
   cursor: pointer;
   transition: all 0.2s;
+  position: relative;
 }
 
-.settings-btn:hover {
+.settings-btn:hover,
+.review-btn:hover {
   background: var(--color-bg-hover);
   color: var(--color-text-base);
   border-color: var(--color-border-accent);
 }
 
-.settings-icon {
+.settings-icon,
+.review-icon {
   width: 20px;
   height: 20px;
   display: block;
+}
+
+.review-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  background: var(--color-accent);
+  color: white;
+  border-radius: 9px;
 }
 
 .sign-in-btn {
@@ -688,9 +724,11 @@ const handleDrop = (event, targetIndex) => {
     border-top: 1px solid var(--color-border-base);
     display: flex;
     justify-content: center;
+    gap: 0.75rem;
   }
 
-  .settings-btn {
+  .settings-btn,
+  .review-btn {
     width: auto;
     height: auto;
     padding: 0.625rem 1.5rem;
@@ -700,6 +738,16 @@ const handleDrop = (event, targetIndex) => {
   .settings-btn::after {
     content: 'Settings';
     font-size: 0.875rem;
+  }
+
+  .review-btn::after {
+    content: 'Review';
+    font-size: 0.875rem;
+  }
+
+  .review-badge {
+    position: static;
+    margin-left: 0.25rem;
   }
 
   /* Search results mobile adjustments */

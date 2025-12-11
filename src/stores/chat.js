@@ -1,4 +1,5 @@
 import Message from './Message.js'
+import SRCard from './SRCard.js'
 import { defineStore } from 'pinia'
 import { saveChatState, loadChatState, resolveConflict as resolveStorageConflict } from '../services/storage.js'
 
@@ -32,6 +33,9 @@ export const useChatStore = defineStore('chat', {
 
       // Initialization state
       isInitialized: false,
+
+      // Spaced repetition data: { [messageId]: { easiness, interval, repetitions, nextReviewDate, lastReviewDate, responseSummary } }
+      srData: {},
     }
   },
 
@@ -167,6 +171,52 @@ export const useChatStore = defineStore('chat', {
       const chat = state.chats.find(c => c.id === state.currentChatId)
       return chat?.scratchpad || ''
     },
+
+    // Get all cards due for review (spaced repetition)
+    cardsDueForReview: (state) => {
+      const now = Date.now()
+      const dueCards = []
+
+      for (const [messageId, srInfo] of Object.entries(state.srData)) {
+        // Skip if message no longer exists
+        if (!state.messagesById[messageId]) continue
+
+        // Card is due if nextReviewDate is in the past or not set (new card)
+        if (!srInfo.nextReviewDate || srInfo.nextReviewDate <= now) {
+          const message = state.messagesById[messageId]
+          dueCards.push({
+            messageId,
+            question: message.question,
+            questionSummarized: message.questionSummarized,
+            responseSummary: srInfo.responseSummary || '',
+            response: message.response,
+            ...srInfo
+          })
+        }
+      }
+
+      // Sort by nextReviewDate (oldest first, then new cards)
+      return dueCards.sort((a, b) => {
+        if (!a.nextReviewDate) return -1
+        if (!b.nextReviewDate) return 1
+        return a.nextReviewDate - b.nextReviewDate
+      })
+    },
+
+    // Get count of cards due for review
+    cardsDueCount: (state) => {
+      const now = Date.now()
+      let count = 0
+
+      for (const [messageId, srInfo] of Object.entries(state.srData)) {
+        if (!state.messagesById[messageId]) continue
+        if (!srInfo.nextReviewDate || srInfo.nextReviewDate <= now) {
+          count++
+        }
+      }
+
+      return count
+    },
   },
 
   actions: {
@@ -212,8 +262,15 @@ export const useChatStore = defineStore('chat', {
         messagesById[id] = new Message(msgData)
       }
 
+      // Reconstruct SRCard objects from plain objects
+      const srData = {}
+      for (const [id, cardData] of Object.entries(savedState.srData || {})) {
+        srData[id] = new SRCard(cardData)
+      }
+
       // Restore state
       this.messagesById = messagesById
+      this.srData = srData
       this.currentModel = savedState.currentModel || null
       this.chats = savedState.chats || []
       this.currentChatId = savedState.currentChatId || null
@@ -775,6 +832,7 @@ export const useChatStore = defineStore('chat', {
         chats: this.chats,
         currentChatId: this.currentChatId,
         isStreaming: this.isStreaming,
+        srData: this.srData,
       }
       saveChatState(state)
     },
@@ -1077,6 +1135,62 @@ export const useChatStore = defineStore('chat', {
       }
 
       this._persistState()
+    },
+
+    // ============================================
+    // Spaced Repetition Actions
+    // ============================================
+
+    // Initialize SR card for a message (called when response is complete)
+    initializeSRCard(messageId, responseSummary = '') {
+      if (!this.messagesById[messageId]) return
+
+      // Only initialize if not already in SR system
+      if (!this.srData[messageId]) {
+        const card = new SRCard({ messageId, responseSummary })
+        this.srData[messageId] = card
+        this._persistState()
+      }
+    },
+
+    // Update response summary for a card
+    updateSRResponseSummary(messageId, responseSummary) {
+      if (this.srData[messageId]) {
+        this.srData[messageId].setResponseSummary(responseSummary)
+        this._persistState()
+      }
+    },
+
+    // Record a review result
+    // quality: 0 = Again, 2 = Hard, 4 = Good, 5 = Easy
+    recordSRReview(messageId, quality) {
+      const card = this.srData[messageId]
+      if (!card) return
+
+      card.recordReview(quality)
+      this._persistState()
+    },
+
+    // Remove a message from SR system
+    removeSRCard(messageId) {
+      if (this.srData[messageId]) {
+        delete this.srData[messageId]
+        this._persistState()
+      }
+    },
+
+    // Clean up SR data for deleted messages
+    _cleanupSRData() {
+      let changed = false
+      for (const messageId of Object.keys(this.srData)) {
+        if (!this.messagesById[messageId]) {
+          delete this.srData[messageId]
+          changed = true
+        }
+      }
+      if (changed) {
+        this._persistState()
+      }
     },
   }
 })
