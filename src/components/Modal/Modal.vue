@@ -102,6 +102,7 @@ onUnmounted(() => {
   box-shadow: 0 4px 16px var(--shadow-lg, rgba(0, 0, 0, 0.15));
   border-radius: 8px;
   width: 90%;
+  max-height: 85vh;
   color: var(--color-text-base, #333);
 }
 
@@ -165,7 +166,7 @@ onUnmounted(() => {
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .modal-footer {
