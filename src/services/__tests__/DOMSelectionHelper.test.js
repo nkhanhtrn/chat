@@ -321,4 +321,177 @@ describe('DOMSelectionHelper', () => {
       expect(result.endOffset).toBe(20)
     })
   })
+
+  describe('Context menu positioning', () => {
+    it('should position context menu below selection when there is space', () => {
+      container.innerHTML = '<span data-md-start="0" data-md-end="5">Hello</span>'
+
+      const range = document.createRange()
+      const textNode = container.firstChild.firstChild
+      range.setStart(textNode, 0)
+      range.setEnd(textNode, 5)
+
+      const selection = window.getSelection()
+      selection.removeAllRanges()
+      selection.addRange(range)
+
+      // Mock getBoundingClientRect to simulate element near top of page
+      // window.innerHeight is 768 in jsdom, plenty of space below
+      range.getBoundingClientRect = () => ({
+        top: 100,
+        bottom: 120,
+        left: 50,
+        right: 100
+      })
+
+      const result = getSelectedTextAndPosition(selection)
+
+      expect(result.visible).toBe(true)
+      // With plenty of space below, should position at rect.bottom
+      expect(result.y).toBe(120 + window.scrollY)
+    })
+
+    it('should position context menu above selection when near page bottom', () => {
+      container.innerHTML = '<span data-md-start="0" data-md-end="5">Hello</span>'
+
+      const range = document.createRange()
+      const textNode = container.firstChild.firstChild
+      range.setStart(textNode, 0)
+      range.setEnd(textNode, 5)
+
+      const selection = window.getSelection()
+      selection.removeAllRanges()
+      selection.addRange(range)
+
+      // Mock getBoundingClientRect to simulate element near bottom
+      // window.innerHeight is 768 in jsdom, only 48px space below (less than 300)
+      range.getBoundingClientRect = () => ({
+        top: 700,
+        bottom: 720,
+        left: 50,
+        right: 100
+      })
+
+      const result = getSelectedTextAndPosition(selection)
+
+      expect(result.visible).toBe(true)
+      // When near bottom, y should be positioned above
+      // 700 (top) - 300 (menu height) = 400
+      expect(result.y).toBe(700 + window.scrollY - 300)
+    })
+
+    it('should position context menu below when exactly enough space', () => {
+      container.innerHTML = '<span data-md-start="0" data-md-end="5">Hello</span>'
+
+      const range = document.createRange()
+      const textNode = container.firstChild.firstChild
+      range.setStart(textNode, 0)
+      range.setEnd(textNode, 5)
+
+      const selection = window.getSelection()
+      selection.removeAllRanges()
+      selection.addRange(range)
+
+      // Mock getBoundingClientRect to simulate element with exactly enough space below
+      // window.innerHeight is 768 in jsdom, menu height is 300
+      // So if rect.bottom is 468, there's exactly 300px below
+      range.getBoundingClientRect = () => ({
+        top: 450,
+        bottom: 468,
+        left: 50,
+        right: 100
+      })
+
+      const result = getSelectedTextAndPosition(selection)
+
+      expect(result.visible).toBe(true)
+      // With exactly enough space, should position below (at rect.bottom)
+      expect(result.y).toBe(468 + window.scrollY)
+    })
+
+    it('should keep context menu on screen when selection is near right edge', () => {
+      container.innerHTML = '<span data-md-start="0" data-md-end="5">Hello</span>'
+
+      const range = document.createRange()
+      const textNode = container.firstChild.firstChild
+      range.setStart(textNode, 0)
+      range.setEnd(textNode, 5)
+
+      const selection = window.getSelection()
+      selection.removeAllRanges()
+      selection.addRange(range)
+
+      // Mock getBoundingClientRect to simulate element near right edge
+      // window.innerWidth is 1024 in jsdom, menu width is 250
+      // Selection at x=900 would push menu off-screen
+      range.getBoundingClientRect = () => ({
+        top: 100,
+        bottom: 120,
+        left: 900,
+        right: 950
+      })
+
+      const result = getSelectedTextAndPosition(selection)
+
+      expect(result.visible).toBe(true)
+      // Menu should be positioned so it doesn't go off right edge
+      // 1024 (viewport) - 250 (menu width) = 774
+      expect(result.x).toBe(1024 - 250 + window.scrollX)
+    })
+
+    it('should keep context menu on screen when selection is near left edge', () => {
+      container.innerHTML = '<span data-md-start="0" data-md-end="5">Hello</span>'
+
+      const range = document.createRange()
+      const textNode = container.firstChild.firstChild
+      range.setStart(textNode, 0)
+      range.setEnd(textNode, 5)
+
+      const selection = window.getSelection()
+      selection.removeAllRanges()
+      selection.addRange(range)
+
+      // Mock getBoundingClientRect to simulate element at left edge
+      // Negative left would be off-screen (can happen with scroll)
+      range.getBoundingClientRect = () => ({
+        top: 100,
+        bottom: 120,
+        left: -50,
+        right: 50
+      })
+
+      const result = getSelectedTextAndPosition(selection)
+
+      expect(result.visible).toBe(true)
+      // Menu should be clamped to left edge (0 + scrollX)
+      expect(result.x).toBe(window.scrollX)
+    })
+
+    it('should position normally when plenty of horizontal space', () => {
+      container.innerHTML = '<span data-md-start="0" data-md-end="5">Hello</span>'
+
+      const range = document.createRange()
+      const textNode = container.firstChild.firstChild
+      range.setStart(textNode, 0)
+      range.setEnd(textNode, 5)
+
+      const selection = window.getSelection()
+      selection.removeAllRanges()
+      selection.addRange(range)
+
+      // Mock getBoundingClientRect for element in middle of screen
+      range.getBoundingClientRect = () => ({
+        top: 100,
+        bottom: 120,
+        left: 300,
+        right: 350
+      })
+
+      const result = getSelectedTextAndPosition(selection)
+
+      expect(result.visible).toBe(true)
+      // Should use selection's left position
+      expect(result.x).toBe(300 + window.scrollX)
+    })
+  })
 })

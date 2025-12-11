@@ -212,10 +212,33 @@ export function getSelectedTextAndPosition(selection = window.getSelection()) {
   // Get markdown offsets
   const offsets = getMarkdownOffsetsFromSelection(selection)
 
+  // Context menu dimensions (from ContextMenu.vue)
+  const CONTEXT_MENU_HEIGHT = 300
+  const CONTEXT_MENU_WIDTH = 250
+
+  // Vertical positioning: show above if not enough space below
+  const spaceBelow = window.innerHeight - rect.bottom
+  const showAbove = spaceBelow < CONTEXT_MENU_HEIGHT
+  const y = showAbove
+    ? rect.top + window.scrollY - CONTEXT_MENU_HEIGHT
+    : rect.bottom + window.scrollY
+
+  // Horizontal positioning: ensure menu doesn't go off-screen
+  let x = rect.left + window.scrollX
+  const spaceRight = window.innerWidth - rect.left
+  if (spaceRight < CONTEXT_MENU_WIDTH) {
+    // Not enough space on right, align to right edge of viewport
+    x = window.innerWidth - CONTEXT_MENU_WIDTH + window.scrollX
+  }
+  // Ensure menu doesn't go off left edge
+  if (x < window.scrollX) {
+    x = window.scrollX
+  }
+
   return {
     selectedText,
-    x: rect.left + window.scrollX,
-    y: rect.bottom + window.scrollY,
+    x,
+    y,
     visible: true,
     startOffset: offsets?.startOffset,
     endOffset: offsets?.endOffset
