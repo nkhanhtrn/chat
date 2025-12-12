@@ -9,37 +9,41 @@
       <h1>Activity Calendar</h1>
     </div>
 
-    <div class="month-navigation">
-      <button class="month-nav-btn" @click="previousMonth">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
-          <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
-        </svg>
-      </button>
-      <h2 class="month-title">{{ monthYearLabel }}</h2>
-      <button class="month-nav-btn" @click="nextMonth">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
-          <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
-        </svg>
-      </button>
-    </div>
+    <SlideTransition appear direction="vertical">
+      <div :key="monthYearLabel" class="calendar-content">
+        <div class="month-navigation">
+          <button class="month-nav-btn" @click="previousMonth">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+            </svg>
+          </button>
+          <h2 class="month-title">{{ monthYearLabel }}</h2>
+          <button class="month-nav-btn" @click="nextMonth">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+            </svg>
+          </button>
+        </div>
 
-    <div class="calendar-grid">
-      <div class="weekday-header" v-for="day in weekDays" :key="day">{{ day }}</div>
-      <div
-        v-for="(day, index) in calendarDays"
-        :key="index"
-        class="calendar-day"
-        :class="{
-          'empty': !day.date,
-          'today': day.isToday,
-          'has-questions': day.questionCount > 0
-        }"
-        @click="day.date && day.questionCount > 0 && openDayModal(day)"
-      >
-        <span v-if="day.date" class="day-number">{{ day.dayOfMonth }}</span>
-        <span v-if="day.questionCount > 0" class="question-count">{{ day.questionCount }}</span>
+        <div class="calendar-grid">
+          <div class="weekday-header" v-for="day in weekDays" :key="day">{{ day }}</div>
+          <div
+            v-for="(day, index) in calendarDays"
+            :key="index"
+            class="calendar-day"
+            :class="{
+              'empty': !day.date,
+              'today': day.isToday,
+              'has-questions': day.questionCount > 0
+            }"
+            @click="day.date && day.questionCount > 0 && openDayModal(day)"
+          >
+            <span v-if="day.date" class="day-number">{{ day.dayOfMonth }}</span>
+            <span v-if="day.questionCount > 0" class="question-count">{{ day.questionCount }}</span>
+          </div>
+        </div>
       </div>
-    </div>
+    </SlideTransition>
 
     <CalendarDayModal
       :visible="showDayModal"
@@ -48,6 +52,8 @@
       @close="showDayModal = false"
       @open-question="handleOpenQuestion"
     />
+
+    <MobileFooter active-page="calendar" show-home />
   </div>
 </template>
 
@@ -56,6 +62,8 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useChatStore } from '../stores/chat.js'
 import CalendarDayModal from '../components/Modal/CalendarDayModal.vue'
+import MobileFooter from '../components/MobileFooter.vue'
+import SlideTransition from '../components/SlideTransition.vue'
 
 const router = useRouter()
 const chatStore = useChatStore()
@@ -363,6 +371,7 @@ function goHome() {
 @media (max-width: 768px) {
   .calendar-page {
     padding: 1rem;
+    padding-bottom: 5rem;
   }
 
   .calendar-header {

@@ -82,6 +82,8 @@
       @update:content="handleScratchpadUpdate"
       @stop-streaming="handleStopStreaming"
     />
+
+    <MobileFooter show-home />
   </div>
 </template>
 
@@ -92,6 +94,7 @@ import ChatMessage from '../components/ChatMessage.vue'
 import ChatInput from '../components/ChatInput.vue'
 import ChatSidebar from '../components/ChatSidebar.vue'
 import MessageNavigation from '../components/MessageNavigation.vue'
+import MobileFooter from '../components/MobileFooter.vue'
 import NotebookOverview from '../components/NotebookOverview.vue'
 import Scratchpad from '../components/Scratchpad.vue'
 import SlideTransition from '../components/SlideTransition.vue'
@@ -581,6 +584,10 @@ const handleScratchpadUpdate = (content) => {
 
 /* Mobile/small screen responsive styles */
 @media (max-width: 768px) {
+  .chat-container {
+    padding-bottom: 4rem;
+  }
+
   .messages-container {
     padding: 1.5rem 1rem;
   }

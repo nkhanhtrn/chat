@@ -1,5 +1,5 @@
 <template>
-  <Transition :name="transitionName" :mode="mode">
+  <Transition :name="transitionName" :mode="mode" :appear="appear">
     <slot />
   </Transition>
 </template>
@@ -16,6 +16,10 @@ const props = defineProps({
   mode: {
     type: String,
     default: 'out-in'
+  },
+  appear: {
+    type: Boolean,
+    default: false
   }
 })
 

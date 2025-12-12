@@ -20,7 +20,8 @@
       "Bash(wc:*)",
       "Bash(git show:*)",
       "Bash(timeout 5 npm run dev:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []
