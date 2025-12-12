@@ -8,9 +8,11 @@ import {
   setReadOnlyMode,
   isReadOnlyMode,
   forceUploadToCloud,
-  _resetThrottleState
+  _resetThrottleState,
+  getLocalState
 } from '../storage.js'
 import * as firestore from '../firestore.js'
+import * as indexedDB from '../indexedDB.js'
 
 // Mock firestore module
 vi.mock('../firestore.js', () => ({
@@ -26,27 +28,43 @@ vi.mock('../firestore.js', () => ({
   migrateToSubcollections: vi.fn(() => Promise.resolve(false))
 }))
 
+// Mock IndexedDB module
+vi.mock('../indexedDB.js', () => ({
+  saveChatStateToIDB: vi.fn(() => Promise.resolve()),
+  loadChatStateFromIDB: vi.fn(() => Promise.resolve(null)),
+  clearChatStateFromIDB: vi.fn(() => Promise.resolve()),
+  migrateFromLocalStorage: vi.fn(() => Promise.resolve(false)),
+  isIndexedDBAvailable: vi.fn(() => true)
+}))
+
 describe('storage.js', () => {
-  const mockLocalStorage = {
-    store: {},
-    getItem: vi.fn((key) => mockLocalStorage.store[key] || null),
-    setItem: vi.fn((key, value) => { mockLocalStorage.store[key] = value }),
-    removeItem: vi.fn((key) => { delete mockLocalStorage.store[key] }),
-    clear: vi.fn(() => { mockLocalStorage.store = {} })
-  }
+  // In-memory store for IndexedDB mock
+  let idbStore = {}
 
   beforeEach(() => {
-    // Reset localStorage mock
-    mockLocalStorage.store = {}
-    mockLocalStorage.getItem.mockClear()
-    mockLocalStorage.setItem.mockClear()
-    mockLocalStorage.removeItem.mockClear()
+    // Reset IndexedDB mock store
+    idbStore = {}
 
-    // Mock global localStorage
-    Object.defineProperty(global, 'localStorage', {
-      value: mockLocalStorage,
-      writable: true
+    // Reset IndexedDB mocks with fresh implementations
+    vi.mocked(indexedDB.saveChatStateToIDB).mockReset()
+    vi.mocked(indexedDB.saveChatStateToIDB).mockImplementation((state) => {
+      idbStore['chat-state'] = state
+      return Promise.resolve()
     })
+
+    vi.mocked(indexedDB.loadChatStateFromIDB).mockReset()
+    vi.mocked(indexedDB.loadChatStateFromIDB).mockImplementation(() => {
+      return Promise.resolve(idbStore['chat-state'] || null)
+    })
+
+    vi.mocked(indexedDB.clearChatStateFromIDB).mockReset()
+    vi.mocked(indexedDB.clearChatStateFromIDB).mockImplementation(() => {
+      delete idbStore['chat-state']
+      return Promise.resolve()
+    })
+
+    vi.mocked(indexedDB.migrateFromLocalStorage).mockReset()
+    vi.mocked(indexedDB.migrateFromLocalStorage).mockResolvedValue(false)
 
     // Reset firestore mocks
     vi.mocked(firestore.syncChatStateToFirestore).mockReset()
@@ -74,13 +92,13 @@ describe('storage.js', () => {
       isStreaming: false
     }
 
-    it('saves state to localStorage with timestamp', async () => {
+    it('saves state to IndexedDB with timestamp', async () => {
       vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
 
       await saveChatState(mockState)
 
-      expect(mockLocalStorage.setItem).toHaveBeenCalled()
-      const savedData = JSON.parse(mockLocalStorage.setItem.mock.calls[0][1])
+      expect(indexedDB.saveChatStateToIDB).toHaveBeenCalled()
+      const savedData = idbStore['chat-state']
       expect(savedData.messagesById).toEqual(mockState.messagesById)
       expect(savedData.chats).toEqual(mockState.chats)
       expect(savedData.lastUpdated).toBeDefined()
@@ -103,12 +121,12 @@ describe('storage.js', () => {
       expect(firestore.syncChatStateWithSubcollections).not.toHaveBeenCalled()
     })
 
-    it('still saves to localStorage when Firestore sync fails', async () => {
+    it('still saves to IndexedDB when Firestore sync fails', async () => {
       vi.mocked(firestore.syncChatStateWithSubcollections).mockRejectedValue(new Error('Firestore error'))
 
       await saveChatState(mockState)
 
-      expect(mockLocalStorage.setItem).toHaveBeenCalled()
+      expect(indexedDB.saveChatStateToIDB).toHaveBeenCalled()
     })
 
     it('skips Firestore sync when disabled', async () => {
@@ -136,7 +154,7 @@ describe('storage.js', () => {
 
       await saveChatState(stateWithClass)
 
-      const savedData = JSON.parse(mockLocalStorage.setItem.mock.calls[0][1])
+      const savedData = idbStore['chat-state']
       expect(savedData.messagesById.msg1).not.toHaveProperty('toJSON')
     })
   })
@@ -154,8 +172,16 @@ describe('storage.js', () => {
       lastUpdated: 2000
     }
 
+    it('calls migrateFromLocalStorage on load', async () => {
+      vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(null)
+
+      await loadChatState()
+
+      expect(indexedDB.migrateFromLocalStorage).toHaveBeenCalled()
+    })
+
     it('returns cloud state when no conflict', async () => {
-      mockLocalStorage.store['chat-state'] = JSON.stringify(mockLocalState)
+      idbStore['chat-state'] = mockLocalState
       vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(mockLocalState)
 
       const result = await loadChatState()
@@ -165,7 +191,7 @@ describe('storage.js', () => {
     })
 
     it('returns local state when cloud is unavailable', async () => {
-      mockLocalStorage.store['chat-state'] = JSON.stringify(mockLocalState)
+      idbStore['chat-state'] = mockLocalState
       vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(null)
 
       const result = await loadChatState()
@@ -184,7 +210,7 @@ describe('storage.js', () => {
     })
 
     it('detects conflict when chat counts differ', async () => {
-      mockLocalStorage.store['chat-state'] = JSON.stringify(mockLocalState)
+      idbStore['chat-state'] = mockLocalState
       vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(mockCloudState)
 
       const result = await loadChatState()
@@ -207,7 +233,7 @@ describe('storage.js', () => {
         messagesById: { msg1: { id: 'msg1' } }
       }
 
-      mockLocalStorage.store['chat-state'] = JSON.stringify(localWithMoreMessages)
+      idbStore['chat-state'] = localWithMoreMessages
       vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(cloudWithFewerMessages)
 
       const result = await loadChatState()
@@ -225,7 +251,7 @@ describe('storage.js', () => {
         chats: []
       }
 
-      mockLocalStorage.store['chat-state'] = JSON.stringify(localState)
+      idbStore['chat-state'] = localState
       vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(cloudState)
 
       const result = await loadChatState()
@@ -234,7 +260,7 @@ describe('storage.js', () => {
     })
 
     it('no conflict when data is identical', async () => {
-      mockLocalStorage.store['chat-state'] = JSON.stringify(mockLocalState)
+      idbStore['chat-state'] = mockLocalState
       vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(mockLocalState)
 
       const result = await loadChatState()
@@ -242,20 +268,17 @@ describe('storage.js', () => {
       expect(result.hasConflict).toBe(false)
     })
 
-    it('syncs cloud state to localStorage when no conflict', async () => {
-      mockLocalStorage.store['chat-state'] = JSON.stringify(mockLocalState)
+    it('syncs cloud state to IndexedDB when no conflict', async () => {
+      idbStore['chat-state'] = mockLocalState
       vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(mockLocalState)
 
       await loadChatState()
 
-      expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
-        'chat-state',
-        JSON.stringify(mockLocalState)
-      )
+      expect(indexedDB.saveChatStateToIDB).toHaveBeenCalledWith(mockLocalState)
     })
 
     it('handles Firestore load error gracefully', async () => {
-      mockLocalStorage.store['chat-state'] = JSON.stringify(mockLocalState)
+      idbStore['chat-state'] = mockLocalState
       vi.mocked(firestore.loadChatStateFromFirestore).mockRejectedValue(new Error('Network error'))
 
       const result = await loadChatState()
@@ -266,7 +289,7 @@ describe('storage.js', () => {
 
     it('skips Firestore when sync is disabled', async () => {
       setFirestoreSyncEnabled(false)
-      mockLocalStorage.store['chat-state'] = JSON.stringify(mockLocalState)
+      idbStore['chat-state'] = mockLocalState
 
       const result = await loadChatState()
 
@@ -288,7 +311,7 @@ describe('storage.js', () => {
           ]
         }
 
-        mockLocalStorage.store['chat-state'] = JSON.stringify(localState)
+        idbStore['chat-state'] = localState
         vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(cloudState)
 
         const result = await loadChatState()
@@ -307,7 +330,7 @@ describe('storage.js', () => {
           chats: [{ id: 'chat1', rootMessageIds: ['msg1'] }]
         }
 
-        mockLocalStorage.store['chat-state'] = JSON.stringify(localState)
+        idbStore['chat-state'] = localState
         vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(cloudState)
 
         const result = await loadChatState()
@@ -316,7 +339,7 @@ describe('storage.js', () => {
         expect(result.state).toEqual(cloudState)
       })
 
-      it('syncs cloud state to localStorage when auto-using cloud', async () => {
+      it('syncs cloud state to IndexedDB when auto-using cloud', async () => {
         const localState = {
           messagesById: { msg1: { id: 'msg1' } },
           chats: [{ id: 'chat1' }]
@@ -326,15 +349,12 @@ describe('storage.js', () => {
           chats: [{ id: 'chat1' }, { id: 'chat2' }]
         }
 
-        mockLocalStorage.store['chat-state'] = JSON.stringify(localState)
+        idbStore['chat-state'] = localState
         vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(cloudState)
 
         await loadChatState()
 
-        expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
-          'chat-state',
-          JSON.stringify(cloudState)
-        )
+        expect(indexedDB.saveChatStateToIDB).toHaveBeenCalledWith(cloudState)
       })
 
       it('shows conflict when local has chats that cloud does not', async () => {
@@ -353,7 +373,7 @@ describe('storage.js', () => {
           ]
         }
 
-        mockLocalStorage.store['chat-state'] = JSON.stringify(localState)
+        idbStore['chat-state'] = localState
         vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(cloudState)
 
         const result = await loadChatState()
@@ -373,7 +393,7 @@ describe('storage.js', () => {
           chats: [{ id: 'chat1' }]
         }
 
-        mockLocalStorage.store['chat-state'] = JSON.stringify(localState)
+        idbStore['chat-state'] = localState
         vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(cloudState)
 
         const result = await loadChatState()
@@ -391,7 +411,7 @@ describe('storage.js', () => {
           chats: [{ id: 'chatB' }]
         }
 
-        mockLocalStorage.store['chat-state'] = JSON.stringify(localState)
+        idbStore['chat-state'] = localState
         vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(cloudState)
 
         const result = await loadChatState()
@@ -409,7 +429,7 @@ describe('storage.js', () => {
           chats: [{ id: 'chat1' }]
         }
 
-        mockLocalStorage.store['chat-state'] = JSON.stringify(localState)
+        idbStore['chat-state'] = localState
         vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(cloudState)
 
         const result = await loadChatState()
@@ -427,7 +447,7 @@ describe('storage.js', () => {
           chats: [{ id: 'chat1' }]
         }
 
-        mockLocalStorage.store['chat-state'] = JSON.stringify(localState)
+        idbStore['chat-state'] = localState
         vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(cloudState)
 
         const result = await loadChatState()
@@ -468,15 +488,12 @@ describe('storage.js', () => {
       expect(result).toEqual(mockCloudData)
     })
 
-    it('saves chosen state to localStorage', async () => {
+    it('saves chosen state to IndexedDB', async () => {
       vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
 
       await resolveConflict('local', mockLocalData, mockCloudData)
 
-      expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
-        'chat-state',
-        JSON.stringify(mockLocalData)
-      )
+      expect(indexedDB.saveChatStateToIDB).toHaveBeenCalledWith(mockLocalData)
     })
 
     it('syncs chosen state to Firestore using subcollections', async () => {
@@ -493,17 +510,17 @@ describe('storage.js', () => {
       const result = await resolveConflict('local', mockLocalData, mockCloudData)
 
       expect(result).toEqual(mockLocalData)
-      expect(mockLocalStorage.setItem).toHaveBeenCalled()
+      expect(indexedDB.saveChatStateToIDB).toHaveBeenCalled()
     })
   })
 
   describe('clearAllStorage', () => {
-    it('clears localStorage', async () => {
-      mockLocalStorage.store['chat-state'] = JSON.stringify({ data: 'test' })
+    it('clears IndexedDB', async () => {
+      idbStore['chat-state'] = { data: 'test' }
 
       await clearAllStorage()
 
-      expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('chat-state')
+      expect(indexedDB.clearChatStateFromIDB).toHaveBeenCalled()
     })
 
     it('clears Firestore when sync is enabled', async () => {
@@ -526,7 +543,7 @@ describe('storage.js', () => {
       vi.mocked(firestore.deleteChatStateFromFirestore).mockRejectedValue(new Error('Delete failed'))
 
       await expect(clearAllStorage()).resolves.not.toThrow()
-      expect(mockLocalStorage.removeItem).toHaveBeenCalled()
+      expect(indexedDB.clearChatStateFromIDB).toHaveBeenCalled()
     })
   })
 
@@ -735,7 +752,7 @@ describe('storage.js', () => {
       expect(syncedState).not.toHaveProperty('previousLocation')
     })
 
-    it('still includes UI state in localStorage', async () => {
+    it('still includes UI state in IndexedDB', async () => {
       const state = {
         messagesById: { m1: { id: 'm1' } },
         chats: [],
@@ -748,7 +765,7 @@ describe('storage.js', () => {
 
       await saveChatState(state)
 
-      const savedData = JSON.parse(mockLocalStorage.setItem.mock.calls[0][1])
+      const savedData = idbStore['chat-state']
       expect(savedData.currentMessageId).toBe('msg123')
       expect(savedData.currentChatId).toBe('chat123')
       expect(savedData.currentRootIndex).toBe(5)
@@ -891,12 +908,12 @@ describe('storage.js', () => {
     })
 
     describe('saveChatState in read-only mode', () => {
-      it('should not save to localStorage when read-only mode is enabled', async () => {
+      it('should not save to IndexedDB when read-only mode is enabled', async () => {
         setReadOnlyMode(true)
 
         await saveChatState(mockState)
 
-        expect(mockLocalStorage.setItem).not.toHaveBeenCalled()
+        expect(indexedDB.saveChatStateToIDB).not.toHaveBeenCalled()
       })
 
       it('should not sync to Firestore when read-only mode is enabled', async () => {
@@ -914,7 +931,7 @@ describe('storage.js', () => {
 
         await saveChatState(mockState)
 
-        expect(mockLocalStorage.setItem).toHaveBeenCalled()
+        expect(indexedDB.saveChatStateToIDB).toHaveBeenCalled()
       })
 
       it('should resume saving after read-only mode is disabled', async () => {
@@ -923,12 +940,12 @@ describe('storage.js', () => {
         // Enable read-only mode
         setReadOnlyMode(true)
         await saveChatState(mockState)
-        expect(mockLocalStorage.setItem).not.toHaveBeenCalled()
+        expect(indexedDB.saveChatStateToIDB).not.toHaveBeenCalled()
 
         // Disable read-only mode
         setReadOnlyMode(false)
         await saveChatState(mockState)
-        expect(mockLocalStorage.setItem).toHaveBeenCalled()
+        expect(indexedDB.saveChatStateToIDB).toHaveBeenCalled()
       })
     })
   })
@@ -941,7 +958,7 @@ describe('storage.js', () => {
     }
 
     it('uploads local data to Firestore using subcollections', async () => {
-      mockLocalStorage.store['chat-state'] = JSON.stringify(mockLocalState)
+      idbStore['chat-state'] = mockLocalState
       vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
 
       const result = await forceUploadToCloud()
@@ -952,7 +969,7 @@ describe('storage.js', () => {
     })
 
     it('returns false when no local data exists', async () => {
-      // localStorage is empty
+      // IndexedDB is empty
       const result = await forceUploadToCloud()
 
       expect(result).toBe(false)
@@ -960,7 +977,7 @@ describe('storage.js', () => {
     })
 
     it('returns false when Firestore sync is disabled', async () => {
-      mockLocalStorage.store['chat-state'] = JSON.stringify(mockLocalState)
+      idbStore['chat-state'] = mockLocalState
       setFirestoreSyncEnabled(false)
 
       const result = await forceUploadToCloud()
@@ -970,14 +987,14 @@ describe('storage.js', () => {
     })
 
     it('throws error when Firestore sync fails', async () => {
-      mockLocalStorage.store['chat-state'] = JSON.stringify(mockLocalState)
+      idbStore['chat-state'] = mockLocalState
       vi.mocked(firestore.syncChatStateWithSubcollections).mockRejectedValue(new Error('Upload failed'))
 
       await expect(forceUploadToCloud()).rejects.toThrow('Upload failed')
     })
 
     it('updates sync hash after successful upload', async () => {
-      mockLocalStorage.store['chat-state'] = JSON.stringify(mockLocalState)
+      idbStore['chat-state'] = mockLocalState
       vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
 
       const result = await forceUploadToCloud()
@@ -1146,7 +1163,7 @@ describe('storage.js', () => {
       vi.mocked(firestore.loadChatStateFromFirestore).mockResolvedValue(null)
 
       const mockLocalState = { messagesById: { m1: { id: 'm1' } }, chats: [] }
-      mockLocalStorage.store['chat-state'] = JSON.stringify(mockLocalState)
+      idbStore['chat-state'] = mockLocalState
 
       const result = await loadChatState()
 
@@ -1165,6 +1182,23 @@ describe('storage.js', () => {
 
       // Should do full sync (null for changedIds)
       expect(firestore.syncChatStateWithSubcollections).toHaveBeenCalledWith(localData, null, null)
+    })
+  })
+
+  describe('getLocalState', () => {
+    it('returns state from IndexedDB', async () => {
+      const mockState = { messagesById: { m1: { id: 'm1' } }, chats: [] }
+      idbStore['chat-state'] = mockState
+
+      const result = await getLocalState()
+
+      expect(result).toEqual(mockState)
+    })
+
+    it('returns null when no state exists', async () => {
+      const result = await getLocalState()
+
+      expect(result).toBeNull()
     })
   })
 })

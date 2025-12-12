@@ -1,12 +1,9 @@
 import { ref, onMounted, onUnmounted } from 'vue'
-import { setReadOnlyMode as setStorageReadOnlyMode } from '../services/storage.js'
+import { setReadOnlyMode as setStorageReadOnlyMode, getLocalState } from '../services/storage.js'
 import { loadChatStateFromFirestore } from '../services/firestore.js'
 
 // Inactivity timeout: 5 minutes
 const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000
-
-// Storage key for chat state
-const STORAGE_KEY_CHAT_STATE = 'chat-state'
 
 /**
  * Composable to detect when user has been inactive and cloud data differs from local
@@ -20,7 +17,7 @@ export function useStaleDataDetection() {
   let lastActivityTime = Date.now()
 
   /**
-   * Check if cloud data differs from local storage
+   * Check if cloud data differs from local storage (IndexedDB)
    */
   const hasCloudDifference = async () => {
     try {
@@ -30,13 +27,11 @@ export function useStaleDataDetection() {
         return false
       }
 
-      const localData = localStorage.getItem(STORAGE_KEY_CHAT_STATE)
-      if (!localData) {
+      const localState = await getLocalState()
+      if (!localState) {
         // No local data but cloud has data = difference
         return true
       }
-
-      const localState = JSON.parse(localData)
 
       // Compare meaningful data differences
       return hasDataDifference(localState, cloudState)

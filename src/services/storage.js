@@ -1,8 +1,9 @@
 
-// Storage service for persisting chat data (localStorage + Firestore sync)
+// Storage service for persisting chat data (IndexedDB + Firestore sync)
 import { syncChatStateToFirestore, loadChatStateFromFirestore, deleteChatStateFromFirestore, syncChatStateWithSubcollections, migrateToSubcollections } from './firestore.js'
+import { saveChatStateToIDB, loadChatStateFromIDB, clearChatStateFromIDB, migrateFromLocalStorage, isIndexedDBAvailable } from './indexedDB.js'
 
-const STORAGE_KEY_CHAT_STATE = 'chat-state'
+const STORAGE_KEY_CHAT_STATE = 'chat-state' // kept for migration purposes
 
 // Track changed and deleted messages for incremental sync
 let changedMessageIds = new Set()
@@ -182,7 +183,7 @@ const performFirestoreSync = async () => {
 }
 
 /**
- * Save chat state to localStorage and optionally sync to Firestore
+ * Save chat state to IndexedDB and optionally sync to Firestore
  * @param {Object} state - The chat state to save
  */
 export const saveChatState = async (state) => {
@@ -197,8 +198,8 @@ export const saveChatState = async (state) => {
     // Add timestamp for conflict detection
     serializedState.lastUpdated = Date.now()
 
-    // Always save to localStorage for offline access
-    localStorage.setItem(STORAGE_KEY_CHAT_STATE, JSON.stringify(serializedState))
+    // Always save to IndexedDB for offline access (replaces localStorage)
+    await saveChatStateToIDB(serializedState)
 
     // Skip Firestore sync while streaming to avoid excessive writes
     if (state.isStreaming) {
@@ -214,7 +215,7 @@ export const saveChatState = async (state) => {
       throttledFirestoreSync(dataState)
     }
   } catch (error) {
-    console.error('Failed to save chat state to localStorage:', error)
+    console.error('Failed to save chat state to IndexedDB:', error)
   }
 }
 
@@ -281,7 +282,7 @@ const hasDataDifference = (state1, state2) => {
 }
 
 /**
- * Load chat state from Firestore and localStorage, detecting conflicts
+ * Load chat state from Firestore and IndexedDB, detecting conflicts
  * @returns {Promise<Object>} Result object with state and conflict info
  */
 export const loadChatState = async () => {
@@ -289,11 +290,13 @@ export const loadChatState = async () => {
     let localState = null
     let cloudState = null
 
-    // Load from localStorage
-    const saved = localStorage.getItem(STORAGE_KEY_CHAT_STATE)
-    if (saved) {
-      localState = JSON.parse(saved)
-      console.log('Loaded local state from localStorage')
+    // First, migrate any existing localStorage data to IndexedDB
+    await migrateFromLocalStorage()
+
+    // Load from IndexedDB (replaces localStorage)
+    localState = await loadChatStateFromIDB()
+    if (localState) {
+      console.log('Loaded local state from IndexedDB')
     }
 
     // Try to load from Firestore if sync is enabled
@@ -316,7 +319,7 @@ export const loadChatState = async () => {
       // If cloud contains all local data plus more, auto-use cloud (no conflict modal)
       if (cloudIsSupersetOfLocal(localState, cloudState)) {
         console.log('Cloud has all local data plus more - auto-syncing from cloud')
-        localStorage.setItem(STORAGE_KEY_CHAT_STATE, JSON.stringify(cloudState))
+        await saveChatStateToIDB(cloudState)
         initializePreviousState(cloudState)
         return { hasConflict: false, state: cloudState }
       }
@@ -332,8 +335,8 @@ export const loadChatState = async () => {
 
     // No conflict - return whichever has data (prefer cloud)
     if (cloudState) {
-      // Sync cloud to localStorage
-      localStorage.setItem(STORAGE_KEY_CHAT_STATE, JSON.stringify(cloudState))
+      // Sync cloud to IndexedDB
+      await saveChatStateToIDB(cloudState)
       initializePreviousState(cloudState)
       return { hasConflict: false, state: cloudState }
     }
@@ -373,8 +376,8 @@ const initializePreviousState = (state) => {
 export const resolveConflict = async (choice, localData, cloudData) => {
   const chosenState = choice === 'local' ? localData : cloudData
 
-  // Save chosen state to both localStorage and Firestore
-  localStorage.setItem(STORAGE_KEY_CHAT_STATE, JSON.stringify(chosenState))
+  // Save chosen state to both IndexedDB and Firestore
+  await saveChatStateToIDB(chosenState)
 
   // Initialize previous state for change tracking
   initializePreviousState(chosenState)
@@ -398,13 +401,11 @@ export const resolveConflict = async (choice, localData, cloudData) => {
  */
 export const forceUploadToCloud = async () => {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY_CHAT_STATE)
-    if (!saved) {
+    const localState = await loadChatStateFromIDB()
+    if (!localState) {
       console.warn('No local data to upload')
       return false
     }
-
-    const localState = JSON.parse(saved)
 
     if (!ENABLE_FIRESTORE_SYNC) {
       console.warn('Firestore sync is disabled')
@@ -424,12 +425,12 @@ export const forceUploadToCloud = async () => {
 }
 
 /**
- * Clear all storage data (localStorage and Firestore)
+ * Clear all storage data (IndexedDB and Firestore)
  */
 export const clearAllStorage = async () => {
   try {
-    // Clear localStorage
-    localStorage.removeItem(STORAGE_KEY_CHAT_STATE)
+    // Clear IndexedDB
+    await clearChatStateFromIDB()
 
     // Clear Firestore if sync is enabled
     if (ENABLE_FIRESTORE_SYNC) {
@@ -442,4 +443,12 @@ export const clearAllStorage = async () => {
   } catch (error) {
     console.error('Failed to clear storage:', error)
   }
+}
+
+/**
+ * Get current local state from IndexedDB (for external access)
+ * @returns {Promise<Object|null>}
+ */
+export const getLocalState = async () => {
+  return await loadChatStateFromIDB()
 }
