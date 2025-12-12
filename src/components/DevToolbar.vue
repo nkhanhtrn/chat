@@ -42,6 +42,15 @@
     >
       {{ clearSummariesButtonText }}
     </Button>
+    <Button
+      @click="handleRandomizeSR"
+      class="dev-button"
+      :disabled="dueCardCount === 0"
+      title="Randomize the order of cards due today"
+      variant="secondary"
+    >
+      Shuffle Due ({{ dueCardCount }})
+    </Button>
   </div>
 </template>
 
@@ -72,6 +81,9 @@ const currentNotebookId = computed(() => chatStore.currentChatId)
 
 // Count of cards in SR system
 const srCardCount = computed(() => Object.keys(chatStore.srData).length)
+
+// Count of cards due today
+const dueCardCount = computed(() => chatStore.cardsDueCount)
 
 const srButtonText = computed(() => {
   if (uninitializedCount.value === 0) {
@@ -183,6 +195,44 @@ const handleClearNotebookSummaries = () => {
   if (confirm(`Are you sure you want to clear all ${notebookSummaryCount.value} summaries in this notebook?`)) {
     clearSummariesInNotebook(currentNotebookId.value)
   }
+}
+
+const handleRandomizeSR = () => {
+  const dueCount = chatStore.cardsDueCount
+  if (dueCount === 0) return
+
+  // Get all cards due today (nextReviewDate <= end of today)
+  const now = Date.now()
+  const endOfToday = new Date()
+  endOfToday.setHours(23, 59, 59, 999)
+  const endOfTodayMs = endOfToday.getTime()
+
+  const dueCardIds = []
+  for (const [messageId, srInfo] of Object.entries(chatStore.srData)) {
+    if (!chatStore.messagesById[messageId]) continue
+    // Card is due today if nextReviewDate is not set or <= end of today
+    if (!srInfo.nextReviewDate || srInfo.nextReviewDate <= endOfTodayMs) {
+      dueCardIds.push(messageId)
+    }
+  }
+
+  if (dueCardIds.length === 0) return
+
+  // Shuffle the array (Fisher-Yates)
+  for (let i = dueCardIds.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[dueCardIds[i], dueCardIds[j]] = [dueCardIds[j], dueCardIds[i]]
+  }
+
+  // Assign new nextReviewDate values based on shuffled order
+  // Use timestamps in the past, spaced 1ms apart to maintain order
+  const baseTime = now - dueCardIds.length - 1
+  for (let i = 0; i < dueCardIds.length; i++) {
+    const card = chatStore.srData[dueCardIds[i]]
+    card.nextReviewDate = baseTime + i
+  }
+
+  chatStore._persistState()
 }
 
 </script>
