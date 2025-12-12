@@ -754,40 +754,6 @@ const handleDrop = (event, targetIndex) => {
     gap: 0.75rem;
   }
 
-  .settings-btn,
-  .calendar-btn,
-  .review-btn,
-  .vocab-btn {
-    width: auto;
-    height: auto;
-    padding: 0.625rem 1.5rem;
-    gap: 0.5rem;
-  }
-
-  .settings-btn::after {
-    content: 'Settings';
-    font-size: 0.875rem;
-  }
-
-  .calendar-btn::after {
-    content: 'Calendar';
-    font-size: 0.875rem;
-  }
-
-  .review-btn::after {
-    content: 'Review';
-    font-size: 0.875rem;
-  }
-
-  .vocab-btn::after {
-    content: 'Vocab';
-    font-size: 0.875rem;
-  }
-
-  .review-badge {
-    position: static;
-    margin-left: 0.25rem;
-  }
 
   /* Search results mobile adjustments */
   .search-results-title {

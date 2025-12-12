@@ -1,9 +1,6 @@
 <template>
-  <Modal :visible="visible" title="Dictionary" @close="onClose" size="medium">
+  <Modal :visible="visible" :title="word" :title-style="{ textTransform: 'uppercase', fontSize: '0.8rem' }" @close="onClose" size="medium">
     <div class="dictionary-content">
-      <!-- Word header -->
-      <div class="dictionary-word">{{ word }}</div>
-
       <!-- Loading state -->
       <div v-if="isStreaming && !definition" class="dictionary-loading">
         Loading definition<span class="loading-dots">...</span>
@@ -58,18 +55,11 @@ function onClose() {
 }
 </script>
 
-<style scoped>
+<style>
 .dictionary-content {
   min-height: 100px;
-}
-
-.dictionary-word {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--color-text-strong, #333);
-  margin-bottom: 1rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--color-border-subtle, #eee);
+  font-size: 0.8em;
+  font-family: sans-serif;
 }
 
 .dictionary-definition {

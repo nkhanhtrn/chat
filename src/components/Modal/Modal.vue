@@ -5,7 +5,7 @@
         <div class="modal-content" :class="sizeClass" :style="contentStyle">
           <div v-if="title || $slots.header" class="modal-header">
             <slot name="header">
-              <span class="modal-title">{{ title }}</span>
+              <span class="modal-title" :class="titleClass" :style="titleStyle">{{ title }}</span>
             </slot>
             <div class="modal-header-actions">
               <slot name="header-actions"></slot>
@@ -35,6 +35,14 @@ const props = defineProps({
   title: {
     type: String,
     default: ''
+  },
+  titleClass: {
+    type: [String, Object, Array],
+    default: ''
+  },
+  titleStyle: {
+    type: Object,
+    default: () => ({})
   },
   size: {
     type: String,
@@ -79,7 +87,7 @@ onUnmounted(() => {
 })
 </script>
 
-<style scoped>
+<style>
 .modal-overlay {
   position: fixed;
   top: 0;
