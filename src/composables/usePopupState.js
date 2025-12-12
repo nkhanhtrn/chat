@@ -43,7 +43,7 @@ export function usePopupState() {
     state.customPromptText = ''
   }
 
-  function openNote({ highlightId, noteContent = '', selectedText = '', startOffset, endOffset, isNewNote = false, startInEditMode = false }) {
+  function openNote({ highlightId, noteContent = '', selectedText = '', startOffset, endOffset, isNewNote = false, startInEditMode = false, isCustomPrompt = false, customPromptText = '' }) {
     state.mode = 'note'
     state.highlightId = highlightId
     state.noteContent = noteContent
@@ -52,6 +52,8 @@ export function usePopupState() {
     state.endOffset = endOffset
     state.isNewNote = isNewNote
     state.startInEditMode = startInEditMode
+    state.isCustomPrompt = isCustomPrompt
+    state.customPromptText = customPromptText
   }
 
   function openNoteForStreaming({ highlightId, selectedText, startOffset, endOffset, isCustomPrompt = false, customPromptText = '' }) {

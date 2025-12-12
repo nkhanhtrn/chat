@@ -14,7 +14,7 @@
         <!-- Assistant answer with streaming -->
         <div v-if="isStreaming || currentResponse" class="message message-assistant">
           <div class="message-content" style="position: relative;">
-            <div ref="assistantMessageRef" class="assistant-message" @mouseup="showContextMenu" @contextmenu="handleContextMenu">
+            <div ref="assistantMessageRef" class="assistant-message" @mouseup="showContextMenu" @dblclick="handleDoubleClick" @contextmenu="handleContextMenu">
               <MarkdownRenderer
                 :content="currentResponse"
                 :custom-content="effectiveCustomContent"
@@ -72,6 +72,13 @@
       @select="handleQuestionSearchSelect"
       @cancel="handleQuestionSearchCancel"
     />
+    <DictionaryModal
+      :visible="showDictionaryModal"
+      :word="dictionaryWord"
+      :definition="dictionaryDefinition"
+      :is-streaming="isDictionaryStreaming"
+      @close="closeDictionaryModal"
+    />
   </div>
 </template>
 
@@ -83,6 +90,7 @@ import ContextMenu from './ContextMenu.vue'
 import SlideTransition from './SlideTransition.vue'
 import Note from './Note.vue'
 import QuestionSearchModal from './Modal/QuestionSearchModal.vue'
+import DictionaryModal from './Modal/DictionaryModal.vue'
 import { sendChatMessage } from '../services/api.js'
 import { getMainPrompts, getQuickExplainPrompts, getDictionaryPrompts } from '../services/extraPrompt.js'
 import Message from '../stores/Message.js'
@@ -90,6 +98,7 @@ import { getSelectedTextAndPosition as getSelectionWithOffsets } from '../servic
 import { usePopupState } from '../composables/usePopupState.js'
 import { useHighlights } from '../composables/useHighlights.js'
 import { useSpacedRepetition } from '../composables/useSpacedRepetition.js'
+import { useVocabulary } from '../composables/useVocabulary.js'
 import { buildConversationChain, createTempHighlight, isMessageInTree } from '../utils/highlightUtils.js'
 
 const props = defineProps({
@@ -135,10 +144,17 @@ const assistantMessageRef = ref(null)
 const isMobile = ref(false)
 const selectionCheckTimeout = ref(null)
 
+// Dictionary modal state
+const showDictionaryModal = ref(false)
+const dictionaryWord = ref('')
+const dictionaryDefinition = ref('')
+const isDictionaryStreaming = ref(false)
+
 // Use composables
 const popup = usePopupState()
 const highlights = useHighlights(chatStore, () => currentMessage.value)
 const { initializeCardWithSummary } = useSpacedRepetition()
+const { addVocabCard, appendToDefinition, findByWord } = useVocabulary()
 
 // Computed property to always get the root/original message (from props)
 const rootMessage = computed(() => props.message)
@@ -401,41 +417,46 @@ async function handleQuickExplain(customPrompt = null) {
 }
 
 async function handleDictionary() {
-  const { selectedText, startOffset, endOffset, colorIndex, highlightId } = popup.state
+  const { selectedText, startOffset, endOffset } = popup.state
 
   if (!selectedText || startOffset === undefined || endOffset === undefined) {
     console.error('Invalid selection data for dictionary')
     return
   }
 
-  const existingHighlightId = highlightId
-  const targetHighlightId = existingHighlightId || crypto.randomUUID()
+  // Close context menu
+  closePopup()
 
-  popup.openNoteForStreaming({
-    highlightId: targetHighlightId,
-    selectedText,
-    startOffset,
-    endOffset,
-    isCustomPrompt: true,
-    customPromptText: `Dictionary: ${selectedText}`
-  })
+  // Check if word already exists in vocabulary database
+  const existingVocabCard = findByWord(selectedText)
 
-  if (!existingHighlightId) {
-    tempHighlight.value = createTempHighlight({
-      text: selectedText,
-      startOffset,
-      endOffset,
-      colorIndex: colorIndex || 0,
-      hasNote: true,
-      noteContent: ''
-    })
-    tempHighlight.value.id = targetHighlightId
+  // Set up dictionary modal
+  dictionaryWord.value = selectedText
+  dictionaryDefinition.value = existingVocabCard?.definition || ''
+  showDictionaryModal.value = true
+
+  // If word exists and has a definition, just show it (no API call needed)
+  if (existingVocabCard && existingVocabCard.definition) {
+    isDictionaryStreaming.value = false
+    return
   }
 
-  isChildStreaming.value = true
+  // Word doesn't exist or has no definition - fetch from API
+  isDictionaryStreaming.value = true
   error.value = null
 
   const previousMessages = buildConversationChain(chatStore.messagesById, currentMessage.value?.id)
+
+  // Create vocab card to store the dictionary result
+  const vocabId = addVocabCard({
+    word: selectedText,
+    definition: '',
+    context: currentMessage.value?.response?.substring(
+      Math.max(0, startOffset - 50),
+      Math.min(currentMessage.value.response.length, endOffset + 50)
+    ) || '',
+    messageId: currentMessage.value?.id
+  })
 
   try {
     const messages = getDictionaryPrompts(selectedText, previousMessages)
@@ -443,16 +464,23 @@ async function handleDictionary() {
       chatStore.currentModel,
       messages,
       (chunk) => {
-        popup.appendToNoteContent(chunk)
+        dictionaryDefinition.value += chunk
+        // Also append to vocab card definition
+        appendToDefinition(vocabId, chunk)
       }
     )
   } catch (err) {
     error.value = err.message
-    closePopup()
   } finally {
-    isChildStreaming.value = false
-    popup.stopStreaming()
+    isDictionaryStreaming.value = false
   }
+}
+
+function closeDictionaryModal() {
+  showDictionaryModal.value = false
+  dictionaryWord.value = ''
+  dictionaryDefinition.value = ''
+  isDictionaryStreaming.value = false
 }
 
 function handleCustomPrompt(customPrompt) {
@@ -623,6 +651,18 @@ function handleSelectionChange() {
   selectionCheckTimeout.value = setTimeout(() => {
     checkMobileSelection()
   }, 500) // Wait longer to let user finish selecting
+}
+
+// Handle double-click to select word and open context menu
+function handleDoubleClick(event) {
+  // Browser naturally selects the word on double-click
+  // We just need to wait a tick for the selection to be ready, then show context menu
+  setTimeout(() => {
+    const selection = window.getSelection()
+    if (selection && !selection.isCollapsed && selection.toString().trim()) {
+      showContextMenu()
+    }
+  }, 0)
 }
 
 // Prevent default context menu on mobile to show ours instead

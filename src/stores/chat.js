@@ -1,5 +1,6 @@
 import Message from './Message.js'
 import SRCard from './SRCard.js'
+import VocabCard from './VocabCard.js'
 import { defineStore } from 'pinia'
 import { saveChatState, loadChatState, resolveConflict as resolveStorageConflict } from '../services/storage.js'
 
@@ -36,6 +37,9 @@ export const useChatStore = defineStore('chat', {
 
       // Spaced repetition data: { [messageId]: { easiness, interval, repetitions, nextReviewDate, lastReviewDate, responseSummary } }
       srData: {},
+
+      // Vocabulary cards for spaced repetition: { [vocabId]: VocabCard }
+      vocabData: {},
     }
   },
 
@@ -235,6 +239,47 @@ export const useChatStore = defineStore('chat', {
 
       return count
     },
+
+    // Get all vocabulary cards due for review
+    vocabCardsDueForReview: (state) => {
+      const now = Date.now()
+      const dueCards = []
+
+      for (const [vocabId, vocabCard] of Object.entries(state.vocabData)) {
+        if (!vocabCard.nextReviewDate || vocabCard.nextReviewDate <= now) {
+          dueCards.push({
+            ...vocabCard,
+            id: vocabId
+          })
+        }
+      }
+
+      // Sort by nextReviewDate (oldest first, then new cards)
+      return dueCards.sort((a, b) => {
+        if (!a.nextReviewDate) return -1
+        if (!b.nextReviewDate) return 1
+        return a.nextReviewDate - b.nextReviewDate
+      })
+    },
+
+    // Get count of vocab cards due for review
+    vocabCardsDueCount: (state) => {
+      const now = Date.now()
+      let count = 0
+
+      for (const vocabCard of Object.values(state.vocabData)) {
+        if (!vocabCard.nextReviewDate || vocabCard.nextReviewDate <= now) {
+          count++
+        }
+      }
+
+      return count
+    },
+
+    // Get all vocabulary cards
+    allVocabCards: (state) => {
+      return Object.values(state.vocabData).sort((a, b) => b.createdAt - a.createdAt)
+    },
   },
 
   actions: {
@@ -286,9 +331,16 @@ export const useChatStore = defineStore('chat', {
         srData[id] = new SRCard(cardData)
       }
 
+      // Reconstruct VocabCard objects from plain objects
+      const vocabData = {}
+      for (const [id, cardData] of Object.entries(savedState.vocabData || {})) {
+        vocabData[id] = new VocabCard(cardData)
+      }
+
       // Restore state
       this.messagesById = messagesById
       this.srData = srData
+      this.vocabData = vocabData
       this.currentModel = savedState.currentModel || null
       this.chats = savedState.chats || []
       this.currentChatId = savedState.currentChatId || null
@@ -859,6 +911,7 @@ export const useChatStore = defineStore('chat', {
         currentChatId: this.currentChatId,
         isStreaming: this.isStreaming,
         srData: this.srData,
+        vocabData: this.vocabData,
       }
       saveChatState(state)
     },
@@ -1219,6 +1272,75 @@ export const useChatStore = defineStore('chat', {
       if (changed) {
         this._persistState()
       }
+    },
+
+    // ============================================
+    // Vocabulary Card Actions
+    // ============================================
+
+    // Add a new vocabulary card
+    addVocabCard({ word, definition = '', context = '', messageId = null }) {
+      const card = new VocabCard({
+        word,
+        definition,
+        context,
+        messageId
+      })
+      this.vocabData[card.id] = card
+      this._persistState()
+      return card.id
+    },
+
+    // Update vocabulary card definition (for streaming)
+    appendToVocabDefinition(vocabId, chunk) {
+      const card = this.vocabData[vocabId]
+      if (card) {
+        card.definition += chunk
+        this._persistState()
+      }
+    },
+
+    // Update vocabulary card definition completely
+    updateVocabDefinition(vocabId, definition) {
+      const card = this.vocabData[vocabId]
+      if (card) {
+        card.definition = definition
+        this._persistState()
+      }
+    },
+
+    // Record a vocabulary review result
+    // quality: 0 = Again, 2 = Hard, 4 = Good, 5 = Easy
+    recordVocabReview(vocabId, quality) {
+      const card = this.vocabData[vocabId]
+      if (!card) return
+
+      card.recordReview(quality)
+      this._persistState()
+    },
+
+    // Remove a vocabulary card
+    removeVocabCard(vocabId) {
+      if (this.vocabData[vocabId]) {
+        delete this.vocabData[vocabId]
+        this._persistState()
+      }
+    },
+
+    // Get a vocabulary card by ID
+    getVocabCard(vocabId) {
+      return this.vocabData[vocabId] || null
+    },
+
+    // Check if a word already exists in vocab cards
+    findVocabCardByWord(word) {
+      const normalizedWord = word.toLowerCase().trim()
+      for (const card of Object.values(this.vocabData)) {
+        if (card.word.toLowerCase().trim() === normalizedWord) {
+          return card
+        }
+      }
+      return null
     },
 
   }

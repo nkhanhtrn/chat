@@ -109,6 +109,10 @@
         <svg class="review-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
         <span v-if="dueCount > 0" class="review-badge">{{ dueCount }}</span>
       </button>
+      <button class="vocab-btn" @click="showVocabReviewModal = true" title="Review vocabulary">
+        <svg class="vocab-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z"/></svg>
+        <span v-if="vocabDueCount > 0" class="review-badge">{{ vocabDueCount }}</span>
+      </button>
     </div>
 
     <!-- Login Modal -->
@@ -126,6 +130,12 @@
       :visible="showReviewModal"
       @close="showReviewModal = false"
     />
+
+    <!-- Vocabulary Review Modal -->
+    <VocabReviewModal
+      :visible="showVocabReviewModal"
+      @close="showVocabReviewModal = false"
+    />
   </div>
 </template>
 
@@ -137,17 +147,21 @@ import Button from '../components/Button.vue'
 import LoginModal from '../components/Modal/LoginModal.vue'
 import SettingsModal from '../components/Modal/SettingsModal.vue'
 import ReviewModal from '../components/Modal/ReviewModal.vue'
+import VocabReviewModal from '../components/Modal/VocabReviewModal.vue'
 import { onAuthChange, signOutUser } from '../services/auth.js'
 import { useGlobalSearch } from '../composables/useGlobalSearch.js'
 import { useSpacedRepetition } from '../composables/useSpacedRepetition.js'
+import { useVocabulary } from '../composables/useVocabulary.js'
 
 const router = useRouter()
 const chatStore = useChatStore()
 const { dueCount } = useSpacedRepetition()
+const { vocabDueCount } = useVocabulary()
 
 const showLoginModal = ref(false)
 const showSettingsModal = ref(false)
 const showReviewModal = ref(false)
+const showVocabReviewModal = ref(false)
 const currentUser = ref(null)
 
 // Drag and drop state
@@ -351,7 +365,8 @@ const handleDrop = (event, targetIndex) => {
 
 .settings-btn,
 .calendar-btn,
-.review-btn {
+.review-btn,
+.vocab-btn {
   width: 40px;
   height: 40px;
   padding: 0;
@@ -369,7 +384,8 @@ const handleDrop = (event, targetIndex) => {
 
 .settings-btn:hover,
 .calendar-btn:hover,
-.review-btn:hover {
+.review-btn:hover,
+.vocab-btn:hover {
   background: var(--color-bg-hover);
   color: var(--color-text-base);
   border-color: var(--color-border-accent);
@@ -377,7 +393,8 @@ const handleDrop = (event, targetIndex) => {
 
 .settings-icon,
 .calendar-icon,
-.review-icon {
+.review-icon,
+.vocab-icon {
   width: 20px;
   height: 20px;
   display: block;
@@ -739,7 +756,8 @@ const handleDrop = (event, targetIndex) => {
 
   .settings-btn,
   .calendar-btn,
-  .review-btn {
+  .review-btn,
+  .vocab-btn {
     width: auto;
     height: auto;
     padding: 0.625rem 1.5rem;
@@ -758,6 +776,11 @@ const handleDrop = (event, targetIndex) => {
 
   .review-btn::after {
     content: 'Review';
+    font-size: 0.875rem;
+  }
+
+  .vocab-btn::after {
+    content: 'Vocab';
     font-size: 0.875rem;
   }
 

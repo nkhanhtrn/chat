@@ -2353,7 +2353,7 @@ describe('ChatMessage context menu integration', () => {
       vi.restoreAllMocks()
     })
 
-    it('handleDictionary switches to note mode with streaming state', async () => {
+    it('handleDictionary opens dictionary modal with streaming state', async () => {
       const pinia = createPinia()
       const testMessage = {
         id: 'msg-dict',
@@ -2384,16 +2384,17 @@ describe('ChatMessage context menu integration', () => {
       // Start the dictionary lookup (don't await yet)
       const promise = wrapper.vm.handleDictionary()
 
-      // Check immediate state changes
-      expect(state.popup.mode).toBe('note')
-      expect(state.popup.isStreaming).toBe(true)
-      expect(state.popup.isCustomPrompt).toBe(true)
-      expect(state.popup.customPromptText).toBe('Dictionary: word')
+      // Check immediate state changes - now uses DictionaryModal
+      expect(wrapper.vm.showDictionaryModal).toBe(true)
+      expect(wrapper.vm.dictionaryWord).toBe('word')
+      expect(wrapper.vm.isDictionaryStreaming).toBe(true)
+      // Context menu should be closed
+      expect(state.popup.mode).toBe(null)
 
       await promise
     })
 
-    it('handleDictionary creates temp highlight when no existing highlight', async () => {
+    it('handleDictionary opens modal and sets word correctly', async () => {
       const pinia = createPinia()
       const testMessage = {
         id: 'msg-dict-temp',
@@ -2423,11 +2424,9 @@ describe('ChatMessage context menu integration', () => {
 
       const promise = wrapper.vm.handleDictionary()
 
-      // Should create temp highlight
-      expect(state.tempHighlight).not.toBe(null)
-      expect(state.tempHighlight.text).toBe('word')
-      expect(state.tempHighlight.colorIndex).toBe(2)
-      expect(state.tempHighlight.hasNote).toBe(true)
+      // Should open dictionary modal with the word
+      expect(wrapper.vm.showDictionaryModal).toBe(true)
+      expect(wrapper.vm.dictionaryWord).toBe('word')
 
       await promise
     })
@@ -2489,7 +2488,7 @@ describe('ChatMessage context menu integration', () => {
       consoleSpy.mockRestore()
     })
 
-    it('handleDictionary streams content to noteContent', async () => {
+    it('handleDictionary streams content to dictionaryDefinition', async () => {
       const pinia = createPinia()
       const testMessage = {
         id: 'msg-dict-stream',
@@ -2524,11 +2523,11 @@ describe('ChatMessage context menu integration', () => {
 
       await wrapper.vm.handleDictionary()
 
-      // After streaming completes, noteContent should have the streamed content
-      expect(state.popup.noteContent).toBe('**Spelling**: word')
+      // After streaming completes, dictionaryDefinition should have the streamed content
+      expect(wrapper.vm.dictionaryDefinition).toBe('**Spelling**: word')
     })
 
-    it('handleDictionary sets isStreaming to false after completion', async () => {
+    it('handleDictionary sets isDictionaryStreaming to false after completion', async () => {
       const pinia = createPinia()
       const testMessage = {
         id: 'msg-dict-end',
@@ -2556,11 +2555,10 @@ describe('ChatMessage context menu integration', () => {
 
       await wrapper.vm.handleDictionary()
 
-      expect(state.popup.isStreaming).toBe(false)
-      expect(state.isChildStreaming).toBe(false)
+      expect(wrapper.vm.isDictionaryStreaming).toBe(false)
     })
 
-    it('handleDictionary closes popup and sets error on API failure', async () => {
+    it('handleDictionary sets error on API failure', async () => {
       const pinia = createPinia()
       const testMessage = {
         id: 'msg-dict-error',
@@ -2591,8 +2589,7 @@ describe('ChatMessage context menu integration', () => {
 
       await wrapper.vm.handleDictionary()
 
-      expect(state.popup.mode).toBe(null)
-      expect(state.popup.isStreaming).toBe(false)
+      expect(wrapper.vm.isDictionaryStreaming).toBe(false)
       expect(state.error).toBe('API Error')
     })
 
