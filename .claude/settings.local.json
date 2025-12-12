@@ -19,7 +19,8 @@
       "Bash(find:*)",
       "Bash(wc:*)",
       "Bash(git show:*)",
-      "Bash(timeout 5 npm run dev:*)"
+      "Bash(timeout 5 npm run dev:*)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []

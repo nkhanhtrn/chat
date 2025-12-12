@@ -42,17 +42,6 @@
     >
       {{ clearSummariesButtonText }}
     </Button>
-    <!-- Hidden: Backfill button (uncomment if needed)
-    <Button
-      @click="handleBackfillCreatedAt"
-      class="dev-button"
-      :disabled="messagesWithoutCreatedAtCount === 0"
-      title="Backfill createdAt for legacy messages (spread over last 3 days)"
-      variant="secondary"
-    >
-      {{ backfillButtonText }}
-    </Button>
-    -->
   </div>
 </template>
 
@@ -135,18 +124,6 @@ const clearSummariesButtonText = computed(() => {
   return `Clear ${notebookSummaryCount.value} summaries`
 })
 
-// Count of messages without createdAt
-const messagesWithoutCreatedAtCount = computed(() => {
-  return chatStore.getMessagesWithoutCreatedAt().length
-})
-
-const backfillButtonText = computed(() => {
-  const count = messagesWithoutCreatedAtCount.value
-  if (count === 0) {
-    return 'All have dates'
-  }
-  return `Backfill ${count} dates`
-})
 
 const handleClearCache = () => {
   if (confirm('Are you sure you want to clear all localStorage cache? This will delete all your chat history.')) {
@@ -208,15 +185,6 @@ const handleClearNotebookSummaries = () => {
   }
 }
 
-const handleBackfillCreatedAt = () => {
-  const count = messagesWithoutCreatedAtCount.value
-  if (count === 0) return
-
-  if (confirm(`This will assign createdAt timestamps to ${count} legacy messages, spread over the last 3 days. Continue?`)) {
-    const result = chatStore.backfillCreatedAt(3)
-    alert(`Backfilled ${result.updated} of ${result.total} messages`)
-  }
-}
 </script>
 
 <style scoped>
