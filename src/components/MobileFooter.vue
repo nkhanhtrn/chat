@@ -97,8 +97,8 @@ const showSettingsModal = ref(false)
 const showReviewModal = ref(false)
 const showVocabReviewModal = ref(false)
 
-const dueCount = computed(() => chatStore.dueCount)
-const vocabDueCount = computed(() => chatStore.vocabDueCount)
+const dueCount = computed(() => chatStore.cardsDueCount)
+const vocabDueCount = computed(() => chatStore.vocabCardsDueCount)
 const hasCurrentQuestion = computed(() => Boolean(chatStore.currentChatId))
 
 function goHome() {
@@ -137,7 +137,11 @@ function goCurrentQuestion() {
   bottom: 1rem;
   left: 1rem;
   display: flex;
-  gap: 0.5rem;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-base);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .mobile-footer.mobile-only {

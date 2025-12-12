@@ -51,6 +51,15 @@
     >
       Shuffle Due ({{ dueCardCount }})
     </Button>
+    <Button
+      @click="handleSetCreatedAt"
+      class="dev-button"
+      :disabled="missingCreatedAtCount === 0"
+      title="Set createdAt for questions missing it, spread over 1 week"
+      variant="secondary"
+    >
+      Set createdAt ({{ missingCreatedAtCount }})
+    </Button>
   </div>
 </template>
 
@@ -84,6 +93,11 @@ const srCardCount = computed(() => Object.keys(chatStore.srData).length)
 
 // Count of cards due today
 const dueCardCount = computed(() => chatStore.cardsDueCount)
+
+// Count of messages missing createdAt
+const missingCreatedAtCount = computed(() => {
+  return Object.values(chatStore.messagesById).filter(msg => !msg.createdAt).length
+})
 
 const srButtonText = computed(() => {
   if (uninitializedCount.value === 0) {
@@ -231,6 +245,27 @@ const handleRandomizeSR = () => {
     const card = chatStore.srData[dueCardIds[i]]
     card.nextReviewDate = baseTime + i
   }
+
+  chatStore._persistState()
+}
+
+const handleSetCreatedAt = () => {
+  const messagesWithoutCreatedAt = Object.values(chatStore.messagesById).filter(msg => !msg.createdAt)
+  if (messagesWithoutCreatedAt.length === 0) return
+
+  const count = messagesWithoutCreatedAt.length
+  if (!confirm(`Set createdAt for ${count} questions, spread over the past week?`)) return
+
+  const now = Date.now()
+  const oneWeekMs = 7 * 24 * 60 * 60 * 1000
+  const startTime = now - oneWeekMs
+
+  // Spread messages evenly over the week
+  const interval = oneWeekMs / count
+
+  messagesWithoutCreatedAt.forEach((msg, index) => {
+    msg.createdAt = Math.floor(startTime + (index * interval))
+  })
 
   chatStore._persistState()
 }

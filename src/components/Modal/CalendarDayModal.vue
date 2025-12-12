@@ -145,7 +145,7 @@ function toggleCollapse(chatId) {
 .question-list {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding-left: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.375rem;
@@ -156,15 +156,12 @@ function toggleCollapse(chatId) {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.625rem 0.75rem;
-  background: var(--color-bg-hover);
-  border-radius: 8px;
+  padding: 0.25rem 0;
   cursor: pointer;
-  transition: background 0.15s ease;
 }
 
-.question-item:hover {
-  background: var(--color-bg-page);
+.question-item:hover .question-text {
+  text-decoration: underline;
 }
 
 .question-text {

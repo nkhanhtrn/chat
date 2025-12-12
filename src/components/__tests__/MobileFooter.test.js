@@ -141,17 +141,13 @@ describe('MobileFooter', () => {
       expect(vocabModal.props('visible')).toBe(true)
     })
 
-    it('should show vocab due count badge when vocabDueCount > 0', async () => {
-      // Set up store with vocab due count using correct getter name (vocabCardsDueCount)
+    it('should show vocab due count badge when vocabCardsDueCount > 0', async () => {
+      // Set up store with vocab due count
       chatStore.vocabData = {
         'vocab-1': {
           nextReviewDate: Date.now() - 1000 // Due (in the past)
         }
       }
-
-      // The component uses chatStore.vocabDueCount which doesn't exist in the store
-      // The store has vocabCardsDueCount instead. We'll test with a direct property mock.
-      chatStore.vocabDueCount = 1
 
       wrapper = mount(MobileFooter)
       const dictBtn = wrapper.find('[title="Review vocabulary"]')
@@ -159,7 +155,7 @@ describe('MobileFooter', () => {
       expect(badge.exists()).toBe(true)
     })
 
-    it('should not show vocab due count badge when vocabDueCount is 0', () => {
+    it('should not show vocab due count badge when vocabCardsDueCount is 0', () => {
       wrapper = mount(MobileFooter)
       const dictBtn = wrapper.find('[title="Review vocabulary"]')
       const badge = dictBtn.find('.review-badge')
