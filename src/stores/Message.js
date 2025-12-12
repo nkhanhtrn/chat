@@ -7,11 +7,12 @@ export default class Message {
       response: '',
       parentId,
       childIds: [],
-      highlightedText
+      highlightedText,
+      createdAt: Date.now()
     });
   }
 
-  constructor({ id, question, response, parentId = null, childIds = [], highlightedText = null, questionSummarized = null, lastVisitedChild = null, customContent = [], scrollPosition = 0, responseSummary = '' }) {
+  constructor({ id, question, response, parentId = null, childIds = [], highlightedText = null, questionSummarized = null, lastVisitedChild = null, customContent = [], scrollPosition = 0, responseSummary = '', createdAt }) {
     this.id = id
     this.question = question
     this.questionSummarized = questionSummarized || (question.length > 100 ? question.slice(0, 100) + '...' : question)
@@ -23,6 +24,7 @@ export default class Message {
     this.lastVisitedChild = lastVisitedChild
     this.customContent = customContent // Array of custom content items (highlights, notes, etc.)
     this.scrollPosition = scrollPosition // Scroll position when viewing this message
+    this.createdAt = createdAt // Timestamp when the message was created (set by createChildMessage or explicitly)
   }
 
   // Check if this message has any children

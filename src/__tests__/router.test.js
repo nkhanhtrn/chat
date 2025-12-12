@@ -21,9 +21,15 @@ describe('Router Configuration', () => {
       expect(questionRoute.path).toBe('/notebook/:id/q/:questionId')
     })
 
+    it('should have calendar route', () => {
+      const calendarRoute = router.getRoutes().find(r => r.name === 'calendar')
+      expect(calendarRoute).toBeDefined()
+      expect(calendarRoute.path).toBe('/calendar')
+    })
+
     it('should have correct number of routes', () => {
       const routes = router.getRoutes()
-      expect(routes.length).toBe(3)
+      expect(routes.length).toBe(4)
     })
   })
 
@@ -68,6 +74,16 @@ describe('Router Configuration', () => {
     it('should resolve question route by name with params', () => {
       const resolved = router.resolve({ name: 'question', params: { id: 'my-notebook', questionId: 'my-question' } })
       expect(resolved.fullPath).toBe('/notebook/my-notebook/q/my-question')
+    })
+
+    it('should resolve calendar route correctly', () => {
+      const resolved = router.resolve('/calendar')
+      expect(resolved.name).toBe('calendar')
+    })
+
+    it('should resolve calendar route by name', () => {
+      const resolved = router.resolve({ name: 'calendar' })
+      expect(resolved.fullPath).toBe('/calendar')
     })
   })
 })

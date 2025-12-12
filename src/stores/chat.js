@@ -317,6 +317,10 @@ export const useChatStore = defineStore('chat', {
     // Add a new root message
     addRootMessage(message) {
       if (!(message instanceof Message)) {
+        // Set createdAt if not provided (new messages)
+        if (!message.createdAt) {
+          message.createdAt = Date.now()
+        }
         message = new Message(message)
       }
       this.messagesById[message.id] = message
@@ -338,6 +342,10 @@ export const useChatStore = defineStore('chat', {
     // Add a child message to a parent
     addChildMessage(parentId, childMessage) {
       if (!(childMessage instanceof Message)) {
+        // Set createdAt if not provided (new messages)
+        if (!childMessage.createdAt) {
+          childMessage.createdAt = Date.now()
+        }
         childMessage = new Message(childMessage)
       }
 
@@ -1211,6 +1219,70 @@ export const useChatStore = defineStore('chat', {
       if (changed) {
         this._persistState()
       }
+    },
+
+    // ============================================
+    // Dev Tools / Migration Utilities
+    // ============================================
+
+    /**
+     * Backfill createdAt for legacy messages that don't have it.
+     * Distributes messages evenly across the specified number of days.
+     * Call from DevTools: useChatStore().backfillCreatedAt(3)
+     * @param {number} days - Number of days to spread messages across (default: 3)
+     * @returns {{ updated: number, total: number }} - Count of updated vs total messages
+     */
+    backfillCreatedAt(days = 3) {
+      const now = Date.now()
+      const DAY_MS = 24 * 60 * 60 * 1000
+
+      // Collect all messages without createdAt
+      const messagesWithoutDate = []
+      for (const [id, msg] of Object.entries(this.messagesById)) {
+        if (!msg.createdAt) {
+          messagesWithoutDate.push(msg)
+        }
+      }
+
+      if (messagesWithoutDate.length === 0) {
+        console.log('All messages already have createdAt')
+        return { updated: 0, total: Object.keys(this.messagesById).length }
+      }
+
+      // Calculate time slots - spread evenly across days
+      const totalMessages = messagesWithoutDate.length
+      const startTime = now - (days * DAY_MS)
+      const timeSpan = days * DAY_MS
+      const interval = timeSpan / totalMessages
+
+      // Assign timestamps
+      messagesWithoutDate.forEach((msg, index) => {
+        // Add some randomness within each slot (±2 hours)
+        const baseTime = startTime + (index * interval)
+        const randomOffset = (Math.random() - 0.5) * 4 * 60 * 60 * 1000 // ±2 hours
+        msg.createdAt = Math.round(baseTime + randomOffset)
+      })
+
+      // Persist changes
+      this._persistState()
+
+      console.log(`Backfilled createdAt for ${totalMessages} messages across ${days} days`)
+      return { updated: totalMessages, total: Object.keys(this.messagesById).length }
+    },
+
+    /**
+     * Get messages without createdAt (for debugging)
+     * Call from DevTools: useChatStore().getMessagesWithoutCreatedAt()
+     * @returns {Array} - Array of message IDs without createdAt
+     */
+    getMessagesWithoutCreatedAt() {
+      const result = []
+      for (const [id, msg] of Object.entries(this.messagesById)) {
+        if (!msg.createdAt) {
+          result.push({ id, question: msg.questionSummarized || msg.question })
+        }
+      }
+      return result
     },
   }
 })

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import Message from '../Message.js'
 
 describe('Message', () => {
@@ -314,6 +314,66 @@ describe('Message', () => {
       expect(restored.parentId).toBe(null)
       expect(restored.highlightedText).toBe(null)
       expect(restored.lastVisitedChild).toBe(null)
+    })
+  })
+
+  describe('createdAt', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('does not set createdAt when not provided (for loading from storage)', () => {
+      const msg = new Message({ id: '1', question: 'Q', response: 'A' })
+      // createdAt should be undefined when not provided - this prevents
+      // overwriting with current time when loading existing messages from storage
+      expect(msg.createdAt).toBeUndefined()
+    })
+
+    it('uses provided createdAt when specified', () => {
+      const customTimestamp = 1700000000000
+      const msg = new Message({
+        id: '1',
+        question: 'Q',
+        response: 'A',
+        createdAt: customTimestamp
+      })
+
+      expect(msg.createdAt).toBe(customTimestamp)
+    })
+
+    it('preserves createdAt when reconstructing from persisted data', () => {
+      const originalTimestamp = 1700000000000
+      const msg = new Message({
+        id: '1',
+        question: 'Q',
+        response: 'A',
+        createdAt: originalTimestamp
+      })
+
+      // Simulate serialization and deserialization
+      const serialized = JSON.parse(JSON.stringify(msg))
+      const restored = new Message(serialized)
+
+      expect(restored.createdAt).toBe(originalTimestamp)
+    })
+
+    it('does not set createdAt for messages without it (legacy messages)', () => {
+      // Simulates loading old messages from storage that don't have createdAt
+      const oldMessageData = { id: '1', question: 'Q', response: 'A' }
+      const msg = new Message(oldMessageData)
+
+      // Should remain undefined, not get a new timestamp
+      expect(msg.createdAt).toBeUndefined()
+    })
+
+    it('createChildMessage sets createdAt automatically', () => {
+      vi.useFakeTimers()
+      const fakeNow = 1234567890000
+      vi.setSystemTime(fakeNow)
+
+      const child = Message.createChildMessage('parent', 'child question')
+
+      expect(child.createdAt).toBe(fakeNow)
     })
   })
 
