@@ -263,4 +263,151 @@ describe('CalendarPage', () => {
       })
     })
   })
+
+  describe('date picker', () => {
+    it('does not show date picker dropdown by default', () => {
+      const wrapper = mountCalendarPage()
+      expect(wrapper.find('.date-picker-dropdown').exists()).toBe(false)
+    })
+
+    it('shows date picker dropdown when clicking month title', async () => {
+      const wrapper = mountCalendarPage()
+      await wrapper.find('.month-title').trigger('click')
+      expect(wrapper.find('.date-picker-dropdown').exists()).toBe(true)
+    })
+
+    it('hides date picker dropdown when clicking month title again', async () => {
+      const wrapper = mountCalendarPage()
+      await wrapper.find('.month-title').trigger('click')
+      expect(wrapper.find('.date-picker-dropdown').exists()).toBe(true)
+      await wrapper.find('.month-title').trigger('click')
+      expect(wrapper.find('.date-picker-dropdown').exists()).toBe(false)
+    })
+
+    it('renders month select with all 12 months', async () => {
+      const wrapper = mountCalendarPage()
+      await wrapper.find('.month-title').trigger('click')
+
+      const monthSelect = wrapper.findAll('.date-select')[0]
+      const options = monthSelect.findAll('option')
+      expect(options).toHaveLength(12)
+      expect(options[0].text()).toBe('January')
+      expect(options[11].text()).toBe('December')
+    })
+
+    it('renders year select with available years', async () => {
+      const wrapper = mountCalendarPage()
+      await wrapper.find('.month-title').trigger('click')
+
+      const yearSelect = wrapper.findAll('.date-select')[1]
+      const options = yearSelect.findAll('option')
+      // Should have at least current year
+      expect(options.length).toBeGreaterThanOrEqual(1)
+
+      const currentYear = new Date().getFullYear()
+      const yearValues = options.map(opt => parseInt(opt.element.value))
+      expect(yearValues).toContain(currentYear)
+    })
+
+    it('includes years from message data in year select', async () => {
+      // Create a message from 2020
+      const oldDate = new Date(2020, 5, 15).getTime()
+
+      const wrapper = mountCalendarPage((store) => {
+        store.chats = [{ id: 'chat-1', name: 'Test', rootMessageIds: ['msg-1'] }]
+        store.messagesById = {
+          'msg-1': new Message({ id: 'msg-1', question: 'Q1', response: 'R1', createdAt: oldDate })
+        }
+      })
+
+      await wrapper.find('.month-title').trigger('click')
+
+      const yearSelect = wrapper.findAll('.date-select')[1]
+      const options = yearSelect.findAll('option')
+      const yearValues = options.map(opt => parseInt(opt.element.value))
+      expect(yearValues).toContain(2020)
+    })
+
+    it('navigates to selected month/year when clicking Go', async () => {
+      const wrapper = mountCalendarPage()
+      await wrapper.find('.month-title').trigger('click')
+
+      // Select January (index 0) and current year
+      const monthSelect = wrapper.findAll('.date-select')[0]
+      const yearSelect = wrapper.findAll('.date-select')[1]
+      const currentYear = new Date().getFullYear()
+
+      await monthSelect.setValue('0')
+      await yearSelect.setValue(String(currentYear))
+
+      // Click Go button
+      await wrapper.find('.date-picker-apply').trigger('click')
+
+      // Should now show January of current year
+      const monthTitle = wrapper.find('.month-title').text()
+      expect(monthTitle).toContain('January')
+      expect(monthTitle).toContain(String(currentYear))
+
+      // Dropdown should be closed
+      expect(wrapper.find('.date-picker-dropdown').exists()).toBe(false)
+    })
+
+    it('syncs selects with current date when opening picker', async () => {
+      const wrapper = mountCalendarPage()
+      const now = new Date()
+
+      await wrapper.find('.month-title').trigger('click')
+
+      const monthSelect = wrapper.findAll('.date-select')[0]
+      const yearSelect = wrapper.findAll('.date-select')[1]
+
+      expect(parseInt(monthSelect.element.value)).toBe(now.getMonth())
+      expect(parseInt(yearSelect.element.value)).toBe(now.getFullYear())
+    })
+
+    it('renders Today button in date picker', async () => {
+      const wrapper = mountCalendarPage()
+      await wrapper.find('.month-title').trigger('click')
+
+      const todayBtn = wrapper.find('.today-btn')
+      expect(todayBtn.exists()).toBe(true)
+      expect(todayBtn.text()).toBe('Today')
+    })
+
+    it('navigates to current month when clicking Today button', async () => {
+      const wrapper = mountCalendarPage()
+      const now = new Date()
+      const expectedMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+        .toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+
+      // Navigate to a different month first
+      await wrapper.findAll('.month-nav-btn')[0].trigger('click')
+      await wrapper.findAll('.month-nav-btn')[0].trigger('click')
+
+      // Open date picker and click Today
+      await wrapper.find('.month-title').trigger('click')
+      await wrapper.find('.today-btn').trigger('click')
+
+      // Should show current month
+      expect(wrapper.find('.month-title').text()).toBe(expectedMonth)
+
+      // Dropdown should be closed
+      expect(wrapper.find('.date-picker-dropdown').exists()).toBe(false)
+    })
+
+    it('shows dropdown icon in month title', () => {
+      const wrapper = mountCalendarPage()
+      expect(wrapper.find('.dropdown-icon').exists()).toBe(true)
+    })
+
+    it('adds open class to dropdown icon when picker is open', async () => {
+      const wrapper = mountCalendarPage()
+
+      expect(wrapper.find('.dropdown-icon').classes()).not.toContain('open')
+
+      await wrapper.find('.month-title').trigger('click')
+
+      expect(wrapper.find('.dropdown-icon').classes()).toContain('open')
+    })
+  })
 })

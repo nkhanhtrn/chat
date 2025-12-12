@@ -276,4 +276,29 @@ describe('MobileFooter', () => {
       expect(wrapper.emitted('new-notebook')).toHaveLength(1)
     })
   })
+
+  describe('Mobile Only Mode', () => {
+    it('should not have mobile-only class by default', () => {
+      wrapper = mount(MobileFooter)
+      expect(wrapper.find('.mobile-footer').classes()).not.toContain('mobile-only')
+    })
+
+    it('should have mobile-only class when mobileOnly prop is true', () => {
+      wrapper = mount(MobileFooter, {
+        props: {
+          mobileOnly: true
+        }
+      })
+      expect(wrapper.find('.mobile-footer').classes()).toContain('mobile-only')
+    })
+
+    it('should not have mobile-only class when mobileOnly prop is false', () => {
+      wrapper = mount(MobileFooter, {
+        props: {
+          mobileOnly: false
+        }
+      })
+      expect(wrapper.find('.mobile-footer').classes()).not.toContain('mobile-only')
+    })
+  })
 })

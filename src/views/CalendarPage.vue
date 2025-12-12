@@ -17,12 +17,36 @@
               <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
             </svg>
           </button>
-          <h2 class="month-title">{{ monthYearLabel }}</h2>
+          <h2 class="month-title" @click="toggleDatePicker">
+            {{ monthYearLabel }}
+            <svg class="dropdown-icon" :class="{ open: showDatePicker }" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+              <path d="M7 10l5 5 5-5z"/>
+            </svg>
+          </h2>
           <button class="month-nav-btn" @click="nextMonth">
             <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
               <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
             </svg>
           </button>
+        </div>
+
+        <div v-if="showDatePicker" class="date-picker-dropdown">
+          <button class="today-btn" @click="goToCurrentMonth" title="Go to current month">
+            Today
+          </button>
+          <div class="date-picker-selects">
+            <select v-model="selectedMonth" class="date-select">
+              <option v-for="(name, index) in monthNames" :key="index" :value="index">
+                {{ name }}
+              </option>
+            </select>
+            <select v-model="selectedYear" class="date-select">
+              <option v-for="year in availableYears" :key="year" :value="year">
+                {{ year }}
+              </option>
+            </select>
+          </div>
+          <button class="date-picker-apply" @click="applyDateSelection">Go</button>
         </div>
 
         <div class="calendar-grid">
@@ -72,8 +96,15 @@ const currentDate = ref(new Date())
 const showDayModal = ref(false)
 const selectedDate = ref(null)
 const selectedDayQuestions = ref([])
+const showDatePicker = ref(false)
+const selectedMonth = ref(new Date().getMonth())
+const selectedYear = ref(new Date().getFullYear())
 
 const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const monthNames = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+]
 
 const monthYearLabel = computed(() => {
   return currentDate.value.toLocaleDateString('en-US', {
@@ -112,6 +143,24 @@ const allMessagesWithNotebook = computed(() => {
   }
 
   return result
+})
+
+// Get all years that have data
+const availableYears = computed(() => {
+  const years = new Set()
+  const currentYear = new Date().getFullYear()
+
+  // Always include current year
+  years.add(currentYear)
+
+  for (const msg of allMessagesWithNotebook.value) {
+    if (msg.createdAt) {
+      const year = new Date(msg.createdAt).getFullYear()
+      years.add(year)
+    }
+  }
+
+  return Array.from(years).sort((a, b) => b - a) // Sort descending (newest first)
 })
 
 // Group messages by date string (YYYY-MM-DD)
@@ -187,6 +236,26 @@ function nextMonth() {
   )
 }
 
+function toggleDatePicker() {
+  showDatePicker.value = !showDatePicker.value
+  if (showDatePicker.value) {
+    // Sync selectors with current date
+    selectedMonth.value = currentDate.value.getMonth()
+    selectedYear.value = currentDate.value.getFullYear()
+  }
+}
+
+function applyDateSelection() {
+  currentDate.value = new Date(selectedYear.value, selectedMonth.value, 1)
+  showDatePicker.value = false
+}
+
+function goToCurrentMonth() {
+  const now = new Date()
+  currentDate.value = new Date(now.getFullYear(), now.getMonth(), 1)
+  showDatePicker.value = false
+}
+
 function openDayModal(day) {
   selectedDate.value = day.date
   selectedDayQuestions.value = day.questions
@@ -258,6 +327,24 @@ function goHome() {
   margin: 0 auto 1.5rem;
 }
 
+.today-btn {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  background: var(--color-bg-page);
+  border: 1px solid var(--color-border-base);
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.today-btn:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-base);
+  border-color: var(--color-border-accent);
+}
+
 .month-title {
   font-family: 'Georgia', serif;
   font-size: 1.5rem;
@@ -266,6 +353,24 @@ function goHome() {
   margin: 0;
   min-width: 200px;
   text-align: center;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  transition: color 0.2s;
+}
+
+.month-title:hover {
+  color: var(--color-accent);
+}
+
+.dropdown-icon {
+  transition: transform 0.2s;
+}
+
+.dropdown-icon.open {
+  transform: rotate(180deg);
 }
 
 .month-nav-btn {
@@ -287,6 +392,57 @@ function goHome() {
   background: var(--color-bg-hover);
   color: var(--color-text-base);
   border-color: var(--color-border-accent);
+}
+
+.date-picker-dropdown {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  max-width: 800px;
+  margin: 0 auto 1.5rem;
+  padding: 1rem;
+  background: var(--color-bg-page);
+  border: 1px solid var(--color-border-base);
+  border-radius: 8px;
+}
+
+.date-picker-selects {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.date-select {
+  padding: 0.5rem 0.75rem;
+  font-size: 1rem;
+  font-family: inherit;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-base);
+  border-radius: 6px;
+  color: var(--color-text-message);
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.date-select:focus {
+  outline: none;
+  border-color: var(--color-border-accent);
+}
+
+.date-picker-apply {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  background: var(--color-accent);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.date-picker-apply:hover {
+  opacity: 0.9;
 }
 
 .calendar-grid {
@@ -387,6 +543,11 @@ function goHome() {
     min-width: 150px;
   }
 
+  .today-btn {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.8rem;
+  }
+
   .weekday-header {
     padding: 0.5rem 0.25rem;
     font-size: 0.75rem;
@@ -408,6 +569,21 @@ function goHome() {
     line-height: 16px;
     bottom: 2px;
     right: 2px;
+  }
+
+  .date-picker-dropdown {
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .date-select {
+    padding: 0.4rem 0.5rem;
+    font-size: 0.9rem;
+  }
+
+  .date-picker-apply {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.85rem;
   }
 }
 </style>

@@ -83,7 +83,7 @@
       @stop-streaming="handleStopStreaming"
     />
 
-    <MobileFooter show-home />
+    <MobileFooter show-home mobile-only />
   </div>
 </template>
 

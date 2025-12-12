@@ -1,5 +1,5 @@
 <template>
-  <div class="mobile-footer">
+  <div class="mobile-footer" :class="{ 'mobile-only': mobileOnly }">
     <button
       v-if="showNewNotebook"
       class="footer-btn"
@@ -81,6 +81,10 @@ defineProps({
   showHome: {
     type: Boolean,
     default: false
+  },
+  mobileOnly: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -129,89 +133,97 @@ function goCurrentQuestion() {
 
 <style scoped>
 .mobile-footer {
+  position: fixed;
+  bottom: 1rem;
+  left: 1rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.mobile-footer.mobile-only {
   display: none;
 }
 
 @media (max-width: 768px) {
-  .mobile-footer {
-    position: fixed;
+  .mobile-footer,
+  .mobile-footer.mobile-only {
+    display: flex;
     bottom: 0;
     left: 0;
     right: 0;
     padding: 0.75rem 1rem;
     background: var(--color-bg-base);
     border-top: 1px solid var(--color-border-base);
-    display: flex;
     justify-content: center;
     gap: 0.75rem;
   }
+}
 
-  .footer-btn {
-    width: 40px;
-    height: 40px;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--color-bg-page);
-    border: 1px solid var(--color-border-base);
-    border-radius: 6px;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    transition: all 0.2s;
-    position: relative;
-  }
+.footer-btn {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-page);
+  border: 1px solid var(--color-border-base);
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
 
-  .footer-btn:hover,
-  .footer-btn.active {
-    background: var(--color-bg-hover);
-    color: var(--color-text-base);
-    border-color: var(--color-border-accent);
-  }
+.footer-btn:hover,
+.footer-btn.active {
+  background: var(--color-bg-hover);
+  color: var(--color-text-base);
+  border-color: var(--color-border-accent);
+}
 
-  .footer-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
+.footer-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
-  .footer-btn:disabled:hover {
-    background: var(--color-bg-page);
-    color: var(--color-text-muted);
-    border-color: var(--color-border-base);
-  }
+.footer-btn:disabled:hover {
+  background: var(--color-bg-page);
+  color: var(--color-text-muted);
+  border-color: var(--color-border-base);
+}
 
-  .footer-icon {
-    width: 20px;
-    height: 20px;
-    display: block;
-  }
+.footer-icon {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
 
-  .footer-letter {
-    font-size: 1.125rem;
-    font-weight: 600;
-  }
+.footer-letter {
+  font-size: 1.125rem;
+  font-weight: 600;
+}
 
-  .dict-letter {
-    font-family: 'Georgia', 'Times New Roman', serif;
-    font-style: italic;
-    font-size: 1rem;
-    letter-spacing: -0.5px;
-  }
+.dict-letter {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 1rem;
+  letter-spacing: -0.5px;
+}
 
-  .review-badge {
-    position: absolute;
-    top: -6px;
-    right: -6px;
-    min-width: 18px;
-    height: 18px;
-    padding: 0 5px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    line-height: 18px;
-    text-align: center;
-    background: var(--color-accent);
-    color: white;
-    border-radius: 9px;
-  }
+.review-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  background: var(--color-accent);
+  color: white;
+  border-radius: 9px;
 }
 </style>
