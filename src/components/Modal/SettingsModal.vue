@@ -551,7 +551,9 @@ const downloadNotebooks = () => {
     version: 1,
     exportedAt: new Date().toISOString(),
     chats: chatStore.chats,
-    messagesById: chatStore.messagesById
+    messagesById: chatStore.messagesById,
+    srData: chatStore.srData,
+    vocabData: chatStore.vocabData
   }
 
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
@@ -594,6 +596,24 @@ const restoreNotebooks = async (event) => {
       const existingChat = chatStore.chats.find(c => c.id === chat.id)
       if (!existingChat) {
         chatStore.chats.push(chat)
+      }
+    }
+
+    // Restore spaced repetition data (don't overwrite existing)
+    if (data.srData && typeof data.srData === 'object') {
+      for (const [id, srCard] of Object.entries(data.srData)) {
+        if (!chatStore.srData[id]) {
+          chatStore.srData[id] = srCard
+        }
+      }
+    }
+
+    // Restore vocabulary data (don't overwrite existing)
+    if (data.vocabData && typeof data.vocabData === 'object') {
+      for (const [id, vocabCard] of Object.entries(data.vocabData)) {
+        if (!chatStore.vocabData[id]) {
+          chatStore.vocabData[id] = vocabCard
+        }
       }
     }
 

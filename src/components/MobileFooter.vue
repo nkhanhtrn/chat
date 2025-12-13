@@ -152,6 +152,7 @@ function goCurrentQuestion() {
   .mobile-footer,
   .mobile-footer.mobile-only {
     display: flex;
+    display: flex;
     bottom: 0;
     left: 0;
     right: 0;

@@ -49,8 +49,14 @@ const mockChatStore = {
     { id: 'chat-2', name: 'Test Chat 2', rootMessageIds: ['msg-2'] }
   ],
   messagesById: {
-    'msg-1': { id: 'msg-1', question: 'Hello', response: 'Hi there' },
-    'msg-2': { id: 'msg-2', question: 'Test', response: 'Response' }
+    'msg-1': { id: 'msg-1', question: 'Hello', response: 'Hi there', createdAt: 1700000000000 },
+    'msg-2': { id: 'msg-2', question: 'Test', response: 'Response', createdAt: 1700000001000 }
+  },
+  srData: {
+    'msg-1': { easiness: 2.5, interval: 1, repetitions: 0, nextReviewDate: null }
+  },
+  vocabData: {
+    'vocab-1': { word: 'test', definition: 'a test word', easiness: 2.5, createdAt: 1700000002000 }
   },
   _persistState: vi.fn()
 }
@@ -1680,8 +1686,14 @@ describe('SettingsModal', () => {
         { id: 'chat-2', name: 'Test Chat 2', rootMessageIds: ['msg-2'] }
       ]
       mockChatStore.messagesById = {
-        'msg-1': { id: 'msg-1', question: 'Hello', response: 'Hi there' },
-        'msg-2': { id: 'msg-2', question: 'Test', response: 'Response' }
+        'msg-1': { id: 'msg-1', question: 'Hello', response: 'Hi there', createdAt: 1700000000000 },
+        'msg-2': { id: 'msg-2', question: 'Test', response: 'Response', createdAt: 1700000001000 }
+      }
+      mockChatStore.srData = {
+        'msg-1': { easiness: 2.5, interval: 1, repetitions: 0, nextReviewDate: null }
+      }
+      mockChatStore.vocabData = {
+        'vocab-1': { word: 'test', definition: 'a test word', easiness: 2.5, createdAt: 1700000002000 }
       }
       mockChatStore._persistState.mockClear()
     })
@@ -2076,6 +2088,326 @@ describe('SettingsModal', () => {
       expect(backupButtons).toBeTruthy()
       // Verify the container has the backup-buttons class (CSS centering is applied via scoped styles)
       expect(backupButtons.classList.contains('backup-buttons')).toBe(true)
+    })
+
+    it('should include srData and vocabData in downloaded data', async () => {
+      let capturedBlob = null
+      const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
+        capturedBlob = blob
+        return 'blob:mock-url'
+      })
+      vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+
+      const mockAnchor = { href: '', download: '', click: vi.fn() }
+      vi.spyOn(document, 'createElement').mockImplementation((tag) => {
+        if (tag === 'a') return mockAnchor
+        return document.createElement.wrappedMethod?.call(document, tag) || document.createElementNS('http://www.w3.org/1999/xhtml', tag)
+      })
+      vi.spyOn(document.body, 'appendChild').mockImplementation(() => {})
+      vi.spyOn(document.body, 'removeChild').mockImplementation(() => {})
+
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const buttons = findAllInBody('.backup-btn')
+      const downloadBtn = Array.from(buttons).find(btn => btn.textContent.includes('Download Notebooks'))
+      downloadBtn.click()
+      await wrapper.vm.$nextTick()
+
+      expect(capturedBlob).toBeTruthy()
+      const text = await capturedBlob.text()
+      const data = JSON.parse(text)
+
+      expect(data.srData).toEqual(mockChatStore.srData)
+      expect(data.vocabData).toEqual(mockChatStore.vocabData)
+
+      vi.restoreAllMocks()
+    })
+
+    it('should restore srData from backup file', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const importData = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        chats: [],
+        messagesById: {},
+        srData: {
+          'msg-new': { easiness: 3.0, interval: 5, repetitions: 2, nextReviewDate: '2024-01-01' }
+        },
+        vocabData: {}
+      }
+
+      const file = new File([JSON.stringify(importData)], 'backup.json', { type: 'application/json' })
+      const fileInput = findInBody('.file-input')
+
+      Object.defineProperty(fileInput, 'files', {
+        value: [file],
+        writable: true
+      })
+
+      fileInput.dispatchEvent(new Event('change'))
+      await wrapper.vm.$nextTick()
+      await new Promise(r => setTimeout(r, 10))
+
+      expect(mockChatStore.srData['msg-new']).toEqual({
+        easiness: 3.0, interval: 5, repetitions: 2, nextReviewDate: '2024-01-01'
+      })
+      expect(mockChatStore._persistState).toHaveBeenCalled()
+    })
+
+    it('should restore vocabData from backup file', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const importData = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        chats: [],
+        messagesById: {},
+        srData: {},
+        vocabData: {
+          'vocab-new': { word: 'imported', definition: 'an imported word', easiness: 2.8 }
+        }
+      }
+
+      const file = new File([JSON.stringify(importData)], 'backup.json', { type: 'application/json' })
+      const fileInput = findInBody('.file-input')
+
+      Object.defineProperty(fileInput, 'files', {
+        value: [file],
+        writable: true
+      })
+
+      fileInput.dispatchEvent(new Event('change'))
+      await wrapper.vm.$nextTick()
+      await new Promise(r => setTimeout(r, 10))
+
+      expect(mockChatStore.vocabData['vocab-new']).toEqual({
+        word: 'imported', definition: 'an imported word', easiness: 2.8
+      })
+      expect(mockChatStore._persistState).toHaveBeenCalled()
+    })
+
+    it('should not overwrite existing srData entries', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const importData = {
+        version: 1,
+        chats: [],
+        messagesById: {},
+        srData: {
+          'msg-1': { easiness: 9.9, interval: 99, repetitions: 99, nextReviewDate: 'overwritten' }
+        },
+        vocabData: {}
+      }
+
+      const file = new File([JSON.stringify(importData)], 'backup.json', { type: 'application/json' })
+      const fileInput = findInBody('.file-input')
+
+      Object.defineProperty(fileInput, 'files', {
+        value: [file],
+        writable: true
+      })
+
+      fileInput.dispatchEvent(new Event('change'))
+      await wrapper.vm.$nextTick()
+      await new Promise(r => setTimeout(r, 10))
+
+      // Original srData should not be overwritten
+      expect(mockChatStore.srData['msg-1'].easiness).toBe(2.5)
+      expect(mockChatStore.srData['msg-1'].interval).toBe(1)
+    })
+
+    it('should not overwrite existing vocabData entries', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const importData = {
+        version: 1,
+        chats: [],
+        messagesById: {},
+        srData: {},
+        vocabData: {
+          'vocab-1': { word: 'overwritten', definition: 'should not appear', easiness: 9.9 }
+        }
+      }
+
+      const file = new File([JSON.stringify(importData)], 'backup.json', { type: 'application/json' })
+      const fileInput = findInBody('.file-input')
+
+      Object.defineProperty(fileInput, 'files', {
+        value: [file],
+        writable: true
+      })
+
+      fileInput.dispatchEvent(new Event('change'))
+      await wrapper.vm.$nextTick()
+      await new Promise(r => setTimeout(r, 10))
+
+      // Original vocabData should not be overwritten
+      expect(mockChatStore.vocabData['vocab-1'].word).toBe('test')
+      expect(mockChatStore.vocabData['vocab-1'].definition).toBe('a test word')
+    })
+
+    it('should handle backup file without srData or vocabData gracefully', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      // Legacy backup file without srData/vocabData
+      const importData = {
+        version: 1,
+        chats: [{ id: 'legacy-chat', name: 'Legacy', rootMessageIds: [] }],
+        messagesById: {}
+        // No srData or vocabData
+      }
+
+      const file = new File([JSON.stringify(importData)], 'backup.json', { type: 'application/json' })
+      const fileInput = findInBody('.file-input')
+
+      Object.defineProperty(fileInput, 'files', {
+        value: [file],
+        writable: true
+      })
+
+      fileInput.dispatchEvent(new Event('change'))
+      await wrapper.vm.$nextTick()
+      await new Promise(r => setTimeout(r, 10))
+
+      // Should succeed without errors
+      const successStatus = findInBody('.connection-status.success')
+      expect(successStatus).toBeTruthy()
+      // Existing srData and vocabData should remain intact
+      expect(mockChatStore.srData['msg-1']).toBeTruthy()
+      expect(mockChatStore.vocabData['vocab-1']).toBeTruthy()
+    })
+
+    it('should include createdAt timestamps in downloaded data', async () => {
+      let capturedBlob = null
+      vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
+        capturedBlob = blob
+        return 'blob:mock-url'
+      })
+      vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+
+      const mockAnchor = { href: '', download: '', click: vi.fn() }
+      vi.spyOn(document, 'createElement').mockImplementation((tag) => {
+        if (tag === 'a') return mockAnchor
+        return document.createElement.wrappedMethod?.call(document, tag) || document.createElementNS('http://www.w3.org/1999/xhtml', tag)
+      })
+      vi.spyOn(document.body, 'appendChild').mockImplementation(() => {})
+      vi.spyOn(document.body, 'removeChild').mockImplementation(() => {})
+
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const buttons = findAllInBody('.backup-btn')
+      const downloadBtn = Array.from(buttons).find(btn => btn.textContent.includes('Download Notebooks'))
+      downloadBtn.click()
+      await wrapper.vm.$nextTick()
+
+      const text = await capturedBlob.text()
+      const data = JSON.parse(text)
+
+      // Verify createdAt is included in messagesById
+      expect(data.messagesById['msg-1'].createdAt).toBe(1700000000000)
+      expect(data.messagesById['msg-2'].createdAt).toBe(1700000001000)
+      // Verify createdAt is included in vocabData
+      expect(data.vocabData['vocab-1'].createdAt).toBe(1700000002000)
+
+      vi.restoreAllMocks()
+    })
+
+    it('should restore createdAt timestamps from backup file', async () => {
+      wrapper = mount(SettingsModal, {
+        props: {
+          modelValue: true
+        },
+        attachTo: document.body
+      })
+      const tabs = findAllInBody('.tab-button')
+      tabs[1].click()
+      await wrapper.vm.$nextTick()
+
+      const importData = {
+        version: 1,
+        chats: [{ id: 'new-chat', name: 'New Chat', rootMessageIds: ['new-msg'] }],
+        messagesById: {
+          'new-msg': { id: 'new-msg', question: 'New Q', response: 'New R', createdAt: 1600000000000 }
+        },
+        srData: {},
+        vocabData: {
+          'new-vocab': { word: 'new', definition: 'a new word', easiness: 2.5, createdAt: 1600000001000 }
+        }
+      }
+
+      const file = new File([JSON.stringify(importData)], 'backup.json', { type: 'application/json' })
+      const fileInput = findInBody('.file-input')
+
+      Object.defineProperty(fileInput, 'files', {
+        value: [file],
+        writable: true
+      })
+
+      fileInput.dispatchEvent(new Event('change'))
+      await wrapper.vm.$nextTick()
+      await new Promise(r => setTimeout(r, 10))
+
+      // Verify createdAt was restored for messages
+      expect(mockChatStore.messagesById['new-msg'].createdAt).toBe(1600000000000)
+      // Verify createdAt was restored for vocab
+      expect(mockChatStore.vocabData['new-vocab'].createdAt).toBe(1600000001000)
     })
   })
 
