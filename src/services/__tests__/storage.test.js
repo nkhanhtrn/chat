@@ -512,6 +512,38 @@ describe('storage.js', () => {
       expect(result).toEqual(mockLocalData)
       expect(indexedDB.saveChatStateToIDB).toHaveBeenCalled()
     })
+
+    it('deep clones data to handle Vue reactive proxies', async () => {
+      vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
+
+      // Simulate a Proxy-like object by creating nested objects
+      const proxyLikeData = {
+        messagesById: { msg1: { id: 'msg1', question: 'Test', nested: { deep: 'value' } } },
+        chats: [{ id: 'chat1', items: [1, 2, 3] }],
+        lastUpdated: 1000
+      }
+
+      const result = await resolveConflict('local', proxyLikeData, mockCloudData)
+
+      // Verify the result is a plain object (not the same reference)
+      expect(result).not.toBe(proxyLikeData)
+      expect(result).toEqual(proxyLikeData)
+
+      // Verify IndexedDB received a cloned object
+      const savedState = vi.mocked(indexedDB.saveChatStateToIDB).mock.calls[0][0]
+      expect(savedState).not.toBe(proxyLikeData)
+      expect(savedState).toEqual(proxyLikeData)
+    })
+
+    it('returns plain object that can be serialized', async () => {
+      vi.mocked(firestore.syncChatStateWithSubcollections).mockResolvedValue(undefined)
+
+      const result = await resolveConflict('local', mockLocalData, mockCloudData)
+
+      // Verify the result can be JSON serialized (would fail with Proxy)
+      expect(() => JSON.stringify(result)).not.toThrow()
+      expect(JSON.parse(JSON.stringify(result))).toEqual(mockLocalData)
+    })
   })
 
   describe('clearAllStorage', () => {

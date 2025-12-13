@@ -376,23 +376,27 @@ const initializePreviousState = (state) => {
 export const resolveConflict = async (choice, localData, cloudData) => {
   const chosenState = choice === 'local' ? localData : cloudData
 
+  // Deep clone to remove any Vue reactive proxies before saving to IndexedDB
+  // IndexedDB uses structured cloning which cannot handle Proxy objects
+  const plainState = JSON.parse(JSON.stringify(chosenState))
+
   // Save chosen state to both IndexedDB and Firestore
-  await saveChatStateToIDB(chosenState)
+  await saveChatStateToIDB(plainState)
 
   // Initialize previous state for change tracking
-  initializePreviousState(chosenState)
+  initializePreviousState(plainState)
 
   if (ENABLE_FIRESTORE_SYNC) {
     try {
       // Sync all messages when resolving conflict (full sync)
-      await syncChatStateWithSubcollections(chosenState, null, null)
+      await syncChatStateWithSubcollections(plainState, null, null)
       console.log(`Conflict resolved: using ${choice} data, synced to both storage`)
     } catch (error) {
       console.warn('Failed to sync resolved state to Firestore:', error)
     }
   }
 
-  return chosenState
+  return plainState
 }
 
 /**
