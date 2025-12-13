@@ -66,6 +66,11 @@ describe('MobileFooter', () => {
   })
 
   describe('Rendering', () => {
+    it('should render mobile footer wrapper', () => {
+      wrapper = mount(MobileFooter)
+      expect(wrapper.find('.mobile-footer-wrapper').exists()).toBe(true)
+    })
+
     it('should render mobile footer container', () => {
       wrapper = mount(MobileFooter)
       expect(wrapper.find('.mobile-footer').exists()).toBe(true)
@@ -75,6 +80,24 @@ describe('MobileFooter', () => {
       wrapper = mount(MobileFooter)
       const buttons = wrapper.findAll('.footer-btn')
       expect(buttons.length).toBeGreaterThan(0)
+    })
+
+    it('should render hover indicator', () => {
+      wrapper = mount(MobileFooter)
+      expect(wrapper.find('.hover-indicator').exists()).toBe(true)
+    })
+
+    it('should render hover indicator with arrow icon', () => {
+      wrapper = mount(MobileFooter)
+      const indicator = wrapper.find('.hover-indicator')
+      expect(indicator.find('svg').exists()).toBe(true)
+    })
+
+    it('should render hover indicator at the end of footer', () => {
+      wrapper = mount(MobileFooter)
+      const footer = wrapper.find('.mobile-footer')
+      const lastElement = footer.find('.hover-indicator')
+      expect(lastElement.exists()).toBe(true)
     })
 
     it('should not show new notebook button by default', () => {
@@ -276,7 +299,7 @@ describe('MobileFooter', () => {
   describe('Mobile Only Mode', () => {
     it('should not have mobile-only class by default', () => {
       wrapper = mount(MobileFooter)
-      expect(wrapper.find('.mobile-footer').classes()).not.toContain('mobile-only')
+      expect(wrapper.find('.mobile-footer-wrapper').classes()).not.toContain('mobile-only')
     })
 
     it('should have mobile-only class when mobileOnly prop is true', () => {
@@ -285,7 +308,7 @@ describe('MobileFooter', () => {
           mobileOnly: true
         }
       })
-      expect(wrapper.find('.mobile-footer').classes()).toContain('mobile-only')
+      expect(wrapper.find('.mobile-footer-wrapper').classes()).toContain('mobile-only')
     })
 
     it('should not have mobile-only class when mobileOnly prop is false', () => {
@@ -294,7 +317,26 @@ describe('MobileFooter', () => {
           mobileOnly: false
         }
       })
-      expect(wrapper.find('.mobile-footer').classes()).not.toContain('mobile-only')
+      expect(wrapper.find('.mobile-footer-wrapper').classes()).not.toContain('mobile-only')
+    })
+  })
+
+  describe('Desktop Hover Behavior', () => {
+    it('should have hover-indicator as part of footer content', () => {
+      wrapper = mount(MobileFooter)
+      const footer = wrapper.find('.mobile-footer')
+      const indicator = footer.find('.hover-indicator')
+      expect(indicator.exists()).toBe(true)
+    })
+
+    it('should position indicator after all buttons', () => {
+      wrapper = mount(MobileFooter)
+      const footer = wrapper.find('.mobile-footer')
+      const children = footer.findAll(':scope > *')
+      const lastVisibleChild = children.filter(c =>
+        c.classes().includes('footer-btn') || c.classes().includes('hover-indicator')
+      ).pop()
+      expect(lastVisibleChild.classes()).toContain('hover-indicator')
     })
   })
 })

@@ -1,6 +1,7 @@
 <template>
-  <div class="mobile-footer" :class="{ 'mobile-only': mobileOnly }">
-    <button
+  <div class="mobile-footer-wrapper" :class="{ 'mobile-only': mobileOnly }">
+    <div class="mobile-footer">
+      <button
       v-if="showNewNotebook"
       class="footer-btn"
       @click="$emit('new-notebook')"
@@ -45,6 +46,9 @@
     <button class="footer-btn" @click="showSettingsModal = true" title="Settings">
       <svg class="footer-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97s-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1s.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66z"/></svg>
     </button>
+    <div class="hover-indicator">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+    </div>
 
     <SettingsModal
       :visible="showSettingsModal"
@@ -58,6 +62,7 @@
       :visible="showVocabReviewModal"
       @close="showVocabReviewModal = false"
     />
+    </div>
   </div>
 </template>
 
@@ -132,35 +137,84 @@ function goCurrentQuestion() {
 </script>
 
 <style scoped>
-.mobile-footer {
+.mobile-footer-wrapper {
   position: fixed;
   bottom: 1rem;
-  left: 1rem;
-  display: flex;
-  gap: 0.75rem;
-  padding: 0.5rem 1rem;
-  background: var(--color-bg-base);
-  border: 1px solid var(--color-border-base);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1);
+  left: 0;
+  z-index: 100;
 }
 
-.mobile-footer.mobile-only {
+.mobile-footer-wrapper.mobile-only {
   display: none;
 }
 
+.hover-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 40px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.hover-indicator svg {
+  width: 20px;
+  height: 20px;
+}
+
+.mobile-footer-wrapper:hover .hover-indicator {
+  transform: rotate(180deg);
+  opacity: 0.4;
+}
+
+.mobile-footer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  padding-left: 1rem;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-base);
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1);
+  transform: translateX(calc(-100% + 32px));
+  transition: transform 0.3s ease;
+}
+
+.mobile-footer-wrapper:hover .mobile-footer {
+  transform: translateX(0);
+}
+
 @media (max-width: 768px) {
-  .mobile-footer,
-  .mobile-footer.mobile-only {
-    display: flex;
-    display: flex;
+  .mobile-footer-wrapper,
+  .mobile-footer-wrapper.mobile-only {
+    display: block;
     bottom: 0;
     left: 0;
     right: 0;
+  }
+
+  .hover-indicator {
+    display: none;
+  }
+
+  .mobile-footer,
+  .mobile-footer-wrapper.mobile-only .mobile-footer {
+    display: flex;
+    transform: translateX(0);
+    opacity: 1;
     padding: 0.75rem 1rem;
     background: var(--color-bg-base);
+    border: none;
     border-top: 1px solid var(--color-border-base);
+    border-radius: 0;
     justify-content: center;
     gap: 0.75rem;
+    box-shadow: none;
   }
 }
 
