@@ -14,15 +14,23 @@ vi.mock('../../services/storage.js', () => ({
   resolveConflict: vi.fn()
 }))
 
+// Mock functions for useSpacedRepetition
+const mockGenerateResponseSummary = vi.fn()
+const mockGenerateSummariesForNotebook = vi.fn()
+const mockGetMissingSummaryCountInNotebook = vi.fn(() => 0)
+const mockGetSummaryCountInNotebook = vi.fn(() => 0)
+const mockClearSummariesInNotebook = vi.fn()
+
 // Mock the composable
 vi.mock('../../composables/useSpacedRepetition.js', () => ({
   useSpacedRepetition: () => ({
     uninitializedCount: { value: 0 },
     initializeAllExisting: vi.fn(),
-    getMissingSummaryCountInNotebook: vi.fn(() => 0),
-    generateSummariesForNotebook: vi.fn(),
-    getSummaryCountInNotebook: vi.fn(() => 0),
-    clearSummariesInNotebook: vi.fn()
+    getMissingSummaryCountInNotebook: mockGetMissingSummaryCountInNotebook,
+    generateSummariesForNotebook: mockGenerateSummariesForNotebook,
+    getSummaryCountInNotebook: mockGetSummaryCountInNotebook,
+    clearSummariesInNotebook: mockClearSummariesInNotebook,
+    generateResponseSummary: mockGenerateResponseSummary
   })
 }))
 
@@ -437,6 +445,263 @@ describe('DevToolbar', () => {
       const buttons = wrapper.findAll('button')
       const setCreatedAtButton = buttons.find(btn => btn.text().includes('Set createdAt'))
       expect(setCreatedAtButton.text()).toContain('(2)')
+    })
+  })
+
+  describe('Generate Summary Button', () => {
+    const findSummaryButton = (wrapper) => {
+      const buttons = wrapper.findAll('button')
+      return buttons.find(btn =>
+        btn.text().includes('Gen summary') ||
+        btn.text().includes('summaries') ||
+        btn.text().includes('Summary exists') ||
+        btn.text().includes('No response') ||
+        btn.text().includes('No notebook') ||
+        btn.text().includes('No question') ||
+        btn.text().includes('Generating')
+      )
+    }
+
+    beforeEach(() => {
+      mockGenerateResponseSummary.mockReset()
+      mockGenerateSummariesForNotebook.mockReset()
+      mockGetMissingSummaryCountInNotebook.mockReset()
+      mockGetSummaryCountInNotebook.mockReset()
+    })
+
+    describe('Question View (currentMessageId is set)', () => {
+      it('shows "Gen summary" when current message needs summary', () => {
+        store.currentChatId = 'chat-1'
+        store.currentMessageId = 'msg-1'
+        store.messagesById = {
+          'msg-1': new Message({ id: 'msg-1', question: 'Q1', response: 'R1' }) // no responseSummary
+        }
+
+        wrapper = mountComponent()
+        const summaryButton = findSummaryButton(wrapper)
+        expect(summaryButton.text()).toBe('Gen summary')
+      })
+
+      it('shows "Summary exists" when current message already has summary', () => {
+        store.currentChatId = 'chat-1'
+        store.currentMessageId = 'msg-1'
+        store.messagesById = {
+          'msg-1': new Message({ id: 'msg-1', question: 'Q1', response: 'R1', responseSummary: 'Existing summary' })
+        }
+
+        wrapper = mountComponent()
+        const summaryButton = findSummaryButton(wrapper)
+        expect(summaryButton.text()).toBe('Summary exists')
+      })
+
+      it('shows "No response" when current message has no response', () => {
+        store.currentChatId = 'chat-1'
+        store.currentMessageId = 'msg-1'
+        store.messagesById = {
+          'msg-1': new Message({ id: 'msg-1', question: 'Q1' }) // no response
+        }
+
+        wrapper = mountComponent()
+        const summaryButton = findSummaryButton(wrapper)
+        expect(summaryButton.text()).toBe('No response')
+      })
+
+      it('is disabled when current message already has summary', () => {
+        store.currentChatId = 'chat-1'
+        store.currentMessageId = 'msg-1'
+        store.messagesById = {
+          'msg-1': new Message({ id: 'msg-1', question: 'Q1', response: 'R1', responseSummary: 'Existing summary' })
+        }
+
+        wrapper = mountComponent()
+        const summaryButton = findSummaryButton(wrapper)
+        expect(summaryButton.attributes('disabled')).toBeDefined()
+      })
+
+      it('is disabled when current message has no response', () => {
+        store.currentChatId = 'chat-1'
+        store.currentMessageId = 'msg-1'
+        store.messagesById = {
+          'msg-1': new Message({ id: 'msg-1', question: 'Q1' }) // no response
+        }
+
+        wrapper = mountComponent()
+        const summaryButton = findSummaryButton(wrapper)
+        expect(summaryButton.attributes('disabled')).toBeDefined()
+      })
+
+      it('is enabled when current message needs summary', () => {
+        store.currentChatId = 'chat-1'
+        store.currentMessageId = 'msg-1'
+        store.messagesById = {
+          'msg-1': new Message({ id: 'msg-1', question: 'Q1', response: 'R1' })
+        }
+
+        wrapper = mountComponent()
+        const summaryButton = findSummaryButton(wrapper)
+        expect(summaryButton.attributes('disabled')).toBeUndefined()
+      })
+
+      it('generates summary for current message when clicked', async () => {
+        store.currentChatId = 'chat-1'
+        store.currentMessageId = 'msg-1'
+        store.currentModel = 'gpt-4'
+        store.messagesById = {
+          'msg-1': new Message({ id: 'msg-1', question: 'Q1', response: 'R1' })
+        }
+        store.srData = {}
+
+        mockGenerateResponseSummary.mockResolvedValue('Generated summary')
+
+        wrapper = mountComponent()
+        const summaryButton = findSummaryButton(wrapper)
+
+        await summaryButton.trigger('click')
+        await vi.waitFor(() => {
+          expect(mockGenerateResponseSummary).toHaveBeenCalledWith('R1', 'gpt-4')
+        })
+      })
+
+      it('initializes SR card if not already in SR system', async () => {
+        store.currentChatId = 'chat-1'
+        store.currentMessageId = 'msg-1'
+        store.currentModel = 'gpt-4'
+        store.messagesById = {
+          'msg-1': new Message({ id: 'msg-1', question: 'Q1', response: 'R1' })
+        }
+        store.srData = {} // Not in SR system
+
+        mockGenerateResponseSummary.mockResolvedValue('Generated summary')
+
+        wrapper = mountComponent()
+        const summaryButton = findSummaryButton(wrapper)
+
+        await summaryButton.trigger('click')
+        await vi.waitFor(() => {
+          expect(store.srData['msg-1']).toBeDefined()
+        })
+      })
+
+      it('does not call generateSummariesForNotebook in question view', async () => {
+        store.currentChatId = 'chat-1'
+        store.currentMessageId = 'msg-1'
+        store.currentModel = 'gpt-4'
+        store.messagesById = {
+          'msg-1': new Message({ id: 'msg-1', question: 'Q1', response: 'R1' })
+        }
+
+        mockGenerateResponseSummary.mockResolvedValue('Generated summary')
+
+        wrapper = mountComponent()
+        const summaryButton = findSummaryButton(wrapper)
+
+        await summaryButton.trigger('click')
+        await vi.waitFor(() => {
+          expect(mockGenerateResponseSummary).toHaveBeenCalled()
+        })
+
+        expect(mockGenerateSummariesForNotebook).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('Notebook View (currentMessageId is null)', () => {
+      it('shows count of missing summaries in notebook', () => {
+        store.currentChatId = 'chat-1'
+        store.currentMessageId = null
+        mockGetMissingSummaryCountInNotebook.mockReturnValue(5)
+
+        wrapper = mountComponent()
+        const summaryButton = findSummaryButton(wrapper)
+        expect(summaryButton.text()).toBe('Gen 5 summaries')
+      })
+
+      it('shows "All summaries done" when no summaries missing', () => {
+        store.currentChatId = 'chat-1'
+        store.currentMessageId = null
+        mockGetMissingSummaryCountInNotebook.mockReturnValue(0)
+
+        wrapper = mountComponent()
+        const summaryButton = findSummaryButton(wrapper)
+        expect(summaryButton.text()).toBe('All summaries done')
+      })
+
+      it('shows "No notebook" when no notebook is selected', () => {
+        store.currentChatId = null
+        store.currentMessageId = null
+
+        wrapper = mountComponent()
+        const summaryButton = findSummaryButton(wrapper)
+        expect(summaryButton.text()).toBe('No notebook')
+      })
+
+      it('is disabled when no summaries are missing in notebook', () => {
+        store.currentChatId = 'chat-1'
+        store.currentMessageId = null
+        mockGetMissingSummaryCountInNotebook.mockReturnValue(0)
+
+        wrapper = mountComponent()
+        const summaryButton = findSummaryButton(wrapper)
+        expect(summaryButton.attributes('disabled')).toBeDefined()
+      })
+
+      it('is enabled when summaries are missing in notebook', () => {
+        store.currentChatId = 'chat-1'
+        store.currentMessageId = null
+        mockGetMissingSummaryCountInNotebook.mockReturnValue(3)
+
+        wrapper = mountComponent()
+        const summaryButton = findSummaryButton(wrapper)
+        expect(summaryButton.attributes('disabled')).toBeUndefined()
+      })
+
+      it('generates summaries for entire notebook when clicked', async () => {
+        store.currentChatId = 'chat-1'
+        store.currentMessageId = null
+        store.currentModel = 'gpt-4'
+        mockGetMissingSummaryCountInNotebook.mockReturnValue(3)
+        mockGenerateSummariesForNotebook.mockResolvedValue(3)
+
+        wrapper = mountComponent()
+        const summaryButton = findSummaryButton(wrapper)
+
+        await summaryButton.trigger('click')
+        await vi.waitFor(() => {
+          expect(mockGenerateSummariesForNotebook).toHaveBeenCalledWith(
+            'chat-1',
+            'gpt-4',
+            expect.any(Function)
+          )
+        })
+      })
+
+      it('does not call generateResponseSummary in notebook view', async () => {
+        store.currentChatId = 'chat-1'
+        store.currentMessageId = null
+        store.currentModel = 'gpt-4'
+        mockGetMissingSummaryCountInNotebook.mockReturnValue(3)
+        mockGenerateSummariesForNotebook.mockResolvedValue(3)
+
+        wrapper = mountComponent()
+        const summaryButton = findSummaryButton(wrapper)
+
+        await summaryButton.trigger('click')
+        await vi.waitFor(() => {
+          expect(mockGenerateSummariesForNotebook).toHaveBeenCalled()
+        })
+
+        expect(mockGenerateResponseSummary).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('Button disabled state', () => {
+      it('is disabled when no notebook is selected', () => {
+        store.currentChatId = null
+        store.currentMessageId = null
+
+        wrapper = mountComponent()
+        const summaryButton = findSummaryButton(wrapper)
+        expect(summaryButton.attributes('disabled')).toBeDefined()
+      })
     })
   })
 })

@@ -25,13 +25,13 @@
       Reset SR ({{ srCardCount }})
     </Button>
     <Button
-      @click="handleGenerateNotebookSummaries"
+      @click="handleGenerateCurrentSummary"
       class="dev-button"
-      :disabled="isGeneratingNotebookSummaries || notebookMissingSummaryCount === 0 || !currentNotebookId"
-      title="Generate summaries for all questions in current notebook"
+      :disabled="isGeneratingSummary || !canGenerateSummary"
+      title="Generate summary for current question"
       variant="secondary"
     >
-      {{ notebookSummaryButtonText }}
+      {{ summaryButtonText }}
     </Button>
     <Button
       @click="handleClearNotebookSummaries"
@@ -80,13 +80,16 @@ const {
   uninitializedCount,
   initializeAllExisting,
   getMissingSummaryCountInNotebook,
-  generateSummariesForNotebook,
   getSummaryCountInNotebook,
-  clearSummariesInNotebook
+  clearSummariesInNotebook,
+  generateResponseSummary,
+  generateSummariesForNotebook
 } = useSpacedRepetition()
 
-// Current notebook
+// Current notebook and message
 const currentNotebookId = computed(() => chatStore.currentChatId)
+const currentMessageId = computed(() => chatStore.currentMessageId)
+const currentMessage = computed(() => currentMessageId.value ? chatStore.messagesById[currentMessageId.value] : null)
 
 // Count of cards in SR system
 const srCardCount = computed(() => Object.keys(chatStore.srData).length)
@@ -106,32 +109,58 @@ const srButtonText = computed(() => {
   return `Add ${uninitializedCount.value} to SR`
 })
 
-// Notebook-specific summary generation state
-const isGeneratingNotebookSummaries = ref(false)
-const notebookSummaryProgress = ref({ completed: 0, total: 0, status: 'idle' })
+// Summary generation state
+const isGeneratingSummary = ref(false)
+const summaryProgress = ref({ completed: 0, total: 0 })
+
+// Whether we're in question view (has currentMessageId) or notebook view
+const isQuestionView = computed(() => Boolean(currentMessageId.value))
+
+const currentMessageNeedsSummary = computed(() => {
+  if (!currentMessage.value) return false
+  return currentMessage.value.response && !currentMessage.value.responseSummary
+})
 
 const notebookMissingSummaryCount = computed(() => {
   if (!currentNotebookId.value) return 0
   return getMissingSummaryCountInNotebook(currentNotebookId.value)
 })
 
-const notebookSummaryButtonText = computed(() => {
+// Button should be enabled if:
+// - In question view: current message needs summary
+// - In notebook view: notebook has messages missing summaries
+const canGenerateSummary = computed(() => {
+  if (!currentNotebookId.value) return false
+  if (isQuestionView.value) {
+    return currentMessageNeedsSummary.value
+  }
+  return notebookMissingSummaryCount.value > 0
+})
+
+const summaryButtonText = computed(() => {
   if (!currentNotebookId.value) {
     return 'No notebook'
   }
-  if (isGeneratingNotebookSummaries.value) {
-    const { completed, total, status } = notebookSummaryProgress.value
-    if (status === 'generating') {
-      return `Notebook ${completed + 1}/${total}...`
-    } else if (status === 'waiting') {
-      return `Notebook ${completed}/${total} - waiting...`
+  if (isGeneratingSummary.value) {
+    if (isQuestionView.value) {
+      return 'Generating...'
     }
-    return `Notebook ${completed}/${total}`
+    return `Gen ${summaryProgress.value.completed}/${summaryProgress.value.total}...`
   }
+  if (isQuestionView.value) {
+    if (!currentMessage.value?.response) {
+      return 'No response'
+    }
+    if (currentMessage.value.responseSummary) {
+      return 'Summary exists'
+    }
+    return 'Gen summary'
+  }
+  // Notebook view
   if (notebookMissingSummaryCount.value === 0) {
-    return 'Notebook summaries done'
+    return 'All summaries done'
   }
-  return `Gen ${notebookMissingSummaryCount.value} notebook summaries`
+  return `Gen ${notebookMissingSummaryCount.value} summaries`
 })
 
 // Count of summaries in current notebook
@@ -181,25 +210,40 @@ const handleResetSR = () => {
   }
 }
 
-const handleGenerateNotebookSummaries = async () => {
-  if (isGeneratingNotebookSummaries.value || notebookMissingSummaryCount.value === 0 || !currentNotebookId.value) return
+const handleGenerateCurrentSummary = async () => {
+  if (isGeneratingSummary.value || !canGenerateSummary.value) return
 
-  isGeneratingNotebookSummaries.value = true
-  notebookSummaryProgress.value = { completed: 0, total: notebookMissingSummaryCount.value, status: 'generating' }
+  isGeneratingSummary.value = true
 
   try {
-    await generateSummariesForNotebook(
-      currentNotebookId.value,
-      chatStore.currentModel,
-      (progress) => {
-        notebookSummaryProgress.value = progress
+    if (isQuestionView.value) {
+      // Generate for current message only
+      const message = currentMessage.value
+      if (!message?.response) return
+
+      // Initialize SR card if not already in SR system
+      if (!chatStore.srData[currentMessageId.value]) {
+        chatStore.initializeSRCard(currentMessageId.value)
       }
-    )
+
+      const summary = await generateResponseSummary(message.response, chatStore.currentModel)
+      chatStore.updateSRResponseSummary(currentMessageId.value, summary)
+    } else {
+      // Generate for entire notebook
+      summaryProgress.value = { completed: 0, total: notebookMissingSummaryCount.value }
+      await generateSummariesForNotebook(
+        currentNotebookId.value,
+        chatStore.currentModel,
+        (progress) => {
+          summaryProgress.value = { completed: progress.completed, total: progress.total }
+        }
+      )
+    }
   } catch (error) {
-    console.error('Failed to generate notebook summaries:', error)
+    console.error('Failed to generate summary:', error)
   } finally {
-    isGeneratingNotebookSummaries.value = false
-    notebookSummaryProgress.value = { completed: 0, total: 0, status: 'idle' }
+    isGeneratingSummary.value = false
+    summaryProgress.value = { completed: 0, total: 0 }
   }
 }
 

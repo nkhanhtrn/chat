@@ -366,17 +366,18 @@ export const useChatStore = defineStore('chat', {
       let added = 0
       let removed = 0
 
-      // Add SR cards for messages that have responses but no SR card
+      // Add SR cards for messages that have both question and response but no SR card
       for (const [messageId, message] of Object.entries(this.messagesById)) {
-        if (message.response && !this.srData[messageId]) {
+        if (message.question && message.response && !this.srData[messageId]) {
           this.srData[messageId] = new SRCard({ messageId })
           added++
         }
       }
 
-      // Remove SR cards for messages that no longer exist
+      // Remove SR cards for messages that no longer exist or don't have a question
       for (const messageId of Object.keys(this.srData)) {
-        if (!this.messagesById[messageId]) {
+        const message = this.messagesById[messageId]
+        if (!message || !message.question) {
           delete this.srData[messageId]
           removed++
         }
