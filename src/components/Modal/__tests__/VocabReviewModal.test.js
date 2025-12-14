@@ -9,7 +9,8 @@ import MarkdownRenderer from '../../MarkdownRenderer.vue'
 vi.mock('../../../composables/useVocabulary.js', () => ({
   useVocabulary: vi.fn(() => ({
     vocabCardsDue: { value: [] },
-    recordReview: vi.fn()
+    recordReview: vi.fn(),
+    removeCard: vi.fn()
   }))
 }))
 
@@ -17,20 +18,24 @@ import { useVocabulary } from '../../../composables/useVocabulary.js'
 
 describe('VocabReviewModal', () => {
   let mockRecordReview
+  let mockRemoveCard
 
   beforeEach(() => {
     setActivePinia(createPinia())
     mockRecordReview = vi.fn()
+    mockRemoveCard = vi.fn()
     vi.mocked(useVocabulary).mockReturnValue({
       vocabCardsDue: { value: [] },
-      recordReview: mockRecordReview
+      recordReview: mockRecordReview,
+      removeCard: mockRemoveCard
     })
   })
 
   const mountModal = (props = {}, cardsDue = []) => {
     vi.mocked(useVocabulary).mockReturnValue({
       vocabCardsDue: { value: cardsDue },
-      recordReview: mockRecordReview
+      recordReview: mockRecordReview,
+      removeCard: mockRemoveCard
     })
 
     return mount(VocabReviewModal, {
@@ -423,6 +428,172 @@ describe('VocabReviewModal', () => {
       await wrapper.setProps({ visible: true })
 
       // Should show front of first card
+      expect(wrapper.find('.card-front').exists()).toBe(true)
+    })
+  })
+
+  describe('card navigation', () => {
+    const mockCards = [
+      {
+        id: 'vocab-1',
+        word: 'word1',
+        definition: 'def1',
+        context: '',
+        interval: 1,
+        easiness: 2.5,
+        repetitions: 0
+      },
+      {
+        id: 'vocab-2',
+        word: 'word2',
+        definition: 'def2',
+        context: '',
+        interval: 1,
+        easiness: 2.5,
+        repetitions: 0
+      },
+      {
+        id: 'vocab-3',
+        word: 'word3',
+        definition: 'def3',
+        context: '',
+        interval: 1,
+        easiness: 2.5,
+        repetitions: 0
+      }
+    ]
+
+    it('shows navigation buttons in header', () => {
+      const wrapper = mountModal({}, mockCards)
+      const navButtons = wrapper.findAll('.nav-btn')
+      expect(navButtons).toHaveLength(2)
+    })
+
+    it('disables previous button on first card', () => {
+      const wrapper = mountModal({}, mockCards)
+      const prevBtn = wrapper.findAll('.nav-btn')[0]
+      expect(prevBtn.attributes('disabled')).toBeDefined()
+    })
+
+    it('enables next button on first card', () => {
+      const wrapper = mountModal({}, mockCards)
+      const nextBtn = wrapper.findAll('.nav-btn')[1]
+      expect(nextBtn.attributes('disabled')).toBeUndefined()
+    })
+
+    it('navigates to next card when next clicked', async () => {
+      const wrapper = mountModal({}, mockCards)
+      const nextBtn = wrapper.findAll('.nav-btn')[1]
+
+      await nextBtn.trigger('click')
+
+      expect(wrapper.find('.word-content').text()).toBe('word2')
+      expect(wrapper.find('.progress-indicator').text()).toBe('2 / 3')
+    })
+
+    it('navigates to previous card when previous clicked', async () => {
+      const wrapper = mountModal({}, mockCards)
+      const nextBtn = wrapper.findAll('.nav-btn')[1]
+      const prevBtn = wrapper.findAll('.nav-btn')[0]
+
+      // Go to second card
+      await nextBtn.trigger('click')
+      expect(wrapper.find('.word-content').text()).toBe('word2')
+
+      // Go back to first card
+      await prevBtn.trigger('click')
+      expect(wrapper.find('.word-content').text()).toBe('word1')
+      expect(wrapper.find('.progress-indicator').text()).toBe('1 / 3')
+    })
+
+    it('disables next button on last card', async () => {
+      const wrapper = mountModal({}, mockCards)
+      const nextBtn = wrapper.findAll('.nav-btn')[1]
+
+      // Navigate to last card
+      await nextBtn.trigger('click')
+      await nextBtn.trigger('click')
+
+      expect(nextBtn.attributes('disabled')).toBeDefined()
+    })
+
+    it('enables previous button after navigating forward', async () => {
+      const wrapper = mountModal({}, mockCards)
+      const nextBtn = wrapper.findAll('.nav-btn')[1]
+      const prevBtn = wrapper.findAll('.nav-btn')[0]
+
+      await nextBtn.trigger('click')
+
+      expect(prevBtn.attributes('disabled')).toBeUndefined()
+    })
+
+    it('resets flip state when navigating', async () => {
+      const wrapper = mountModal({}, mockCards)
+
+      // Flip the card
+      await wrapper.find('.show-answer-btn').trigger('click')
+      expect(wrapper.find('.card-back').exists()).toBe(true)
+
+      // Navigate to next card
+      const nextBtn = wrapper.findAll('.nav-btn')[1]
+      await nextBtn.trigger('click')
+
+      // Should show front of next card
+      expect(wrapper.find('.card-front').exists()).toBe(true)
+    })
+  })
+
+  describe('delete card', () => {
+    const mockCards = [
+      {
+        id: 'vocab-1',
+        word: 'word1',
+        definition: 'def1',
+        context: '',
+        interval: 1,
+        easiness: 2.5,
+        repetitions: 0
+      },
+      {
+        id: 'vocab-2',
+        word: 'word2',
+        definition: 'def2',
+        context: '',
+        interval: 1,
+        easiness: 2.5,
+        repetitions: 0
+      }
+    ]
+
+    it('shows delete button in header when card is displayed', () => {
+      const wrapper = mountModal({}, mockCards)
+      expect(wrapper.find('.delete-btn').exists()).toBe(true)
+    })
+
+    it('does not show delete button when no cards', () => {
+      const wrapper = mountModal({}, [])
+      expect(wrapper.find('.delete-btn').exists()).toBe(false)
+    })
+
+    it('calls removeCard when delete button clicked', async () => {
+      const wrapper = mountModal({}, mockCards)
+
+      await wrapper.find('.delete-btn').trigger('click')
+
+      expect(mockRemoveCard).toHaveBeenCalledWith('vocab-1')
+    })
+
+    it('resets flip state after deleting card', async () => {
+      const wrapper = mountModal({}, mockCards)
+
+      // Flip the card
+      await wrapper.find('.show-answer-btn').trigger('click')
+      expect(wrapper.find('.card-back').exists()).toBe(true)
+
+      // Delete the card
+      await wrapper.find('.delete-btn').trigger('click')
+
+      // Should show front of card (flip reset)
       expect(wrapper.find('.card-front').exists()).toBe(true)
     })
   })

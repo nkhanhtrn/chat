@@ -366,6 +366,23 @@ export const useChatStore = defineStore('chat', {
       let added = 0
       let removed = 0
 
+      // Build a set of all message IDs that are in a chat tree
+      const messagesInChats = new Set()
+      for (const chat of this.chats) {
+        const collectMessageIds = (messageId) => {
+          messagesInChats.add(messageId)
+          const msg = this.messagesById[messageId]
+          if (msg?.childIds) {
+            for (const childId of msg.childIds) {
+              collectMessageIds(childId)
+            }
+          }
+        }
+        for (const rootId of chat.rootMessageIds) {
+          collectMessageIds(rootId)
+        }
+      }
+
       // Add SR cards for messages that have both question and response but no SR card
       for (const [messageId, message] of Object.entries(this.messagesById)) {
         if (message.question && message.response && !this.srData[messageId]) {
@@ -374,10 +391,10 @@ export const useChatStore = defineStore('chat', {
         }
       }
 
-      // Remove SR cards for messages that no longer exist or don't have a question
+      // Remove SR cards for messages that no longer exist, don't have a question, or aren't in any chat
       for (const messageId of Object.keys(this.srData)) {
         const message = this.messagesById[messageId]
-        if (!message || !message.question) {
+        if (!message || !message.question || !messagesInChats.has(messageId)) {
           delete this.srData[messageId]
           removed++
         }

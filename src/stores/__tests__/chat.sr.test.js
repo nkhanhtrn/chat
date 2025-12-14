@@ -15,6 +15,16 @@ describe('Chat Store - Spaced Repetition', () => {
   let store
   const DAY_IN_MS = 24 * 60 * 60 * 1000
 
+  // Helper to add a message to a chat tree (required for SR sync)
+  const addMessageToChat = (messageId) => {
+    if (store.chats.length === 0) {
+      store.chats.push({ id: 'test-chat', rootMessageIds: [] })
+    }
+    if (!store.chats[0].rootMessageIds.includes(messageId)) {
+      store.chats[0].rootMessageIds.push(messageId)
+    }
+  }
+
   beforeEach(() => {
     setActivePinia(createPinia())
     store = useChatStore()
@@ -147,6 +157,7 @@ describe('Chat Store - Spaced Repetition', () => {
         'msg-1': new SRCard({ messageId: 'msg-1' }),
         'msg-2': new SRCard({ messageId: 'msg-2' }) // No message exists
       }
+      addMessageToChat('msg-1')
 
       store._cleanupSRData()
 
@@ -154,18 +165,33 @@ describe('Chat Store - Spaced Repetition', () => {
       expect(store.srData['msg-2']).toBeUndefined()
     })
 
-    it('does not remove SR data when all messages exist', () => {
+    it('does not remove SR data when all messages exist and are in chat', () => {
       store.messagesById = {
         'msg-1': new Message({ id: 'msg-1', question: 'Q', response: 'R' })
       }
       store.srData = {
         'msg-1': new SRCard({ messageId: 'msg-1' })
       }
+      addMessageToChat('msg-1')
 
       const srDataBefore = { ...store.srData }
       store._cleanupSRData()
 
       expect(Object.keys(store.srData)).toEqual(Object.keys(srDataBefore))
+    })
+
+    it('removes SR data for messages not in any chat tree', () => {
+      store.messagesById = {
+        'msg-1': new Message({ id: 'msg-1', question: 'Q', response: 'R' })
+      }
+      store.srData = {
+        'msg-1': new SRCard({ messageId: 'msg-1' })
+      }
+      // Don't add to chat - message is orphaned
+
+      store._cleanupSRData()
+
+      expect(store.srData['msg-1']).toBeUndefined()
     })
   })
 
@@ -298,8 +324,8 @@ describe('Chat Store - Spaced Repetition', () => {
             repetitions: 2
           }
         },
-        chats: [],
-        currentChatId: null
+        chats: [{ id: 'test-chat', rootMessageIds: ['msg-1'] }],
+        currentChatId: 'test-chat'
       }
 
       store._applyState(savedState)

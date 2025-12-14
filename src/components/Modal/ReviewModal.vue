@@ -7,7 +7,33 @@
     @close="handleClose"
   >
     <template #header-actions>
-      <span class="progress-indicator">{{ currentIndex + 1 }} / {{ totalCards }}</span>
+      <div class="header-actions-container">
+        <button
+          v-if="currentCard"
+          class="delete-btn"
+          title="Remove from SR"
+          @click="deleteCard"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        </button>
+        <button
+          class="nav-btn"
+          :disabled="currentIndex === 0"
+          title="Previous card"
+          @click="goToPrevious"
+        >
+          ←
+        </button>
+        <span class="progress-indicator">{{ currentIndex + 1 }} / {{ totalCards }}</span>
+        <button
+          class="nav-btn"
+          :disabled="currentIndex >= totalCards - 1"
+          title="Next card"
+          @click="goToNext"
+        >
+          →
+        </button>
+      </div>
     </template>
 
     <div v-if="currentCard" class="review-card">
@@ -88,7 +114,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close'])
 
-const { cardsDue, recordReview } = useSpacedRepetition()
+const { cardsDue, recordReview, removeCard } = useSpacedRepetition()
 
 const currentIndex = ref(0)
 const isFlipped = ref(false)
@@ -102,7 +128,7 @@ const cardsToReview = computed(() => {
 
 const currentCard = computed(() => {
   if (sessionComplete.value) return null
-  return cardsToReview.value[0] || null
+  return cardsDue.value[currentIndex.value] || null
 })
 
 const totalCards = computed(() => {
@@ -121,6 +147,40 @@ watch(() => props.visible, (isVisible) => {
 
 const flipCard = () => {
   isFlipped.value = true
+}
+
+const goToPrevious = () => {
+  if (currentIndex.value > 0) {
+    currentIndex.value--
+    isFlipped.value = false
+  }
+}
+
+const goToNext = () => {
+  if (currentIndex.value < totalCards.value - 1) {
+    currentIndex.value++
+    isFlipped.value = false
+  }
+}
+
+const deleteCard = () => {
+  if (!currentCard.value) return
+
+  const messageId = currentCard.value.messageId
+  removeCard(messageId)
+
+  // Reset flip state
+  isFlipped.value = false
+
+  // Adjust index if we're at the end
+  if (currentIndex.value >= totalCards.value && currentIndex.value > 0) {
+    currentIndex.value--
+  }
+
+  // Check if no cards left
+  if (totalCards.value === 0) {
+    sessionComplete.value = true
+  }
 }
 
 const rateCard = (quality) => {
@@ -181,10 +241,35 @@ const handleClose = () => {
 </script>
 
 <style scoped>
+.header-actions-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.nav-btn {
+  padding: 0.25rem 0.5rem;
+  font-size: 1rem;
+  background: var(--color-bg-page);
+  border: 1px solid var(--color-border-base);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--color-text-base);
+  transition: all 0.2s;
+}
+
+.nav-btn:hover:not(:disabled) {
+  background: var(--color-bg-secondary);
+}
+
+.nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
 .progress-indicator {
   font-size: 0.875rem;
   color: var(--color-text-muted);
-  margin-right: 0.5rem;
 }
 
 .review-card {
@@ -251,6 +336,24 @@ const handleClose = () => {
   background: var(--color-accent-hover, var(--color-accent));
   transform: translateY(-1px);
   box-shadow: 0 2px 8px var(--shadow-primary);
+}
+
+.delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  transition: all 0.2s;
+}
+
+.delete-btn:hover {
+  color: #e74c3c;
+  background: #fdf2f2;
 }
 
 .rating-buttons {
