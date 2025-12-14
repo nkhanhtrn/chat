@@ -6,6 +6,12 @@
     :preventClose="true"
   >
     <div class="conflict-container">
+      <!-- Restoring overlay -->
+      <div v-if="isRestoring" class="restoring-overlay">
+        <div class="restoring-spinner"></div>
+        <span class="restoring-text">Restoring {{ selectedOption === 'local' ? 'local' : 'cloud' }} data...</span>
+      </div>
+
       <p class="conflict-description">
         Your local data and cloud data are different. Choose which version to keep:
       </p>
@@ -15,6 +21,7 @@
         <button
           class="data-option"
           :class="{ selected: selectedOption === 'local' }"
+          :disabled="isRestoring"
           @click="selectedOption = 'local'"
         >
           <div class="option-header">
@@ -34,6 +41,7 @@
         <button
           class="data-option"
           :class="{ selected: selectedOption === 'cloud' }"
+          :disabled="isRestoring"
           @click="selectedOption = 'cloud'"
         >
           <div class="option-header">
@@ -58,10 +66,12 @@
     <template #footer>
       <button
         class="confirm-btn"
-        :disabled="!selectedOption"
+        :class="{ 'btn-loading': isRestoring }"
+        :disabled="!selectedOption || isRestoring"
         @click="handleConfirm"
       >
-        Use {{ selectedOption === 'local' ? 'Local' : 'Cloud' }} Data
+        <span v-if="isRestoring" class="btn-spinner"></span>
+        <span v-else>Use {{ selectedOption === 'local' ? 'Local' : 'Cloud' }} Data</span>
       </button>
     </template>
   </Modal>
@@ -89,6 +99,7 @@ const props = defineProps({
 const emit = defineEmits(['resolve'])
 
 const selectedOption = ref(null)
+const isRestoring = ref(false)
 
 const localTimestamp = computed(() => {
   return props.localData?.lastUpdated || null
@@ -130,7 +141,8 @@ const formatTimestamp = (timestamp) => {
 }
 
 const handleConfirm = () => {
-  if (selectedOption.value) {
+  if (selectedOption.value && !isRestoring.value) {
+    isRestoring.value = true
     emit('resolve', selectedOption.value)
   }
 }
@@ -141,6 +153,42 @@ const handleConfirm = () => {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  position: relative;
+}
+
+/* Restoring overlay */
+.restoring-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  z-index: 10;
+  border-radius: 8px;
+}
+
+.restoring-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--color-border-subtle, #ddd);
+  border-radius: 50%;
+  border-top-color: var(--color-accent, #2563eb);
+  animation: spin 0.8s linear infinite;
+}
+
+.restoring-text {
+  font-size: 0.9375rem;
+  color: var(--color-text-muted, #666);
+  font-weight: 500;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .conflict-description {
@@ -242,5 +290,21 @@ const handleConfirm = () => {
 .confirm-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.confirm-btn.btn-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 0.8s linear infinite;
 }
 </style>

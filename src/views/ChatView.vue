@@ -225,6 +225,7 @@ watch(() => route.params, (newParams) => {
   } else if (newId && !questionId && chatStore.rootMessages.length > 0) {
     // Same notebook, no question - show overview
     showingOverview.value = true
+    chatStore.currentMessageId = null
   }
 }, { deep: true })
 

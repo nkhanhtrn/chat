@@ -34,10 +34,10 @@
       {{ summaryButtonText }}
     </Button>
     <Button
-      @click="handleClearNotebookSummaries"
+      @click="handleClearSummaries"
       class="dev-button"
-      :disabled="notebookSummaryCount === 0 || !currentNotebookId"
-      title="Clear all summaries in current notebook"
+      :disabled="!canClearSummary"
+      :title="clearSummariesTooltip"
       variant="secondary"
     >
       {{ clearSummariesButtonText }}
@@ -169,14 +169,44 @@ const notebookSummaryCount = computed(() => {
   return getSummaryCountInNotebook(currentNotebookId.value)
 })
 
+// Whether current message has a summary
+const currentMessageHasSummary = computed(() => {
+  return Boolean(currentMessage.value?.responseSummary)
+})
+
+// Button should be enabled if:
+// - In question view: current message has a summary
+// - In notebook view: notebook has summaries
+const canClearSummary = computed(() => {
+  if (!currentNotebookId.value) return false
+  if (isQuestionView.value) {
+    return currentMessageHasSummary.value
+  }
+  return notebookSummaryCount.value > 0
+})
+
 const clearSummariesButtonText = computed(() => {
   if (!currentNotebookId.value) {
     return 'No notebook'
   }
+  if (isQuestionView.value) {
+    if (!currentMessageHasSummary.value) {
+      return 'No summary'
+    }
+    return 'Clear summary'
+  }
+  // Notebook view
   if (notebookSummaryCount.value === 0) {
     return 'No summaries'
   }
   return `Clear ${notebookSummaryCount.value} summaries`
+})
+
+const clearSummariesTooltip = computed(() => {
+  if (isQuestionView.value) {
+    return 'Clear summary for current question'
+  }
+  return 'Clear all summaries in current notebook'
 })
 
 
@@ -247,11 +277,19 @@ const handleGenerateCurrentSummary = async () => {
   }
 }
 
-const handleClearNotebookSummaries = () => {
-  if (!currentNotebookId.value || notebookSummaryCount.value === 0) return
+const handleClearSummaries = () => {
+  if (!canClearSummary.value) return
 
-  if (confirm(`Are you sure you want to clear all ${notebookSummaryCount.value} summaries in this notebook?`)) {
-    clearSummariesInNotebook(currentNotebookId.value)
+  if (isQuestionView.value) {
+    // Clear summary for current question only
+    if (confirm('Are you sure you want to clear the summary for this question?')) {
+      chatStore.updateSRResponseSummary(currentMessageId.value, null)
+    }
+  } else {
+    // Clear all summaries in notebook
+    if (confirm(`Are you sure you want to clear all ${notebookSummaryCount.value} summaries in this notebook?`)) {
+      clearSummariesInNotebook(currentNotebookId.value)
+    }
   }
 }
 

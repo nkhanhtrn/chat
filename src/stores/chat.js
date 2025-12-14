@@ -218,10 +218,17 @@ export const useChatStore = defineStore('chat', {
       }
 
       // Sort by nextReviewDate (oldest first, then new cards)
+      // Use messageId as secondary sort key for stable ordering
       return dueCards.sort((a, b) => {
+        if (!a.nextReviewDate && !b.nextReviewDate) {
+          return a.messageId.localeCompare(b.messageId)
+        }
         if (!a.nextReviewDate) return -1
         if (!b.nextReviewDate) return 1
-        return a.nextReviewDate - b.nextReviewDate
+        if (a.nextReviewDate !== b.nextReviewDate) {
+          return a.nextReviewDate - b.nextReviewDate
+        }
+        return a.messageId.localeCompare(b.messageId)
       })
     },
 
@@ -255,10 +262,17 @@ export const useChatStore = defineStore('chat', {
       }
 
       // Sort by nextReviewDate (oldest first, then new cards)
+      // Use id as secondary sort key for stable ordering
       return dueCards.sort((a, b) => {
+        if (!a.nextReviewDate && !b.nextReviewDate) {
+          return a.id.localeCompare(b.id)
+        }
         if (!a.nextReviewDate) return -1
         if (!b.nextReviewDate) return 1
-        return a.nextReviewDate - b.nextReviewDate
+        if (a.nextReviewDate !== b.nextReviewDate) {
+          return a.nextReviewDate - b.nextReviewDate
+        }
+        return a.id.localeCompare(b.id)
       })
     },
 
