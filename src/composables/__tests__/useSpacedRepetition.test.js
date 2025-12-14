@@ -93,6 +93,11 @@ describe('useSpacedRepetition', () => {
 
   describe('initializeCardWithSummary', () => {
     it('initializes card and generates summary', async () => {
+      // Set up message in store
+      chatStore.messagesById = {
+        'msg-1': { id: 'msg-1', question: 'Q1', response: 'Response text' }
+      }
+
       api.sendChatMessage.mockImplementation(async (model, messages, onChunk) => {
         onChunk('Generated summary')
       })
@@ -108,6 +113,11 @@ describe('useSpacedRepetition', () => {
     })
 
     it('returns the generated summary', async () => {
+      // Set up message in store
+      chatStore.messagesById = {
+        'msg-1': { id: 'msg-1', question: 'Q1', response: 'Response text' }
+      }
+
       api.sendChatMessage.mockImplementation(async (model, messages, onChunk) => {
         onChunk('Generated summary')
       })
@@ -116,6 +126,13 @@ describe('useSpacedRepetition', () => {
       const result = await initializeCardWithSummary('msg-1', 'Response text', 'gpt-4')
 
       expect(result).toBe('Generated summary')
+    })
+
+    it('returns null if message does not exist', async () => {
+      const { initializeCardWithSummary } = useSpacedRepetition()
+      const result = await initializeCardWithSummary('non-existent', 'Response text', 'gpt-4')
+
+      expect(result).toBeNull()
     })
   })
 

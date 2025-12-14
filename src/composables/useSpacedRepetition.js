@@ -52,11 +52,24 @@ export function useSpacedRepetition() {
 
   // Initialize card with LLM-generated summary
   const initializeCardWithSummary = async (messageId, response, model) => {
+    // Check if message exists
+    if (!chatStore.messagesById[messageId]) {
+      console.warn('initializeCardWithSummary: Message not found:', messageId)
+      return null
+    }
+
     // Initialize SR card
     chatStore.initializeSRCard(messageId)
 
     // Generate summary and save to message
     const summary = await generateResponseSummary(response, model)
+
+    // Verify message still exists before saving
+    if (!chatStore.messagesById[messageId]) {
+      console.warn('initializeCardWithSummary: Message was deleted during summary generation:', messageId)
+      return null
+    }
+
     chatStore.updateSRResponseSummary(messageId, summary)
 
     return summary

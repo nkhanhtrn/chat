@@ -21,7 +21,8 @@
       "Bash(git show:*)",
       "Bash(timeout 5 npm run dev:*)",
       "Bash(rm:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(node -e:*)"
     ],
     "deny": [],
     "ask": []

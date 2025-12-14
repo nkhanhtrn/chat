@@ -356,6 +356,24 @@ export const useChatStore = defineStore('chat', {
 
       this.currentMessageId = savedState.currentMessageId || null
       this.currentRootIndex = savedState.currentRootIndex || 0
+
+      // Auto-sync: Add all messages with responses to SR system
+      this._syncAllMessagesToSR()
+    },
+
+    // Sync all messages with responses to SR system (without generating summaries)
+    _syncAllMessagesToSR() {
+      let added = 0
+      for (const [messageId, message] of Object.entries(this.messagesById)) {
+        if (message.response && !this.srData[messageId]) {
+          this.srData[messageId] = new SRCard({ messageId })
+          added++
+        }
+      }
+      if (added > 0) {
+        console.log(`Auto-synced ${added} messages to SR system`)
+        this._persistState()
+      }
     },
 
     // Resolve a sync conflict and apply the chosen state
@@ -685,6 +703,11 @@ export const useChatStore = defineStore('chat', {
         message.childIds.forEach(childId => {
           this._removeMessageTree(childId)
         })
+      }
+
+      // Remove SR card if exists
+      if (this.srData[messageId]) {
+        delete this.srData[messageId]
       }
 
       // Remove the message itself

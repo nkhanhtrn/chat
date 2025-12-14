@@ -303,7 +303,9 @@ const handleSendMessage = async (userMessage, contextQuestions = []) => {
     // Initialize spaced repetition card with LLM-generated summary
     const response = chatStore.messagesById[msg.id]?.response
     if (response) {
-      initializeCardWithSummary(msg.id, response, chatStore.currentModel)
+      initializeCardWithSummary(msg.id, response, chatStore.currentModel).catch(err => {
+        console.error('Failed to initialize SR card with summary:', err)
+      })
     }
   } catch (err) {
     error.value = err.message

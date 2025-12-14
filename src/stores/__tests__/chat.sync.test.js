@@ -338,15 +338,19 @@ describe('useChatStore - Sync functionality', () => {
       expect(savedState.isStreaming).toBe(false)
 
       // Test when streaming
+      // Note: _syncAllMessagesToSR() may have called _persistState() during initializeStore()
+      // We need to track the call count to use the correct indices
+      const callsBeforeStreaming = vi.mocked(storage.saveChatState).mock.calls.length
       store.startStreaming('test-msg-id')
       store._persistState()
-      savedState = vi.mocked(storage.saveChatState).mock.calls[1][0]
+      savedState = vi.mocked(storage.saveChatState).mock.calls[callsBeforeStreaming][0]
       expect(savedState.isStreaming).toBe(true)
 
       // Test after stopping streaming
+      const callsAfterStreaming = vi.mocked(storage.saveChatState).mock.calls.length
       store.stopStreaming()
       store._persistState()
-      savedState = vi.mocked(storage.saveChatState).mock.calls[2][0]
+      savedState = vi.mocked(storage.saveChatState).mock.calls[callsAfterStreaming][0]
       expect(savedState.isStreaming).toBe(false)
     })
   })

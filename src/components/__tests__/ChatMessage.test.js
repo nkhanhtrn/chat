@@ -28,23 +28,26 @@ describe('ChatMessage', () => {
   })
 
   describe('Rendering', () => {
-    it('should render message container', () => {
+    it('should render message container when response exists', () => {
       wrapper = mount(ChatMessage, {
         props: {
           message: {
-            role: 'user',
-            content: 'Test message'
+            question: 'Test',
+            response: 'Test response'
           }
         },
         global: {
-          plugins: [createPinia()]
+          plugins: [createPinia()],
+          stubs: {
+            MarkdownRenderer: true
+          }
         }
       })
 
       expect(wrapper.find('.message').exists()).toBe(true)
     })
 
-    it('should render user message content', () => {
+    it('should not render message when response is empty', () => {
       wrapper = mount(ChatMessage, {
         props: {
           message: {
@@ -57,19 +60,23 @@ describe('ChatMessage', () => {
         }
       })
 
-      expect(wrapper.find('.user-message').exists()).toBe(true)
+      // Component doesn't render .message when there's no response
+      expect(wrapper.find('.message').exists()).toBe(false)
     })
 
-    it('should render message content', () => {
+    it('should render message content when response exists', () => {
       wrapper = mount(ChatMessage, {
         props: {
           message: {
-            role: 'user',
-            content: 'Test message'
+            question: 'Test',
+            response: 'Test response'
           }
         },
         global: {
-          plugins: [createPinia()]
+          plugins: [createPinia()],
+          stubs: {
+            MarkdownRenderer: true
+          }
         }
       })
 
@@ -87,7 +94,7 @@ describe('ChatMessage', () => {
 
 
   describe('User Messages', () => {
-    it('should display user question when response is empty', () => {
+    it('should not render anything when response is empty', () => {
       wrapper = mount(ChatMessage, {
         props: {
           message: {
@@ -99,22 +106,26 @@ describe('ChatMessage', () => {
           plugins: [createPinia()]
         }
       })
-      expect(wrapper.find('.user-message').text()).toBe('Hello')
+      // Component only renders assistant messages, not user questions
+      expect(wrapper.find('.message').exists()).toBe(false)
     })
 
-    it('should apply user message class when response is empty', () => {
+    it('should render assistant message when response exists', () => {
       wrapper = mount(ChatMessage, {
         props: {
           message: {
             question: 'Hello',
-            response: ''
+            response: 'Hi there!'
           }
         },
         global: {
-          plugins: [createPinia()]
+          plugins: [createPinia()],
+          stubs: {
+            MarkdownRenderer: true
+          }
         }
       })
-      expect(wrapper.find('.message').classes()).toContain('message-user')
+      expect(wrapper.find('.message').classes()).toContain('message-assistant')
     })
 
 
@@ -215,43 +226,48 @@ describe('ChatMessage', () => {
   })
 
   describe('Message Classes', () => {
-    it('should compute correct class for user message', () => {
+    it('should compute correct class for assistant message', () => {
       wrapper = mount(ChatMessage, {
         props: {
           message: {
-            role: 'user',
-            content: 'Test'
+            question: 'Test',
+            response: 'Test response'
           }
         },
         global: {
-          plugins: [createPinia()]
+          plugins: [createPinia()],
+          stubs: {
+            MarkdownRenderer: true
+          }
         }
       })
 
-      expect(wrapper.find('.message').classes()).toContain('message-user')
-      expect(wrapper.find('.message').classes()).not.toContain('message-assistant')
+      expect(wrapper.find('.message').classes()).toContain('message-assistant')
     })
 
   })
 
   describe('Structure', () => {
-    it('should have correct HTML structure for user message', () => {
+    it('should have correct HTML structure for assistant message', () => {
       wrapper = mount(ChatMessage, {
         props: {
           message: {
             question: 'Test',
-            response: ''
+            response: 'Test response'
           }
         },
         global: {
-          plugins: [createPinia()]
+          plugins: [createPinia()],
+          stubs: {
+            MarkdownRenderer: true
+          }
         }
       })
 
       expect(wrapper.find('.message').exists()).toBe(true)
-      expect(wrapper.find('.message-user').exists()).toBe(true)
+      expect(wrapper.find('.message-assistant').exists()).toBe(true)
       expect(wrapper.find('.message-content').exists()).toBe(true)
-      expect(wrapper.find('.user-message').exists()).toBe(true)
+      expect(wrapper.find('.assistant-message').exists()).toBe(true)
     })
 
     it('should nest elements correctly', () => {
@@ -259,19 +275,22 @@ describe('ChatMessage', () => {
         props: {
           message: {
             question: 'Test',
-            response: ''
+            response: 'Test response'
           }
         },
         global: {
-          plugins: [createPinia()]
+          plugins: [createPinia()],
+          stubs: {
+            MarkdownRenderer: true
+          }
         }
       })
 
       const message = wrapper.find('.message')
       const content = message.find('.message-content')
-      const userMessage = content.find('.user-message')
+      const assistantMessage = content.find('.assistant-message')
 
-      expect(userMessage.exists()).toBe(true)
+      expect(assistantMessage.exists()).toBe(true)
     })
   })
 
@@ -280,12 +299,15 @@ describe('ChatMessage', () => {
       wrapper = mount(ChatMessage, {
         props: {
           message: {
-            role: 'user',
-            content: 'Test'
+            question: 'Test',
+            response: 'Test response'
           }
         },
         global: {
-          plugins: [createPinia()]
+          plugins: [createPinia()],
+          stubs: {
+            MarkdownRenderer: true
+          }
         }
       })
 
@@ -384,29 +406,143 @@ describe('ChatMessage', () => {
     })
   })
 
-  describe('Content Rendering', () => {
-    it('should render empty content', () => {
+  describe('Response Summary', () => {
+    it('should show response summary when responseSummary exists', () => {
       wrapper = mount(ChatMessage, {
         props: {
           message: {
-            role: 'user',
-            content: ''
+            question: 'What is JavaScript?',
+            questionSummarized: 'What is JS?',
+            response: 'JavaScript is a programming language...',
+            responseSummary: 'JS is a dynamic scripting language for web development.'
           }
         },
         global: {
-          plugins: [createPinia()]
+          plugins: [createPinia()],
+          stubs: {
+            MarkdownRenderer: true
+          }
         }
       })
 
-      expect(wrapper.find('.user-message').text()).toBe('')
+      expect(wrapper.find('.response-summary-container').exists()).toBe(true)
+      expect(wrapper.find('.response-summary').exists()).toBe(true)
+      expect(wrapper.find('.response-summary-toggle').exists()).toBe(true)
     })
 
-    it('should render multiline user question', () => {
-      const multiline = 'Line 1\nLine 2\nLine 3'
+    it('should display questionSummarized as the summary toggle title', () => {
       wrapper = mount(ChatMessage, {
         props: {
           message: {
-            question: multiline,
+            question: 'What is JavaScript?',
+            questionSummarized: 'What is JS?',
+            response: 'JavaScript is a programming language...',
+            responseSummary: 'JS is a dynamic scripting language.'
+          }
+        },
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            MarkdownRenderer: true
+          }
+        }
+      })
+
+      expect(wrapper.find('.response-summary-toggle').text()).toBe('What is JS?')
+    })
+
+    it('should not show response summary when responseSummary is empty', () => {
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: {
+            question: 'What is JavaScript?',
+            response: 'JavaScript is a programming language...',
+            responseSummary: ''
+          }
+        },
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            MarkdownRenderer: true
+          }
+        }
+      })
+
+      expect(wrapper.find('.response-summary-container').exists()).toBe(false)
+    })
+
+    it('should not show response summary when responseSummary is undefined', () => {
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: {
+            question: 'What is JavaScript?',
+            response: 'JavaScript is a programming language...'
+          }
+        },
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            MarkdownRenderer: true
+          }
+        }
+      })
+
+      expect(wrapper.find('.response-summary-container').exists()).toBe(false)
+    })
+
+    it('should not show response summary while streaming', () => {
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: {
+            question: 'What is JavaScript?',
+            questionSummarized: 'What is JS?',
+            response: 'JavaScript is...',
+            responseSummary: 'JS is a scripting language.'
+          },
+          isAppStreaming: true
+        },
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            MarkdownRenderer: true
+          }
+        }
+      })
+
+      expect(wrapper.find('.response-summary-container').exists()).toBe(false)
+    })
+
+    it('should render responseSummary content via MarkdownRenderer', () => {
+      const summaryContent = '**Bold** summary with _markdown_'
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: {
+            question: 'Q',
+            questionSummarized: 'Q',
+            response: 'Response',
+            responseSummary: summaryContent
+          }
+        },
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            MarkdownRenderer: true
+          }
+        }
+      })
+
+      const summaryMarkdown = wrapper.find('.response-summary-content').findComponent(MarkdownRenderer)
+      expect(summaryMarkdown.exists()).toBe(true)
+      expect(summaryMarkdown.props('content')).toBe(summaryContent)
+    })
+  })
+
+  describe('Content Rendering', () => {
+    it('should not render when response is empty', () => {
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: {
+            question: 'Test',
             response: ''
           }
         },
@@ -414,23 +550,47 @@ describe('ChatMessage', () => {
           plugins: [createPinia()]
         }
       })
-      expect(wrapper.find('.user-message').text()).toBe(multiline)
+
+      // Component doesn't render anything when there's no response
+      expect(wrapper.find('.message').exists()).toBe(false)
     })
 
-    it('should handle special characters in user question', () => {
+    it('should render assistant message with response', () => {
+      const response = 'Line 1\nLine 2\nLine 3'
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: {
+            question: 'Q',
+            response
+          }
+        },
+        global: {
+          plugins: [createPinia()],
+          stubs: {
+            MarkdownRenderer: true
+          }
+        }
+      })
+      expect(wrapper.findComponent(MarkdownRenderer).props('content')).toBe(response)
+    })
+
+    it('should render assistant message with special characters in response', () => {
       const special = '<div>Test & "quotes"</div>'
       wrapper = mount(ChatMessage, {
         props: {
           message: {
-            question: special,
-            response: ''
+            question: 'Q',
+            response: special
           }
         },
         global: {
-          plugins: [createPinia()]
+          plugins: [createPinia()],
+          stubs: {
+            MarkdownRenderer: true
+          }
         }
       })
-      expect(wrapper.find('.user-message').text()).toBe(special)
+      expect(wrapper.findComponent(MarkdownRenderer).props('content')).toBe(special)
     })
 
     it('should render assistant message with markdown content', () => {
@@ -453,12 +613,12 @@ describe('ChatMessage', () => {
   })
 
   describe('Edge Cases', () => {
-    it('should handle undefined content gracefully', () => {
+    it('should handle undefined response gracefully', () => {
       wrapper = mount(ChatMessage, {
         props: {
           message: {
-            role: 'user',
-            content: undefined
+            question: 'Test',
+            response: undefined
           }
         },
         global: {
@@ -466,15 +626,16 @@ describe('ChatMessage', () => {
         }
       })
 
-      expect(wrapper.find('.message').exists()).toBe(true)
+      // Component doesn't crash with undefined response
+      expect(wrapper.find('.message').exists()).toBe(false)
     })
 
-    it('should handle null content gracefully', () => {
+    it('should handle null response gracefully', () => {
       wrapper = mount(ChatMessage, {
         props: {
           message: {
-            role: 'user',
-            content: null
+            question: 'Test',
+            response: null
           }
         },
         global: {
@@ -482,23 +643,27 @@ describe('ChatMessage', () => {
         }
       })
 
-      expect(wrapper.find('.message').exists()).toBe(true)
+      // Component doesn't crash with null response
+      expect(wrapper.find('.message').exists()).toBe(false)
     })
 
-    it('should handle very long question', () => {
+    it('should handle very long response', () => {
       const longContent = 'a'.repeat(10000)
       wrapper = mount(ChatMessage, {
         props: {
           message: {
-            question: longContent,
-            response: ''
+            question: 'Q',
+            response: longContent
           }
         },
         global: {
-          plugins: [createPinia()]
+          plugins: [createPinia()],
+          stubs: {
+            MarkdownRenderer: true
+          }
         }
       })
-      expect(wrapper.find('.user-message').text()).toBe(longContent)
+      expect(wrapper.findComponent(MarkdownRenderer).props('content')).toBe(longContent)
     })
     })
 

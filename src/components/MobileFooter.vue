@@ -51,8 +51,7 @@
     </div>
 
     <SettingsModal
-      :visible="showSettingsModal"
-      @close="showSettingsModal = false"
+      v-model="showSettingsModal"
     />
     <ReviewModal
       :visible="showReviewModal"

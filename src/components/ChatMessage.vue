@@ -2,13 +2,16 @@
   <div>
     <SlideTransition>
       <div :key="currentMessage.id">
-        <!-- Current question -->
-        <div class="message message-user">
-          <div class="message-content">
-            <div class="user-message">
-              {{ currentMessage.question }}
+        <!-- Response Summary (collapsible) -->
+        <div v-if="currentMessage.responseSummary && !isStreaming" class="response-summary-container">
+          <details class="response-summary">
+            <summary class="response-summary-toggle">
+              {{ currentMessage.questionSummarized }}
+            </summary>
+            <div class="response-summary-content">
+              <MarkdownRenderer :content="currentMessage.responseSummary" />
             </div>
-          </div>
+          </details>
         </div>
 
         <!-- Assistant answer with streaming -->
@@ -278,7 +281,9 @@ async function handleAskQuestion(question) {
     // Initialize spaced repetition card with LLM-generated summary
     const response = chatStore.messagesById[childMsg.id]?.response
     if (response) {
-      initializeCardWithSummary(childMsg.id, response, chatStore.currentModel)
+      initializeCardWithSummary(childMsg.id, response, chatStore.currentModel).catch(err => {
+        console.error('Failed to initialize SR card with summary:', err)
+      })
     }
   } catch (err) {
     error.value = err.message
@@ -785,5 +790,39 @@ onUnmounted(() => {
     text-align: left;
     hyphens: none;
   }
+}
+
+/* Response Summary Styles */
+.response-summary-container {
+  margin-bottom: 1.5rem;
+}
+
+.response-summary {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background-color: var(--color-bg-primary-subtle, rgba(0, 0, 0, 0.02));
+}
+
+.response-summary-toggle {
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  user-select: none;
+  font-family: var(--message-font-family, Georgia, serif);
+  font-size: 0.95rem;
+  color: var(--color-text-secondary, #666);
+  font-weight: 500;
+}
+
+.response-summary-toggle:hover {
+  background-color: var(--color-bg-hover, rgba(0, 0, 0, 0.04));
+}
+
+.response-summary-content {
+  padding: 0.8rem 1rem 1rem;
+  border-top: 1px solid var(--color-border);
+  font-family: var(--message-font-family, Georgia, serif);
+  font-size: var(--message-font-size, 18px);
+  line-height: var(--message-line-height, 1.7);
+  color: var(--color-text-message);
 }
 </style>

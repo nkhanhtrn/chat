@@ -11,6 +11,36 @@ import { initializeTheme, applySettings, exposeGlobally } from './services/setti
 import { initializeFirebase } from './services/firebase.js'
 import { loadUserSettings, subscribeToUserSettings, flushSettings } from './services/firestore.js'
 
+// Handle chunk loading failures (e.g., after deployment with new hashes)
+// This catches dynamic import failures and forces a page reload
+window.addEventListener('error', (event) => {
+  if (event.message?.includes('dynamically imported module') ||
+      event.message?.includes('Failed to fetch dynamically imported module')) {
+    console.warn('Chunk loading failed, reloading page to get new assets...')
+    // Prevent infinite reload loop by checking if we just reloaded
+    const lastReload = sessionStorage.getItem('chunk-reload-time')
+    const now = Date.now()
+    if (!lastReload || now - parseInt(lastReload, 10) > 10000) {
+      sessionStorage.setItem('chunk-reload-time', now.toString())
+      window.location.reload()
+    }
+  }
+})
+
+// Also handle unhandled promise rejections (dynamic imports return promises)
+window.addEventListener('unhandledrejection', (event) => {
+  if (event.reason?.message?.includes('dynamically imported module') ||
+      event.reason?.message?.includes('Failed to fetch dynamically imported module')) {
+    console.warn('Chunk loading failed (promise), reloading page to get new assets...')
+    const lastReload = sessionStorage.getItem('chunk-reload-time')
+    const now = Date.now()
+    if (!lastReload || now - parseInt(lastReload, 10) > 10000) {
+      sessionStorage.setItem('chunk-reload-time', now.toString())
+      window.location.reload()
+    }
+  }
+})
+
 // Initialize theme from localStorage cache (or default to light)
 initializeTheme()
 
