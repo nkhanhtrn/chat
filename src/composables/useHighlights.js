@@ -7,6 +7,27 @@ import { mergeOverlappingHighlights } from '../utils/highlightUtils.js'
  */
 export function useHighlights(store, getMessage) {
   /**
+   * Create a vocabulary SR card for highlighted text
+   * @param {string} text - The highlighted text
+   */
+  function createVocabCardForHighlight(text) {
+    const message = getMessage()
+    if (!message || !text) return
+
+    // Check if vocab card already exists for this word
+    const existingCard = store.findVocabCardByWord(text)
+    if (existingCard) return
+
+    // Create vocab card with empty definition (user can look it up later via Dictionary)
+    store.addVocabCard({
+      word: text,
+      definition: '',
+      context: '',
+      messageId: message.id
+    })
+  }
+
+  /**
    * Add a highlight to the current message
    * @param {string} text - The highlighted text
    * @param {number} startOffset - Start offset in the response
@@ -34,6 +55,7 @@ export function useHighlights(store, getMessage) {
     }
 
     store.addCustomContent(message.id, highlight)
+
     return highlightId
   }
 
@@ -56,6 +78,21 @@ export function useHighlights(store, getMessage) {
     const message = getMessage()
     if (!highlightId || !message) return
     store.updateCustomContent(message.id, highlightId, updates)
+
+    // When note content is updated, sync to vocab card
+    if (updates.noteContent !== undefined) {
+      const highlight = message.customContent?.find(c => c.id === highlightId)
+      if (highlight) {
+        const existingCard = store.findVocabCardByWord(highlight.text)
+        if (existingCard) {
+          // Update existing vocab card's definition with note content
+          store.updateVocabDefinition(existingCard.id, updates.noteContent)
+        } else {
+          // Create new vocab card if it doesn't exist yet
+          createVocabCardForHighlight(highlight.text)
+        }
+      }
+    }
   }
 
   /**
@@ -80,6 +117,10 @@ export function useHighlights(store, getMessage) {
     }
 
     store.addCustomContent(message.id, highlight)
+
+    // Create vocabulary SR card for highlighted text with note
+    createVocabCardForHighlight(text)
+
     return highlightId
   }
 
@@ -105,6 +146,9 @@ export function useHighlights(store, getMessage) {
     if (noteContent) {
       questionLink.hasNote = true
       questionLink.noteContent = noteContent
+
+      // Create vocab card for question link with note
+      createVocabCardForHighlight(text)
     }
 
     store.addCustomContent(message.id, questionLink)

@@ -60,6 +60,15 @@
     >
       Set createdAt ({{ missingCreatedAtCount }})
     </Button>
+    <Button
+      @click="handleAddHighlightsToVocab"
+      class="dev-button"
+      :disabled="highlightsWithoutVocabCount === 0"
+      title="Add all highlights to vocabulary SR cards"
+      variant="secondary"
+    >
+      Highlights → Vocab ({{ highlightsWithoutVocabCount }})
+    </Button>
   </div>
 </template>
 
@@ -100,6 +109,21 @@ const dueCardCount = computed(() => chatStore.cardsDueCount)
 // Count of messages missing createdAt
 const missingCreatedAtCount = computed(() => {
   return Object.values(chatStore.messagesById).filter(msg => !msg.createdAt).length
+})
+
+// Count of highlights/question-links with notes that don't have vocab cards
+const highlightsWithoutVocabCount = computed(() => {
+  let count = 0
+  for (const message of Object.values(chatStore.messagesById)) {
+    if (!message.customContent) continue
+    for (const content of message.customContent) {
+      if ((content.type === 'highlight' || content.type === 'question-link') && content.hasNote) {
+        const existingCard = chatStore.findVocabCardByWord(content.text)
+        if (!existingCard) count++
+      }
+    }
+  }
+  return count
 })
 
 const srButtonText = computed(() => {
@@ -350,6 +374,32 @@ const handleSetCreatedAt = () => {
   })
 
   chatStore._persistState()
+}
+
+const handleAddHighlightsToVocab = () => {
+  const count = highlightsWithoutVocabCount.value
+  if (count === 0) return
+
+  let added = 0
+  for (const message of Object.values(chatStore.messagesById)) {
+    if (!message.customContent) continue
+    for (const content of message.customContent) {
+      if ((content.type === 'highlight' || content.type === 'question-link') && content.hasNote) {
+        const existingCard = chatStore.findVocabCardByWord(content.text)
+        if (!existingCard) {
+          chatStore.addVocabCard({
+            word: content.text,
+            definition: '',
+            context: '',
+            messageId: message.id
+          })
+          added++
+        }
+      }
+    }
+  }
+
+  console.log(`Added ${added} highlights with notes to vocabulary`)
 }
 
 </script>

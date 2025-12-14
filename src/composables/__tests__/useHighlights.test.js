@@ -19,7 +19,10 @@ describe('useHighlights', () => {
     mockStore = {
       addCustomContent: vi.fn(),
       removeCustomContent: vi.fn(),
-      updateCustomContent: vi.fn()
+      updateCustomContent: vi.fn(),
+      findVocabCardByWord: vi.fn(),
+      addVocabCard: vi.fn(),
+      updateVocabDefinition: vi.fn()
     }
   })
 
@@ -167,6 +170,41 @@ describe('useHighlights', () => {
 
       expect(result).toBe(null)
     })
+
+    it('creates vocab card when adding highlight with note', () => {
+      mockStore.findVocabCardByWord.mockReturnValue(null)
+      const { addHighlightWithNote } = useHighlights(mockStore, () => currentMessage)
+
+      addHighlightWithNote({
+        text: 'vocabulary',
+        startOffset: 0,
+        endOffset: 10,
+        noteContent: 'definition here'
+      })
+
+      expect(mockStore.findVocabCardByWord).toHaveBeenCalledWith('vocabulary')
+      expect(mockStore.addVocabCard).toHaveBeenCalledWith({
+        word: 'vocabulary',
+        definition: '',
+        context: '',
+        messageId: 'msg-1'
+      })
+    })
+
+    it('does not create vocab card if word already exists', () => {
+      mockStore.findVocabCardByWord.mockReturnValue({ id: 'existing-vocab' })
+      const { addHighlightWithNote } = useHighlights(mockStore, () => currentMessage)
+
+      addHighlightWithNote({
+        text: 'vocabulary',
+        startOffset: 0,
+        endOffset: 10,
+        noteContent: 'definition here'
+      })
+
+      expect(mockStore.findVocabCardByWord).toHaveBeenCalledWith('vocabulary')
+      expect(mockStore.addVocabCard).not.toHaveBeenCalled()
+    })
   })
 
   describe('addQuestionLink', () => {
@@ -219,6 +257,122 @@ describe('useHighlights', () => {
       })
 
       expect(result).toBe(null)
+    })
+
+    it('creates vocab card when adding question link with note', () => {
+      mockStore.findVocabCardByWord.mockReturnValue(null)
+      const { addQuestionLink } = useHighlights(mockStore, () => currentMessage)
+
+      addQuestionLink({
+        text: 'linked term',
+        targetMessageId: 'target-123',
+        startOffset: 0,
+        endOffset: 11,
+        noteContent: 'some note'
+      })
+
+      expect(mockStore.findVocabCardByWord).toHaveBeenCalledWith('linked term')
+      expect(mockStore.addVocabCard).toHaveBeenCalledWith({
+        word: 'linked term',
+        definition: '',
+        context: '',
+        messageId: 'msg-1'
+      })
+    })
+
+    it('does not create vocab card when question link has no note', () => {
+      const { addQuestionLink } = useHighlights(mockStore, () => currentMessage)
+
+      addQuestionLink({
+        text: 'linked term',
+        targetMessageId: 'target-123',
+        startOffset: 0,
+        endOffset: 11
+      })
+
+      expect(mockStore.addVocabCard).not.toHaveBeenCalled()
+    })
+
+    it('does not create vocab card if word already exists', () => {
+      mockStore.findVocabCardByWord.mockReturnValue({ id: 'existing-vocab' })
+      const { addQuestionLink } = useHighlights(mockStore, () => currentMessage)
+
+      addQuestionLink({
+        text: 'linked term',
+        targetMessageId: 'target-123',
+        startOffset: 0,
+        endOffset: 11,
+        noteContent: 'some note'
+      })
+
+      expect(mockStore.findVocabCardByWord).toHaveBeenCalledWith('linked term')
+      expect(mockStore.addVocabCard).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('updateHighlight - vocab card sync', () => {
+    it('creates vocab card when adding note to existing highlight', () => {
+      currentMessage.customContent = [
+        { id: 'h1', type: 'highlight', text: 'existing word', startOffset: 0, endOffset: 13 }
+      ]
+      mockStore.findVocabCardByWord.mockReturnValue(null)
+      const { updateHighlight } = useHighlights(mockStore, () => currentMessage)
+
+      updateHighlight('h1', { hasNote: true, noteContent: 'new note' })
+
+      expect(mockStore.updateCustomContent).toHaveBeenCalledWith('msg-1', 'h1', { hasNote: true, noteContent: 'new note' })
+      expect(mockStore.findVocabCardByWord).toHaveBeenCalledWith('existing word')
+      expect(mockStore.addVocabCard).toHaveBeenCalledWith({
+        word: 'existing word',
+        definition: '',
+        context: '',
+        messageId: 'msg-1'
+      })
+    })
+
+    it('creates vocab card when editing note if card does not exist', () => {
+      currentMessage.customContent = [
+        { id: 'h1', type: 'highlight', text: 'existing word', startOffset: 0, endOffset: 13, hasNote: true }
+      ]
+      mockStore.findVocabCardByWord.mockReturnValue(null)
+      const { updateHighlight } = useHighlights(mockStore, () => currentMessage)
+
+      updateHighlight('h1', { noteContent: 'edited note' })
+
+      expect(mockStore.findVocabCardByWord).toHaveBeenCalledWith('existing word')
+      expect(mockStore.addVocabCard).toHaveBeenCalledWith({
+        word: 'existing word',
+        definition: '',
+        context: '',
+        messageId: 'msg-1'
+      })
+    })
+
+    it('updates existing vocab card definition when note content changes', () => {
+      currentMessage.customContent = [
+        { id: 'h1', type: 'highlight', text: 'existing word', startOffset: 0, endOffset: 13 }
+      ]
+      mockStore.findVocabCardByWord.mockReturnValue({ id: 'vocab-123' })
+      const { updateHighlight } = useHighlights(mockStore, () => currentMessage)
+
+      updateHighlight('h1', { noteContent: 'updated definition' })
+
+      expect(mockStore.findVocabCardByWord).toHaveBeenCalledWith('existing word')
+      expect(mockStore.updateVocabDefinition).toHaveBeenCalledWith('vocab-123', 'updated definition')
+      expect(mockStore.addVocabCard).not.toHaveBeenCalled()
+    })
+
+    it('does not sync vocab card when updating other properties', () => {
+      currentMessage.customContent = [
+        { id: 'h1', type: 'highlight', text: 'word', startOffset: 0, endOffset: 4 }
+      ]
+      const { updateHighlight } = useHighlights(mockStore, () => currentMessage)
+
+      updateHighlight('h1', { colorIndex: 2 })
+
+      expect(mockStore.updateCustomContent).toHaveBeenCalled()
+      expect(mockStore.addVocabCard).not.toHaveBeenCalled()
+      expect(mockStore.updateVocabDefinition).not.toHaveBeenCalled()
     })
   })
 
