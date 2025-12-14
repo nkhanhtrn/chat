@@ -357,21 +357,33 @@ export const useChatStore = defineStore('chat', {
       this.currentMessageId = savedState.currentMessageId || null
       this.currentRootIndex = savedState.currentRootIndex || 0
 
-      // Auto-sync: Add all messages with responses to SR system
-      this._syncAllMessagesToSR()
+      // Auto-sync: Ensure SR data is in sync with messages
+      this._syncSRDataWithMessages()
     },
 
-    // Sync all messages with responses to SR system (without generating summaries)
-    _syncAllMessagesToSR() {
+    // Bidirectional sync: Add SR cards for messages with responses, remove orphaned SR cards
+    _syncSRDataWithMessages() {
       let added = 0
+      let removed = 0
+
+      // Add SR cards for messages that have responses but no SR card
       for (const [messageId, message] of Object.entries(this.messagesById)) {
         if (message.response && !this.srData[messageId]) {
           this.srData[messageId] = new SRCard({ messageId })
           added++
         }
       }
-      if (added > 0) {
-        console.log(`Auto-synced ${added} messages to SR system`)
+
+      // Remove SR cards for messages that no longer exist
+      for (const messageId of Object.keys(this.srData)) {
+        if (!this.messagesById[messageId]) {
+          delete this.srData[messageId]
+          removed++
+        }
+      }
+
+      if (added > 0 || removed > 0) {
+        console.log(`SR sync: added ${added}, removed ${removed} orphaned cards`)
         this._persistState()
       }
     },
@@ -1283,18 +1295,9 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
-    // Clean up SR data for deleted messages
+    // Clean up SR data for deleted messages (alias for _syncSRDataWithMessages)
     _cleanupSRData() {
-      let changed = false
-      for (const messageId of Object.keys(this.srData)) {
-        if (!this.messagesById[messageId]) {
-          delete this.srData[messageId]
-          changed = true
-        }
-      }
-      if (changed) {
-        this._persistState()
-      }
+      this._syncSRDataWithMessages()
     },
 
     // ============================================

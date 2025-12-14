@@ -617,6 +617,9 @@ const restoreNotebooks = async (event) => {
       }
     }
 
+    // Sync SR data with messages (adds missing cards, removes orphaned ones)
+    chatStore._syncSRDataWithMessages()
+
     // Persist the merged state
     chatStore._persistState()
 

@@ -58,7 +58,8 @@ const mockChatStore = {
   vocabData: {
     'vocab-1': { word: 'test', definition: 'a test word', easiness: 2.5, createdAt: 1700000002000 }
   },
-  _persistState: vi.fn()
+  _persistState: vi.fn(),
+  _syncSRDataWithMessages: vi.fn()
 }
 
 vi.mock('../../../stores/chat.js', () => ({
