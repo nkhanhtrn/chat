@@ -1,5 +1,8 @@
 <template>
   <Modal :visible="visible" :title="word" :title-style="{ textTransform: 'uppercase', fontSize: '0.8rem' }" @close="onClose" size="medium">
+    <template #header-actions>
+      <SpeakerButton ref="speakerRef" :text="word" />
+    </template>
     <div class="dictionary-content">
       <!-- Loading state -->
       <div v-if="isStreaming && !definition" class="dictionary-loading">
@@ -25,9 +28,11 @@
 </template>
 
 <script setup>
+import { ref, watch } from 'vue'
 import Modal from './Modal.vue'
 import Button from '../Button.vue'
 import MarkdownRenderer from '../MarkdownRenderer.vue'
+import SpeakerButton from '../SpeakerButton.vue'
 
 const props = defineProps({
   visible: {
@@ -50,9 +55,19 @@ const props = defineProps({
 
 const emit = defineEmits(['close'])
 
+const speakerRef = ref(null)
+
 function onClose() {
+  speakerRef.value?.stop()
   emit('close')
 }
+
+// Stop speaking when modal closes
+watch(() => props.visible, (isVisible) => {
+  if (!isVisible) {
+    speakerRef.value?.stop()
+  }
+})
 </script>
 
 <style>

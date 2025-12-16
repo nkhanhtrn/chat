@@ -40,7 +40,8 @@
       <!-- Card Front: Word -->
       <div v-if="!isFlipped" class="card-front">
         <div class="word-content">
-          {{ currentCard.word }}
+          <span>{{ currentCard.word }}</span>
+          <SpeakerButton :text="currentCard.word" size="large" class="word-speaker" />
         </div>
         <div v-if="currentCard.context" class="context-content">
           "...{{ currentCard.context }}..."
@@ -52,7 +53,10 @@
 
       <!-- Card Back: Definition -->
       <div v-else class="card-back">
-        <div class="word-header">{{ currentCard.word }}</div>
+        <div class="word-header">
+          <span>{{ currentCard.word }}</span>
+          <SpeakerButton :text="currentCard.word" size="small" />
+        </div>
         <div class="definition-content">
           <MarkdownRenderer v-if="currentCard.definition" :content="currentCard.definition" />
           <span v-else class="no-definition">No definition available</span>
@@ -99,6 +103,7 @@
 import { ref, computed, watch } from 'vue'
 import Modal from './Modal.vue'
 import MarkdownRenderer from '../MarkdownRenderer.vue'
+import SpeakerButton from '../SpeakerButton.vue'
 import { useVocabulary } from '../../composables/useVocabulary.js'
 
 const props = defineProps({
@@ -311,6 +316,11 @@ const handleClose = () => {
   justify-content: center;
   text-align: center;
   padding: 2rem;
+  gap: 0.75rem;
+}
+
+.word-speaker {
+  flex-shrink: 0;
 }
 
 .context-content {
@@ -332,6 +342,9 @@ const handleClose = () => {
   margin-bottom: 1rem;
   padding-bottom: 0.5rem;
   border-bottom: 1px solid var(--color-border-base);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .definition-content {
