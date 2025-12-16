@@ -189,15 +189,25 @@
     </div>
 
     <div v-if="!fullPage" class="sidebar-footer">
-      <Button
-        v-if="!isSidebarCollapsed"
-        @click="showSettings = true"
-        class="settings-button"
-        title="Settings"
-        variant="secondary"
-      >
-        <svg class="settings-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97s-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1s.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66z"/></svg>
-      </Button>
+      <div v-if="!isSidebarCollapsed" class="footer-left-buttons">
+        <Button
+          @click="showSettings = true"
+          class="settings-button"
+          title="Settings"
+          variant="secondary"
+        >
+          <svg class="settings-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97s-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1s.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66z"/></svg>
+        </Button>
+        <Button
+          @click="showReviewModal = true"
+          class="sr-button"
+          title="Review SR cards"
+          variant="secondary"
+        >
+          SR
+          <span v-if="dueCount > 0" class="sr-badge">{{ dueCount }}</span>
+        </Button>
+      </div>
       <Button
         @click="toggleSidebar"
         class="collapse-sidebar-button"
@@ -209,6 +219,10 @@
     </div>
 
     <SettingsModal v-model="showSettings" />
+    <ReviewModal
+      :visible="showReviewModal"
+      @close="showReviewModal = false"
+    />
     <MoveToNotebookModal
       :visible="showMoveModal"
       :notebooks="chatStore.chatList"
@@ -226,11 +240,13 @@ import { useRouter } from 'vue-router'
 import Button from './Button.vue'
 import SettingsModal from './Modal/SettingsModal.vue'
 import MoveToNotebookModal from './Modal/MoveToNotebookModal.vue'
+import ReviewModal from './Modal/ReviewModal.vue'
 import QuestionTree from './QuestionTree.vue'
 import { useChatStore } from '../stores/chat.js'
 import { useSidebarCollapse } from '../composables/useSidebarCollapse.js'
 import { useTreeExpansion } from '../composables/useTreeExpansion.js'
 import { useSidebarSearch } from '../composables/useSidebarSearch.js'
+import { useSpacedRepetition } from '../composables/useSpacedRepetition.js'
 
 const props = defineProps({
   chats: {
@@ -288,9 +304,13 @@ const {
 })
 
 const showSettings = ref(false)
+const showReviewModal = ref(false)
 const isNotebooksDropTarget = ref(false)
 const showMoveModal = ref(false)
 const pendingMoveMessageId = ref(null)
+
+// Spaced repetition
+const { dueCount } = useSpacedRepetition()
 
 // Previous location is now tracked in the store via chatStore.previousLocation
 
@@ -782,7 +802,13 @@ const handleCancelMove = () => {
   align-items: center;
 }
 
+.footer-left-buttons {
+  display: flex;
+  gap: 0.75rem;
+}
+
 .settings-button,
+.sr-button,
 .collapse-sidebar-button {
   width: 40px;
   height: 40px;
@@ -793,6 +819,29 @@ const handleCancelMove = () => {
   font-size: 1.4rem;
   font-weight: normal;
   color: var(--color-text-muted);
+}
+
+.sr-button {
+  position: relative;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.sr-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  background-color: var(--color-primary, #6366f1);
+  color: white;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .settings-icon {

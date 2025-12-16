@@ -21,8 +21,7 @@ describe('useHighlights', () => {
       removeCustomContent: vi.fn(),
       updateCustomContent: vi.fn(),
       findVocabCardByWord: vi.fn(),
-      addVocabCard: vi.fn(),
-      updateVocabDefinition: vi.fn()
+      addVocabCard: vi.fn()
     }
   })
 
@@ -171,7 +170,7 @@ describe('useHighlights', () => {
       expect(result).toBe(null)
     })
 
-    it('creates vocab card when adding highlight with note', () => {
+    it('creates vocab card with highlightId when adding highlight with note', () => {
       mockStore.findVocabCardByWord.mockReturnValue(null)
       const { addHighlightWithNote } = useHighlights(mockStore, () => currentMessage)
 
@@ -187,7 +186,8 @@ describe('useHighlights', () => {
         word: 'vocabulary',
         definition: '',
         context: '',
-        messageId: 'msg-1'
+        messageId: 'msg-1',
+        highlightId: 'mock-uuid-123'
       })
     })
 
@@ -259,7 +259,7 @@ describe('useHighlights', () => {
       expect(result).toBe(null)
     })
 
-    it('creates vocab card when adding question link with note', () => {
+    it('creates vocab card with highlightId when adding question link with note', () => {
       mockStore.findVocabCardByWord.mockReturnValue(null)
       const { addQuestionLink } = useHighlights(mockStore, () => currentMessage)
 
@@ -276,7 +276,8 @@ describe('useHighlights', () => {
         word: 'linked term',
         definition: '',
         context: '',
-        messageId: 'msg-1'
+        messageId: 'msg-1',
+        highlightId: 'mock-uuid-123'
       })
     })
 
@@ -310,8 +311,8 @@ describe('useHighlights', () => {
     })
   })
 
-  describe('updateHighlight - vocab card sync', () => {
-    it('creates vocab card when adding note to existing highlight', () => {
+  describe('updateHighlight - vocab card creation', () => {
+    it('creates vocab card with highlightId when adding note to existing highlight', () => {
       currentMessage.customContent = [
         { id: 'h1', type: 'highlight', text: 'existing word', startOffset: 0, endOffset: 13 }
       ]
@@ -326,7 +327,8 @@ describe('useHighlights', () => {
         word: 'existing word',
         definition: '',
         context: '',
-        messageId: 'msg-1'
+        messageId: 'msg-1',
+        highlightId: 'h1'
       })
     })
 
@@ -344,25 +346,25 @@ describe('useHighlights', () => {
         word: 'existing word',
         definition: '',
         context: '',
-        messageId: 'msg-1'
+        messageId: 'msg-1',
+        highlightId: 'h1'
       })
     })
 
-    it('updates existing vocab card definition when note content changes', () => {
+    it('does not create vocab card if one already exists for the word', () => {
       currentMessage.customContent = [
         { id: 'h1', type: 'highlight', text: 'existing word', startOffset: 0, endOffset: 13 }
       ]
       mockStore.findVocabCardByWord.mockReturnValue({ id: 'vocab-123' })
       const { updateHighlight } = useHighlights(mockStore, () => currentMessage)
 
-      updateHighlight('h1', { noteContent: 'updated definition' })
+      updateHighlight('h1', { noteContent: 'updated note' })
 
       expect(mockStore.findVocabCardByWord).toHaveBeenCalledWith('existing word')
-      expect(mockStore.updateVocabDefinition).toHaveBeenCalledWith('vocab-123', 'updated definition')
       expect(mockStore.addVocabCard).not.toHaveBeenCalled()
     })
 
-    it('does not sync vocab card when updating other properties', () => {
+    it('does not create vocab card when updating other properties', () => {
       currentMessage.customContent = [
         { id: 'h1', type: 'highlight', text: 'word', startOffset: 0, endOffset: 4 }
       ]
@@ -372,7 +374,6 @@ describe('useHighlights', () => {
 
       expect(mockStore.updateCustomContent).toHaveBeenCalled()
       expect(mockStore.addVocabCard).not.toHaveBeenCalled()
-      expect(mockStore.updateVocabDefinition).not.toHaveBeenCalled()
     })
   })
 

@@ -3020,4 +3020,150 @@ describe('ChatSidebar', () => {
       expect(chatStore.messagesById['child1']).toBeUndefined()
     })
   })
+
+  describe('SR Button', () => {
+    it('should render SR button in sidebar footer when not collapsed', () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: [{
+            id: 'chat1',
+            title: 'Test Chat',
+            questions: []
+          }],
+          currentChatId: 'chat1'
+        }
+      })
+
+      // Ensure sidebar is not collapsed
+      const sidebar = wrapper.find('.chat-sidebar')
+      expect(sidebar.classes()).not.toContain('collapsed')
+
+      // SR button should exist
+      const srButton = wrapper.find('.sr-button')
+      expect(srButton.exists()).toBe(true)
+      expect(srButton.text()).toContain('SR')
+    })
+
+    it('should not render SR button when sidebar is collapsed', async () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: [{
+            id: 'chat1',
+            title: 'Test Chat',
+            questions: []
+          }],
+          currentChatId: 'chat1'
+        }
+      })
+
+      // First verify SR button exists when not collapsed
+      expect(wrapper.find('.sr-button').exists()).toBe(true)
+
+      // Click collapse button to collapse sidebar
+      const collapseBtn = wrapper.find('.collapse-sidebar-button')
+      await collapseBtn.trigger('click')
+
+      // Verify sidebar is collapsed
+      const sidebar = wrapper.find('.chat-sidebar')
+      expect(sidebar.classes()).toContain('collapsed')
+
+      // SR button should not exist when collapsed
+      const srButton = wrapper.find('.sr-button')
+      expect(srButton.exists()).toBe(false)
+    })
+
+    it('should show badge with due count when cards are due', () => {
+      // Setup SR data with a due card
+      chatStore.srData = {
+        'msg1': {
+          messageId: 'msg1',
+          easiness: 2.5,
+          interval: 1,
+          repetitions: 0,
+          nextReviewDate: Date.now() - 1000 // Due in the past
+        }
+      }
+      chatStore.messagesById = {
+        'msg1': {
+          id: 'msg1',
+          question: 'Test Q',
+          response: 'Test R',
+          responseSummary: 'Summary'
+        }
+      }
+
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: [{
+            id: 'chat1',
+            title: 'Test Chat',
+            questions: [{ id: 'msg1', text: 'Test Q' }]
+          }],
+          currentChatId: 'chat1'
+        }
+      })
+
+      const badge = wrapper.find('.sr-badge')
+      expect(badge.exists()).toBe(true)
+      expect(badge.text()).toBe('1')
+    })
+
+    it('should not show badge when no cards are due', () => {
+      // Setup SR data with a card not due
+      chatStore.srData = {
+        'msg1': {
+          messageId: 'msg1',
+          easiness: 2.5,
+          interval: 1,
+          repetitions: 0,
+          nextReviewDate: Date.now() + 86400000 // Due tomorrow
+        }
+      }
+      chatStore.messagesById = {
+        'msg1': {
+          id: 'msg1',
+          question: 'Test Q',
+          response: 'Test R',
+          responseSummary: 'Summary'
+        }
+      }
+
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: [{
+            id: 'chat1',
+            title: 'Test Chat',
+            questions: [{ id: 'msg1', text: 'Test Q' }]
+          }],
+          currentChatId: 'chat1'
+        }
+      })
+
+      const badge = wrapper.find('.sr-badge')
+      expect(badge.exists()).toBe(false)
+    })
+
+    it('should open ReviewModal when SR button is clicked', async () => {
+      wrapper = mount(ChatSidebar, {
+        props: {
+          chats: [{
+            id: 'chat1',
+            title: 'Test Chat',
+            questions: []
+          }],
+          currentChatId: 'chat1'
+        }
+      })
+
+      // ReviewModal should not be visible initially
+      expect(wrapper.findComponent({ name: 'ReviewModal' }).props('visible')).toBe(false)
+
+      // Click SR button
+      const srButton = wrapper.find('.sr-button')
+      await srButton.trigger('click')
+
+      // ReviewModal should now be visible
+      expect(wrapper.findComponent({ name: 'ReviewModal' }).props('visible')).toBe(true)
+    })
+  })
 })

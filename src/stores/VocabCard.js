@@ -9,6 +9,7 @@ export default class VocabCard {
     definition = '',
     context = '',  // The context where the word was looked up (surrounding text)
     messageId = null,  // Reference to the message where the word was looked up
+    highlightId = null,  // Reference to the highlight/note containing the definition
     easiness = 2.5,
     interval = 1,
     repetitions = 0,
@@ -21,6 +22,7 @@ export default class VocabCard {
     this.definition = definition
     this.context = context
     this.messageId = messageId
+    this.highlightId = highlightId
     this.easiness = easiness
     this.interval = interval
     this.repetitions = repetitions
@@ -87,6 +89,7 @@ export default class VocabCard {
       definition: this.definition,
       context: this.context,
       messageId: this.messageId,
+      highlightId: this.highlightId,
       easiness: this.easiness,
       interval: this.interval,
       repetitions: this.repetitions,

@@ -391,7 +391,8 @@ const handleAddHighlightsToVocab = () => {
             word: content.text,
             definition: '',
             context: '',
-            messageId: message.id
+            messageId: message.id,
+            highlightId: content.id
           })
           added++
         }
