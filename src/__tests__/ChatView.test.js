@@ -31,6 +31,19 @@ vi.mock('../services/api.js', () => ({
     onChunk('Test response')
     return Promise.resolve()
   }),
+  sendChatMessageForFeature: vi.fn((featureType, messages, onChunk, signal) => {
+    // Simulate streaming response
+    onChunk('Test response')
+    return Promise.resolve()
+  }),
+  FeatureType: {
+    QUESTION: 'question',
+    DEEP_DIVE: 'deep_dive',
+    SUMMARY: 'summary',
+    EXPLAIN: 'explain',
+    DICTIONARY: 'dictionary',
+    SR_SUMMARY: 'sr_summary'
+  },
   fetchModels: vi.fn(() => Promise.resolve([
     { id: 'test-model', name: 'Test Model' }
   ])),
@@ -928,8 +941,8 @@ describe('ChatView', () => {
 
   describe('API Error Handling', () => {
     it('should display error and remove message when API call fails', async () => {
-      const { sendChatMessage } = await import('../services/api.js')
-      sendChatMessage.mockRejectedValueOnce(new Error('API Error'))
+      const { sendChatMessageForFeature } = await import('../services/api.js')
+      sendChatMessageForFeature.mockRejectedValueOnce(new Error('API Error'))
 
       const chat = chatStore.createNewChat()
       chatStore.currentChatId = chat.id

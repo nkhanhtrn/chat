@@ -1,6 +1,6 @@
 import { computed } from 'vue'
 import { useChatStore } from '../stores/chat.js'
-import { sendChatMessage } from '../services/api.js'
+import { sendChatMessageForFeature, FeatureType } from '../services/api.js'
 import { getSRSummaryPrompts } from '../services/extraPrompt.js'
 
 /**
@@ -27,13 +27,15 @@ export function useSpacedRepetition() {
   }
 
   // Generate response summary using LLM
+  // Note: model parameter kept for backward compatibility but not used (provider auto-selects)
   const generateResponseSummary = async (response, model) => {
     const messages = getSRSummaryPrompts(response)
 
     let summary = ''
     try {
-      await sendChatMessage(
-        model,
+      // Use feature-based provider selection (Cerebras preferred for SR summary)
+      await sendChatMessageForFeature(
+        FeatureType.SR_SUMMARY,
         messages,
         (chunk) => {
           summary += chunk
@@ -53,13 +55,19 @@ export function useSpacedRepetition() {
   // Initialize card with LLM-generated summary
   const initializeCardWithSummary = async (messageId, response, model) => {
     // Check if message exists
-    if (!chatStore.messagesById[messageId]) {
+    const message = chatStore.messagesById[messageId]
+    if (!message) {
       console.warn('initializeCardWithSummary: Message not found:', messageId)
       return null
     }
 
     // Initialize SR card
     chatStore.initializeSRCard(messageId)
+
+    // If message already has a summary, skip API call
+    if (message.responseSummary) {
+      return message.responseSummary
+    }
 
     // Generate summary and save to message
     const summary = await generateResponseSummary(response, model)

@@ -1279,7 +1279,7 @@ describe('ChatMessage context menu integration', () => {
 
       // Mock chat service
       const mockChatService = {
-        sendMessage: vi.fn((_model, _messages, callback) => {
+        sendMessageForFeature: vi.fn((_featureType, _messages, callback) => {
           if (callback) callback('New explanation')
           return Promise.resolve('New explanation')
         })
@@ -1325,7 +1325,7 @@ describe('ChatMessage context menu integration', () => {
 
       // Mock chat service
       const mockChatService = {
-        sendMessage: vi.fn((_model, _messages, callback) => {
+        sendMessageForFeature: vi.fn((_featureType, _messages, callback) => {
           if (callback) callback('New explanation')
           return Promise.resolve('New explanation')
         })
@@ -1421,7 +1421,7 @@ describe('ChatMessage context menu integration', () => {
 
       // Create mock chat service that rejects
       const mockChatService = {
-        sendMessage: vi.fn().mockRejectedValue(new Error('API Error'))
+        sendMessageForFeature: vi.fn().mockRejectedValue(new Error('API Error'))
       }
 
       wrapper = mount(ChatMessage, {
@@ -1457,7 +1457,7 @@ describe('ChatMessage context menu integration', () => {
 
       // Create mock chat service
       const mockChatService = {
-        sendMessage: vi.fn((model, messages, callback) => {
+        sendMessageForFeature: vi.fn((_featureType, _messages, callback) => {
           callback('Hello ')
           callback('World')
           return Promise.resolve('Hello World')
@@ -1888,7 +1888,7 @@ describe('ChatMessage context menu integration', () => {
 
       // Create mock chat service
       const mockChatService = {
-        sendMessage: vi.fn((_model, _messages, callback) => {
+        sendMessageForFeature: vi.fn((_featureType, _messages, callback) => {
           if (callback) callback('Quick explanation')
           return Promise.resolve('Quick explanation')
         })
@@ -2501,7 +2501,7 @@ describe('ChatMessage context menu integration', () => {
 
       // Create mock chat service
       const mockChatService = {
-        sendMessage: vi.fn((model, messages, callback) => {
+        sendMessageForFeature: vi.fn((_featureType, _messages, callback) => {
           callback('**Spelling**: ')
           callback('word')
           return Promise.resolve('**Spelling**: word')
@@ -2571,7 +2571,7 @@ describe('ChatMessage context menu integration', () => {
 
       // Create mock chat service that rejects
       const mockChatService = {
-        sendMessage: vi.fn().mockRejectedValue(new Error('API Error'))
+        sendMessageForFeature: vi.fn().mockRejectedValue(new Error('API Error'))
       }
 
       wrapper = mount(ChatMessage, {

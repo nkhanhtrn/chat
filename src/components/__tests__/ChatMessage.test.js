@@ -341,7 +341,8 @@ describe('ChatMessage', () => {
 
       // Mock chat service that rejects
       const mockChatService = {
-        sendMessage: vi.fn().mockRejectedValue(new Error('Test error!'))
+        sendMessage: vi.fn().mockRejectedValue(new Error('Test error!')),
+        sendMessageForFeature: vi.fn().mockRejectedValue(new Error('Test error!'))
       }
 
       wrapper = mount(ChatMessage, {

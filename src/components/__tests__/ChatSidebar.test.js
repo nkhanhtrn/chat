@@ -24,7 +24,17 @@ vi.mock('../../services/api.js', () => ({
   fetchModels: vi.fn(() => Promise.resolve([
     { id: 'model-1', name: 'Test Model 1' }
   ])),
-  initProvider: vi.fn(() => Promise.resolve())
+  initProvider: vi.fn(() => Promise.resolve()),
+  sendChatMessage: vi.fn(),
+  sendChatMessageForFeature: vi.fn(),
+  FeatureType: {
+    QUESTION: 'question',
+    DEEP_DIVE: 'deep_dive',
+    SUMMARY: 'summary',
+    EXPLAIN: 'explain',
+    DICTIONARY: 'dictionary',
+    SR_SUMMARY: 'sr_summary'
+  }
 }))
 
 // Mock firestore to prevent real network calls

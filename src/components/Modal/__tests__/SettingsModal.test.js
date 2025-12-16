@@ -18,7 +18,17 @@ vi.mock('../../../services/api.js', () => ({
     { id: 'model-1', name: 'Test Model 1' },
     { id: 'model-2', name: 'Test Model 2' }
   ])),
-  initProvider: vi.fn(() => Promise.resolve())
+  initProvider: vi.fn(() => Promise.resolve()),
+  sendChatMessage: vi.fn(),
+  sendChatMessageForFeature: vi.fn(),
+  FeatureType: {
+    QUESTION: 'question',
+    DEEP_DIVE: 'deep_dive',
+    SUMMARY: 'summary',
+    EXPLAIN: 'explain',
+    DICTIONARY: 'dictionary',
+    SR_SUMMARY: 'sr_summary'
+  }
 }))
 
 // Mock firestore to prevent real network calls
@@ -58,8 +68,7 @@ const mockChatStore = {
   vocabData: {
     'vocab-1': { word: 'test', definition: 'a test word', easiness: 2.5, createdAt: 1700000002000 }
   },
-  _persistState: vi.fn(),
-  _syncSRDataWithMessages: vi.fn()
+  _persistState: vi.fn()
 }
 
 vi.mock('../../../stores/chat.js', () => ({

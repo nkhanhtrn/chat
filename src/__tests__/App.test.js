@@ -23,6 +23,15 @@ vi.mock('vue-router', () => ({
 vi.mock('../services/api.js', () => ({
   fetchModels: vi.fn(),
   sendChatMessage: vi.fn(),
+  sendChatMessageForFeature: vi.fn(),
+  FeatureType: {
+    QUESTION: 'question',
+    DEEP_DIVE: 'deep_dive',
+    SUMMARY: 'summary',
+    EXPLAIN: 'explain',
+    DICTIONARY: 'dictionary',
+    SR_SUMMARY: 'sr_summary'
+  },
   listProviders: vi.fn(() => [
     { id: 'lmstudio', name: 'LM Studio', requiresApiKey: false },
     { id: 'google', name: 'Google AI Studio', requiresApiKey: true }
@@ -35,7 +44,7 @@ vi.mock('../services/api.js', () => ({
   initProvider: vi.fn()
 }))
 
-import { fetchModels, sendChatMessage } from '../services/api.js'
+import { fetchModels, sendChatMessage, sendChatMessageForFeature } from '../services/api.js'
 
 // Mock loadChatState to always return null for clean state
 vi.mock('../services/storage.js', async (importOriginal) => {
@@ -100,7 +109,7 @@ describe('ChatView', () => {
       { id: 'test-model-2' }
     ])
 
-    sendChatMessage.mockImplementation((messages, model, onChunk) => {
+    sendChatMessageForFeature.mockImplementation((_featureType, _messages, onChunk) => {
       if (onChunk) {
         // Simulate streaming
         setTimeout(() => {
@@ -289,7 +298,7 @@ describe('ChatView', () => {
 
     it('should pass isStreaming prop to last message', async () => {
       let resolveMessage
-      sendChatMessage.mockImplementation(() => {
+      sendChatMessageForFeature.mockImplementation(() => {
         return new Promise((resolve) => {
           resolveMessage = resolve
         })
@@ -327,7 +336,7 @@ describe('ChatView', () => {
 
   describe('Error Handling', () => {
     it('should display error message when sendChatMessage fails', async () => {
-      sendChatMessage.mockRejectedValue(new Error('API Error'))
+      sendChatMessageForFeature.mockRejectedValue(new Error('API Error'))
 
       wrapper = mount(ChatView, {
         global: {
@@ -351,7 +360,7 @@ describe('ChatView', () => {
 
 
     it('should clear error when sending new message', async () => {
-      sendChatMessage.mockRejectedValueOnce(new Error('First error'))
+      sendChatMessageForFeature.mockRejectedValueOnce(new Error('First error'))
         .mockResolvedValueOnce('Success')
 
       wrapper = mount(ChatView, {
@@ -613,8 +622,8 @@ describe('ChatView', () => {
       await examplePrompts[0].trigger('click')
       await flushPromises()
 
-      // Should have called sendChatMessage
-      expect(sendChatMessage).toHaveBeenCalled()
+      // Should have called sendChatMessageForFeature
+      expect(sendChatMessageForFeature).toHaveBeenCalled()
     })
 
     it('should render all prepopulated questions', async () => {
@@ -711,15 +720,15 @@ describe('ChatView', () => {
       await firstPrompt.trigger('click')
       await flushPromises()
 
-      // Verify sendChatMessage was called
-      expect(sendChatMessage).toHaveBeenCalled()
+      // Verify sendChatMessageForFeature was called
+      expect(sendChatMessageForFeature).toHaveBeenCalled()
     })
   })
 
   describe('handleSendMessage streaming behavior', () => {
     it('should return false when already streaming', async () => {
       let resolveMessage
-      sendChatMessage.mockImplementation(() => {
+      sendChatMessageForFeature.mockImplementation(() => {
         return new Promise((resolve) => {
           resolveMessage = resolve
         })
@@ -743,8 +752,8 @@ describe('ChatView', () => {
       chatInput.vm.$emit('send', 'Second message')
       await wrapper.vm.$nextTick()
 
-      // Should have only called sendChatMessage once
-      expect(sendChatMessage).toHaveBeenCalledTimes(1)
+      // Should have only called sendChatMessageForFeature once
+      expect(sendChatMessageForFeature).toHaveBeenCalledTimes(1)
 
       resolveMessage('Response')
       await flushPromises()
@@ -765,8 +774,8 @@ describe('ChatView', () => {
       chatInput.vm.$emit('send', '')
       await wrapper.vm.$nextTick()
 
-      // Should not have called sendChatMessage
-      expect(sendChatMessage).not.toHaveBeenCalled()
+      // Should not have called sendChatMessageForFeature
+      expect(sendChatMessageForFeature).not.toHaveBeenCalled()
     })
 
     it('should return false when message is only whitespace', async () => {
@@ -784,8 +793,8 @@ describe('ChatView', () => {
       chatInput.vm.$emit('send', '   ')
       await wrapper.vm.$nextTick()
 
-      // Should not have called sendChatMessage
-      expect(sendChatMessage).not.toHaveBeenCalled()
+      // Should not have called sendChatMessageForFeature
+      expect(sendChatMessageForFeature).not.toHaveBeenCalled()
     })
 
     it('should prevent multiple messages during streaming', async () => {
@@ -811,8 +820,8 @@ describe('ChatView', () => {
       expect(result1).toBe(false)
       expect(result2).toBe(false)
 
-      // sendChatMessage should not have been called
-      expect(sendChatMessage).not.toHaveBeenCalled()
+      // sendChatMessageForFeature should not have been called
+      expect(sendChatMessageForFeature).not.toHaveBeenCalled()
 
       // End streaming
       chatStore.setIsStreaming(false)
@@ -822,7 +831,7 @@ describe('ChatView', () => {
       await wrapper.vm.$nextTick()
 
       // Should have been called once now
-      expect(sendChatMessage).toHaveBeenCalledTimes(1)
+      expect(sendChatMessageForFeature).toHaveBeenCalledTimes(1)
     })
   })
 

@@ -148,53 +148,6 @@ describe('Chat Store - Spaced Repetition', () => {
     })
   })
 
-  describe('_cleanupSRData', () => {
-    it('removes SR data for deleted messages', () => {
-      store.messagesById = {
-        'msg-1': new Message({ id: 'msg-1', question: 'Q', response: 'R' })
-      }
-      store.srData = {
-        'msg-1': new SRCard({ messageId: 'msg-1' }),
-        'msg-2': new SRCard({ messageId: 'msg-2' }) // No message exists
-      }
-      addMessageToChat('msg-1')
-
-      store._cleanupSRData()
-
-      expect(store.srData['msg-1']).toBeDefined()
-      expect(store.srData['msg-2']).toBeUndefined()
-    })
-
-    it('does not remove SR data when all messages exist and are in chat', () => {
-      store.messagesById = {
-        'msg-1': new Message({ id: 'msg-1', question: 'Q', response: 'R' })
-      }
-      store.srData = {
-        'msg-1': new SRCard({ messageId: 'msg-1' })
-      }
-      addMessageToChat('msg-1')
-
-      const srDataBefore = { ...store.srData }
-      store._cleanupSRData()
-
-      expect(Object.keys(store.srData)).toEqual(Object.keys(srDataBefore))
-    })
-
-    it('removes SR data for messages not in any chat tree', () => {
-      store.messagesById = {
-        'msg-1': new Message({ id: 'msg-1', question: 'Q', response: 'R' })
-      }
-      store.srData = {
-        'msg-1': new SRCard({ messageId: 'msg-1' })
-      }
-      // Don't add to chat - message is orphaned
-
-      store._cleanupSRData()
-
-      expect(store.srData['msg-1']).toBeUndefined()
-    })
-  })
-
   describe('cardsDueForReview getter', () => {
     beforeEach(() => {
       vi.useFakeTimers()

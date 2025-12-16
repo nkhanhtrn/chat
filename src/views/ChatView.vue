@@ -98,7 +98,7 @@ import MobileFooter from '../components/MobileFooter.vue'
 import NotebookOverview from '../components/NotebookOverview.vue'
 import Scratchpad from '../components/Scratchpad.vue'
 import SlideTransition from '../components/SlideTransition.vue'
-import { sendChatMessage, fetchModels } from '../services/api.js'
+import { sendChatMessageForFeature, FeatureType, fetchModels } from '../services/api.js'
 import { useChatStore } from '../stores/chat.js'
 import DevToolbar from '../components/DevToolbar.vue'
 import { getIsDev, getDefaultQuestions } from '../composables/useEnvironment.js'
@@ -284,15 +284,19 @@ const handleSendMessage = async (userMessage, contextQuestions = []) => {
 
   // check if this is the first message in the chat to set as summary
   let messages;
+  let featureType;
   if (chatStore.rootMessageIds.length === 1) {
     messages = getMainPrompts(`[NEWTOPIC] ${msg.question}`, [], contextQuestions)
+    featureType = FeatureType.QUESTION
   } else {
     messages = getMainPrompts(`[DEEPDIVE] ${msg.question}`, previousMessages, contextQuestions);
+    featureType = FeatureType.DEEP_DIVE
   }
   console.log("Final message to send:", messages);
   try {
-    await sendChatMessage(
-      chatStore.currentModel,
+    // Use feature-based provider selection (Google AI preferred for question/deep dive)
+    await sendChatMessageForFeature(
+      featureType,
       messages,
       (chunk) => {
         // Update the message response through the store

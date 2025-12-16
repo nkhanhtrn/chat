@@ -288,6 +288,7 @@ describe('VocabCard', () => {
         definition: 'lasting for a very short time',
         context: '...the ephemeral...',
         messageId: 'msg-1',
+        highlightId: null,
         easiness: 2.3,
         interval: 6,
         repetitions: 2,

@@ -14,10 +14,40 @@ const providers = {
   cerebras: cerebrasProvider
 }
 
+// Feature types for provider preference
+export const FeatureType = {
+  QUESTION: 'question',
+  DEEP_DIVE: 'deep_dive',
+  SUMMARY: 'summary',
+  EXPLAIN: 'explain',
+  DICTIONARY: 'dictionary',
+  SR_SUMMARY: 'sr_summary'
+}
+
+// Provider preferences by feature (production only)
+// Google AI: question, deep_dive
+// Cerebras: summary, explain
+// Fallback: lmstudio (local)
+const featureProviderPreference = {
+  [FeatureType.QUESTION]: ['google', 'lmstudio'],
+  [FeatureType.DEEP_DIVE]: ['google', 'lmstudio'],
+  [FeatureType.SUMMARY]: ['cerebras', 'lmstudio'],
+  [FeatureType.EXPLAIN]: ['cerebras', 'lmstudio'],
+  [FeatureType.DICTIONARY]: ['cerebras', 'lmstudio'],
+  [FeatureType.SR_SUMMARY]: ['cerebras', 'lmstudio']
+}
+
+// Check if running in development mode
+const isDev = () => {
+  return import.meta.env?.DEV || import.meta.env?.MODE === 'development'
+}
+
 // Current provider state
 let currentProviderId = 'lmstudio'
 let currentConfig = {}
 let firestoreInitialized = false
+// Store configs for all providers (loaded from Firestore)
+let allProviderConfigs = {}
 
 /**
  * Initialize provider from Firestore (uses cached settings)
@@ -34,9 +64,16 @@ export const initProvider = async () => {
       currentProviderId = settings.llmProvider
     }
 
+    // Store all provider configs for feature-based provider selection
+    allProviderConfigs = settings?.providerConfigs || {}
+    // Also check legacy llmConfig
+    if (settings?.llmConfig && !allProviderConfigs[currentProviderId]) {
+      allProviderConfigs[currentProviderId] = settings.llmConfig
+    }
+
     // Load provider-specific config, filtering to only relevant keys
     const provider = providers[currentProviderId]
-    const savedConfig = settings?.providerConfigs?.[currentProviderId] || settings?.llmConfig || {}
+    const savedConfig = allProviderConfigs[currentProviderId] || {}
     const config = {}
 
     // Only load keys that are relevant for this provider type
@@ -160,6 +197,93 @@ export const fetchModels = async () => {
 export const sendChatMessage = async (model, messages, onChunk = null, signal = null) => {
   const provider = getCurrentProvider()
   return provider.sendMessage(model, messages, onChunk, signal, currentConfig)
+}
+
+/**
+ * Get config for a specific provider
+ * @param {string} providerId
+ * @returns {Object}
+ */
+const getProviderConfig = (providerId) => {
+  const provider = providers[providerId]
+  if (!provider) return {}
+
+  const savedConfig = allProviderConfigs[providerId] || {}
+  const config = {}
+
+  if (provider.requiresApiKey && savedConfig.apiKey) {
+    config.apiKey = savedConfig.apiKey
+  }
+  if (!provider.requiresApiKey && savedConfig.baseUrl) {
+    config.baseUrl = savedConfig.baseUrl
+  }
+
+  return config
+}
+
+/**
+ * Check if a provider is available (has required config)
+ * @param {string} providerId
+ * @returns {boolean}
+ */
+const isProviderAvailable = (providerId) => {
+  const provider = providers[providerId]
+  if (!provider) return false
+
+  // LM Studio (local) is always "available" - connection tested at runtime
+  if (!provider.requiresApiKey) return true
+
+  // Cloud providers need API key
+  const config = getProviderConfig(providerId)
+  return !!config.apiKey
+}
+
+/**
+ * Send a chat message with feature-based provider selection
+ * In dev: always use Local LM (lmstudio)
+ * In prod: use preferred provider for feature, fallback to lmstudio
+ *
+ * @param {string} featureType - One of FeatureType values
+ * @param {Array<{role: string, content: string}>} messages
+ * @param {Function|null} onChunk - Callback for streaming chunks
+ * @param {AbortSignal|null} signal - Abort signal for cancellation
+ * @returns {Promise<string|null>}
+ */
+export const sendChatMessageForFeature = async (featureType, messages, onChunk = null, signal = null) => {
+  // In dev mode, always use local LM Studio
+  if (isDev()) {
+    const provider = providers.lmstudio
+    const config = getProviderConfig('lmstudio')
+    // Use first available model or a placeholder
+    const models = await provider.fetchModels(config).catch(() => [])
+    const model = models[0]?.id || 'local-model'
+    return provider.sendMessage(model, messages, onChunk, signal, config)
+  }
+
+  // In production, use feature-based provider preference with fallback
+  const preferenceList = featureProviderPreference[featureType] || ['lmstudio']
+
+  for (const providerId of preferenceList) {
+    if (!isProviderAvailable(providerId)) continue
+
+    const provider = providers[providerId]
+    const config = getProviderConfig(providerId)
+
+    try {
+      // Get model for this provider
+      const models = await provider.fetchModels(config).catch(() => [])
+      if (models.length === 0) continue
+
+      const model = models[0].id
+      return await provider.sendMessage(model, messages, onChunk, signal, config)
+    } catch (error) {
+      console.warn(`Provider ${providerId} failed for feature ${featureType}:`, error.message)
+      // Continue to next provider in preference list
+    }
+  }
+
+  // All providers failed, throw error
+  throw new Error(`No available provider for feature: ${featureType}`)
 }
 
 // Note: initProvider() must be called explicitly after auth is ready

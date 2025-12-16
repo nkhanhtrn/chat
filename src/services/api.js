@@ -5,6 +5,8 @@
 export {
   fetchModels,
   sendChatMessage,
+  sendChatMessageForFeature,
+  FeatureType,
   listProviders,
   getCurrentProviderId,
   getCurrentConfig,

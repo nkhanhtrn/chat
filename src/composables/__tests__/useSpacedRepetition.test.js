@@ -5,7 +5,16 @@ import { useChatStore } from '../../stores/chat.js'
 import * as api from '../../services/api.js'
 
 vi.mock('../../services/api.js', () => ({
-  sendChatMessage: vi.fn()
+  sendChatMessage: vi.fn(),
+  sendChatMessageForFeature: vi.fn(),
+  FeatureType: {
+    QUESTION: 'question',
+    DEEP_DIVE: 'deep_dive',
+    SUMMARY: 'summary',
+    EXPLAIN: 'explain',
+    DICTIONARY: 'dictionary',
+    SR_SUMMARY: 'sr_summary'
+  }
 }))
 
 describe('useSpacedRepetition', () => {
@@ -54,8 +63,8 @@ describe('useSpacedRepetition', () => {
   })
 
   describe('generateResponseSummary', () => {
-    it('calls sendChatMessage with correct prompts', async () => {
-      api.sendChatMessage.mockImplementation(async (model, messages, onChunk) => {
+    it('calls sendChatMessageForFeature with correct feature type', async () => {
+      api.sendChatMessageForFeature.mockImplementation(async (featureType, messages, onChunk) => {
         onChunk('Summary ')
         onChunk('text')
       })
@@ -63,12 +72,16 @@ describe('useSpacedRepetition', () => {
       const { generateResponseSummary } = useSpacedRepetition()
       const result = await generateResponseSummary('Test response', 'gpt-4')
 
-      expect(api.sendChatMessage).toHaveBeenCalled()
+      expect(api.sendChatMessageForFeature).toHaveBeenCalledWith(
+        'sr_summary',
+        expect.any(Array),
+        expect.any(Function)
+      )
       expect(result).toBe('Summary text')
     })
 
     it('returns fallback on API error', async () => {
-      api.sendChatMessage.mockRejectedValue(new Error('API Error'))
+      api.sendChatMessageForFeature.mockRejectedValue(new Error('API Error'))
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
       const { generateResponseSummary } = useSpacedRepetition()
@@ -79,7 +92,7 @@ describe('useSpacedRepetition', () => {
     })
 
     it('truncates long fallback to 200 chars', async () => {
-      api.sendChatMessage.mockRejectedValue(new Error('API Error'))
+      api.sendChatMessageForFeature.mockRejectedValue(new Error('API Error'))
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
       const longText = 'A'.repeat(300) + '\n\nSecond paragraph'
@@ -98,7 +111,7 @@ describe('useSpacedRepetition', () => {
         'msg-1': { id: 'msg-1', question: 'Q1', response: 'Response text' }
       }
 
-      api.sendChatMessage.mockImplementation(async (model, messages, onChunk) => {
+      api.sendChatMessageForFeature.mockImplementation(async (featureType, messages, onChunk) => {
         onChunk('Generated summary')
       })
 
@@ -118,7 +131,7 @@ describe('useSpacedRepetition', () => {
         'msg-1': { id: 'msg-1', question: 'Q1', response: 'Response text' }
       }
 
-      api.sendChatMessage.mockImplementation(async (model, messages, onChunk) => {
+      api.sendChatMessageForFeature.mockImplementation(async (featureType, messages, onChunk) => {
         onChunk('Generated summary')
       })
 
@@ -133,6 +146,27 @@ describe('useSpacedRepetition', () => {
       const result = await initializeCardWithSummary('non-existent', 'Response text', 'gpt-4')
 
       expect(result).toBeNull()
+    })
+
+    it('returns existing summary without API call if message already has responseSummary', async () => {
+      // Set up message with existing summary
+      chatStore.messagesById = {
+        'msg-1': { id: 'msg-1', question: 'Q1', response: 'Response text', responseSummary: 'Existing summary' }
+      }
+
+      const initSpy = vi.spyOn(chatStore, 'initializeSRCard')
+      const updateSpy = vi.spyOn(chatStore, 'updateSRResponseSummary')
+
+      const { initializeCardWithSummary } = useSpacedRepetition()
+      const result = await initializeCardWithSummary('msg-1', 'Response text', 'gpt-4')
+
+      // Should still initialize the SR card
+      expect(initSpy).toHaveBeenCalledWith('msg-1')
+      // Should NOT call API or update summary
+      expect(api.sendChatMessageForFeature).not.toHaveBeenCalled()
+      expect(updateSpy).not.toHaveBeenCalled()
+      // Should return the existing summary
+      expect(result).toBe('Existing summary')
     })
   })
 
@@ -220,7 +254,7 @@ describe('useSpacedRepetition', () => {
   describe('initializeAllExisting', () => {
     beforeEach(() => {
       vi.useFakeTimers()
-      api.sendChatMessage.mockImplementation(async (model, messages, onChunk) => {
+      api.sendChatMessageForFeature.mockImplementation(async (featureType, messages, onChunk) => {
         onChunk('Summary')
       })
     })
@@ -529,7 +563,7 @@ describe('useSpacedRepetition', () => {
   describe('generateSummariesForNotebook', () => {
     beforeEach(() => {
       vi.useFakeTimers()
-      api.sendChatMessage.mockImplementation(async (model, messages, onChunk) => {
+      api.sendChatMessageForFeature.mockImplementation(async (featureType, messages, onChunk) => {
         onChunk('Generated summary')
       })
     })
