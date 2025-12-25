@@ -1021,7 +1021,7 @@ describe('SettingsModal', () => {
 
       const apiKeyInput = findInBody('.api-key-input')
       expect(apiKeyInput).toBeTruthy()
-      expect(apiKeyInput.getAttribute('placeholder')).toBe('Enter API key')
+      expect(apiKeyInput.getAttribute('placeholder')).toBe('API key 1')
     })
 
     it('should show base URL input for LM Studio', async () => {
@@ -1042,7 +1042,7 @@ describe('SettingsModal', () => {
       expect(apiKeyInput.getAttribute('placeholder')).toBe('http://localhost:1234')
     })
 
-    it('should toggle API key visibility', async () => {
+    it('should render API key input as password type', async () => {
       wrapper = mount(SettingsModal, {
         props: {
           modelValue: true
@@ -1060,16 +1060,7 @@ describe('SettingsModal', () => {
       await wrapper.vm.$nextTick()
 
       const apiKeyInput = findInBody('.api-key-input')
-      const toggleBtn = findInBody('.toggle-visibility-btn')
-
       expect(apiKeyInput.getAttribute('type')).toBe('password')
-      expect(toggleBtn.textContent).toBe('Show')
-
-      toggleBtn.click()
-      await wrapper.vm.$nextTick()
-
-      expect(apiKeyInput.getAttribute('type')).toBe('text')
-      expect(toggleBtn.textContent).toBe('Hide')
     })
 
     it('should show API key hint with link for Google provider', async () => {
@@ -1188,7 +1179,7 @@ describe('SettingsModal', () => {
       expect(saveUserSettings).toHaveBeenCalledWith(
         expect.objectContaining({
           providerConfigs: expect.objectContaining({
-            google: expect.objectContaining({ apiKey: 'new-google-key' })
+            google: expect.objectContaining({ apiKeys: ['new-google-key'] })
           })
         })
       )

@@ -77,8 +77,12 @@ export const initProvider = async () => {
     const config = {}
 
     // Only load keys that are relevant for this provider type
-    if (provider?.requiresApiKey && savedConfig.apiKey) {
-      config.apiKey = savedConfig.apiKey
+    if (provider?.requiresApiKey) {
+      if (savedConfig.apiKeys) {
+        config.apiKeys = savedConfig.apiKeys
+      } else if (savedConfig.apiKey) {
+        config.apiKey = savedConfig.apiKey
+      }
     }
     if (!provider?.requiresApiKey && savedConfig.baseUrl) {
       config.baseUrl = savedConfig.baseUrl
@@ -138,8 +142,12 @@ export const setProvider = (providerId, config = {}) => {
   // Build clean config with only provider-relevant keys
   // This prevents baseUrl from LM Studio leaking to Cerebras, etc.
   const cleanConfig = {}
-  if (provider.requiresApiKey && config.apiKey) {
-    cleanConfig.apiKey = config.apiKey
+  if (provider.requiresApiKey) {
+    if (config.apiKeys) {
+      cleanConfig.apiKeys = config.apiKeys
+    } else if (config.apiKey) {
+      cleanConfig.apiKey = config.apiKey
+    }
   }
   if (!provider.requiresApiKey && config.baseUrl) {
     cleanConfig.baseUrl = config.baseUrl
@@ -211,8 +219,12 @@ const getProviderConfig = (providerId) => {
   const savedConfig = allProviderConfigs[providerId] || {}
   const config = {}
 
-  if (provider.requiresApiKey && savedConfig.apiKey) {
-    config.apiKey = savedConfig.apiKey
+  if (provider.requiresApiKey) {
+    if (savedConfig.apiKeys) {
+      config.apiKeys = savedConfig.apiKeys
+    } else if (savedConfig.apiKey) {
+      config.apiKey = savedConfig.apiKey
+    }
   }
   if (!provider.requiresApiKey && savedConfig.baseUrl) {
     config.baseUrl = savedConfig.baseUrl
@@ -233,9 +245,9 @@ const isProviderAvailable = (providerId) => {
   // LM Studio (local) is always "available" - connection tested at runtime
   if (!provider.requiresApiKey) return true
 
-  // Cloud providers need API key
+  // Cloud providers need API key(s)
   const config = getProviderConfig(providerId)
-  return !!config.apiKey
+  return !!(config.apiKey || (config.apiKeys && config.apiKeys.length > 0))
 }
 
 /**

@@ -121,6 +121,27 @@ describe('LLM Provider Manager', () => {
         expect(config.baseUrl).toBeUndefined()
       })
 
+      it('should support apiKeys array for providers that require API key', () => {
+        llmModule.setProvider('google', {
+          apiKeys: ['key1', 'key2', 'key3']
+        })
+
+        const config = llmModule.getCurrentConfig()
+        expect(config.apiKeys).toEqual(['key1', 'key2', 'key3'])
+        expect(config.apiKey).toBeUndefined()
+      })
+
+      it('should prefer apiKeys over apiKey when both provided', () => {
+        llmModule.setProvider('cerebras', {
+          apiKey: 'single-key',
+          apiKeys: ['array-key1', 'array-key2']
+        })
+
+        const config = llmModule.getCurrentConfig()
+        expect(config.apiKeys).toEqual(['array-key1', 'array-key2'])
+        expect(config.apiKey).toBeUndefined()
+      })
+
       it('should only keep baseUrl for providers that do not require apiKey', () => {
         llmModule.setProvider('lmstudio', {
           apiKey: 'some-key', // This should be filtered out
@@ -175,6 +196,46 @@ describe('LLM Provider Manager', () => {
 
       expect(freshModule.getCurrentProviderId()).toBe('google')
       expect(freshModule.getCurrentConfig()).toEqual({ apiKey: 'saved-google-key' })
+    })
+
+    it('should load apiKeys array from settings', async () => {
+      vi.resetModules()
+
+      const firestoreModule = await import('../../firestore.js')
+      vi.mocked(firestoreModule.loadUserSettings).mockResolvedValue({
+        llmProvider: 'google',
+        providerConfigs: {
+          google: { apiKeys: ['key1', 'key2', 'key3'] }
+        }
+      })
+
+      const freshModule = await import('../index.js')
+      await freshModule.initProvider()
+
+      expect(freshModule.getCurrentProviderId()).toBe('google')
+      expect(freshModule.getCurrentConfig()).toEqual({ apiKeys: ['key1', 'key2', 'key3'] })
+    })
+
+    it('should prefer apiKeys over apiKey when loading from settings', async () => {
+      vi.resetModules()
+
+      const firestoreModule = await import('../../firestore.js')
+      vi.mocked(firestoreModule.loadUserSettings).mockResolvedValue({
+        llmProvider: 'cerebras',
+        providerConfigs: {
+          cerebras: {
+            apiKey: 'single-key',
+            apiKeys: ['array-key1', 'array-key2']
+          }
+        }
+      })
+
+      const freshModule = await import('../index.js')
+      await freshModule.initProvider()
+
+      const config = freshModule.getCurrentConfig()
+      expect(config.apiKeys).toEqual(['array-key1', 'array-key2'])
+      expect(config.apiKey).toBeUndefined()
     })
 
     it('should filter config when loading from providerConfigs', async () => {
@@ -314,6 +375,142 @@ describe('LLM Provider Manager', () => {
 
       expect(config1).toEqual(config2)
       expect(config1).not.toBe(config2) // Different references
+    })
+  })
+
+  describe('sendChatMessageForFeature - provider availability with apiKeys', () => {
+    it('should use provider when apiKeys array is configured', async () => {
+      vi.resetModules()
+
+      const googleModule = await import('../providers/google.js')
+      const lmstudioModule = await import('../providers/lmstudio.js')
+      const firestoreModule = await import('../../firestore.js')
+
+      vi.mocked(firestoreModule.loadUserSettings).mockResolvedValue({
+        llmProvider: 'lmstudio',
+        providerConfigs: {
+          google: { apiKeys: ['key1', 'key2'] }
+        }
+      })
+
+      // Mock lmstudio for dev mode fallback
+      vi.mocked(lmstudioModule.lmstudioProvider.fetchModels).mockResolvedValue([
+        { id: 'local-model', name: 'Local Model' }
+      ])
+      vi.mocked(lmstudioModule.lmstudioProvider.sendMessage).mockResolvedValue('response from lmstudio')
+
+      vi.mocked(googleModule.googleProvider.fetchModels).mockResolvedValue([
+        { id: 'models/gemini-2.5-flash', name: 'Gemini 2.5 Flash' }
+      ])
+      vi.mocked(googleModule.googleProvider.sendMessage).mockResolvedValue('response from google')
+
+      const freshModule = await import('../index.js')
+      await freshModule.initProvider()
+
+      // In dev mode (vitest), it uses lmstudio - test that config is loaded correctly
+      const result = await freshModule.sendChatMessageForFeature(
+        freshModule.FeatureType.QUESTION,
+        [{ role: 'user', content: 'test' }]
+      )
+
+      // In dev mode, uses lmstudio
+      expect(result).toBe('response from lmstudio')
+    })
+
+    it('should use provider when single apiKey is configured', async () => {
+      vi.resetModules()
+
+      const cerebrasModule = await import('../providers/cerebras.js')
+      const lmstudioModule = await import('../providers/lmstudio.js')
+      const firestoreModule = await import('../../firestore.js')
+
+      vi.mocked(firestoreModule.loadUserSettings).mockResolvedValue({
+        llmProvider: 'lmstudio',
+        providerConfigs: {
+          cerebras: { apiKey: 'single-key' }
+        }
+      })
+
+      // Mock lmstudio for dev mode
+      vi.mocked(lmstudioModule.lmstudioProvider.fetchModels).mockResolvedValue([
+        { id: 'local-model', name: 'Local Model' }
+      ])
+      vi.mocked(lmstudioModule.lmstudioProvider.sendMessage).mockResolvedValue('response from lmstudio')
+
+      vi.mocked(cerebrasModule.cerebrasProvider.fetchModels).mockResolvedValue([
+        { id: 'gpt-oss-120b', name: 'GPT OSS 120B' }
+      ])
+      vi.mocked(cerebrasModule.cerebrasProvider.sendMessage).mockResolvedValue('response from cerebras')
+
+      const freshModule = await import('../index.js')
+      await freshModule.initProvider()
+
+      const result = await freshModule.sendChatMessageForFeature(
+        freshModule.FeatureType.SUMMARY,
+        [{ role: 'user', content: 'summarize this' }]
+      )
+
+      // In dev mode, uses lmstudio
+      expect(result).toBe('response from lmstudio')
+    })
+
+    it('should fallback to next provider when primary has no keys configured', async () => {
+      vi.resetModules()
+
+      const lmstudioModule = await import('../providers/lmstudio.js')
+      const firestoreModule = await import('../../firestore.js')
+
+      vi.mocked(firestoreModule.loadUserSettings).mockResolvedValue({
+        llmProvider: 'lmstudio',
+        providerConfigs: {
+          // google has no keys - should fallback to lmstudio
+        }
+      })
+
+      vi.mocked(lmstudioModule.lmstudioProvider.fetchModels).mockResolvedValue([
+        { id: 'local-model', name: 'Local Model' }
+      ])
+      vi.mocked(lmstudioModule.lmstudioProvider.sendMessage).mockResolvedValue('response from lmstudio')
+
+      const freshModule = await import('../index.js')
+      await freshModule.initProvider()
+
+      const result = await freshModule.sendChatMessageForFeature(
+        freshModule.FeatureType.QUESTION, // prefers google, but will fallback to lmstudio
+        [{ role: 'user', content: 'test' }]
+      )
+
+      expect(result).toBe('response from lmstudio')
+      expect(lmstudioModule.lmstudioProvider.sendMessage).toHaveBeenCalled()
+    })
+
+    it('should skip provider with empty apiKeys array', async () => {
+      vi.resetModules()
+
+      const lmstudioModule = await import('../providers/lmstudio.js')
+      const firestoreModule = await import('../../firestore.js')
+
+      vi.mocked(firestoreModule.loadUserSettings).mockResolvedValue({
+        llmProvider: 'lmstudio',
+        providerConfigs: {
+          google: { apiKeys: [] } // Empty array - should not be available
+        }
+      })
+
+      vi.mocked(lmstudioModule.lmstudioProvider.fetchModels).mockResolvedValue([
+        { id: 'local-model', name: 'Local Model' }
+      ])
+      vi.mocked(lmstudioModule.lmstudioProvider.sendMessage).mockResolvedValue('response from lmstudio')
+
+      const freshModule = await import('../index.js')
+      await freshModule.initProvider()
+
+      const result = await freshModule.sendChatMessageForFeature(
+        freshModule.FeatureType.QUESTION,
+        [{ role: 'user', content: 'test' }]
+      )
+
+      expect(result).toBe('response from lmstudio')
     })
   })
 

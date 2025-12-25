@@ -1,9 +1,36 @@
 /**
  * Cerebras Provider
  * OpenAI-compatible API with extremely fast inference
+ * Supports multiple API keys with round-robin load balancing
  */
 
 const DEFAULT_BASE_URL = 'https://api.cerebras.ai/v1'
+
+// Round-robin state for multiple API keys
+let currentKeyIndex = 0
+
+/**
+ * Get the next API key using round-robin
+ * @param {string|string[]} apiKeyOrKeys - Single key or array of keys
+ * @returns {string} The next API key to use
+ */
+const getNextApiKey = (apiKeyOrKeys) => {
+  if (!apiKeyOrKeys) return null
+
+  // Handle single key (string)
+  if (typeof apiKeyOrKeys === 'string') {
+    return apiKeyOrKeys
+  }
+
+  // Handle array of keys
+  if (Array.isArray(apiKeyOrKeys) && apiKeyOrKeys.length > 0) {
+    const key = apiKeyOrKeys[currentKeyIndex % apiKeyOrKeys.length]
+    currentKeyIndex = (currentKeyIndex + 1) % apiKeyOrKeys.length
+    return key
+  }
+
+  return null
+}
 
 /**
  * Process SSE stream from OpenAI-compatible API
@@ -63,9 +90,10 @@ export const cerebrasProvider = {
   defaultBaseUrl: DEFAULT_BASE_URL,
 
   async fetchModels(config = {}) {
-    const { apiKey } = config
+    const { apiKey, apiKeys } = config
+    const keyToUse = getNextApiKey(apiKeys || apiKey)
 
-    if (!apiKey) {
+    if (!keyToUse) {
       throw new Error('Cerebras API key is required')
     }
 
@@ -76,15 +104,16 @@ export const cerebrasProvider = {
   },
 
   async sendMessage(model, messages, onChunk = null, signal = null, config = {}) {
-    const { apiKey, baseUrl = DEFAULT_BASE_URL } = config
+    const { apiKey, apiKeys, baseUrl = DEFAULT_BASE_URL } = config
+    const keyToUse = getNextApiKey(apiKeys || apiKey)
 
-    if (!apiKey) {
+    if (!keyToUse) {
       throw new Error('Cerebras API key is required')
     }
 
     const headers = {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
+      'Authorization': `Bearer ${keyToUse}`
     }
 
     try {
@@ -143,15 +172,16 @@ export const cerebrasProvider = {
   },
 
   async testConnection(config = {}) {
-    const { apiKey, baseUrl = DEFAULT_BASE_URL } = config
+    const { apiKey, apiKeys, baseUrl = DEFAULT_BASE_URL } = config
+    const keyToUse = getNextApiKey(apiKeys || apiKey)
 
-    if (!apiKey) {
+    if (!keyToUse) {
       return false
     }
 
     try {
       const response = await fetch(`${baseUrl}/models`, {
-        headers: { 'Authorization': `Bearer ${apiKey}` }
+        headers: { 'Authorization': `Bearer ${keyToUse}` }
       })
       return response.ok
     } catch {

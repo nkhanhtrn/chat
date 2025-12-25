@@ -125,23 +125,19 @@
               {{ provider.name }}
             </button>
           </div>
-          <div v-if="selectedProviderRequiresKey" class="api-key-section">
-            <div class="api-key-input-wrapper">
-              <input
-                :type="showApiKey ? 'text' : 'password'"
-                v-model="apiKey"
-                placeholder="Enter API key"
-                class="api-key-input"
-                @input="onApiKeyChange"
-              />
-              <button class="toggle-visibility-btn" @click="showApiKey = !showApiKey">
-                {{ showApiKey ? 'Hide' : 'Show' }}
-              </button>
-            </div>
-            <div class="api-key-hint">
-              <a v-if="currentProvider === 'google'" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get Google AI API key</a>
-              <a v-else-if="currentProvider === 'cerebras'" href="https://cloud.cerebras.ai/" target="_blank" rel="noopener">Get Cerebras API key</a>
-            </div>
+          <div v-if="selectedProviderRequiresKey">
+            <ApiKeyInput
+              v-if="currentProvider === 'google'"
+              v-model="googleApiKeys"
+              help-url="https://aistudio.google.com/apikey"
+              @update:model-value="onGoogleApiKeysChange"
+            />
+            <ApiKeyInput
+              v-else-if="currentProvider === 'cerebras'"
+              v-model="cerebrasApiKeys"
+              help-url="https://cloud.cerebras.ai/"
+              @update:model-value="onCerebrasApiKeysChange"
+            />
           </div>
           <div v-if="!selectedProviderRequiresKey && currentProvider === 'lmstudio'" class="api-key-section">
             <input
@@ -210,6 +206,7 @@
 import { ref, computed, onMounted, watch, inject } from 'vue'
 import Modal from './Modal.vue'
 import Button from '../Button.vue'
+import ApiKeyInput from '../ApiKeyInput.vue'
 import {
   listProviders,
   getCurrentProviderId,
@@ -243,11 +240,14 @@ const handleToggleDevToolbar = () => {
 const providers = ref([])
 const currentProvider = ref('lmstudio')
 const providerConfigs = ref({
-  google: { apiKey: '' },
-  cerebras: { apiKey: '' },
+  google: { apiKeys: [''] },
+  cerebras: { apiKeys: [''] },
   lmstudio: { baseUrl: 'http://localhost:1234' }
 })
-const showApiKey = ref(false)
+
+// API keys arrays for multi-key input
+const googleApiKeys = ref([''])
+const cerebrasApiKeys = ref([''])
 const connectionStatus = ref(null)
 const restoreStatus = ref(null)
 const availableModels = ref([])
@@ -255,16 +255,6 @@ const selectedModel = ref('')
 const chatStore = useChatStore()
 
 // Computed properties for current provider's config
-const apiKey = computed({
-  get: () => providerConfigs.value[currentProvider.value]?.apiKey || '',
-  set: (value) => {
-    if (!providerConfigs.value[currentProvider.value]) {
-      providerConfigs.value[currentProvider.value] = {}
-    }
-    providerConfigs.value[currentProvider.value].apiKey = value
-  }
-})
-
 const baseUrl = computed({
   get: () => providerConfigs.value[currentProvider.value]?.baseUrl || 'http://localhost:1234',
   set: (value) => {
@@ -329,10 +319,17 @@ const loadProviderSettings = async () => {
   const config = getCurrentConfig()
   const provider = providers.value.find(p => p.id === currentProvider.value)
 
-  if (provider?.requiresApiKey && config.apiKey) {
-    providerConfigs.value[currentProvider.value] = {
-      ...providerConfigs.value[currentProvider.value],
-      apiKey: config.apiKey
+  if (provider?.requiresApiKey) {
+    if (config.apiKeys) {
+      providerConfigs.value[currentProvider.value] = {
+        ...providerConfigs.value[currentProvider.value],
+        apiKeys: config.apiKeys
+      }
+    } else if (config.apiKey) {
+      providerConfigs.value[currentProvider.value] = {
+        ...providerConfigs.value[currentProvider.value],
+        apiKey: config.apiKey
+      }
     }
   }
   if (!provider?.requiresApiKey && config.baseUrl) {
@@ -340,6 +337,28 @@ const loadProviderSettings = async () => {
       ...providerConfigs.value[currentProvider.value],
       baseUrl: config.baseUrl
     }
+  }
+
+  // Load Google API keys into the reactive array
+  const googleConfig = providerConfigs.value.google || {}
+  if (googleConfig.apiKeys && googleConfig.apiKeys.length > 0) {
+    googleApiKeys.value = [...googleConfig.apiKeys]
+  } else if (googleConfig.apiKey) {
+    // Migrate single key to array format
+    googleApiKeys.value = [googleConfig.apiKey]
+  } else {
+    googleApiKeys.value = ['']
+  }
+
+  // Load Cerebras API keys into the reactive array
+  const cerebrasConfig = providerConfigs.value.cerebras || {}
+  if (cerebrasConfig.apiKeys && cerebrasConfig.apiKeys.length > 0) {
+    cerebrasApiKeys.value = [...cerebrasConfig.apiKeys]
+  } else if (cerebrasConfig.apiKey) {
+    // Migrate single key to array format
+    cerebrasApiKeys.value = [cerebrasConfig.apiKey]
+  } else {
+    cerebrasApiKeys.value = ['']
   }
 
   connectionStatus.value = null
@@ -377,7 +396,16 @@ const buildCleanProviderConfigs = () => {
   for (const p of providers.value) {
     const config = providerConfigs.value[p.id] || {}
     if (p.requiresApiKey) {
-      clean[p.id] = { apiKey: config.apiKey || '' }
+      // Use apiKeys array for providers that support multiple keys
+      if (p.id === 'google') {
+        const keys = googleApiKeys.value.filter(k => k.trim() !== '')
+        clean[p.id] = { apiKeys: keys.length > 0 ? keys : [] }
+      } else if (p.id === 'cerebras') {
+        const keys = cerebrasApiKeys.value.filter(k => k.trim() !== '')
+        clean[p.id] = { apiKeys: keys.length > 0 ? keys : [] }
+      } else {
+        clean[p.id] = { apiKey: config.apiKey || '' }
+      }
     } else {
       clean[p.id] = { baseUrl: config.baseUrl || p.defaultBaseUrl || 'http://localhost:1234' }
     }
@@ -397,7 +425,15 @@ const selectProvider = async (providerId) => {
 
   const provider = providers.value.find(p => p.id === providerId)
   if (provider?.requiresApiKey) {
-    config.apiKey = providerConfig.apiKey || ''
+    if (providerId === 'google') {
+      const keys = googleApiKeys.value.filter(k => k.trim() !== '')
+      config.apiKeys = keys
+    } else if (providerId === 'cerebras') {
+      const keys = cerebrasApiKeys.value.filter(k => k.trim() !== '')
+      config.apiKeys = keys
+    } else {
+      config.apiKey = providerConfig.apiKey || ''
+    }
   } else {
     config.baseUrl = providerConfig.baseUrl || 'http://localhost:1234'
   }
@@ -413,22 +449,6 @@ const selectProvider = async (providerId) => {
   await loadModels()
 }
 
-const onApiKeyChange = async () => {
-  const config = { apiKey: apiKey.value }
-  setProvider(currentProvider.value, config)
-  connectionStatus.value = null
-  availableModels.value = []
-
-  // Save cleaned provider configs
-  saveUserSettings({ providerConfigs: buildCleanProviderConfigs() })
-
-  // Debounce connection test and model loading
-  if (apiKey.value.length > 10) {
-    await testProviderConnection()
-    await loadModels()
-  }
-}
-
 const onBaseUrlChange = () => {
   const config = { baseUrl: baseUrl.value }
   setProvider(currentProvider.value, config)
@@ -436,6 +456,39 @@ const onBaseUrlChange = () => {
 
   // Save cleaned provider configs
   saveUserSettings({ providerConfigs: buildCleanProviderConfigs() })
+}
+
+// API key change handlers
+const onGoogleApiKeysChange = async (keys) => {
+  googleApiKeys.value = keys
+  const filteredKeys = keys.filter(k => k.trim() !== '')
+  providerConfigs.value.google = { apiKeys: filteredKeys }
+  setProvider('google', { apiKeys: filteredKeys })
+  connectionStatus.value = null
+  availableModels.value = []
+
+  saveUserSettings({ providerConfigs: buildCleanProviderConfigs() })
+
+  if (filteredKeys.some(k => k.length > 10)) {
+    await testProviderConnection()
+    await loadModels()
+  }
+}
+
+const onCerebrasApiKeysChange = async (keys) => {
+  cerebrasApiKeys.value = keys
+  const filteredKeys = keys.filter(k => k.trim() !== '')
+  providerConfigs.value.cerebras = { apiKeys: filteredKeys }
+  setProvider('cerebras', { apiKeys: filteredKeys })
+  connectionStatus.value = null
+  availableModels.value = []
+
+  saveUserSettings({ providerConfigs: buildCleanProviderConfigs() })
+
+  if (filteredKeys.some(k => k.length > 10)) {
+    await testProviderConnection()
+    await loadModels()
+  }
 }
 
 const testProviderConnection = async () => {
@@ -761,11 +814,6 @@ const restoreNotebooks = async (event) => {
   gap: 0.5rem;
 }
 
-.api-key-input-wrapper {
-  display: flex;
-  gap: 0.5rem;
-}
-
 .api-key-input {
   flex: 1;
   padding: 0.5rem 0.75rem;
@@ -780,34 +828,6 @@ const restoreNotebooks = async (event) => {
 .api-key-input:focus {
   outline: none;
   border-color: var(--color-border-strong);
-}
-
-.toggle-visibility-btn {
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--color-border-base);
-  border-radius: 4px;
-  background: var(--color-bg-elevated);
-  color: var(--color-text-muted);
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.toggle-visibility-btn:hover {
-  background: var(--color-bg-hover);
-}
-
-.api-key-hint {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-}
-
-.api-key-hint a {
-  color: var(--color-text-link, #0066cc);
-  text-decoration: none;
-}
-
-.api-key-hint a:hover {
-  text-decoration: underline;
 }
 
 .model-section {

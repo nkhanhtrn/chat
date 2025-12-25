@@ -1,8 +1,35 @@
 /**
  * Google AI Studio Provider (Gemini)
+ * Supports multiple API keys with round-robin load balancing
  */
 
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'
+
+// Round-robin state for multiple API keys
+let currentKeyIndex = 0
+
+/**
+ * Get the next API key using round-robin
+ * @param {string|string[]} apiKeyOrKeys - Single key or array of keys
+ * @returns {string} The next API key to use
+ */
+const getNextApiKey = (apiKeyOrKeys) => {
+  if (!apiKeyOrKeys) return null
+
+  // Handle single key (string)
+  if (typeof apiKeyOrKeys === 'string') {
+    return apiKeyOrKeys
+  }
+
+  // Handle array of keys
+  if (Array.isArray(apiKeyOrKeys) && apiKeyOrKeys.length > 0) {
+    const key = apiKeyOrKeys[currentKeyIndex % apiKeyOrKeys.length]
+    currentKeyIndex = (currentKeyIndex + 1) % apiKeyOrKeys.length
+    return key
+  }
+
+  return null
+}
 
 /**
  * Convert OpenAI-style messages to Gemini format
@@ -81,25 +108,35 @@ export const googleProvider = {
   defaultBaseUrl: DEFAULT_BASE_URL,
 
   async fetchModels(config = {}) {
-    const { apiKey } = config
+    const { apiKey, apiKeys } = config
+    const keyToUse = getNextApiKey(apiKeys || apiKey)
 
-    if (!apiKey) {
+    if (!keyToUse) {
       throw new Error('Google AI API key is required')
     }
 
-    // Only use gemini-2.5-flash model
+    // Available Gemini models (gemini-3-flash is default)
     return [
+      {
+        id: 'models/gemini-3-flash',
+        name: 'Gemini 3 Flash'
+      },
       {
         id: 'models/gemini-2.5-flash',
         name: 'Gemini 2.5 Flash'
+      },
+      {
+        id: 'models/gemini-2.5-flash-lite',
+        name: 'Gemini 2.5 Flash Lite'
       }
     ]
   },
 
   async sendMessage(model, messages, onChunk = null, signal = null, config = {}) {
-    const { apiKey, baseUrl = DEFAULT_BASE_URL } = config
+    const { apiKey, apiKeys, baseUrl = DEFAULT_BASE_URL } = config
+    const keyToUse = getNextApiKey(apiKeys || apiKey)
 
-    if (!apiKey) {
+    if (!keyToUse) {
       throw new Error('Google AI API key is required')
     }
 
@@ -109,7 +146,7 @@ export const googleProvider = {
       if (!onChunk) {
         // Non-streaming
         const response = await fetch(
-          `${baseUrl}/${model}:generateContent?key=${apiKey}`,
+          `${baseUrl}/${model}:generateContent?key=${keyToUse}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -139,7 +176,7 @@ export const googleProvider = {
 
       // Streaming
       const response = await fetch(
-        `${baseUrl}/${model}:streamGenerateContent?alt=sse&key=${apiKey}`,
+        `${baseUrl}/${model}:streamGenerateContent?alt=sse&key=${keyToUse}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
