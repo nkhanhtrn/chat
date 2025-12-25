@@ -45,6 +45,24 @@
 
         <!-- Input -->
         <div class="input-container">
+          <!-- URL Detection Status -->
+          <div v-if="detectedUrls.length > 0" class="url-status-container">
+            <div v-for="urlEntry in detectedUrls" :key="urlEntry.url" class="url-status-item">
+              <span class="url-status-icon">
+                <span v-if="urlEntry.status === 'loading'" class="spinner"></span>
+                <span v-else-if="urlEntry.status === 'success'" class="check-icon">&#10003;</span>
+                <span v-else class="error-icon">&#10007;</span>
+              </span>
+              <span class="url-text" :title="urlEntry.url">{{ truncateUrl(urlEntry.url) }}</span>
+              <span v-if="urlEntry.status === 'success'" class="url-content-size">
+                ({{ formatSize(urlEntry.content.length) }})
+              </span>
+              <span v-if="urlEntry.status === 'error'" class="url-error">
+                {{ urlEntry.content }}
+              </span>
+            </div>
+          </div>
+
           <div class="input-wrapper">
             <textarea
               ref="inputRef"
@@ -58,11 +76,11 @@
             <Button
               v-if="!isStreaming"
               @click="handleSend"
-              :disabled="!inputText.trim() || !selectedModel"
+              :disabled="!inputText.trim() || !selectedModel || hasLoadingUrls"
               variant="primary"
               class="send-button"
             >
-              Send
+              {{ hasLoadingUrls ? 'Fetching...' : 'Send' }}
             </Button>
             <button
               v-else
@@ -82,7 +100,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, watch, computed } from 'vue'
 import Button from '../components/Button.vue'
 import MarkdownRenderer from '../components/MarkdownRenderer.vue'
 import SlideTransition from '../components/SlideTransition.vue'
@@ -94,6 +112,11 @@ import {
   fetchModels,
   sendChatMessage
 } from '../services/llm/index.js'
+import {
+  detectUrls,
+  fetchUrlContent,
+  formatFetchedContentForPrompt
+} from '../services/urlFetcher.js'
 
 // State
 const providers = ref([])
@@ -106,7 +129,78 @@ const isStreaming = ref(false)
 const inputRef = ref(null)
 const messagesContainer = ref(null)
 
+// URL fetching state
+const detectedUrls = ref([]) // Array of { url, status: 'loading'|'success'|'error', content: string }
+const fetchedContents = ref({}) // Map of url -> content
+
 let abortController = null
+
+// Watch for URL changes in input
+watch(inputText, async (newText) => {
+  const urls = detectUrls(newText)
+
+  // Find new URLs that we haven't seen before
+  const existingUrls = detectedUrls.value.map(d => d.url)
+  const newUrls = urls.filter(url => !existingUrls.includes(url))
+
+  // Remove URLs that are no longer in the text
+  detectedUrls.value = detectedUrls.value.filter(d => urls.includes(d.url))
+
+  // Clean up fetchedContents for removed URLs
+  for (const url of Object.keys(fetchedContents.value)) {
+    if (!urls.includes(url)) {
+      delete fetchedContents.value[url]
+    }
+  }
+
+  // Add new URLs and start fetching
+  for (const url of newUrls) {
+    const urlEntry = { url, status: 'loading', content: '' }
+    detectedUrls.value.push(urlEntry)
+
+    try {
+      const content = await fetchUrlContent(url)
+      // Find and update the entry (it might have been removed)
+      const entry = detectedUrls.value.find(d => d.url === url)
+      if (entry) {
+        entry.status = 'success'
+        entry.content = content
+        fetchedContents.value[url] = content
+      }
+    } catch (error) {
+      const entry = detectedUrls.value.find(d => d.url === url)
+      if (entry) {
+        entry.status = 'error'
+        entry.content = error.message
+      }
+    }
+  }
+}, { immediate: false })
+
+// Computed: check if any URLs are still loading
+const hasLoadingUrls = computed(() =>
+  detectedUrls.value.some(u => u.status === 'loading')
+)
+
+// Helper: truncate URL for display
+function truncateUrl(url) {
+  if (url.length <= 50) return url
+  try {
+    const urlObj = new URL(url)
+    const path = urlObj.pathname.length > 20
+      ? urlObj.pathname.substring(0, 17) + '...'
+      : urlObj.pathname
+    return urlObj.hostname + path
+  } catch {
+    return url.substring(0, 47) + '...'
+  }
+}
+
+// Helper: format content size
+function formatSize(charCount) {
+  if (charCount < 1000) return `${charCount} chars`
+  return `${(charCount / 1000).toFixed(1)}k chars`
+}
 
 // Load providers and current config
 onMounted(async () => {
@@ -166,22 +260,34 @@ async function handleSend() {
   if (!inputText.value.trim() || !selectedModel.value || isStreaming.value) return
 
   const userMessage = inputText.value.trim()
+
+  // Build the full message with fetched content
+  const urlContent = formatFetchedContentForPrompt(fetchedContents.value)
+  const fullMessage = urlContent
+    ? `${userMessage}\n\n${urlContent}`
+    : userMessage
+
+  // Reset state
   inputText.value = ''
+  detectedUrls.value = []
+  fetchedContents.value = {}
   nextTick(() => {
     if (inputRef.value) {
       inputRef.value.style.height = 'auto'
     }
   })
 
-  // Add user message
+  // Add user message (show original message in UI, not the full one with content)
   messages.value.push({ role: 'user', content: userMessage })
   scrollToBottom()
 
-  // Prepare messages for API (include conversation history)
-  const apiMessages = messages.value.map(m => ({
+  // Prepare messages for API (include conversation history, but use fullMessage for the latest)
+  const apiMessages = messages.value.slice(0, -1).map(m => ({
     role: m.role,
     content: m.content
   }))
+  // Add the current message with fetched content
+  apiMessages.push({ role: 'user', content: fullMessage })
 
   // Add empty assistant message for streaming
   messages.value.push({ role: 'assistant', content: '' })
@@ -371,6 +477,72 @@ function clearChat() {
   padding: 1.5rem 4rem;
   border-top: 1px solid var(--color-border-base);
   background-color: var(--color-bg-surface);
+}
+
+.url-status-container {
+  max-width: 800px;
+  margin: 0 auto 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.url-status-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.65rem;
+  background-color: var(--color-bg-hover);
+  border: 1px solid var(--color-border-base);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-family: system-ui, sans-serif;
+}
+
+.url-status-icon {
+  display: flex;
+  align-items: center;
+}
+
+.spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--color-border-base);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.check-icon {
+  color: #22c55e;
+  font-weight: bold;
+}
+
+.error-icon {
+  color: #ef4444;
+  font-weight: bold;
+}
+
+.url-text {
+  color: var(--color-text-base);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.url-content-size {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.url-error {
+  color: #ef4444;
+  font-size: 0.75rem;
 }
 
 .input-wrapper {
