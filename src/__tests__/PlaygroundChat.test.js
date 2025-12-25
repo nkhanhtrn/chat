@@ -38,6 +38,12 @@ vi.mock('../services/llm/index.js', () => ({
   sendChatMessage: (...args) => mockSendChatMessage(...args)
 }))
 
+// Mock taskRouter service
+vi.mock('../services/llm/taskRouter.js', () => ({
+  analyzeGenerateAndExecute: vi.fn(),
+  findRouterAndExecutorModels: vi.fn(() => ({ router: null, executor: null }))
+}))
+
 describe('PlaygroundChat', () => {
   let wrapper
 
@@ -61,7 +67,7 @@ describe('PlaygroundChat', () => {
     }
   })
 
-  const mountPlaygroundChat = async () => {
+  const mountPlaygroundChat = async (options = {}) => {
     wrapper = mount(PlaygroundChat, {
       global: {
         stubs: {
@@ -71,6 +77,10 @@ describe('PlaygroundChat', () => {
           MarkdownRenderer: {
             template: '<div class="markdown-stub">{{ content }}</div>',
             props: ['content']
+          },
+          CodeBlock: {
+            template: '<pre class="code-block-stub">{{ code }}</pre>',
+            props: ['code', 'language']
           }
         }
       }
@@ -79,6 +89,10 @@ describe('PlaygroundChat', () => {
     await vi.waitFor(() => {
       return wrapper.vm.providers.length > 0
     })
+    // Default to single-model mode for backward compatibility with existing tests
+    if (!options.twoModelMode) {
+      wrapper.vm.twoModelMode = false
+    }
     return wrapper
   }
 
@@ -238,7 +252,7 @@ describe('PlaygroundChat', () => {
       await wrapper.find('textarea').setValue('Hello AI')
       await wrapper.find('.send-button').trigger('click')
 
-      expect(wrapper.vm.messages[0]).toEqual({ role: 'user', content: 'Hello AI', attachments: [] })
+      expect(wrapper.vm.messages[0]).toMatchObject({ role: 'user', content: 'Hello AI', attachments: [] })
     })
 
     it('should clear input after sending', async () => {
@@ -270,7 +284,7 @@ describe('PlaygroundChat', () => {
       await wrapper.find('.send-button').trigger('click')
 
       expect(wrapper.vm.messages.length).toBe(2)
-      expect(wrapper.vm.messages[1]).toEqual({ role: 'assistant', content: '' })
+      expect(wrapper.vm.messages[1]).toMatchObject({ role: 'assistant', content: '' })
     })
 
     it('should send on Enter key press', async () => {
@@ -498,12 +512,11 @@ describe('PlaygroundChat', () => {
       expect(fileInput.attributes('style')).toContain('display: none')
     })
 
-    it('should accept text file types', async () => {
+    it('should accept all file types', async () => {
       await mountPlaygroundChat()
       const fileInput = wrapper.find('input[type="file"]')
-      expect(fileInput.attributes('accept')).toContain('.txt')
-      expect(fileInput.attributes('accept')).toContain('.json')
-      expect(fileInput.attributes('accept')).toContain('.js')
+      // File input accepts all types (no accept attribute or empty)
+      expect(fileInput.exists()).toBe(true)
     })
 
     it('should allow multiple file selection', async () => {
@@ -524,7 +537,7 @@ describe('PlaygroundChat', () => {
     it('should display uploaded files', async () => {
       await mountPlaygroundChat()
       wrapper.vm.uploadedFiles = [
-        { name: 'test.txt', content: 'Hello world' }
+        { name: 'test.txt', content: 'Hello world', status: 'success' }
       ]
       await wrapper.vm.$nextTick()
 
@@ -536,7 +549,7 @@ describe('PlaygroundChat', () => {
     it('should display file size', async () => {
       await mountPlaygroundChat()
       wrapper.vm.uploadedFiles = [
-        { name: 'test.txt', content: 'Hello world' }
+        { name: 'test.txt', content: 'Hello world', status: 'success' }
       ]
       await wrapper.vm.$nextTick()
 
@@ -546,7 +559,7 @@ describe('PlaygroundChat', () => {
     it('should display file size in k for large files', async () => {
       await mountPlaygroundChat()
       wrapper.vm.uploadedFiles = [
-        { name: 'large.txt', content: 'x'.repeat(5000) }
+        { name: 'large.txt', content: 'x'.repeat(5000), status: 'success' }
       ]
       await wrapper.vm.$nextTick()
 
@@ -556,7 +569,7 @@ describe('PlaygroundChat', () => {
     it('should show remove button for uploaded files', async () => {
       await mountPlaygroundChat()
       wrapper.vm.uploadedFiles = [
-        { name: 'test.txt', content: 'Hello world' }
+        { name: 'test.txt', content: 'Hello world', status: 'success' }
       ]
       await wrapper.vm.$nextTick()
 
@@ -566,8 +579,8 @@ describe('PlaygroundChat', () => {
     it('should remove file when remove button is clicked', async () => {
       await mountPlaygroundChat()
       wrapper.vm.uploadedFiles = [
-        { name: 'test.txt', content: 'Hello world' },
-        { name: 'test2.txt', content: 'Goodbye' }
+        { name: 'test.txt', content: 'Hello world', status: 'success' },
+        { name: 'test2.txt', content: 'Goodbye', status: 'success' }
       ]
       await wrapper.vm.$nextTick()
 
@@ -586,7 +599,7 @@ describe('PlaygroundChat', () => {
     it('should include file content in message when sending', async () => {
       await mountPlaygroundChat()
       wrapper.vm.uploadedFiles = [
-        { name: 'test.txt', content: 'File content here' }
+        { name: 'test.txt', file: { name: 'test.txt' }, content: 'File content here', status: 'success' }
       ]
       await wrapper.find('textarea').setValue('Check this file')
       await wrapper.find('.send-button').trigger('click')
@@ -599,26 +612,30 @@ describe('PlaygroundChat', () => {
       )
     })
 
-    it('should include file name markers in message', async () => {
+    it('should include file content without name markers in message', async () => {
       await mountPlaygroundChat()
       wrapper.vm.uploadedFiles = [
-        { name: 'test.txt', content: 'File content' }
+        { name: 'test.txt', file: { name: 'test.txt' }, content: 'File content', status: 'success' }
       ]
       await wrapper.find('textarea').setValue('Check this')
       await wrapper.find('.send-button').trigger('click')
 
+      // Content should be included but no file name markers
       expect(mockSendChatMessage).toHaveBeenCalledWith(
         'model-1',
-        [{ role: 'user', content: expect.stringContaining('--- File: test.txt ---') }],
+        [{ role: 'user', content: expect.stringContaining('File content') }],
         expect.any(Function),
         expect.any(Object)
       )
+      // Should NOT contain file markers
+      const callArgs = mockSendChatMessage.mock.calls[0][1][0].content
+      expect(callArgs).not.toContain('--- File:')
     })
 
     it('should clear uploaded files after sending', async () => {
       await mountPlaygroundChat()
       wrapper.vm.uploadedFiles = [
-        { name: 'test.txt', content: 'Hello' }
+        { name: 'test.txt', content: 'Hello', status: 'success' }
       ]
       await wrapper.find('textarea').setValue('Hello')
       await wrapper.find('.send-button').trigger('click')
@@ -629,7 +646,7 @@ describe('PlaygroundChat', () => {
     it('should display original message without file content in chat', async () => {
       await mountPlaygroundChat()
       wrapper.vm.uploadedFiles = [
-        { name: 'test.txt', content: 'File content here' }
+        { name: 'test.txt', content: 'File content here', status: 'success' }
       ]
       await wrapper.find('textarea').setValue('Check this file')
       await wrapper.find('.send-button').trigger('click')
@@ -641,7 +658,7 @@ describe('PlaygroundChat', () => {
     it('should truncate long file names', async () => {
       await mountPlaygroundChat()
       wrapper.vm.uploadedFiles = [
-        { name: 'this-is-a-very-long-filename-that-should-be-truncated.txt', content: 'content' }
+        { name: 'this-is-a-very-long-filename-that-should-be-truncated.txt', content: 'content', status: 'success' }
       ]
       await wrapper.vm.$nextTick()
 
@@ -653,8 +670,8 @@ describe('PlaygroundChat', () => {
     it('should handle multiple uploaded files', async () => {
       await mountPlaygroundChat()
       wrapper.vm.uploadedFiles = [
-        { name: 'file1.txt', content: 'Content 1' },
-        { name: 'file2.txt', content: 'Content 2' }
+        { name: 'file1.txt', content: 'Content 1', status: 'success' },
+        { name: 'file2.txt', content: 'Content 2', status: 'success' }
       ]
       await wrapper.vm.$nextTick()
 
@@ -665,8 +682,8 @@ describe('PlaygroundChat', () => {
     it('should include multiple files content in message', async () => {
       await mountPlaygroundChat()
       wrapper.vm.uploadedFiles = [
-        { name: 'file1.txt', content: 'Content 1' },
-        { name: 'file2.txt', content: 'Content 2' }
+        { name: 'file1.txt', file: { name: 'file1.txt' }, content: 'Content 1', status: 'success' },
+        { name: 'file2.txt', file: { name: 'file2.txt' }, content: 'Content 2', status: 'success' }
       ]
       await wrapper.find('textarea').setValue('Check files')
       await wrapper.find('.send-button').trigger('click')
@@ -674,20 +691,20 @@ describe('PlaygroundChat', () => {
       const sentMessage = mockSendChatMessage.mock.calls[0][1][0].content
       expect(sentMessage).toContain('Content 1')
       expect(sentMessage).toContain('Content 2')
-      expect(sentMessage).toContain('--- File: file1.txt ---')
-      expect(sentMessage).toContain('--- File: file2.txt ---')
+      // Should NOT contain file markers
+      expect(sentMessage).not.toContain('--- File:')
     })
 
     it('should store file attachments in user message', async () => {
       await mountPlaygroundChat()
       wrapper.vm.uploadedFiles = [
-        { name: 'test.txt', content: 'Hello' }
+        { name: 'test.txt', content: 'Hello', status: 'success' }
       ]
       await wrapper.find('textarea').setValue('Check this')
       await wrapper.find('.send-button').trigger('click')
 
       expect(wrapper.vm.messages[0].attachments).toEqual([
-        { type: 'file', name: 'test.txt' }
+        expect.objectContaining({ type: 'file', name: 'test.txt' })
       ])
     })
 
@@ -744,6 +761,100 @@ describe('PlaygroundChat', () => {
 
       const badges = wrapper.findAll('.attachment-badge')
       expect(badges.length).toBe(2)
+    })
+  })
+
+  describe('Copy Code Button', () => {
+    it('should show copy button when generated code is present', async () => {
+      await mountPlaygroundChat()
+      wrapper.vm.messages = [
+        {
+          role: 'assistant',
+          content: '8',
+          generatedCode: '5 + 3',
+          execution: { success: true, result: 8 }
+        }
+      ]
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('.copy-code-btn').exists()).toBe(true)
+    })
+
+    it('should not show copy button when no generated code', async () => {
+      await mountPlaygroundChat()
+      wrapper.vm.messages = [
+        { role: 'assistant', content: 'Hello' }
+      ]
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('.copy-code-btn').exists()).toBe(false)
+    })
+
+    it('should copy code to clipboard when clicked', async () => {
+      const mockWriteText = vi.fn().mockResolvedValue()
+      vi.stubGlobal('navigator', {
+        clipboard: { writeText: mockWriteText }
+      })
+
+      await mountPlaygroundChat()
+      wrapper.vm.messages = [
+        {
+          role: 'assistant',
+          content: '8',
+          generatedCode: 'const x = 5 + 3; x',
+          execution: { success: true, result: 8 }
+        }
+      ]
+      await wrapper.vm.$nextTick()
+
+      await wrapper.find('.copy-code-btn').trigger('click')
+
+      expect(mockWriteText).toHaveBeenCalledWith('const x = 5 + 3; x')
+
+      vi.unstubAllGlobals()
+    })
+
+    it('should update copiedCode state after copying', async () => {
+      const mockWriteText = vi.fn().mockResolvedValue()
+      vi.stubGlobal('navigator', {
+        clipboard: { writeText: mockWriteText }
+      })
+
+      await mountPlaygroundChat()
+      const code = '5 + 3'
+      wrapper.vm.messages = [
+        {
+          role: 'assistant',
+          content: '8',
+          generatedCode: code,
+          execution: { success: true, result: 8 }
+        }
+      ]
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.vm.copiedCode).toBeNull()
+
+      await wrapper.find('.copy-code-btn').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.vm.copiedCode).toBe(code)
+
+      vi.unstubAllGlobals()
+    })
+
+    it('should show generated code in details element', async () => {
+      await mountPlaygroundChat()
+      wrapper.vm.messages = [
+        {
+          role: 'assistant',
+          content: '8',
+          generatedCode: 'const sum = 5 + 3; sum',
+          execution: { success: true, result: 8 }
+        }
+      ]
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('.generated-code').text()).toBe('const sum = 5 + 3; sum')
     })
   })
 })

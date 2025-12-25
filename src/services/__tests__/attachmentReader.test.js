@@ -650,40 +650,70 @@ describe('attachmentReader', () => {
   // Format Helpers Tests
   // ==========================================================================
   describe('formatAttachmentForPrompt', () => {
-    it('should format URL attachment', () => {
+    it('should return just the content for URL attachment', () => {
       const result = formatAttachmentForPrompt(
         { content: 'URL content' },
         { type: AttachmentType.URL, url: 'https://example.com' }
       )
 
-      expect(result).toContain('--- Content from https://example.com ---')
-      expect(result).toContain('URL content')
-      expect(result).toContain('--- End of Content from https://example.com ---')
+      expect(result).toBe('URL content')
     })
 
-    it('should format file attachment', () => {
+    it('should return just the content for file attachment', () => {
       const result = formatAttachmentForPrompt(
         { content: 'File content' },
         { type: AttachmentType.FILE, file: { name: 'test.txt' } }
       )
 
-      expect(result).toContain('--- File: test.txt ---')
-      expect(result).toContain('File content')
-      expect(result).toContain('--- End of File: test.txt ---')
+      expect(result).toBe('File content')
     })
 
-    it('should handle missing file name', () => {
+    it('should return content even with missing file name', () => {
       const result = formatAttachmentForPrompt(
         { content: 'Content' },
         { type: AttachmentType.FILE, file: {} }
       )
 
-      expect(result).toContain('File: unknown')
+      expect(result).toBe('Content')
+    })
+
+    it('should not include any labels or markers', () => {
+      const result = formatAttachmentForPrompt(
+        { content: 'Some content here' },
+        { type: AttachmentType.FILE, file: { name: 'document.txt' } }
+      )
+
+      expect(result).not.toContain('---')
+      expect(result).not.toContain('File:')
+      expect(result).not.toContain('document.txt')
+      expect(result).toBe('Some content here')
+    })
+
+    it('should preserve multiline content exactly', () => {
+      const multilineContent = `Line 1
+Line 2
+Line 3`
+      const result = formatAttachmentForPrompt(
+        { content: multilineContent },
+        { type: AttachmentType.FILE, file: { name: 'multi.txt' } }
+      )
+
+      expect(result).toBe(multilineContent)
+    })
+
+    it('should preserve special characters in content', () => {
+      const specialContent = 'Code: const x = { a: 1 }; // comment'
+      const result = formatAttachmentForPrompt(
+        { content: specialContent },
+        { type: AttachmentType.FILE, file: { name: 'code.js' } }
+      )
+
+      expect(result).toBe(specialContent)
     })
   })
 
   describe('formatAttachmentsForPrompt', () => {
-    it('should format multiple attachments', () => {
+    it('should combine multiple attachment contents', () => {
       const results = [
         {
           result: { content: 'Content 1' },
@@ -697,16 +727,50 @@ describe('attachmentReader', () => {
 
       const formatted = formatAttachmentsForPrompt(results)
 
-      expect(formatted).toContain('https://example1.com')
       expect(formatted).toContain('Content 1')
-      expect(formatted).toContain('file.txt')
       expect(formatted).toContain('Content 2')
+    })
+
+    it('should separate multiple contents with double newline', () => {
+      const results = [
+        {
+          result: { content: 'First content' },
+          attachment: { type: AttachmentType.FILE, file: { name: 'a.txt' } }
+        },
+        {
+          result: { content: 'Second content' },
+          attachment: { type: AttachmentType.FILE, file: { name: 'b.txt' } }
+        }
+      ]
+
+      const formatted = formatAttachmentsForPrompt(results)
+
+      expect(formatted).toBe('First content\n\nSecond content')
+    })
+
+    it('should not include any file names or markers in combined output', () => {
+      const results = [
+        {
+          result: { content: 'Content A' },
+          attachment: { type: AttachmentType.FILE, file: { name: 'fileA.txt' } }
+        },
+        {
+          result: { content: 'Content B' },
+          attachment: { type: AttachmentType.URL, url: 'https://example.com/page' }
+        }
+      ]
+
+      const formatted = formatAttachmentsForPrompt(results)
+
+      expect(formatted).not.toContain('fileA.txt')
+      expect(formatted).not.toContain('example.com')
+      expect(formatted).not.toContain('---')
     })
 
     it('should skip failed attachments', () => {
       const results = [
         {
-          result: { content: 'Success' },
+          result: { content: 'Success content' },
           attachment: { type: AttachmentType.URL, url: 'https://success.com' }
         },
         {
@@ -717,8 +781,7 @@ describe('attachmentReader', () => {
 
       const formatted = formatAttachmentsForPrompt(results)
 
-      expect(formatted).toContain('https://success.com')
-      expect(formatted).not.toContain('https://failed.com')
+      expect(formatted).toBe('Success content')
     })
 
     it('should return empty string for empty results', () => {

@@ -724,11 +724,8 @@ function readFileAsArrayBuffer(file) {
  * @returns {string}
  */
 export function formatAttachmentForPrompt(readResult, attachment) {
-  const label = attachment.type === AttachmentType.URL
-    ? `Content from ${attachment.url}`
-    : `File: ${attachment.file?.name || 'unknown'}`
-
-  return `--- ${label} ---\n${readResult.content}\n--- End of ${label} ---`
+  // Just return the content without labels/names
+  return readResult.content
 }
 
 /**

@@ -25,7 +25,8 @@
       "Bash(node -e:*)",
       "Bash(tree:*)",
       "Bash(git -C /home/kt/dev/chat-clone log --oneline -20)",
-      "Bash(npm ls:*)"
+      "Bash(npm ls:*)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": []

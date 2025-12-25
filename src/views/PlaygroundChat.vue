@@ -11,17 +11,50 @@
       </router-link>
       <h1>AI Playground</h1>
       <div class="header-controls">
-        <select v-model="selectedProvider" @change="onProviderChange" class="provider-select">
-          <option v-for="p in providers" :key="p.id" :value="p.id">
-            {{ p.name }}
-          </option>
-        </select>
-        <select v-model="selectedModel" class="model-select" :disabled="models.length === 0">
-          <option v-if="models.length === 0" value="">Loading models...</option>
-          <option v-for="m in models" :key="m.id" :value="m.id">
-            {{ m.name }}
-          </option>
-        </select>
+        <!-- Two-model mode toggle -->
+        <label class="two-model-toggle">
+          <input type="checkbox" v-model="twoModelMode" />
+          <span class="toggle-label">2-Model</span>
+        </label>
+
+        <!-- Single model mode -->
+        <template v-if="!twoModelMode">
+          <select v-model="selectedProvider" @change="onProviderChange" class="provider-select">
+            <option v-for="p in providers" :key="p.id" :value="p.id">
+              {{ p.name }}
+            </option>
+          </select>
+          <select v-model="selectedModel" class="model-select" :disabled="models.length === 0">
+            <option v-if="models.length === 0" value="">Loading models...</option>
+            <option v-for="m in models" :key="m.id" :value="m.id">
+              {{ m.name }}
+            </option>
+          </select>
+        </template>
+
+        <!-- Two-model mode: Router + Executor -->
+        <template v-else>
+          <div class="model-pair">
+            <div class="model-selector">
+              <span class="model-label">Router</span>
+              <select v-model="routerModel" class="model-select small" :disabled="models.length === 0">
+                <option v-if="models.length === 0" value="">Loading...</option>
+                <option v-for="m in models" :key="m.id" :value="m.id">
+                  {{ m.name }}
+                </option>
+              </select>
+            </div>
+            <div class="model-selector">
+              <span class="model-label">Executor</span>
+              <select v-model="executorModel" class="model-select small" :disabled="models.length === 0">
+                <option v-if="models.length === 0" value="">Loading...</option>
+                <option v-for="m in models" :key="m.id" :value="m.id">
+                  {{ m.name }}
+                </option>
+              </select>
+            </div>
+          </div>
+        </template>
       </div>
     </header>
 
@@ -35,8 +68,51 @@
           </div>
           <div v-for="(msg, index) in messages" :key="index" :class="['message', msg.role]">
             <div class="message-role">{{ msg.role === 'user' ? 'You' : 'AI' }}</div>
+            <!-- Analysis indicator for AI messages in two-model mode -->
+            <div v-if="msg.role === 'assistant' && msg.analysis" class="analysis-indicator">
+              <span v-if="msg.analysis.canBeCode" class="analysis-badge code">
+                Code Task
+              </span>
+              <span v-else class="analysis-badge text">
+                Text Response
+              </span>
+              <span v-if="msg.analysis.functionName" class="analysis-function">
+                {{ msg.analysis.functionName }}()
+              </span>
+              <span v-if="msg.analysis.taskDescription" class="analysis-description">
+                {{ msg.analysis.taskDescription }}
+              </span>
+            </div>
+            <!-- Generated code display (collapsible) -->
+            <details v-if="msg.role === 'assistant' && msg.generatedCode" class="code-details">
+              <summary class="code-summary">
+                <span class="code-icon">{ }</span>
+                <span>Generated Code</span>
+                <span v-if="msg.attempts > 1" class="attempts-badge">
+                  {{ msg.attempts }} attempts
+                </span>
+                <span v-if="msg.execution" :class="['execution-status', msg.execution.success ? 'success' : 'error']">
+                  {{ msg.execution.success ? 'Executed' : 'Failed' }}
+                </span>
+              </summary>
+              <div class="generated-code-container">
+                <button class="copy-code-btn" @click="copyCode(msg.generatedCode)" :title="copiedCode === msg.generatedCode ? 'Copied!' : 'Copy code'">
+                  <svg v-if="copiedCode !== msg.generatedCode" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                  <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </button>
+                <pre class="generated-code"><code>{{ msg.generatedCode }}</code></pre>
+              </div>
+            </details>
             <div class="message-content">
-              <MarkdownRenderer v-if="msg.role === 'assistant'" :content="msg.content" />
+              <!-- Code execution output: display in code block -->
+              <CodeBlock v-if="msg.role === 'assistant' && msg.execution && msg.execution.success" language="output" :code="msg.content" />
+              <!-- Regular assistant response or failed execution: render as markdown -->
+              <MarkdownRenderer v-else-if="msg.role === 'assistant'" :content="msg.content" />
               <template v-else>{{ msg.content }}</template>
               <span v-if="isStreaming && index === messages.length - 1 && msg.role === 'assistant'" class="cursor">|</span>
             </div>
@@ -116,7 +192,7 @@
             <Button
               v-if="!isStreaming"
               @click="handleSend"
-              :disabled="!inputText.trim() || !selectedModel || hasLoadingUrls || hasLoadingFiles"
+              :disabled="!inputText.trim() || (!twoModelMode && !selectedModel) || (twoModelMode && (!routerModel || !executorModel)) || hasLoadingUrls || hasLoadingFiles"
               variant="primary"
               class="send-button"
             >
@@ -127,7 +203,7 @@
               @click="handleStop"
               class="stop-button"
             >
-              Stop generating
+              {{ isRouting ? 'Routing...' : (currentVerifyAttempt > 0 ? `Retrying (${currentVerifyAttempt})...` : 'Stop generating') }}
             </button>
           </div>
           <button @click="clearChat" class="clear-button" :disabled="messages.length === 0">
@@ -144,6 +220,7 @@ import { ref, onMounted, nextTick, watch, computed } from 'vue'
 import Button from '../components/Button.vue'
 import MarkdownRenderer from '../components/MarkdownRenderer.vue'
 import SlideTransition from '../components/SlideTransition.vue'
+import CodeBlock from '../components/markdown/CodeBlock.vue'
 import {
   listProviders,
   getCurrentProviderId,
@@ -152,12 +229,41 @@ import {
   fetchModels,
   sendChatMessage
 } from '../services/llm/index.js'
+import {
+  analyzeGenerateAndExecute,
+  findRouterAndExecutorModels
+} from '../services/llm/taskRouter.js'
 import { detectUrls } from '../services/urlFetcher.js'
 import {
   AttachmentType,
   readAttachment,
   formatAttachmentForPrompt
 } from '../services/attachmentReader.js'
+
+// Build raw attachments for taskRouter (2-model mode)
+function buildRawAttachments(uploadedFiles, detectedUrls) {
+  const attachments = []
+
+  // Add file attachments (with File objects for reading)
+  for (const f of uploadedFiles) {
+    if (f.file) {
+      attachments.push({
+        type: AttachmentType.FILE,
+        file: f.file
+      })
+    }
+  }
+
+  // Add URL attachments
+  for (const u of detectedUrls) {
+    attachments.push({
+      type: AttachmentType.URL,
+      url: u.url
+    })
+  }
+
+  return attachments
+}
 
 // State
 const providers = ref([])
@@ -170,6 +276,27 @@ const isStreaming = ref(false)
 const inputRef = ref(null)
 const messagesContainer = ref(null)
 const fileInputRef = ref(null)
+
+// Two-model mode state
+const twoModelMode = ref(true)
+const routerModel = ref('')
+const executorModel = ref('')
+const isRouting = ref(false)
+const currentVerifyAttempt = ref(0)  // Track current retry attempt
+const copiedCode = ref(null)  // Track which code was copied
+
+// Copy code to clipboard
+async function copyCode(code) {
+  try {
+    await navigator.clipboard.writeText(code)
+    copiedCode.value = code
+    setTimeout(() => {
+      copiedCode.value = null
+    }, 2000)
+  } catch (err) {
+    console.error('Failed to copy:', err)
+  }
+}
 
 // Uploaded files state
 // Array of { file: File, name: string, status: 'loading'|'success'|'error', content: string, error?: string, readerName?: string }
@@ -360,6 +487,20 @@ async function loadModels() {
     models.value = modelList
     if (modelList.length > 0) {
       selectedModel.value = modelList[0].id
+
+      // Auto-select router and executor models based on name patterns
+      const { router, executor } = findRouterAndExecutorModels(modelList)
+      if (router) {
+        routerModel.value = router.id
+      } else if (modelList.length > 0) {
+        routerModel.value = modelList[0].id
+      }
+      if (executor) {
+        executorModel.value = executor.id
+      } else if (modelList.length > 0) {
+        // Use second model if available, else first
+        executorModel.value = modelList.length > 1 ? modelList[1].id : modelList[0].id
+      }
     }
   } catch (error) {
     console.error('Failed to load models:', error)
@@ -400,11 +541,15 @@ function scrollToBottom() {
 
 // Send message
 async function handleSend() {
-  if (!inputText.value.trim() || !selectedModel.value || isStreaming.value) return
+  const modelReady = twoModelMode.value
+    ? (routerModel.value && executorModel.value)
+    : selectedModel.value
+
+  if (!inputText.value.trim() || !modelReady || isStreaming.value) return
 
   const userMessage = inputText.value.trim()
 
-  // Build the full message with fetched URL content and uploaded files
+  // Build the full message with fetched URL content and uploaded files (for single-model mode)
   const urlContent = formatFetchedContentForPrompt(fetchedContents.value)
   const fileContent = formatUploadedFilesForPrompt(uploadedFiles.value)
 
@@ -413,7 +558,7 @@ async function handleSend() {
   if (fileContent) fullMessage += `\n\n${fileContent}`
 
   // Build attachments list for display (only include successful ones)
-  const attachments = [
+  const attachmentsForDisplay = [
     ...uploadedFiles.value
       .filter(f => f.status === 'success')
       .map(f => ({
@@ -426,7 +571,14 @@ async function handleSend() {
       .map(u => ({ type: 'url', name: truncateUrl(u.url) }))
   ]
 
+  // For 2-model mode, build raw attachments for taskRouter to parse
+  const rawAttachments = twoModelMode.value
+    ? buildRawAttachments(uploadedFiles.value, detectedUrls.value)
+    : []
+
   // Reset state
+  const currentUploadedFiles = [...uploadedFiles.value]  // Keep for 2-model mode
+  const currentDetectedUrls = [...detectedUrls.value]  // Keep for 2-model mode
   inputText.value = ''
   detectedUrls.value = []
   fetchedContents.value = {}
@@ -442,38 +594,99 @@ async function handleSend() {
     role: 'user',
     content: userMessage,  // For display in UI
     fullContent: fullMessage,  // For API (includes attachment content)
-    attachments
+    attachments: attachmentsForDisplay
   })
   scrollToBottom()
 
-  // Prepare messages for API (use fullContent for user messages to include attachments)
-  const apiMessages = messages.value.filter(m => m.role !== 'assistant' || m.content).map(m => ({
-    role: m.role,
-    content: m.fullContent || m.content  // Use fullContent if available (user messages with attachments)
-  }))
+  // Prepare messages for API
+  let apiMessages
+  if (twoModelMode.value) {
+    // In 2-model mode, only send plain user message (attachments parsed by taskRouter)
+    apiMessages = [{ role: 'user', content: userMessage }]
+  } else {
+    // In single model mode, send full conversation history
+    apiMessages = messages.value.filter(m => m.role !== 'assistant' || m.content).map(m => ({
+      role: m.role,
+      content: m.fullContent || m.content
+    }))
+  }
 
   // Add empty assistant message for streaming
-  messages.value.push({ role: 'assistant', content: '' })
+  messages.value.push({ role: 'assistant', content: '', analysis: null, generatedCode: null, execution: null, attempts: 0 })
   isStreaming.value = true
+  currentVerifyAttempt.value = 0
   abortController = new AbortController()
 
   try {
-    await sendChatMessage(
-      selectedModel.value,
-      apiMessages,
-      (chunk) => {
-        // Update the last message with streamed content
-        messages.value[messages.value.length - 1].content += chunk
-        scrollToBottom()
-      },
-      abortController.signal
-    )
+    if (twoModelMode.value) {
+      // Two-model mode: Analyze with Mistral 3B, generate code with gpt-oss-20b, execute
+      isRouting.value = true
+
+      const result = await analyzeGenerateAndExecute(
+        apiMessages,
+        { routerId: routerModel.value, executorId: executorModel.value },
+        (chunk) => {
+          // Update the last message with result content
+          messages.value[messages.value.length - 1].content += chunk
+          scrollToBottom()
+        },
+        abortController.signal,
+        {
+          // Pass raw attachments - taskRouter will parse them before routing
+          attachments: rawAttachments,
+          verifyMode: true,  // Always verify in 2-model mode
+          maxRetries: 3,
+          onAttachmentsParsed: (parsed) => {
+            // Update attachment display with parsed info if needed
+            console.log('Attachments parsed by taskRouter:', parsed.length)
+          },
+          onAnalysis: (analysis) => {
+            // Update message with analysis info
+            messages.value[messages.value.length - 1].analysis = analysis
+            isRouting.value = false
+            scrollToBottom()
+          },
+          onVerifyAttempt: (attempt, error) => {
+            // Update UI to show retry in progress
+            currentVerifyAttempt.value = attempt
+            console.log(`Verify attempt ${attempt}: fixing error "${error}"`)
+          },
+          onCodeGenerated: (code) => {
+            // Store the generated code (shown in collapsible section)
+            messages.value[messages.value.length - 1].generatedCode = code
+            scrollToBottom()
+          },
+          onExecutionComplete: (execution) => {
+            // Store execution result
+            messages.value[messages.value.length - 1].execution = execution
+            scrollToBottom()
+          }
+        }
+      )
+
+      // Store the number of attempts
+      messages.value[messages.value.length - 1].attempts = result.attempts
+    } else {
+      // Single model mode
+      await sendChatMessage(
+        selectedModel.value,
+        apiMessages,
+        (chunk) => {
+          // Update the last message with streamed content
+          messages.value[messages.value.length - 1].content += chunk
+          scrollToBottom()
+        },
+        abortController.signal
+      )
+    }
   } catch (error) {
     if (error.name !== 'AbortError') {
       messages.value[messages.value.length - 1].content = `Error: ${error.message}`
     }
   } finally {
     isStreaming.value = false
+    isRouting.value = false
+    currentVerifyAttempt.value = 0
     abortController = null
     scrollToBottom()
   }
@@ -619,6 +832,8 @@ function clearChat() {
   padding: 1rem 1.25rem;
   border-radius: 4px;
   white-space: pre-wrap;
+  max-height: 200px;
+  overflow-y: auto;
 }
 
 .message.assistant .message-content {
@@ -927,6 +1142,218 @@ textarea::placeholder {
   cursor: not-allowed;
 }
 
+/* Two-model mode styles */
+.two-model-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  padding: 0.4rem 0.6rem;
+  background-color: var(--color-bg-hover);
+  border: 1px solid var(--color-border-base);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  transition: all 0.2s;
+}
+
+.two-model-toggle:hover {
+  border-color: var(--color-border-strong);
+}
+
+.two-model-toggle input {
+  cursor: pointer;
+}
+
+.toggle-label {
+  color: var(--color-text-muted);
+  font-family: system-ui, sans-serif;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.model-pair {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.model-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.model-label {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-family: system-ui, sans-serif;
+}
+
+.model-select.small {
+  min-width: 120px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+/* Analysis indicator styles */
+.analysis-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background-color: var(--color-bg-hover);
+  border: 1px solid var(--color-border-base);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-family: system-ui, sans-serif;
+  flex-wrap: wrap;
+}
+
+.analysis-badge {
+  padding: 0.15rem 0.5rem;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.analysis-badge.code {
+  background-color: rgba(99, 102, 241, 0.15);
+  color: #6366f1;
+}
+
+.analysis-badge.text {
+  background-color: rgba(156, 163, 175, 0.15);
+  color: #9ca3af;
+}
+
+.analysis-function {
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 0.75rem;
+  color: #22c55e;
+  background-color: rgba(34, 197, 94, 0.1);
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+}
+
+.analysis-description {
+  color: var(--color-text-muted);
+  font-style: italic;
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Generated code display styles */
+.code-details {
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--color-border-base);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.code-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background-color: var(--color-bg-hover);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-family: system-ui, sans-serif;
+  color: var(--color-text-muted);
+  user-select: none;
+}
+
+.code-summary:hover {
+  background-color: var(--color-bg-surface);
+}
+
+.code-icon {
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 0.75rem;
+  color: #6366f1;
+  font-weight: 600;
+}
+
+.execution-status {
+  margin-left: auto;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.execution-status.success {
+  background-color: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.execution-status.error {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.attempts-badge {
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  background-color: rgba(251, 191, 36, 0.15);
+  color: #f59e0b;
+}
+
+.generated-code-container {
+  position: relative;
+}
+
+.copy-code-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  padding: 0.35rem;
+  background-color: var(--color-bg-hover);
+  border: 1px solid var(--color-border-base);
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  z-index: 1;
+}
+
+.copy-code-btn:hover {
+  background-color: var(--color-bg-page);
+  color: var(--color-text-base);
+  border-color: var(--color-border-strong);
+}
+
+.generated-code {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  padding-right: 2.5rem;
+  background-color: var(--color-bg-page);
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+  color: var(--color-text-base);
+  border-top: 1px solid var(--color-border-base);
+}
+
+.generated-code code {
+  font-family: inherit;
+}
+
 /* Mobile styles */
 @media (max-width: 768px) {
   .playground-header {
@@ -943,12 +1370,43 @@ textarea::placeholder {
   .header-controls {
     flex: 1;
     justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
 
   .provider-select,
   .model-select {
     min-width: 100px;
     font-size: 0.85rem;
+  }
+
+  .two-model-toggle {
+    padding: 0.3rem 0.5rem;
+  }
+
+  .model-pair {
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .model-selector {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .model-select.small {
+    min-width: 100px;
+    flex: 1;
+  }
+
+  .analysis-indicator {
+    flex-wrap: wrap;
+  }
+
+  .analysis-description {
+    max-width: 100%;
+    width: 100%;
   }
 
   .messages-container {
