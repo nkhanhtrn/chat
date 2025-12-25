@@ -509,6 +509,177 @@ function isLineBreakIndicator(line) {
   return false
 }
 
+/**
+ * EPUB Reader - Extracts text from EPUB files using epubjs
+ */
+export const epubReader = {
+  name: 'epub',
+  priority: 5,
+
+  canHandle(attachment) {
+    if (attachment.type !== AttachmentType.FILE || !attachment.file) {
+      return false
+    }
+
+    const fileName = attachment.file.name.toLowerCase()
+    const mimeType = attachment.file.type || ''
+
+    return fileName.endsWith('.epub') || mimeType === 'application/epub+zip'
+  },
+
+  async read(attachment, options = {}) {
+    const { maxLength = 100000 } = options
+
+    try {
+      const ePub = (await import('epubjs')).default
+      const JSZip = (await import('jszip')).default
+
+      const arrayBuffer = await readFileAsArrayBuffer(attachment.file)
+      const book = ePub(arrayBuffer)
+
+      await book.ready
+
+      // Get book metadata
+      const metadata = await book.loaded.metadata
+      const spine = book.spine
+
+      // Load the EPUB as a zip to directly access content files
+      // This avoids epubjs CSS replacement issues
+      const zip = await JSZip.loadAsync(arrayBuffer)
+
+      const textParts = []
+      let chapterNum = 0
+
+      // Extract text from each chapter
+      for (const item of spine.items) {
+        chapterNum++
+        try {
+          // Try to load content directly from zip to avoid CSS processing issues
+          let chapterText = ''
+          const href = item.href
+
+          // Find the file in the zip (may be in a subdirectory like OEBPS/)
+          let zipEntry = zip.file(href)
+          if (!zipEntry) {
+            // Try common EPUB directory structures
+            for (const prefix of ['OEBPS/', 'OPS/', 'EPUB/', '']) {
+              zipEntry = zip.file(prefix + href)
+              if (zipEntry) break
+            }
+          }
+
+          if (zipEntry) {
+            const htmlContent = await zipEntry.async('string')
+            const parser = new DOMParser()
+            const doc = parser.parseFromString(htmlContent, 'text/html')
+            chapterText = extractTextFromHtml(doc.body)
+          } else {
+            // Fallback to epubjs loading (may fail for some files)
+            try {
+              const doc = await book.load(item.href)
+              if (doc && doc.body) {
+                chapterText = extractTextFromHtml(doc.body)
+              } else if (typeof doc === 'string') {
+                const parser = new DOMParser()
+                const parsedDoc = parser.parseFromString(doc, 'text/html')
+                chapterText = extractTextFromHtml(parsedDoc.body)
+              }
+            } catch (loadError) {
+              console.warn(`Fallback load failed for chapter ${chapterNum}:`, loadError.message)
+            }
+          }
+
+          if (chapterText.trim()) {
+            textParts.push(`--- Chapter ${chapterNum} ---\n${chapterText.trim()}`)
+          }
+
+          const currentLength = textParts.join('\n\n').length
+          if (currentLength > maxLength) {
+            textParts.push(`\n\n[Content truncated at chapter ${chapterNum}...]`)
+            break
+          }
+        } catch (chapterError) {
+          // Skip chapters that fail to load
+          console.warn(`Failed to load chapter ${chapterNum}:`, chapterError)
+        }
+      }
+
+      const content = textParts.join('\n\n')
+
+      book.destroy()
+
+      return {
+        content: content || '[No text content found in EPUB]',
+        metadata: {
+          fileName: attachment.file.name,
+          fileSize: attachment.file.size,
+          title: metadata.title,
+          creator: metadata.creator,
+          chaptersExtracted: chapterNum
+        }
+      }
+    } catch (error) {
+      throw new Error(`Failed to read EPUB: ${error.message}`)
+    }
+  }
+}
+
+/**
+ * Extract text from HTML element, preserving basic structure
+ */
+function extractTextFromHtml(element) {
+  if (!element) return ''
+
+  const lines = []
+
+  function walk(node) {
+    if (node.nodeType === 3) { // Text node
+      const text = node.textContent.trim()
+      if (text) {
+        lines.push(text)
+      }
+    } else if (node.nodeType === 1) { // Element node
+      const tagName = node.tagName.toLowerCase()
+
+      // Add line breaks before block elements
+      if (['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'br', 'tr'].includes(tagName)) {
+        if (lines.length > 0 && lines[lines.length - 1] !== '') {
+          lines.push('')
+        }
+      }
+
+      // Process children
+      for (const child of node.childNodes) {
+        walk(child)
+      }
+
+      // Add extra line break after headings and paragraphs
+      if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p'].includes(tagName)) {
+        lines.push('')
+      }
+    }
+  }
+
+  walk(element)
+
+  // Clean up multiple blank lines
+  const result = []
+  let prevBlank = false
+  for (const line of lines) {
+    if (line === '') {
+      if (!prevBlank) {
+        result.push('')
+        prevBlank = true
+      }
+    } else {
+      result.push(line)
+      prevBlank = false
+    }
+  }
+
+  return result.join('\n')
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -603,6 +774,7 @@ export function initializeDefaultReaders() {
   registerReader(urlReader)
   registerReader(textFileReader)
   registerReader(pdfReader)
+  registerReader(epubReader)
   registerReader(unsupportedFileReader)
 }
 

@@ -437,17 +437,20 @@ async function handleSend() {
     }
   })
 
-  // Add user message (show original message in UI, not the full one with content)
-  messages.value.push({ role: 'user', content: userMessage, attachments })
+  // Add user message (store both display content and full content with attachments)
+  messages.value.push({
+    role: 'user',
+    content: userMessage,  // For display in UI
+    fullContent: fullMessage,  // For API (includes attachment content)
+    attachments
+  })
   scrollToBottom()
 
-  // Prepare messages for API (include conversation history, but use fullMessage for the latest)
-  const apiMessages = messages.value.slice(0, -1).map(m => ({
+  // Prepare messages for API (use fullContent for user messages to include attachments)
+  const apiMessages = messages.value.filter(m => m.role !== 'assistant' || m.content).map(m => ({
     role: m.role,
-    content: m.content
+    content: m.fullContent || m.content  // Use fullContent if available (user messages with attachments)
   }))
-  // Add the current message with fetched content
-  apiMessages.push({ role: 'user', content: fullMessage })
 
   // Add empty assistant message for streaming
   messages.value.push({ role: 'assistant', content: '' })

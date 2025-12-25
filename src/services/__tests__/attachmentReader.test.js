@@ -14,6 +14,7 @@ import {
   urlReader,
   textFileReader,
   pdfReader,
+  epubReader,
   unsupportedFileReader,
   extractTextWithLayout,
   detectTableStructure
@@ -165,6 +166,7 @@ describe('attachmentReader', () => {
         expect(readerNames).toContain('url')
         expect(readerNames).toContain('text')
         expect(readerNames).toContain('pdf')
+        expect(readerNames).toContain('epub')
         expect(readerNames).toContain('unsupported')
       })
     })
@@ -435,6 +437,86 @@ describe('attachmentReader', () => {
 
     // Note: Full PDF reading tests would require mocking pdfjs-dist
     // which is complex. We test the layout extraction functions separately.
+  })
+
+  // ==========================================================================
+  // EPUB Reader Tests
+  // ==========================================================================
+  describe('epubReader', () => {
+    describe('canHandle', () => {
+      it('should handle .epub files', () => {
+        const attachment = {
+          type: AttachmentType.FILE,
+          file: createMockFile('book.epub', 'content')
+        }
+        expect(epubReader.canHandle(attachment)).toBe(true)
+      })
+
+      it('should handle .EPUB files (case insensitive)', () => {
+        const attachment = {
+          type: AttachmentType.FILE,
+          file: createMockFile('book.EPUB', 'content')
+        }
+        expect(epubReader.canHandle(attachment)).toBe(true)
+      })
+
+      it('should handle files with application/epub+zip MIME type', () => {
+        const attachment = {
+          type: AttachmentType.FILE,
+          file: createMockFile('ebook', 'content', 'application/epub+zip')
+        }
+        expect(epubReader.canHandle(attachment)).toBe(true)
+      })
+
+      it('should not handle .pdf files', () => {
+        const attachment = {
+          type: AttachmentType.FILE,
+          file: createMockFile('document.pdf', 'content', 'application/pdf')
+        }
+        expect(epubReader.canHandle(attachment)).toBe(false)
+      })
+
+      it('should not handle .txt files', () => {
+        const attachment = {
+          type: AttachmentType.FILE,
+          file: createMockFile('file.txt', 'content', 'text/plain')
+        }
+        expect(epubReader.canHandle(attachment)).toBe(false)
+      })
+
+      it('should not handle URL attachments', () => {
+        expect(epubReader.canHandle({ type: AttachmentType.URL, url: 'https://example.com' })).toBe(false)
+      })
+
+      it('should not handle attachments without file', () => {
+        expect(epubReader.canHandle({ type: AttachmentType.FILE })).toBe(false)
+        expect(epubReader.canHandle({ type: AttachmentType.FILE, file: null })).toBe(false)
+      })
+    })
+
+    describe('routing', () => {
+      it('should route .epub files to EPUB reader', () => {
+        const attachment = {
+          type: AttachmentType.FILE,
+          file: createMockFile('book.epub', 'content', 'application/epub+zip')
+        }
+        const reader = findReader(attachment)
+        expect(reader.name).toBe('epub')
+      })
+
+      it('should prefer EPUB reader over unsupported reader for .epub files', () => {
+        const attachment = {
+          type: AttachmentType.FILE,
+          file: createMockFile('book.epub', 'content')
+        }
+        const reader = findReader(attachment)
+        expect(reader.name).toBe('epub')
+        expect(reader.name).not.toBe('unsupported')
+      })
+    })
+
+    // Note: Full EPUB reading tests would require mocking epubjs and jszip
+    // which is complex. The reader functionality is tested via integration tests.
   })
 
   // ==========================================================================
