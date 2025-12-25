@@ -19,8 +19,10 @@ describe('Cerebras Provider - Round Robin API Keys', () => {
       const config = { apiKey: 'single-key' }
 
       const models = await cerebrasProvider.fetchModels(config)
-      expect(models).toHaveLength(1)
+      expect(models).toHaveLength(3)
       expect(models[0].id).toBe('gpt-oss-120b')
+      expect(models[1].id).toBe('llama-3.3-70b')
+      expect(models[2].id).toBe('qwen-3-32b')
     })
 
     it('should throw error when no API key provided', async () => {
@@ -33,7 +35,7 @@ describe('Cerebras Provider - Round Robin API Keys', () => {
       const config = { apiKeys: ['key1', 'key2', 'key3'] }
 
       const models = await cerebrasProvider.fetchModels(config)
-      expect(models).toHaveLength(1)
+      expect(models).toHaveLength(3)
     })
 
     it('should throw error when apiKeys array is empty', async () => {
@@ -48,7 +50,7 @@ describe('Cerebras Provider - Round Robin API Keys', () => {
 
       // Should not throw - apiKeys takes precedence
       const models = await cerebrasProvider.fetchModels(config)
-      expect(models).toHaveLength(1)
+      expect(models).toHaveLength(3)
     })
   })
 

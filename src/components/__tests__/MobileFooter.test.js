@@ -217,6 +217,14 @@ describe('MobileFooter', () => {
       expect(mockRouterPush).toHaveBeenCalledWith({ name: 'calendar' })
     })
 
+    it('should navigate to playground when playground button is clicked', async () => {
+      wrapper = mount(MobileFooter)
+      const playgroundBtn = wrapper.find('[title="AI Playground"]')
+      await playgroundBtn.trigger('click')
+
+      expect(mockRouterPush).toHaveBeenCalledWith({ name: 'playground' })
+    })
+
     it('should disable current question button when no current question', () => {
       wrapper = mount(MobileFooter)
       const questionBtn = wrapper.find('[title="Current Question"]')
@@ -261,6 +269,36 @@ describe('MobileFooter', () => {
       })
       const questionBtn = wrapper.find('[title="Current Question"]')
       expect(questionBtn.classes()).toContain('active')
+    })
+
+    it('should apply active class to playground button when activePage is playground', () => {
+      wrapper = mount(MobileFooter, {
+        props: {
+          activePage: 'playground'
+        }
+      })
+      const playgroundBtn = wrapper.find('[title="AI Playground"]')
+      expect(playgroundBtn.classes()).toContain('active')
+    })
+  })
+
+  describe('Playground Button', () => {
+    it('should render playground button', () => {
+      wrapper = mount(MobileFooter)
+      const playgroundBtn = wrapper.find('[title="AI Playground"]')
+      expect(playgroundBtn.exists()).toBe(true)
+    })
+
+    it('should render playground button with chat icon', () => {
+      wrapper = mount(MobileFooter)
+      const playgroundBtn = wrapper.find('[title="AI Playground"]')
+      expect(playgroundBtn.find('svg').exists()).toBe(true)
+    })
+
+    it('should have footer-btn class on playground button', () => {
+      wrapper = mount(MobileFooter)
+      const playgroundBtn = wrapper.find('[title="AI Playground"]')
+      expect(playgroundBtn.classes()).toContain('footer-btn')
     })
   })
 

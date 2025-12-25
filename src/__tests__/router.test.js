@@ -27,9 +27,15 @@ describe('Router Configuration', () => {
       expect(calendarRoute.path).toBe('/calendar')
     })
 
+    it('should have playground route', () => {
+      const playgroundRoute = router.getRoutes().find(r => r.name === 'playground')
+      expect(playgroundRoute).toBeDefined()
+      expect(playgroundRoute.path).toBe('/playground')
+    })
+
     it('should have correct number of routes', () => {
       const routes = router.getRoutes()
-      expect(routes.length).toBe(4)
+      expect(routes.length).toBe(5)
     })
   })
 
@@ -84,6 +90,16 @@ describe('Router Configuration', () => {
     it('should resolve calendar route by name', () => {
       const resolved = router.resolve({ name: 'calendar' })
       expect(resolved.fullPath).toBe('/calendar')
+    })
+
+    it('should resolve playground route correctly', () => {
+      const resolved = router.resolve('/playground')
+      expect(resolved.name).toBe('playground')
+    })
+
+    it('should resolve playground route by name', () => {
+      const resolved = router.resolve({ name: 'playground' })
+      expect(resolved.fullPath).toBe('/playground')
     })
   })
 })

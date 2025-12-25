@@ -35,6 +35,14 @@
     >
       <svg class="footer-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM9 10H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm-8 4H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z"/></svg>
     </button>
+    <button
+      class="footer-btn"
+      :class="{ active: activePage === 'playground' }"
+      @click="goPlayground"
+      title="AI Playground"
+    >
+      <svg class="footer-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+    </button>
     <button class="footer-btn" @click="showReviewModal = true" title="Review cards">
       <svg class="footer-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
       <span v-if="dueCount > 0" class="review-badge">{{ dueCount }}</span>
@@ -111,6 +119,10 @@ function goHome() {
 
 function goCalendar() {
   router.push({ name: 'calendar' })
+}
+
+function goPlayground() {
+  router.push({ name: 'playground' })
 }
 
 function goCurrentQuestion() {

@@ -1338,4 +1338,57 @@ describe('HomePage', () => {
       expect(settingsModal.exists()).toBe(true)
     })
   })
+
+  describe('Playground Link', () => {
+    it('should render playground link in header', () => {
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia],
+          stubs: {
+            RouterLink: {
+              template: '<a class="playground-link" :href="to"><slot /></a>',
+              props: ['to']
+            }
+          }
+        }
+      })
+
+      const playgroundLink = wrapper.find('.playground-link')
+      expect(playgroundLink.exists()).toBe(true)
+    })
+
+    it('should display "Playground" text', () => {
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia],
+          stubs: {
+            RouterLink: {
+              template: '<a class="playground-link" :href="to"><slot /></a>',
+              props: ['to']
+            }
+          }
+        }
+      })
+
+      const playgroundLink = wrapper.find('.playground-link')
+      expect(playgroundLink.text()).toBe('Playground')
+    })
+
+    it('should link to /playground path', () => {
+      wrapper = mount(HomePage, {
+        global: {
+          plugins: [pinia],
+          stubs: {
+            RouterLink: {
+              template: '<a class="playground-link" :href="to"><slot /></a>',
+              props: ['to']
+            }
+          }
+        }
+      })
+
+      const playgroundLink = wrapper.find('.playground-link')
+      expect(playgroundLink.attributes('href')).toBe('/playground')
+    })
+  })
 })

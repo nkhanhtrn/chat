@@ -212,7 +212,7 @@ export const sendChatMessage = async (model, messages, onChunk = null, signal = 
  * @param {string} providerId
  * @returns {Object}
  */
-const getProviderConfig = (providerId) => {
+export const getProviderConfig = (providerId) => {
   const provider = providers[providerId]
   if (!provider) return {}
 

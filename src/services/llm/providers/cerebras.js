@@ -97,9 +97,11 @@ export const cerebrasProvider = {
       throw new Error('Cerebras API key is required')
     }
 
-    // Only use gpt-oss-120b model
+    // Available Cerebras models
     return [
-      { id: 'gpt-oss-120b', name: 'GPT-OSS 120B' }
+      { id: 'gpt-oss-120b', name: 'GPT-OSS 120B' },
+      { id: 'llama-3.3-70b', name: 'Llama 3.3 70B' },
+      { id: 'qwen-3-32b', name: 'Qwen 3 32B' }
     ]
   },
 

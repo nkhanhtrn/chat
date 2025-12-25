@@ -12,6 +12,9 @@
         <button v-else class="sign-in-btn" @click="showLoginModal = true">
           Sign In
         </button>
+        <router-link to="/playground" class="playground-link">
+          Playground
+        </router-link>
         <Button variant="primary" @click="createNewNotebook">
           + New Notebook
         </Button>
@@ -335,6 +338,23 @@ const handleDrop = (event, targetIndex) => {
   border-color: var(--color-accent);
   transform: translateY(-1px);
   box-shadow: 0 2px 8px var(--shadow-primary);
+}
+
+.playground-link {
+  padding: 0.5rem 1rem;
+  font-size: 0.9375rem;
+  background: var(--color-bg-page);
+  border: 1px solid var(--color-border-base);
+  border-radius: 6px;
+  color: var(--color-text-base);
+  text-decoration: none;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.playground-link:hover {
+  background: var(--color-bg-hover);
+  border-color: var(--color-border-accent);
 }
 
 .search-container {
