@@ -135,10 +135,11 @@ describe('urlFetcher', () => {
     })
 
     it('should fetch and extract content via proxy', async () => {
+      // First proxy (corsproxy.io) returns raw HTML
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,
-        headers: createMockHeaders('application/json'),
-        json: () => Promise.resolve({ contents: '<p>Hello from proxy</p>' })
+        headers: createMockHeaders('text/html'),
+        text: () => Promise.resolve('<p>Hello from proxy</p>')
       })
 
       const content = await fetchUrlContent('https://example.com')
@@ -146,23 +147,26 @@ describe('urlFetcher', () => {
       expect(global.fetch).toHaveBeenCalled()
     })
 
-    it('should handle raw HTML response', async () => {
-      global.fetch = vi.fn().mockResolvedValueOnce({
-        ok: true,
-        headers: createMockHeaders('text/html'),
-        text: () => Promise.resolve('<p>Raw HTML content</p>')
-      })
+    it('should handle JSON response from allorigins', async () => {
+      // Skip first proxy, test allorigins JSON format
+      global.fetch = vi.fn()
+        .mockRejectedValueOnce(new Error('First failed'))
+        .mockResolvedValueOnce({
+          ok: true,
+          headers: createMockHeaders('application/json'),
+          json: () => Promise.resolve({ contents: '<p>JSON content</p>' })
+        })
 
       const content = await fetchUrlContent('https://example.com')
-      expect(content).toBe('Raw HTML content')
+      expect(content).toBe('JSON content')
     })
 
     it('should truncate long content', async () => {
       const longContent = 'A'.repeat(10000)
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,
-        headers: createMockHeaders('application/json'),
-        json: () => Promise.resolve({ contents: `<p>${longContent}</p>` })
+        headers: createMockHeaders('text/html'),
+        text: () => Promise.resolve(`<p>${longContent}</p>`)
       })
 
       const content = await fetchUrlContent('https://example.com', { maxLength: 100 })
@@ -171,7 +175,7 @@ describe('urlFetcher', () => {
     })
 
     it('should try next proxy on failure', async () => {
-      // First proxy (allorigins) fails, second proxy (corsproxy.io) returns raw HTML
+      // First proxy fails, second proxy returns HTML
       global.fetch = vi.fn()
         .mockRejectedValueOnce(new Error('First proxy failed'))
         .mockResolvedValueOnce({
@@ -188,7 +192,7 @@ describe('urlFetcher', () => {
     it('should throw error when all proxies fail', async () => {
       global.fetch = vi.fn().mockRejectedValue(new Error('All failed'))
 
-      await expect(fetchUrlContent('https://example.com')).rejects.toThrow('All proxies failed')
+      await expect(fetchUrlContent('https://example.com')).rejects.toThrow('Failed to fetch URL')
     })
 
     it('should handle HTTP error responses', async () => {
@@ -223,8 +227,8 @@ describe('urlFetcher', () => {
     it('should fetch multiple URLs in parallel', async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
-        headers: createMockHeaders('application/json'),
-        json: () => Promise.resolve({ contents: '<p>Content</p>' })
+        headers: createMockHeaders('text/html'),
+        text: () => Promise.resolve('<p>Content</p>')
       })
 
       const results = await fetchMultipleUrls([
@@ -237,21 +241,19 @@ describe('urlFetcher', () => {
     })
 
     it('should handle mixed success and failure', async () => {
+      const proxyCount = getProxyCount()
       let callCount = 0
       global.fetch = vi.fn().mockImplementation(() => {
         callCount++
-        if (callCount <= 9) {
-          // First URL succeeds on first proxy
-          if (callCount === 1) {
-            return Promise.resolve({
-              ok: true,
-              headers: createMockHeaders('application/json'),
-              json: () => Promise.resolve({ contents: '<p>Success</p>' })
-            })
-          }
-          // Second URL fails all proxies
-          return Promise.reject(new Error('Failed'))
+        // First call succeeds (for first URL)
+        if (callCount === 1) {
+          return Promise.resolve({
+            ok: true,
+            headers: createMockHeaders('text/html'),
+            text: () => Promise.resolve('<p>Success</p>')
+          })
         }
+        // All other calls fail (second URL tries all proxies)
         return Promise.reject(new Error('Failed'))
       })
 

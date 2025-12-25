@@ -43,7 +43,7 @@
             <!-- Attachments indicator for user messages -->
             <div v-if="msg.role === 'user' && msg.attachments && msg.attachments.length > 0" class="attachments-indicator">
               <div v-for="(att, attIndex) in msg.attachments" :key="attIndex" class="attachment-badge">
-                <span class="attachment-icon">{{ att.type === 'file' ? '📄' : '🔗' }}</span>
+                <span class="attachment-icon">{{ att.type === 'url' ? '🔗' : (att.readerName === 'pdf' ? '📕' : '📄') }}</span>
                 <span class="attachment-name">{{ att.name }}</span>
               </div>
             </div>
@@ -73,9 +73,15 @@
           <!-- Uploaded Files Status -->
           <div v-if="uploadedFiles.length > 0" class="file-status-container">
             <div v-for="(file, index) in uploadedFiles" :key="file.name + index" class="file-status-item">
-              <span class="file-icon">📄</span>
+              <span class="file-status-icon">
+                <span v-if="file.status === 'loading'" class="spinner"></span>
+                <span v-else-if="file.status === 'success'" class="file-icon">{{ file.name.endsWith('.pdf') ? '📕' : '📄' }}</span>
+                <span v-else class="error-icon">&#10007;</span>
+              </span>
               <span class="file-name" :title="file.name">{{ truncateFileName(file.name) }}</span>
-              <span class="file-size">({{ formatSize(file.content.length) }})</span>
+              <span v-if="file.status === 'success'" class="file-size">({{ formatSize(file.content.length) }})</span>
+              <span v-if="file.status === 'error'" class="file-error">{{ file.error }}</span>
+              <span v-if="file.readerName" class="file-reader-badge">{{ file.readerName }}</span>
               <button class="file-remove" @click="removeFile(index)" title="Remove file">&times;</button>
             </div>
           </div>
@@ -86,7 +92,6 @@
               ref="fileInputRef"
               @change="handleFileUpload"
               multiple
-              accept="text/*,.json,.md,.js,.ts,.vue,.py,.html,.css,.xml,.yaml,.yml,.csv,.txt"
               style="display: none"
             />
             <button
@@ -111,11 +116,11 @@
             <Button
               v-if="!isStreaming"
               @click="handleSend"
-              :disabled="!inputText.trim() || !selectedModel || hasLoadingUrls"
+              :disabled="!inputText.trim() || !selectedModel || hasLoadingUrls || hasLoadingFiles"
               variant="primary"
               class="send-button"
             >
-              {{ hasLoadingUrls ? 'Fetching...' : 'Send' }}
+              {{ (hasLoadingUrls || hasLoadingFiles) ? 'Loading...' : 'Send' }}
             </Button>
             <button
               v-else
@@ -147,11 +152,12 @@ import {
   fetchModels,
   sendChatMessage
 } from '../services/llm/index.js'
+import { detectUrls } from '../services/urlFetcher.js'
 import {
-  detectUrls,
-  fetchUrlContent,
-  formatFetchedContentForPrompt
-} from '../services/urlFetcher.js'
+  AttachmentType,
+  readAttachment,
+  formatAttachmentForPrompt
+} from '../services/attachmentReader.js'
 
 // State
 const providers = ref([])
@@ -166,7 +172,8 @@ const messagesContainer = ref(null)
 const fileInputRef = ref(null)
 
 // Uploaded files state
-const uploadedFiles = ref([]) // Array of { name: string, content: string }
+// Array of { file: File, name: string, status: 'loading'|'success'|'error', content: string, error?: string, readerName?: string }
+const uploadedFiles = ref([])
 
 // URL fetching state
 const detectedUrls = ref([]) // Array of { url, status: 'loading'|'success'|'error', content: string }
@@ -192,19 +199,22 @@ watch(inputText, async (newText) => {
     }
   }
 
-  // Add new URLs and start fetching
+  // Add new URLs and start fetching using attachment reader
   for (const url of newUrls) {
     const urlEntry = { url, status: 'loading', content: '' }
     detectedUrls.value.push(urlEntry)
 
     try {
-      const content = await fetchUrlContent(url)
+      const result = await readAttachment({
+        type: AttachmentType.URL,
+        url
+      })
       // Find and update the entry (it might have been removed)
       const entry = detectedUrls.value.find(d => d.url === url)
       if (entry) {
         entry.status = 'success'
-        entry.content = content
-        fetchedContents.value[url] = content
+        entry.content = result.content
+        fetchedContents.value[url] = result.content
       }
     } catch (error) {
       const entry = detectedUrls.value.find(d => d.url === url)
@@ -249,6 +259,11 @@ function truncateFileName(name) {
   return baseName.slice(0, 25 - ext.length) + '...' + ext
 }
 
+// Computed: check if any files are still loading
+const hasLoadingFiles = computed(() =>
+  uploadedFiles.value.some(f => f.status === 'loading')
+)
+
 // File upload handlers
 function triggerFileUpload() {
   fileInputRef.value?.click()
@@ -259,13 +274,37 @@ async function handleFileUpload(event) {
   if (!files || files.length === 0) return
 
   for (const file of files) {
+    // Add file entry with loading status
+    const fileEntry = {
+      file,
+      name: file.name,
+      status: 'loading',
+      content: '',
+      error: null,
+      readerName: null
+    }
+    uploadedFiles.value.push(fileEntry)
+
+    // Read file using attachment reader
     try {
-      const content = await readFileAsText(file)
-      uploadedFiles.value.push({
-        name: file.name,
-        content: content
+      const result = await readAttachment({
+        type: AttachmentType.FILE,
+        file
       })
+
+      // Find and update the entry
+      const entry = uploadedFiles.value.find(f => f.file === file)
+      if (entry) {
+        entry.status = 'success'
+        entry.content = result.content
+        entry.readerName = result.readerName
+      }
     } catch (error) {
+      const entry = uploadedFiles.value.find(f => f.file === file)
+      if (entry) {
+        entry.status = 'error'
+        entry.error = error.message
+      }
       console.error(`Failed to read file ${file.name}:`, error)
     }
   }
@@ -274,25 +313,35 @@ async function handleFileUpload(event) {
   event.target.value = ''
 }
 
-function readFileAsText(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result)
-    reader.onerror = () => reject(new Error('Failed to read file'))
-    reader.readAsText(file)
-  })
-}
-
 function removeFile(index) {
   uploadedFiles.value.splice(index, 1)
 }
 
-// Format uploaded files for prompt
+// Format uploaded files for prompt (using new attachment reader format)
 function formatUploadedFilesForPrompt(files) {
-  if (files.length === 0) return ''
+  const successfulFiles = files.filter(f => f.status === 'success')
+  if (successfulFiles.length === 0) return ''
 
-  return files.map(f =>
-    `--- File: ${f.name} ---\n${f.content}\n--- End of ${f.name} ---`
+  return successfulFiles.map(f =>
+    formatAttachmentForPrompt(
+      { content: f.content },
+      { type: AttachmentType.FILE, file: f.file }
+    )
+  ).join('\n\n')
+}
+
+// Format URL contents for prompt (using new attachment reader format)
+function formatFetchedContentForPrompt(fetchedContents) {
+  const entries = Object.entries(fetchedContents).filter(
+    ([, content]) => content && content.trim()
+  )
+  if (entries.length === 0) return ''
+
+  return entries.map(([url, content]) =>
+    formatAttachmentForPrompt(
+      { content },
+      { type: AttachmentType.URL, url }
+    )
   ).join('\n\n')
 }
 
@@ -363,9 +412,15 @@ async function handleSend() {
   if (urlContent) fullMessage += `\n\n${urlContent}`
   if (fileContent) fullMessage += `\n\n${fileContent}`
 
-  // Build attachments list for display
+  // Build attachments list for display (only include successful ones)
   const attachments = [
-    ...uploadedFiles.value.map(f => ({ type: 'file', name: truncateFileName(f.name) })),
+    ...uploadedFiles.value
+      .filter(f => f.status === 'success')
+      .map(f => ({
+        type: 'file',
+        name: truncateFileName(f.name),
+        readerName: f.readerName
+      })),
     ...detectedUrls.value
       .filter(u => u.status === 'success')
       .map(u => ({ type: 'url', name: truncateUrl(u.url) }))
@@ -702,8 +757,28 @@ function clearChat() {
   font-family: system-ui, sans-serif;
 }
 
+.file-status-icon {
+  display: flex;
+  align-items: center;
+}
+
 .file-icon {
   font-size: 0.9rem;
+}
+
+.file-error {
+  color: #ef4444;
+  font-size: 0.75rem;
+}
+
+.file-reader-badge {
+  padding: 0.1rem 0.3rem;
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border-base);
+  border-radius: 3px;
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
 }
 
 .file-name {

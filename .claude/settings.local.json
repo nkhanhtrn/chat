@@ -23,7 +23,8 @@
       "Bash(rm:*)",
       "Bash(git checkout:*)",
       "Bash(node -e:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(git -C /home/kt/dev/chat-clone log --oneline -20)"
     ],
     "deny": [],
     "ask": []

@@ -8,15 +8,21 @@ const URL_REGEX = /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi
 
 // Free CORS proxy services with their URL templates
 // {url} will be replaced with the encoded URL
+// Ordered by reliability (most reliable first)
 const CORS_PROXIES = [
+  {
+    name: 'corsproxy.io',
+    template: 'https://corsproxy.io/?{url}',
+    parseResponse: data => data
+  },
   {
     name: 'allorigins',
     template: 'https://api.allorigins.win/get?url={url}',
     parseResponse: data => data.contents
   },
   {
-    name: 'corsproxy.io',
-    template: 'https://corsproxy.io/?{url}',
+    name: 'allorigins-raw',
+    template: 'https://api.allorigins.win/raw?url={url}',
     parseResponse: data => data
   },
   {
@@ -25,39 +31,20 @@ const CORS_PROXIES = [
     parseResponse: data => data
   },
   {
-    name: 'corsanywhere',
-    template: 'https://cors-anywhere.herokuapp.com/{rawurl}',
-    parseResponse: data => data,
-    useRawUrl: true
+    name: 'corsh',
+    template: 'https://corsh.vercel.app/?url={url}',
+    parseResponse: data => data
   },
   {
     name: 'thingproxy',
     template: 'https://thingproxy.freeboard.io/fetch/{rawurl}',
     parseResponse: data => data,
     useRawUrl: true
-  },
-  {
-    name: 'corsproxy-org',
-    template: 'https://corsproxy.org/?{url}',
-    parseResponse: data => data
-  },
-  {
-    name: 'jsonp-afeld',
-    template: 'https://jsonp.afeld.me/?url={url}',
-    parseResponse: data => data
-  },
-  {
-    name: 'whateverorigin',
-    template: 'https://whatever.fly.dev/get?url={url}',
-    parseResponse: data => data.contents
-  },
-  {
-    name: 'crossorigin-me',
-    template: 'https://crossorigin.me/{rawurl}',
-    parseResponse: data => data,
-    useRawUrl: true
   }
 ]
+
+// Timeout for proxy requests (ms)
+const PROXY_TIMEOUT = 10000
 
 // Round-robin index
 let currentProxyIndex = 0
@@ -129,18 +116,40 @@ export function extractTextFromHtml(html) {
 }
 
 /**
+ * Fetch with timeout using AbortController
+ */
+async function fetchWithTimeout(url, timeout) {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeout)
+
+  try {
+    const response = await fetch(url, { signal: controller.signal })
+    clearTimeout(timeoutId)
+    return response
+  } catch (error) {
+    clearTimeout(timeoutId)
+    if (error.name === 'AbortError') {
+      throw new Error('Request timeout')
+    }
+    throw error
+  }
+}
+
+/**
  * Fetch URL content via CORS proxy with round-robin and fallback
  * @param {string} url - URL to fetch
  * @param {Object} options - Options
  * @param {number} options.maxLength - Max content length (default 8000)
+ * @param {number} options.timeout - Timeout per proxy in ms (default PROXY_TIMEOUT)
  * @returns {Promise<string>} - Fetched and extracted text content
  */
 export async function fetchUrlContent(url, options = {}) {
-  const { maxLength = 8000 } = options
+  const { maxLength = 8000, timeout = PROXY_TIMEOUT } = options
   const encodedUrl = encodeURIComponent(url)
 
   // Try proxies starting from current round-robin position
   let lastError = null
+  const errors = []
 
   for (let i = 0; i < CORS_PROXIES.length; i++) {
     const proxy = getNextProxy()
@@ -149,7 +158,7 @@ export async function fetchUrlContent(url, options = {}) {
       .replace('{rawurl}', url)
 
     try {
-      const response = await fetch(proxyUrl)
+      const response = await fetchWithTimeout(proxyUrl, timeout)
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)
       }
@@ -166,8 +175,18 @@ export async function fetchUrlContent(url, options = {}) {
         content = await response.text()
       }
 
+      // Check if we got actual content
+      if (!content || content.trim().length === 0) {
+        throw new Error('Empty response')
+      }
+
       // Extract text content from HTML
       content = extractTextFromHtml(content)
+
+      // Check if extraction yielded content
+      if (!content || content.trim().length === 0) {
+        throw new Error('No text content extracted')
+      }
 
       // Truncate if too long
       if (content.length > maxLength) {
@@ -177,13 +196,14 @@ export async function fetchUrlContent(url, options = {}) {
       return content
     } catch (error) {
       lastError = error
+      errors.push(`${proxy.name}: ${error.message}`)
       console.warn(`Proxy ${proxy.name} failed for ${url}:`, error.message)
       // Continue to next proxy
     }
   }
 
   // All proxies failed
-  throw new Error(`All proxies failed for ${url}: ${lastError?.message}`)
+  throw new Error(`Failed to fetch URL. Tried ${CORS_PROXIES.length} proxies: ${errors.join(', ')}`)
 }
 
 /**
