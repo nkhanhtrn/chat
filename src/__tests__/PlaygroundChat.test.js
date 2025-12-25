@@ -238,7 +238,7 @@ describe('PlaygroundChat', () => {
       await wrapper.find('textarea').setValue('Hello AI')
       await wrapper.find('.send-button').trigger('click')
 
-      expect(wrapper.vm.messages[0]).toEqual({ role: 'user', content: 'Hello AI' })
+      expect(wrapper.vm.messages[0]).toEqual({ role: 'user', content: 'Hello AI', attachments: [] })
     })
 
     it('should clear input after sending', async () => {
@@ -482,6 +482,268 @@ describe('PlaygroundChat', () => {
       await wrapper.find('.send-button').trigger('click')
 
       expect(wrapper.find('.stop-button').classes()).toContain('stop-button')
+    })
+  })
+
+  describe('File Upload', () => {
+    it('should render upload button', async () => {
+      await mountPlaygroundChat()
+      expect(wrapper.find('.upload-button').exists()).toBe(true)
+    })
+
+    it('should render hidden file input', async () => {
+      await mountPlaygroundChat()
+      const fileInput = wrapper.find('input[type="file"]')
+      expect(fileInput.exists()).toBe(true)
+      expect(fileInput.attributes('style')).toContain('display: none')
+    })
+
+    it('should accept text file types', async () => {
+      await mountPlaygroundChat()
+      const fileInput = wrapper.find('input[type="file"]')
+      expect(fileInput.attributes('accept')).toContain('.txt')
+      expect(fileInput.attributes('accept')).toContain('.json')
+      expect(fileInput.attributes('accept')).toContain('.js')
+    })
+
+    it('should allow multiple file selection', async () => {
+      await mountPlaygroundChat()
+      const fileInput = wrapper.find('input[type="file"]')
+      expect(fileInput.attributes('multiple')).toBeDefined()
+    })
+
+    it('should disable upload button while streaming', async () => {
+      mockSendChatMessage.mockImplementation(() => new Promise(() => {}))
+      await mountPlaygroundChat()
+      await wrapper.find('textarea').setValue('Hello')
+      await wrapper.find('.send-button').trigger('click')
+
+      expect(wrapper.find('.upload-button').attributes('disabled')).toBeDefined()
+    })
+
+    it('should display uploaded files', async () => {
+      await mountPlaygroundChat()
+      wrapper.vm.uploadedFiles = [
+        { name: 'test.txt', content: 'Hello world' }
+      ]
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('.file-status-container').exists()).toBe(true)
+      expect(wrapper.find('.file-status-item').exists()).toBe(true)
+      expect(wrapper.find('.file-name').text()).toContain('test.txt')
+    })
+
+    it('should display file size', async () => {
+      await mountPlaygroundChat()
+      wrapper.vm.uploadedFiles = [
+        { name: 'test.txt', content: 'Hello world' }
+      ]
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('.file-size').text()).toContain('11 chars')
+    })
+
+    it('should display file size in k for large files', async () => {
+      await mountPlaygroundChat()
+      wrapper.vm.uploadedFiles = [
+        { name: 'large.txt', content: 'x'.repeat(5000) }
+      ]
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('.file-size').text()).toContain('5.0k chars')
+    })
+
+    it('should show remove button for uploaded files', async () => {
+      await mountPlaygroundChat()
+      wrapper.vm.uploadedFiles = [
+        { name: 'test.txt', content: 'Hello world' }
+      ]
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('.file-remove').exists()).toBe(true)
+    })
+
+    it('should remove file when remove button is clicked', async () => {
+      await mountPlaygroundChat()
+      wrapper.vm.uploadedFiles = [
+        { name: 'test.txt', content: 'Hello world' },
+        { name: 'test2.txt', content: 'Goodbye' }
+      ]
+      await wrapper.vm.$nextTick()
+
+      const removeButtons = wrapper.findAll('.file-remove')
+      await removeButtons[0].trigger('click')
+
+      expect(wrapper.vm.uploadedFiles.length).toBe(1)
+      expect(wrapper.vm.uploadedFiles[0].name).toBe('test2.txt')
+    })
+
+    it('should not show file status container when no files uploaded', async () => {
+      await mountPlaygroundChat()
+      expect(wrapper.find('.file-status-container').exists()).toBe(false)
+    })
+
+    it('should include file content in message when sending', async () => {
+      await mountPlaygroundChat()
+      wrapper.vm.uploadedFiles = [
+        { name: 'test.txt', content: 'File content here' }
+      ]
+      await wrapper.find('textarea').setValue('Check this file')
+      await wrapper.find('.send-button').trigger('click')
+
+      expect(mockSendChatMessage).toHaveBeenCalledWith(
+        'model-1',
+        [{ role: 'user', content: expect.stringContaining('File content here') }],
+        expect.any(Function),
+        expect.any(Object)
+      )
+    })
+
+    it('should include file name markers in message', async () => {
+      await mountPlaygroundChat()
+      wrapper.vm.uploadedFiles = [
+        { name: 'test.txt', content: 'File content' }
+      ]
+      await wrapper.find('textarea').setValue('Check this')
+      await wrapper.find('.send-button').trigger('click')
+
+      expect(mockSendChatMessage).toHaveBeenCalledWith(
+        'model-1',
+        [{ role: 'user', content: expect.stringContaining('--- File: test.txt ---') }],
+        expect.any(Function),
+        expect.any(Object)
+      )
+    })
+
+    it('should clear uploaded files after sending', async () => {
+      await mountPlaygroundChat()
+      wrapper.vm.uploadedFiles = [
+        { name: 'test.txt', content: 'Hello' }
+      ]
+      await wrapper.find('textarea').setValue('Hello')
+      await wrapper.find('.send-button').trigger('click')
+
+      expect(wrapper.vm.uploadedFiles).toEqual([])
+    })
+
+    it('should display original message without file content in chat', async () => {
+      await mountPlaygroundChat()
+      wrapper.vm.uploadedFiles = [
+        { name: 'test.txt', content: 'File content here' }
+      ]
+      await wrapper.find('textarea').setValue('Check this file')
+      await wrapper.find('.send-button').trigger('click')
+
+      // The displayed user message should be the original text only
+      expect(wrapper.vm.messages[0].content).toBe('Check this file')
+    })
+
+    it('should truncate long file names', async () => {
+      await mountPlaygroundChat()
+      wrapper.vm.uploadedFiles = [
+        { name: 'this-is-a-very-long-filename-that-should-be-truncated.txt', content: 'content' }
+      ]
+      await wrapper.vm.$nextTick()
+
+      const fileName = wrapper.find('.file-name').text()
+      expect(fileName.length).toBeLessThan(35)
+      expect(fileName).toContain('...')
+    })
+
+    it('should handle multiple uploaded files', async () => {
+      await mountPlaygroundChat()
+      wrapper.vm.uploadedFiles = [
+        { name: 'file1.txt', content: 'Content 1' },
+        { name: 'file2.txt', content: 'Content 2' }
+      ]
+      await wrapper.vm.$nextTick()
+
+      const fileItems = wrapper.findAll('.file-status-item')
+      expect(fileItems.length).toBe(2)
+    })
+
+    it('should include multiple files content in message', async () => {
+      await mountPlaygroundChat()
+      wrapper.vm.uploadedFiles = [
+        { name: 'file1.txt', content: 'Content 1' },
+        { name: 'file2.txt', content: 'Content 2' }
+      ]
+      await wrapper.find('textarea').setValue('Check files')
+      await wrapper.find('.send-button').trigger('click')
+
+      const sentMessage = mockSendChatMessage.mock.calls[0][1][0].content
+      expect(sentMessage).toContain('Content 1')
+      expect(sentMessage).toContain('Content 2')
+      expect(sentMessage).toContain('--- File: file1.txt ---')
+      expect(sentMessage).toContain('--- File: file2.txt ---')
+    })
+
+    it('should store file attachments in user message', async () => {
+      await mountPlaygroundChat()
+      wrapper.vm.uploadedFiles = [
+        { name: 'test.txt', content: 'Hello' }
+      ]
+      await wrapper.find('textarea').setValue('Check this')
+      await wrapper.find('.send-button').trigger('click')
+
+      expect(wrapper.vm.messages[0].attachments).toEqual([
+        { type: 'file', name: 'test.txt' }
+      ])
+    })
+
+    it('should display attachments indicator for messages with attachments', async () => {
+      await mountPlaygroundChat()
+      wrapper.vm.messages = [
+        { role: 'user', content: 'Hello', attachments: [{ type: 'file', name: 'test.txt' }] }
+      ]
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('.attachments-indicator').exists()).toBe(true)
+      expect(wrapper.find('.attachment-badge').exists()).toBe(true)
+    })
+
+    it('should show file icon for file attachments', async () => {
+      await mountPlaygroundChat()
+      wrapper.vm.messages = [
+        { role: 'user', content: 'Hello', attachments: [{ type: 'file', name: 'test.txt' }] }
+      ]
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('.attachment-icon').text()).toContain('📄')
+    })
+
+    it('should show link icon for URL attachments', async () => {
+      await mountPlaygroundChat()
+      wrapper.vm.messages = [
+        { role: 'user', content: 'Hello', attachments: [{ type: 'url', name: 'example.com' }] }
+      ]
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('.attachment-icon').text()).toContain('🔗')
+    })
+
+    it('should not display attachments indicator when no attachments', async () => {
+      await mountPlaygroundChat()
+      wrapper.vm.messages = [
+        { role: 'user', content: 'Hello', attachments: [] }
+      ]
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('.attachments-indicator').exists()).toBe(false)
+    })
+
+    it('should display multiple attachments', async () => {
+      await mountPlaygroundChat()
+      wrapper.vm.messages = [
+        { role: 'user', content: 'Hello', attachments: [
+          { type: 'file', name: 'file1.txt' },
+          { type: 'url', name: 'example.com' }
+        ]}
+      ]
+      await wrapper.vm.$nextTick()
+
+      const badges = wrapper.findAll('.attachment-badge')
+      expect(badges.length).toBe(2)
     })
   })
 })

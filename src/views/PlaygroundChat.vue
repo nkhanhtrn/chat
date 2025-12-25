@@ -40,6 +40,13 @@
               <template v-else>{{ msg.content }}</template>
               <span v-if="isStreaming && index === messages.length - 1 && msg.role === 'assistant'" class="cursor">|</span>
             </div>
+            <!-- Attachments indicator for user messages -->
+            <div v-if="msg.role === 'user' && msg.attachments && msg.attachments.length > 0" class="attachments-indicator">
+              <div v-for="(att, attIndex) in msg.attachments" :key="attIndex" class="attachment-badge">
+                <span class="attachment-icon">{{ att.type === 'file' ? '📄' : '🔗' }}</span>
+                <span class="attachment-name">{{ att.name }}</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -63,7 +70,35 @@
             </div>
           </div>
 
+          <!-- Uploaded Files Status -->
+          <div v-if="uploadedFiles.length > 0" class="file-status-container">
+            <div v-for="(file, index) in uploadedFiles" :key="file.name + index" class="file-status-item">
+              <span class="file-icon">📄</span>
+              <span class="file-name" :title="file.name">{{ truncateFileName(file.name) }}</span>
+              <span class="file-size">({{ formatSize(file.content.length) }})</span>
+              <button class="file-remove" @click="removeFile(index)" title="Remove file">&times;</button>
+            </div>
+          </div>
+
           <div class="input-wrapper">
+            <input
+              type="file"
+              ref="fileInputRef"
+              @change="handleFileUpload"
+              multiple
+              accept="text/*,.json,.md,.js,.ts,.vue,.py,.html,.css,.xml,.yaml,.yml,.csv,.txt"
+              style="display: none"
+            />
+            <button
+              @click="triggerFileUpload"
+              class="upload-button"
+              :disabled="isStreaming"
+              title="Upload file"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+              </svg>
+            </button>
             <textarea
               ref="inputRef"
               v-model="inputText"
@@ -128,6 +163,10 @@ const inputText = ref('')
 const isStreaming = ref(false)
 const inputRef = ref(null)
 const messagesContainer = ref(null)
+const fileInputRef = ref(null)
+
+// Uploaded files state
+const uploadedFiles = ref([]) // Array of { name: string, content: string }
 
 // URL fetching state
 const detectedUrls = ref([]) // Array of { url, status: 'loading'|'success'|'error', content: string }
@@ -202,6 +241,61 @@ function formatSize(charCount) {
   return `${(charCount / 1000).toFixed(1)}k chars`
 }
 
+// Helper: truncate file name for display
+function truncateFileName(name) {
+  if (name.length <= 30) return name
+  const ext = name.lastIndexOf('.') > 0 ? name.slice(name.lastIndexOf('.')) : ''
+  const baseName = name.slice(0, name.length - ext.length)
+  return baseName.slice(0, 25 - ext.length) + '...' + ext
+}
+
+// File upload handlers
+function triggerFileUpload() {
+  fileInputRef.value?.click()
+}
+
+async function handleFileUpload(event) {
+  const files = event.target.files
+  if (!files || files.length === 0) return
+
+  for (const file of files) {
+    try {
+      const content = await readFileAsText(file)
+      uploadedFiles.value.push({
+        name: file.name,
+        content: content
+      })
+    } catch (error) {
+      console.error(`Failed to read file ${file.name}:`, error)
+    }
+  }
+
+  // Reset the input so the same file can be selected again
+  event.target.value = ''
+}
+
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = () => reject(new Error('Failed to read file'))
+    reader.readAsText(file)
+  })
+}
+
+function removeFile(index) {
+  uploadedFiles.value.splice(index, 1)
+}
+
+// Format uploaded files for prompt
+function formatUploadedFilesForPrompt(files) {
+  if (files.length === 0) return ''
+
+  return files.map(f =>
+    `--- File: ${f.name} ---\n${f.content}\n--- End of ${f.name} ---`
+  ).join('\n\n')
+}
+
 // Load providers and current config
 onMounted(async () => {
   providers.value = listProviders()
@@ -261,16 +355,27 @@ async function handleSend() {
 
   const userMessage = inputText.value.trim()
 
-  // Build the full message with fetched content
+  // Build the full message with fetched URL content and uploaded files
   const urlContent = formatFetchedContentForPrompt(fetchedContents.value)
-  const fullMessage = urlContent
-    ? `${userMessage}\n\n${urlContent}`
-    : userMessage
+  const fileContent = formatUploadedFilesForPrompt(uploadedFiles.value)
+
+  let fullMessage = userMessage
+  if (urlContent) fullMessage += `\n\n${urlContent}`
+  if (fileContent) fullMessage += `\n\n${fileContent}`
+
+  // Build attachments list for display
+  const attachments = [
+    ...uploadedFiles.value.map(f => ({ type: 'file', name: truncateFileName(f.name) })),
+    ...detectedUrls.value
+      .filter(u => u.status === 'success')
+      .map(u => ({ type: 'url', name: truncateUrl(u.url) }))
+  ]
 
   // Reset state
   inputText.value = ''
   detectedUrls.value = []
   fetchedContents.value = {}
+  uploadedFiles.value = []
   nextTick(() => {
     if (inputRef.value) {
       inputRef.value.style.height = 'auto'
@@ -278,7 +383,7 @@ async function handleSend() {
   })
 
   // Add user message (show original message in UI, not the full one with content)
-  messages.value.push({ role: 'user', content: userMessage })
+  messages.value.push({ role: 'user', content: userMessage, attachments })
   scrollToBottom()
 
   // Prepare messages for API (include conversation history, but use fullMessage for the latest)
@@ -462,6 +567,38 @@ function clearChat() {
   padding: 0.5rem 0;
 }
 
+.attachments-indicator {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  max-width: 800px;
+}
+
+.attachment-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.5rem;
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border-base);
+  border-radius: 3px;
+  font-size: 0.75rem;
+  font-family: system-ui, sans-serif;
+  color: var(--color-text-muted);
+}
+
+.attachment-icon {
+  font-size: 0.85rem;
+}
+
+.attachment-name {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .cursor {
   animation: blink 0.7s infinite;
   color: var(--color-primary);
@@ -545,6 +682,84 @@ function clearChat() {
   font-size: 0.75rem;
 }
 
+.file-status-container {
+  max-width: 800px;
+  margin: 0 auto 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.file-status-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.65rem;
+  background-color: var(--color-bg-hover);
+  border: 1px solid var(--color-border-base);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-family: system-ui, sans-serif;
+}
+
+.file-icon {
+  font-size: 0.9rem;
+}
+
+.file-name {
+  color: var(--color-text-base);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-size {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.file-remove {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0 0.25rem;
+  font-size: 1rem;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.file-remove:hover {
+  color: #ef4444;
+}
+
+.upload-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.875rem;
+  background-color: var(--color-bg-input);
+  border: 1px solid var(--color-border-input);
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+  min-height: 50px;
+  align-self: flex-end;
+}
+
+.upload-button:hover:not(:disabled) {
+  background-color: var(--color-bg-hover);
+  color: var(--color-text-base);
+  border-color: var(--color-border-strong);
+}
+
+.upload-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .input-wrapper {
   display: flex;
   gap: 1rem;
@@ -586,12 +801,14 @@ textarea::placeholder {
 
 .send-button {
   padding: 0.875rem 1.5rem;
-  height: 50px;
+  min-height: 50px;
   font-family: 'Georgia', serif;
+  align-self: flex-end;
 }
 
 .stop-button {
-  padding: 0.5rem 1.25rem;
+  padding: 0.875rem 1.25rem;
+  min-height: 50px;
   background-color: var(--color-bg-page);
   color: var(--color-text-muted);
   border: 1px solid var(--color-border-base);
@@ -600,6 +817,7 @@ textarea::placeholder {
   font-size: 0.9rem;
   cursor: pointer;
   transition: all 0.2s ease;
+  align-self: flex-end;
 }
 
 .stop-button:hover {
@@ -686,6 +904,19 @@ textarea::placeholder {
     bottom: 0.5rem;
     padding: 0.5rem 0.75rem;
     font-size: 0.8rem;
+  }
+
+  .upload-button {
+    position: absolute;
+    left: 0.5rem;
+    bottom: 0.5rem;
+    height: auto;
+    padding: 0.5rem;
+    z-index: 1;
+  }
+
+  textarea {
+    padding-left: 3rem;
   }
 }
 </style>
