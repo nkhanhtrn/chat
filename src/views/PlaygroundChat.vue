@@ -79,13 +79,16 @@
               <span v-if="msg.analysis.needsWebSearch" class="analysis-badge search">
                 Web Search
               </span>
-              <span v-if="msg.analysis.canBeCode" class="analysis-badge code">
+              <span v-if="msg.analysis.isVisualization" class="analysis-badge visualization">
+                {{ msg.analysis.visualizationType === 'chart' ? 'Chart' : (msg.analysis.visualizationType === 'mermaid' ? 'Diagram' : 'Drawing') }}
+              </span>
+              <span v-else-if="msg.analysis.canBeCode" class="analysis-badge code">
                 Code Task
               </span>
               <span v-else class="analysis-badge text">
                 Text Response
               </span>
-              <span v-if="msg.analysis.functionName" class="analysis-function">
+              <span v-if="msg.analysis.functionName && !msg.analysis.isVisualization" class="analysis-function">
                 {{ msg.analysis.functionName }}()
               </span>
               <span v-if="msg.analysis.taskDescription" class="analysis-description">
@@ -175,8 +178,17 @@
               </div>
             </details>
             <div class="message-content">
+              <!-- Visualization output -->
+              <template v-if="msg.role === 'assistant' && msg.visualization">
+                <!-- ECharts -->
+                <ChartRenderer v-if="msg.visualization.type === 'chart'" :option="parseChartOption(msg.visualization.content)" height="350px" />
+                <!-- Mermaid diagram -->
+                <MermaidBlock v-else-if="msg.visualization.type === 'mermaid'" :code="msg.visualization.content" />
+                <!-- SVG drawing -->
+                <div v-else-if="msg.visualization.type === 'svg'" class="svg-container" v-html="msg.visualization.content"></div>
+              </template>
               <!-- Code execution output: display in code block -->
-              <CodeBlock v-if="msg.role === 'assistant' && msg.execution && msg.execution.success" language="output" :code="msg.content" />
+              <CodeBlock v-else-if="msg.role === 'assistant' && msg.execution && msg.execution.success" language="output" :code="msg.content" />
               <!-- Regular assistant response or failed execution: render as markdown -->
               <MarkdownRenderer v-else-if="msg.role === 'assistant'" :content="msg.content" />
               <template v-else>{{ msg.content }}</template>
@@ -287,6 +299,8 @@ import Button from '../components/Button.vue'
 import MarkdownRenderer from '../components/MarkdownRenderer.vue'
 import SlideTransition from '../components/SlideTransition.vue'
 import CodeBlock from '../components/markdown/CodeBlock.vue'
+import ChartRenderer from '../components/ChartRenderer.vue'
+import MermaidBlock from '../components/markdown/MermaidBlock.vue'
 import {
   listProviders,
   getCurrentProviderId,
@@ -447,6 +461,16 @@ function truncateUrl(url) {
 function formatSize(charCount) {
   if (charCount < 1000) return `${charCount} chars`
   return `${(charCount / 1000).toFixed(1)}k chars`
+}
+
+// Helper: parse chart option JSON safely
+function parseChartOption(content) {
+  try {
+    return JSON.parse(content)
+  } catch (e) {
+    console.warn('Failed to parse chart option:', e)
+    return { title: { text: 'Chart parsing error' } }
+  }
 }
 
 // Helper: truncate file name for display
@@ -683,7 +707,7 @@ async function handleSend() {
   }
 
   // Add empty assistant message for streaming
-  messages.value.push({ role: 'assistant', content: '', analysis: null, generatedCode: null, execution: null, attempts: 0, webSearchResults: null })
+  messages.value.push({ role: 'assistant', content: '', analysis: null, generatedCode: null, execution: null, visualization: null, attempts: 0, webSearchResults: null })
   isStreaming.value = true
   currentVerifyAttempt.value = 0
   abortController = new AbortController()
@@ -783,14 +807,22 @@ async function handleSend() {
             // Store execution result
             messages.value[messages.value.length - 1].execution = execution
             scrollToBottom()
+          },
+          onVisualizationGenerated: (visualization) => {
+            // Store the visualization result
+            messages.value[messages.value.length - 1].visualization = visualization
+            scrollToBottom()
           }
         }
       )
 
-      // Store the number of attempts and web search results
+      // Store the number of attempts, web search results, and visualization
       messages.value[messages.value.length - 1].attempts = result.attempts
       if (result.webSearchResults && result.webSearchResults.length > 0) {
         messages.value[messages.value.length - 1].webSearchResults = result.webSearchResults
+      }
+      if (result.visualization) {
+        messages.value[messages.value.length - 1].visualization = result.visualization
       }
     } else {
       // Single model mode
@@ -1365,6 +1397,11 @@ textarea::placeholder {
   color: #3b82f6;
 }
 
+.analysis-badge.visualization {
+  background-color: rgba(168, 85, 247, 0.15);
+  color: #a855f7;
+}
+
 /* Search status indicator */
 .search-status-indicator {
   display: flex;
@@ -1514,6 +1551,24 @@ textarea::placeholder {
 
 .generated-code code {
   font-family: inherit;
+}
+
+/* SVG visualization container */
+.svg-container {
+  max-width: 400px;
+  margin: 0.5rem 0;
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border-base);
+  border-radius: 4px;
+  padding: 1rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.svg-container :deep(svg) {
+  max-width: 100%;
+  height: auto;
 }
 
 /* Search results display styles */

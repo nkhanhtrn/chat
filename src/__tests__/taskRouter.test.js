@@ -6,6 +6,7 @@ import {
   analyzeRequest,
   generateCode,
   regenerateCodeWithError,
+  generateVisualization,
   analyzeGenerateAndExecute
 } from '../services/llm/taskRouter.js'
 
@@ -761,6 +762,251 @@ That's my analysis.`)
     })
   })
 
+  describe('generateVisualization', () => {
+    it('should generate chart visualization', async () => {
+      const chartOption = JSON.stringify({
+        title: { text: 'Test Chart' },
+        series: [{ type: 'pie', data: [{ value: 30, name: 'A' }] }]
+      })
+      mockSendMessage.mockResolvedValue(chartOption)
+
+      const analysis = {
+        visualizationType: 'chart',
+        taskDescription: 'Create pie chart',
+        inputs: [{ name: 'data', value: [{ name: 'A', value: 30 }] }],
+        expectedOutput: 'Pie chart'
+      }
+
+      const result = await generateVisualization(analysis, 'draw a pie chart', 'gpt-oss-20b')
+
+      expect(result.type).toBe('chart')
+      expect(result.content).toContain('Test Chart')
+      expect(mockSendMessage).toHaveBeenCalledWith(
+        'gpt-oss-20b',
+        expect.arrayContaining([
+          expect.objectContaining({ role: 'system', content: expect.stringContaining('ECharts') })
+        ]),
+        null,
+        null,
+        expect.any(Object)
+      )
+    })
+
+    it('should generate mermaid visualization', async () => {
+      const mermaidCode = 'flowchart TD\n    A[Start] --> B[End]'
+      mockSendMessage.mockResolvedValue(mermaidCode)
+
+      const analysis = {
+        visualizationType: 'mermaid',
+        taskDescription: 'Create flowchart',
+        inputs: [],
+        expectedOutput: 'Flowchart'
+      }
+
+      const result = await generateVisualization(analysis, 'draw a flowchart', 'gpt-oss-20b')
+
+      expect(result.type).toBe('mermaid')
+      expect(result.content).toContain('flowchart TD')
+      expect(mockSendMessage).toHaveBeenCalledWith(
+        'gpt-oss-20b',
+        expect.arrayContaining([
+          expect.objectContaining({ role: 'system', content: expect.stringContaining('Mermaid') })
+        ]),
+        null,
+        null,
+        expect.any(Object)
+      )
+    })
+
+    it('should generate svg visualization', async () => {
+      const svgCode = '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40"/></svg>'
+      mockSendMessage.mockResolvedValue(svgCode)
+
+      const analysis = {
+        visualizationType: 'svg',
+        taskDescription: 'Draw a circle',
+        inputs: [],
+        expectedOutput: 'SVG drawing'
+      }
+
+      const result = await generateVisualization(analysis, 'draw a circle', 'gpt-oss-20b')
+
+      expect(result.type).toBe('svg')
+      expect(result.content).toContain('<svg')
+      expect(result.content).toContain('</svg>')
+      expect(mockSendMessage).toHaveBeenCalledWith(
+        'gpt-oss-20b',
+        expect.arrayContaining([
+          expect.objectContaining({ role: 'system', content: expect.stringContaining('SVG') })
+        ]),
+        null,
+        null,
+        expect.any(Object)
+      )
+    })
+
+    it('should clean markdown code blocks from chart output', async () => {
+      mockSendMessage.mockResolvedValue('```json\n{"title": {"text": "Chart"}}\n```')
+
+      const analysis = {
+        visualizationType: 'chart',
+        taskDescription: 'Test',
+        inputs: [],
+        expectedOutput: 'Chart'
+      }
+
+      const result = await generateVisualization(analysis, 'test', 'gpt-oss-20b')
+
+      expect(result.content).toBe('{"title": {"text": "Chart"}}')
+    })
+
+    it('should extract SVG from response with extra text', async () => {
+      mockSendMessage.mockResolvedValue('Here is the SVG:\n<svg viewBox="0 0 100 100"><rect/></svg>\nDone!')
+
+      const analysis = {
+        visualizationType: 'svg',
+        taskDescription: 'Test',
+        inputs: [],
+        expectedOutput: 'SVG'
+      }
+
+      const result = await generateVisualization(analysis, 'test', 'gpt-oss-20b')
+
+      expect(result.content).toBe('<svg viewBox="0 0 100 100"><rect/></svg>')
+    })
+
+    it('should default to chart type when visualizationType is null', async () => {
+      mockSendMessage.mockResolvedValue('{"series": []}')
+
+      const analysis = {
+        visualizationType: null,
+        taskDescription: 'Test',
+        inputs: [],
+        expectedOutput: 'Chart'
+      }
+
+      const result = await generateVisualization(analysis, 'test', 'gpt-oss-20b')
+
+      expect(result.type).toBe('chart')
+    })
+  })
+
+  describe('analyzeGenerateAndExecute with visualization', () => {
+    it('should route to visualization for chart task', async () => {
+      mockSendMessage.mockResolvedValueOnce(JSON.stringify({
+        isVisualization: true,
+        visualizationType: 'chart',
+        canBeCode: false,
+        taskDescription: 'Create pie chart',
+        inputs: [{ name: 'data', value: [{ name: 'A', value: 30 }] }],
+        expectedOutput: 'Pie chart'
+      }))
+      mockSendMessage.mockResolvedValueOnce('{"title": {"text": "Sales"}, "series": [{"type": "pie"}]}')
+
+      const onVisualizationGenerated = vi.fn()
+
+      const result = await analyzeGenerateAndExecute(
+        [{ role: 'user', content: 'draw a pie chart of sales' }],
+        { routerId: 'mistral-3b', executorId: 'gpt-oss-20b' },
+        null,
+        null,
+        { onVisualizationGenerated }
+      )
+
+      expect(result.visualization).toBeTruthy()
+      expect(result.visualization.type).toBe('chart')
+      expect(result.code).toBeNull()
+      expect(result.execution).toBeNull()
+      expect(onVisualizationGenerated).toHaveBeenCalledWith(expect.objectContaining({ type: 'chart' }))
+    })
+
+    it('should route to visualization for mermaid task', async () => {
+      mockSendMessage.mockResolvedValueOnce(JSON.stringify({
+        isVisualization: true,
+        visualizationType: 'mermaid',
+        canBeCode: false,
+        taskDescription: 'Create flowchart',
+        inputs: [],
+        expectedOutput: 'Flowchart'
+      }))
+      mockSendMessage.mockResolvedValueOnce('flowchart TD\n    A --> B')
+
+      const result = await analyzeGenerateAndExecute(
+        [{ role: 'user', content: 'draw a flowchart' }],
+        { routerId: 'mistral-3b', executorId: 'gpt-oss-20b' }
+      )
+
+      expect(result.visualization).toBeTruthy()
+      expect(result.visualization.type).toBe('mermaid')
+      expect(result.visualization.content).toContain('flowchart')
+    })
+
+    it('should route to visualization for svg task', async () => {
+      mockSendMessage.mockResolvedValueOnce(JSON.stringify({
+        isVisualization: true,
+        visualizationType: 'svg',
+        canBeCode: false,
+        taskDescription: 'Draw a star',
+        inputs: [],
+        expectedOutput: 'SVG'
+      }))
+      mockSendMessage.mockResolvedValueOnce('<svg viewBox="0 0 100 100"><polygon points="50,5 20,99 95,39 5,39 80,99"/></svg>')
+
+      const result = await analyzeGenerateAndExecute(
+        [{ role: 'user', content: 'draw a star' }],
+        { routerId: 'mistral-3b', executorId: 'gpt-oss-20b' }
+      )
+
+      expect(result.visualization).toBeTruthy()
+      expect(result.visualization.type).toBe('svg')
+      expect(result.visualization.content).toContain('<svg')
+    })
+
+    it('should not route to visualization when isVisualization is false', async () => {
+      mockSendMessage.mockResolvedValueOnce(JSON.stringify({
+        isVisualization: false,
+        visualizationType: null,
+        canBeCode: true,
+        taskDescription: 'Generate QR code',
+        inputs: [],
+        expectedOutput: 'QR code data',
+        codeType: 'function',
+        functionName: 'generateQR'
+      }))
+      mockSendMessage.mockResolvedValueOnce('"QR_CODE_DATA"')
+
+      const result = await analyzeGenerateAndExecute(
+        [{ role: 'user', content: 'generate a QR code' }],
+        { routerId: 'mistral-3b', executorId: 'gpt-oss-20b' }
+      )
+
+      expect(result.visualization).toBeNull()
+      expect(result.code).toBeTruthy()
+      expect(result.execution).toBeTruthy()
+    })
+
+    it('should return null visualization for text response', async () => {
+      mockSendMessage.mockResolvedValueOnce(JSON.stringify({
+        isVisualization: false,
+        visualizationType: null,
+        canBeCode: false,
+        taskDescription: 'Explain something',
+        inputs: [],
+        expectedOutput: 'Explanation'
+      }))
+      mockSendMessage.mockResolvedValueOnce('Here is the explanation...')
+
+      const result = await analyzeGenerateAndExecute(
+        [{ role: 'user', content: 'explain charts' }],
+        { routerId: 'mistral-3b', executorId: 'gpt-oss-20b' }
+      )
+
+      expect(result.visualization).toBeNull()
+      expect(result.code).toBeNull()
+      expect(result.finalResponse).toBe('Here is the explanation...')
+    })
+  })
+
   describe('parseAnalysisResponse (via analyzeRequest)', () => {
     it('should handle JSON with trailing commas', async () => {
       mockSendMessage.mockResolvedValue(`{
@@ -828,6 +1074,42 @@ That's my analysis.`)
 
       expect(result.canBeCode).toBe(true)
       expect(result.codeType).toBe('expression')
+    })
+
+    it('should parse visualization fields from JSON', async () => {
+      mockSendMessage.mockResolvedValue(JSON.stringify({
+        isVisualization: true,
+        visualizationType: 'chart',
+        canBeCode: false,
+        taskDescription: 'Create chart',
+        inputs: [],
+        expectedOutput: 'Chart'
+      }))
+
+      const result = await analyzeRequest('draw a chart', 'mistral-3b')
+
+      expect(result.isVisualization).toBe(true)
+      expect(result.visualizationType).toBe('chart')
+    })
+
+    it('should extract visualization type from malformed JSON', async () => {
+      mockSendMessage.mockResolvedValue(`{
+        "isVisualization": true,
+        "visualizationType": "mermaid",
+        broken...`)
+
+      const result = await analyzeRequest('draw diagram', 'mistral-3b')
+
+      expect(result.visualizationType).toBe('mermaid')
+    })
+
+    it('should default isVisualization to false when not present', async () => {
+      mockSendMessage.mockResolvedValue('Random response without visualization')
+
+      const result = await analyzeRequest('do something', 'mistral-3b')
+
+      expect(result.isVisualization).toBe(false)
+      expect(result.visualizationType).toBeNull()
     })
   })
 })
