@@ -29,16 +29,18 @@ describe('BuildCapability', () => {
       expect(desc.name).toBe('BUILD')
     })
 
-    it('should have conditions for tool creation', () => {
+    it('should have conditions for interactive tool creation', () => {
       const desc = capability.getRouterDescription()
-      expect(desc.conditions).toContain('User wants to create/build/make a tool')
-      expect(desc.conditions).toContain('User wants a calculator, converter, counter, picker, timer, or similar utility')
+      expect(desc.conditions.length).toBeGreaterThan(0)
+      // Conditions should describe interactive intent, not hardcoded keywords
+      expect(desc.conditions.some(c => c.toLowerCase().includes('interact'))).toBe(true)
     })
 
     it('should have anti-conditions', () => {
       const desc = capability.getRouterDescription()
-      expect(desc.antiConditions).toContain('One-time calculations or operations')
-      expect(desc.antiConditions).toContain('Visualization or chart requests')
+      expect(desc.antiConditions.length).toBeGreaterThan(0)
+      // Should distinguish from other capabilities
+      expect(desc.antiConditions.some(c => c.includes('CODE') || c.includes('calculation'))).toBe(true)
     })
 
     it('should include output schema with toolType and toolName', () => {
@@ -69,16 +71,18 @@ describe('BuildCapability', () => {
       expect(capability.canHandle({ toolType: 'calculator' })).toBe(true)
     })
 
-    it('should handle when taskDescription contains "build"', () => {
-      expect(capability.canHandle({ taskDescription: 'Build a calculator' })).toBe(true)
+    it('should not handle without explicit build signals', () => {
+      // canHandle relies on router setting capability/isBuildTool/toolType
+      // not on parsing taskDescription - that's the router's job
+      expect(capability.canHandle({ taskDescription: 'Build a calculator' })).toBe(false)
     })
 
-    it('should handle when taskDescription contains "create a tool"', () => {
-      expect(capability.canHandle({ taskDescription: 'Create a tool for counting' })).toBe(true)
+    it('should handle when router sets toolType', () => {
+      expect(capability.canHandle({ toolType: 'custom', toolName: 'My App' })).toBe(true)
     })
 
-    it('should handle when taskDescription contains "make a tool"', () => {
-      expect(capability.canHandle({ taskDescription: 'Make a tool that converts' })).toBe(true)
+    it('should not handle plain text requests', () => {
+      expect(capability.canHandle({ capability: 'text', taskDescription: 'Explain how to make a tool' })).toBe(false)
     })
 
     it('should not handle unrelated capabilities', () => {

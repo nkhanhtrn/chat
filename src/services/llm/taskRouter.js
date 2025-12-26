@@ -72,6 +72,42 @@ const parseAnalysisResponse = (response) => {
   }
 
   try {
+    // Fix literal newlines inside string values (common LLM mistake)
+    // Process character by character to handle multi-line strings
+    let result = ''
+    let inString = false
+    let escape = false
+    for (let i = 0; i < jsonStr.length; i++) {
+      const char = jsonStr[i]
+      if (escape) {
+        result += char
+        escape = false
+        continue
+      }
+      if (char === '\\') {
+        result += char
+        escape = true
+        continue
+      }
+      if (char === '"') {
+        inString = !inString
+        result += char
+        continue
+      }
+      if (inString && (char === '\n' || char === '\r')) {
+        // Replace literal newline with escaped version
+        if (char === '\r' && jsonStr[i + 1] === '\n') {
+          result += '\\n'
+          i++ // Skip the \n
+        } else {
+          result += '\\n'
+        }
+        continue
+      }
+      result += char
+    }
+    jsonStr = result
+
     // Remove trailing commas before } or ]
     jsonStr = jsonStr.replace(/,\s*([\]}])/g, '$1')
 

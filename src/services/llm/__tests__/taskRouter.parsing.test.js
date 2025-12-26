@@ -148,6 +148,25 @@ describe('taskRouter JSON parsing', () => {
     })
   })
 
+  describe('JSON cleanup - multiline strings', () => {
+    it('should fix literal newlines inside string values', async () => {
+      const response = `{
+  "capability": "build",
+  "taskDescription": "Create a translator tool",
+  "expectedOutput": "Interactive widget with:
+   - Input fields
+   - Translation display",
+  "toolType": "custom"
+}`
+
+      const result = await testParsing(response)
+
+      expect(result.capability).toBe('build')
+      expect(result.toolType).toBe('custom')
+      expect(result.expectedOutput).toContain('Input fields')
+    })
+  })
+
   describe('edge cases', () => {
     it('should handle empty response', async () => {
       const result = await testParsing('')

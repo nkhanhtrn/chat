@@ -81,16 +81,27 @@ class CapabilityRegistry {
     const outputSchema = this._buildOutputSchema()
     const examples = this._buildExamples()
 
+    const webSearchGuidance = `WEB SEARCH (pre-capability trigger):
+Set needsWebSearch: true when the request requires current/recent information:
+- Current events, news, recent developments
+- Real-time data (prices, weather, scores, stocks)
+- Information after your knowledge cutoff
+- Facts you're uncertain about
+- Recent releases or announcements
+When true, provide a concise searchQuery for the web search.`
+
     return `You are a task analyzer. Today is ${getCurrentDateString()}. Analyze the user's request and determine which capability should handle it.
 
 ${capabilityDescriptions}
+
+${webSearchGuidance}
 
 Respond with JSON:
 ${JSON.stringify(outputSchema, null, 2)}
 
 ${examples}
 
-Respond ONLY with JSON.`
+IMPORTANT: Respond ONLY with valid JSON. Keep all string values on a single line - do not use literal newlines inside strings.`
   }
 
   /**
@@ -125,7 +136,10 @@ Respond ONLY with JSON.`
       capability: 'string (one of: ' + this.getNames().join(', ') + ')',
       taskDescription: 'string',
       inputs: '[...]',
-      expectedOutput: 'string'
+      expectedOutput: 'string',
+      // Web search fields (cross-cutting, applies to any capability)
+      needsWebSearch: 'boolean (true if current/recent info needed)',
+      searchQuery: 'string (search query if needsWebSearch is true)'
     }
 
     // Merge in capability-specific schema fields

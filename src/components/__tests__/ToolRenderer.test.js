@@ -584,4 +584,885 @@ describe('ToolRenderer', () => {
       expect(wrapper.findAll('.input-row-item')).toHaveLength(3)
     })
   })
+
+  describe('Checkbox', () => {
+    it('should render checkbox', () => {
+      const tool = {
+        name: 'Test',
+        state: { checked: false },
+        elements: [
+          { type: 'checkbox', label: 'Accept terms', stateKey: 'checked' }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+
+      expect(wrapper.find('.checkbox-group').exists()).toBe(true)
+      expect(wrapper.find('.checkbox-input').exists()).toBe(true)
+      expect(wrapper.find('.checkbox-text').text()).toBe('Accept terms')
+    })
+
+    it('should toggle checkbox state', async () => {
+      const tool = {
+        name: 'Test',
+        state: { checked: false },
+        elements: [
+          { type: 'checkbox', label: 'Accept', stateKey: 'checked' }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+
+      const checkbox = wrapper.find('.checkbox-input')
+      await checkbox.setValue(true)
+      expect(wrapper.vm.state.checked).toBe(true)
+    })
+  })
+
+  describe('Checkbox Group', () => {
+    it('should render checkbox group with options', () => {
+      const tool = {
+        name: 'Test',
+        state: { features: [] },
+        elements: [
+          {
+            type: 'checkbox-group',
+            label: 'Features',
+            stateKey: 'features',
+            options: [
+              { value: 'a', label: 'Option A' },
+              { value: 'b', label: 'Option B' }
+            ]
+          }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+
+      expect(wrapper.find('.checkbox-group-container').exists()).toBe(true)
+      expect(wrapper.findAll('.checkbox-label')).toHaveLength(2)
+    })
+
+    it('should toggle checkbox options in group', async () => {
+      const tool = {
+        name: 'Test',
+        state: { features: [] },
+        elements: [
+          {
+            type: 'checkbox-group',
+            label: 'Features',
+            stateKey: 'features',
+            options: [
+              { value: 'a', label: 'Option A' },
+              { value: 'b', label: 'Option B' }
+            ]
+          }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+
+      const checkboxes = wrapper.findAll('.checkbox-input')
+      await checkboxes[0].setValue(true)
+      expect(wrapper.vm.state.features).toContain('a')
+
+      await checkboxes[1].setValue(true)
+      expect(wrapper.vm.state.features).toContain('b')
+
+      await checkboxes[0].setValue(false)
+      expect(wrapper.vm.state.features).not.toContain('a')
+    })
+  })
+
+  describe('Radio Group', () => {
+    it('should render radio group with options', () => {
+      const tool = {
+        name: 'Test',
+        state: { choice: 'a' },
+        elements: [
+          {
+            type: 'radio-group',
+            label: 'Choice',
+            stateKey: 'choice',
+            options: [
+              { value: 'a', label: 'Option A' },
+              { value: 'b', label: 'Option B' }
+            ]
+          }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+
+      expect(wrapper.find('.radio-group-container').exists()).toBe(true)
+      expect(wrapper.findAll('.radio-label')).toHaveLength(2)
+    })
+
+    it('should update state on radio selection', async () => {
+      const tool = {
+        name: 'Test',
+        state: { choice: 'a' },
+        elements: [
+          {
+            type: 'radio-group',
+            label: 'Choice',
+            stateKey: 'choice',
+            options: [
+              { value: 'a', label: 'Option A' },
+              { value: 'b', label: 'Option B' }
+            ]
+          }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+
+      const radios = wrapper.findAll('.radio-input')
+      await radios[1].setValue()
+      expect(wrapper.vm.state.choice).toBe('b')
+    })
+  })
+
+  describe('Range/Slider', () => {
+    it('should render range input', async () => {
+      const tool = {
+        name: 'Test',
+        state: { value: 50 },
+        elements: [
+          {
+            type: 'range',
+            label: 'Volume',
+            stateKey: 'value',
+            min: 0,
+            max: 100,
+            showValue: true
+          }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      expect(wrapper.find('.range-container').exists()).toBe(true)
+      expect(wrapper.find('.range-input').exists()).toBe(true)
+      expect(wrapper.find('.range-value').text()).toBe('50')
+    })
+
+    it('should update state on range change', async () => {
+      const tool = {
+        name: 'Test',
+        state: { value: 50 },
+        elements: [
+          { type: 'range', label: 'Volume', stateKey: 'value', min: 0, max: 100 }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+
+      const range = wrapper.find('.range-input')
+      await range.setValue(75)
+      expect(wrapper.vm.state.value).toBe(75)
+    })
+  })
+
+  describe('Toggle/Switch', () => {
+    it('should render toggle switch', () => {
+      const tool = {
+        name: 'Test',
+        state: { enabled: false },
+        elements: [
+          { type: 'toggle', label: 'Enable', stateKey: 'enabled' }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+
+      expect(wrapper.find('.toggle-container').exists()).toBe(true)
+      expect(wrapper.find('.toggle-switch').exists()).toBe(true)
+      expect(wrapper.find('.toggle-text').text()).toBe('Enable')
+    })
+
+    it('should toggle state on click', async () => {
+      const tool = {
+        name: 'Test',
+        state: { enabled: false },
+        elements: [
+          { type: 'toggle', label: 'Enable', stateKey: 'enabled' }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+
+      const toggle = wrapper.find('.toggle-switch')
+      await toggle.trigger('click')
+      expect(wrapper.vm.state.enabled).toBe(true)
+
+      await toggle.trigger('click')
+      expect(wrapper.vm.state.enabled).toBe(false)
+    })
+
+    it('should show active state when enabled', async () => {
+      const tool = {
+        name: 'Test',
+        state: { enabled: true },
+        elements: [
+          { type: 'toggle', label: 'Enable', stateKey: 'enabled' }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      expect(wrapper.find('.toggle-switch').classes()).toContain('active')
+    })
+  })
+
+  describe('Date/Time Inputs', () => {
+    it('should render date input', () => {
+      const tool = {
+        name: 'Test',
+        state: { date: '' },
+        elements: [
+          { type: 'date', label: 'Date', stateKey: 'date' }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+
+      expect(wrapper.find('input[type="date"]').exists()).toBe(true)
+    })
+
+    it('should render time input', () => {
+      const tool = {
+        name: 'Test',
+        state: { time: '' },
+        elements: [
+          { type: 'time', label: 'Time', stateKey: 'time' }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+
+      expect(wrapper.find('input[type="time"]').exists()).toBe(true)
+    })
+
+    it('should render datetime input', () => {
+      const tool = {
+        name: 'Test',
+        state: { datetime: '' },
+        elements: [
+          { type: 'datetime', label: 'DateTime', stateKey: 'datetime' }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+
+      expect(wrapper.find('input[type="datetime-local"]').exists()).toBe(true)
+    })
+  })
+
+  describe('Progress Bar', () => {
+    it('should render progress bar', async () => {
+      const tool = {
+        name: 'Test',
+        state: { progress: 75 },
+        elements: [
+          { type: 'progress', label: 'Progress', stateKey: 'progress' }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      expect(wrapper.find('.progress-container').exists()).toBe(true)
+      expect(wrapper.find('.progress-bar').exists()).toBe(true)
+      expect(wrapper.find('.progress-fill').attributes('style')).toContain('width: 75%')
+      expect(wrapper.find('.progress-text').text()).toBe('75%')
+    })
+  })
+
+  describe('Meter', () => {
+    it('should render meter element', () => {
+      const tool = {
+        name: 'Test',
+        state: { value: 5 },
+        elements: [
+          { type: 'meter', label: 'Level', stateKey: 'value', min: 0, max: 10 }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+
+      expect(wrapper.find('.meter-container').exists()).toBe(true)
+      expect(wrapper.find('.meter-element').exists()).toBe(true)
+    })
+  })
+
+  describe('Rating Stars', () => {
+    it('should render rating stars', async () => {
+      const tool = {
+        name: 'Test',
+        state: { rating: 3 },
+        elements: [
+          { type: 'rating', label: 'Rating', stateKey: 'rating', max: 5 }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      expect(wrapper.find('.rating-container').exists()).toBe(true)
+      expect(wrapper.findAll('.rating-star')).toHaveLength(5)
+      expect(wrapper.findAll('.rating-star.filled')).toHaveLength(3)
+    })
+
+    it('should update rating on star click', async () => {
+      const tool = {
+        name: 'Test',
+        state: { rating: 0 },
+        elements: [
+          { type: 'rating', label: 'Rating', stateKey: 'rating', max: 5 }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      const stars = wrapper.findAll('.rating-star')
+      await stars[3].trigger('click') // Click 4th star
+      expect(wrapper.vm.state.rating).toBe(4)
+    })
+  })
+
+  describe('Stepper', () => {
+    it('should render stepper', async () => {
+      const tool = {
+        name: 'Test',
+        state: { count: 5 },
+        elements: [
+          { type: 'stepper', label: 'Count', stateKey: 'count', min: 0, max: 10 }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      expect(wrapper.find('.stepper-container').exists()).toBe(true)
+      expect(wrapper.findAll('.stepper-btn')).toHaveLength(2)
+      expect(wrapper.find('.stepper-value').text()).toBe('5')
+    })
+
+    it('should increment and decrement value', async () => {
+      const tool = {
+        name: 'Test',
+        state: { count: 5 },
+        elements: [
+          { type: 'stepper', label: 'Count', stateKey: 'count', min: 0, max: 10, step: 1 }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      const buttons = wrapper.findAll('.stepper-btn')
+      await buttons[1].trigger('click') // +
+      expect(wrapper.vm.state.count).toBe(6)
+
+      await buttons[0].trigger('click') // -
+      expect(wrapper.vm.state.count).toBe(5)
+    })
+
+    it('should respect min/max bounds', async () => {
+      const tool = {
+        name: 'Test',
+        state: { count: 10 },
+        elements: [
+          { type: 'stepper', label: 'Count', stateKey: 'count', min: 0, max: 10, step: 1 }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      const buttons = wrapper.findAll('.stepper-btn')
+      await buttons[1].trigger('click') // Try to go above max
+      expect(wrapper.vm.state.count).toBe(10) // Should stay at max
+    })
+  })
+
+  describe('Alert', () => {
+    it('should render alert with types', () => {
+      const tool = {
+        name: 'Test',
+        state: {},
+        elements: [
+          { type: 'alert', alertType: 'info', message: 'Info message', dismissible: false }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+
+      expect(wrapper.find('.alert-container').exists()).toBe(true)
+      expect(wrapper.find('.alert-info').exists()).toBe(true)
+      expect(wrapper.find('.alert-message').text()).toBe('Info message')
+    })
+
+    it('should render dismissible alert', () => {
+      const tool = {
+        name: 'Test',
+        state: {},
+        elements: [
+          { type: 'alert', alertType: 'warning', message: 'Warning', dismissible: true }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+
+      expect(wrapper.find('.alert-dismiss').exists()).toBe(true)
+    })
+  })
+
+  describe('Table', () => {
+    it('should render table with data', async () => {
+      const tool = {
+        name: 'Test',
+        state: {
+          rows: [
+            { name: 'Item 1', value: 10 },
+            { name: 'Item 2', value: 20 }
+          ]
+        },
+        elements: [
+          {
+            type: 'table',
+            columns: [
+              { key: 'name', label: 'Name' },
+              { key: 'value', label: 'Value' }
+            ],
+            rowsStateKey: 'rows'
+          }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      expect(wrapper.find('.table-container').exists()).toBe(true)
+      expect(wrapper.find('.data-table').exists()).toBe(true)
+      expect(wrapper.findAll('.data-table th')).toHaveLength(2)
+      expect(wrapper.findAll('.data-table tbody tr')).toHaveLength(2)
+    })
+  })
+
+  describe('List', () => {
+    it('should render unordered list', async () => {
+      const tool = {
+        name: 'Test',
+        state: { items: ['Item 1', 'Item 2', 'Item 3'] },
+        elements: [
+          { type: 'list', stateKey: 'items', ordered: false }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      expect(wrapper.find('.list-container').exists()).toBe(true)
+      expect(wrapper.find('ul.list-element').exists()).toBe(true)
+      expect(wrapper.findAll('li')).toHaveLength(3)
+    })
+
+    it('should render ordered list', async () => {
+      const tool = {
+        name: 'Test',
+        state: { items: ['First', 'Second'] },
+        elements: [
+          { type: 'list', stateKey: 'items', ordered: true }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      expect(wrapper.find('ol.list-element').exists()).toBe(true)
+    })
+  })
+
+  describe('Divider and Spacer', () => {
+    it('should render divider', () => {
+      const tool = {
+        name: 'Test',
+        state: {},
+        elements: [
+          { type: 'divider' }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+
+      expect(wrapper.find('hr.divider').exists()).toBe(true)
+    })
+
+    it('should render spacer with size', () => {
+      const tool = {
+        name: 'Test',
+        state: {},
+        elements: [
+          { type: 'spacer', size: 'lg' }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+
+      expect(wrapper.find('.spacer').exists()).toBe(true)
+      expect(wrapper.find('.spacer').classes()).toContain('spacer-lg')
+    })
+  })
+
+  describe('Heading and Text', () => {
+    it('should render heading with level', () => {
+      const tool = {
+        name: 'Test',
+        state: {},
+        elements: [
+          { type: 'heading', level: 2, text: 'Section Title' }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+
+      expect(wrapper.find('h2.heading-element').exists()).toBe(true)
+      expect(wrapper.find('h2.heading-element').text()).toBe('Section Title')
+    })
+
+    it('should render text paragraph', () => {
+      const tool = {
+        name: 'Test',
+        state: {},
+        elements: [
+          { type: 'text', text: 'This is a paragraph.' }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+
+      expect(wrapper.find('p.text-element').exists()).toBe(true)
+      expect(wrapper.find('p.text-element').text()).toBe('This is a paragraph.')
+    })
+  })
+
+  describe('Card', () => {
+    it('should render card with content', () => {
+      const tool = {
+        name: 'Test',
+        state: {},
+        elements: [
+          {
+            type: 'card',
+            title: 'Card Title',
+            subtitle: 'Card subtitle',
+            content: [
+              { type: 'text', text: 'Card content' }
+            ],
+            footer: 'Card footer'
+          }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+
+      expect(wrapper.find('.card-container').exists()).toBe(true)
+      expect(wrapper.find('.card-title').text()).toBe('Card Title')
+      expect(wrapper.find('.card-subtitle').text()).toBe('Card subtitle')
+      expect(wrapper.find('.card-footer').text()).toBe('Card footer')
+    })
+  })
+
+  describe('Badge Group', () => {
+    it('should render badges from state', async () => {
+      const tool = {
+        name: 'Test',
+        state: { tags: ['Tag1', 'Tag2', 'Tag3'] },
+        elements: [
+          { type: 'badge-group', stateKey: 'tags' }
+        ],
+        actions: {}
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      expect(wrapper.find('.badge-group').exists()).toBe(true)
+      expect(wrapper.findAll('.badge')).toHaveLength(3)
+    })
+  })
+
+  describe('Escape Sequence Handling', () => {
+    // Helper to create strings with literal backslash (simulating LLM output)
+    // When LLM outputs \s, it comes as a literal backslash + s in the JSON
+    const withInvalidEscape = (pattern) => {
+      // Replace placeholder with literal backslash (not escape sequence)
+      return pattern.replace(/_BS_/g, '\\')
+    }
+
+    it('should handle displayFormatter with properly escaped regex', async () => {
+      const tool = {
+        name: 'Word Counter',
+        state: { text: 'hello world test' },
+        display: { type: 'single' },
+        elements: [],
+        actions: {},
+        // Properly escaped: \\s becomes \s in the actual code
+        displayFormatter: "const words = state.text.trim().split(/\\s+/).length; return String(words);"
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      expect(wrapper.find('.display-single').text()).toBe('3')
+    })
+
+    it('should fix displayFormatter with invalid escape sequences', async () => {
+      // Simulate what happens when LLM outputs \s instead of \\s
+      // The string contains literal backslash-s which causes "invalid escape" error
+      const invalidFormatter = withInvalidEscape(
+        "const words = state.text.trim().split(/_BS_s+/).length; return String(words);"
+      )
+
+      const tool = {
+        name: 'Word Counter',
+        state: { text: 'hello world test' },
+        display: { type: 'single' },
+        elements: [],
+        actions: {},
+        displayFormatter: invalidFormatter
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      // Should still work after escape sequence fix
+      expect(wrapper.find('.display-single').text()).toBe('3')
+    })
+
+    it('should handle action with properly escaped regex', async () => {
+      const tool = {
+        name: 'Test',
+        state: { text: 'a  b  c', result: '' },
+        elements: [
+          { type: 'button', label: 'Process', action: 'process' }
+        ],
+        // Properly escaped
+        actions: {
+          process: "state.result = state.text.split(/\\s+/).join('-');"
+        }
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      await wrapper.find('.single-button').trigger('click')
+      expect(wrapper.vm.state.result).toBe('a-b-c')
+    })
+
+    it('should fix action with invalid escape sequences', async () => {
+      const invalidAction = withInvalidEscape(
+        "state.result = state.text.split(/_BS_s+/).join('-');"
+      )
+
+      const tool = {
+        name: 'Test',
+        state: { text: 'a  b  c', result: '' },
+        elements: [
+          { type: 'button', label: 'Process', action: 'process' }
+        ],
+        actions: {
+          process: invalidAction
+        }
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      await wrapper.find('.single-button').trigger('click')
+      // Should still work after escape sequence fix
+      expect(wrapper.vm.state.result).toBe('a-b-c')
+    })
+
+    it('should handle multiple escape sequences in one action', async () => {
+      const invalidAction = withInvalidEscape(
+        "state.digits = state.text.match(/_BS_d+/g).join(','); state.words = state.text.match(/_BS_w+/g).join(',');"
+      )
+
+      const tool = {
+        name: 'Test',
+        state: { text: '123 abc 456', digits: '', words: '' },
+        elements: [
+          { type: 'button', label: 'Extract', action: 'extract' }
+        ],
+        actions: {
+          extract: invalidAction
+        }
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      await wrapper.find('.single-button').trigger('click')
+      expect(wrapper.vm.state.digits).toBe('123,456')
+      expect(wrapper.vm.state.words).toBe('123,abc,456')
+    })
+
+    it('should handle newline escape in regex', async () => {
+      const invalidAction = withInvalidEscape(
+        "state.count = state.text.split(/_BS_n/).length;"
+      )
+
+      const tool = {
+        name: 'Test',
+        state: { text: 'line1\nline2\nline3', count: 0 },
+        elements: [
+          { type: 'button', label: 'Count Lines', action: 'countLines' }
+        ],
+        actions: {
+          countLines: invalidAction
+        }
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      await wrapper.find('.single-button').trigger('click')
+      expect(wrapper.vm.state.count).toBe(3)
+    })
+
+    it('should not break already escaped sequences', async () => {
+      const tool = {
+        name: 'Test',
+        state: { text: 'hello   world', result: '' },
+        elements: [
+          { type: 'button', label: 'Process', action: 'process' }
+        ],
+        actions: {
+          // Already properly escaped with \\s
+          process: "state.result = state.text.replace(/\\s+/g, ' ');"
+        }
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      await wrapper.find('.single-button').trigger('click')
+      expect(wrapper.vm.state.result).toBe('hello world')
+    })
+  })
 })
