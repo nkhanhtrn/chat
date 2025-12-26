@@ -252,7 +252,7 @@ export class VisualizationCapability extends BaseCapability {
   canHandle(analysis) {
     return analysis.capability === 'visualization' ||
            analysis.isVisualization === true ||
-           (analysis.visualizationType && handlers[analysis.visualizationType])
+           !!(analysis.visualizationType && handlers[analysis.visualizationType])
   }
 
   getSystemPrompt(context) {

@@ -321,7 +321,7 @@ import {
 } from '../services/attachmentReader.js'
 
 // Build raw attachments for taskRouter (2-model mode)
-function buildRawAttachments(uploadedFiles, detectedUrls) {
+function buildRawAttachments(uploadedFiles, detectedUrls, fetchedContents = {}) {
   const attachments = []
 
   // Add file attachments (with File objects for reading)
@@ -334,11 +334,12 @@ function buildRawAttachments(uploadedFiles, detectedUrls) {
     }
   }
 
-  // Add URL attachments
+  // Add URL attachments (with pre-fetched content if available)
   for (const u of detectedUrls) {
     attachments.push({
       type: AttachmentType.URL,
-      url: u.url
+      url: u.url,
+      prefetchedContent: fetchedContents[u.url] || null
     })
   }
 
@@ -668,7 +669,7 @@ async function handleSend() {
 
   // For 2-model mode, build raw attachments for taskRouter to parse
   const rawAttachments = twoModelMode.value
-    ? buildRawAttachments(uploadedFiles.value, detectedUrls.value)
+    ? buildRawAttachments(uploadedFiles.value, detectedUrls.value, fetchedContents.value)
     : []
 
   // Reset state

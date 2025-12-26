@@ -52,19 +52,46 @@ const parseAnalysisResponse = (response) => {
     return JSON.parse(jsonStr)
   } catch (e) {
     console.warn('Initial JSON parse failed, attempting cleanup:', e.message)
+    console.warn('Failed JSON:', jsonStr)
   }
 
   try {
+    // Remove trailing commas before } or ]
     jsonStr = jsonStr.replace(/,\s*([\]}])/g, '$1')
+
+    // Fix single quotes to double quotes
     jsonStr = jsonStr.replace(/'([^']*)'(\s*[,:\]}])/g, '"$1"$2')
     jsonStr = jsonStr.replace(/(\{|\[|,)\s*'([^']*)'/g, '$1"$2"')
+
+    // Fix unquoted property names
     jsonStr = jsonStr.replace(/(\{|,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":')
+
+    // Remove JavaScript comments
     jsonStr = jsonStr.replace(/\/\/[^\n]*/g, '')
     jsonStr = jsonStr.replace(/\/\*[\s\S]*?\*\//g, '')
+
+    // Fix numbers with trailing text (e.g., "30%" -> "30", "5px" -> "5")
+    jsonStr = jsonStr.replace(/:\s*(\d+(?:\.\d+)?)[a-zA-Z%]+(\s*[,}\]])/g, ': $1$2')
+
+    // Fix unquoted string values (common LLM mistake)
+    // Match: key: value, or key: value} where value is unquoted text
+    jsonStr = jsonStr.replace(/:\s*([a-zA-Z][a-zA-Z0-9_\s-]*)(\s*[,}\]])/g, (match, value, ending) => {
+      // Don't quote if it's a boolean or null
+      if (['true', 'false', 'null'].includes(value.trim())) {
+        return `: ${value.trim()}${ending}`
+      }
+      return `: "${value.trim()}"${ending}`
+    })
+
+    // Fix true/false with wrong casing
+    jsonStr = jsonStr.replace(/:\s*"?(True|False|TRUE|FALSE)"?(\s*[,}\]])/g, (match, bool, ending) => {
+      return `: ${bool.toLowerCase()}${ending}`
+    })
 
     return JSON.parse(jsonStr)
   } catch (e) {
     console.warn('JSON cleanup parse failed:', e.message)
+    console.warn('Problematic JSON (first 500 chars):', jsonStr.substring(0, 500))
   }
 
   return createFallbackAnalysis(response)

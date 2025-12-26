@@ -154,7 +154,8 @@ export const urlReader = {
   },
 
   async read(attachment, options = {}) {
-    const content = await fetchUrlContent(attachment.url, options)
+    // Use pre-fetched content if available to avoid duplicate network requests
+    const content = attachment.prefetchedContent || await fetchUrlContent(attachment.url, options)
     return {
       content,
       metadata: {
