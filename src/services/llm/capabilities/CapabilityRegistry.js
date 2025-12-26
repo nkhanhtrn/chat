@@ -73,35 +73,53 @@ class CapabilityRegistry {
    * @returns {string}
    */
   buildRouterPrompt() {
+    const capabilityList = this.getNames().join(', ')
     const capabilityDescriptions = this.capabilities.map(cap => {
       const desc = cap.getRouterDescription()
       return this._formatCapabilitySection(desc)
     }).join('\n\n')
 
-    const outputSchema = this._buildOutputSchema()
-    const examples = this._buildExamples()
+    return `You are a task analyzer. Today is ${getCurrentDateString()}.
 
-    const webSearchGuidance = `WEB SEARCH (pre-capability trigger):
-Set needsWebSearch: true when the request requires current/recent information:
-- Current events, news, recent developments
-- Real-time data (prices, weather, scores, stocks)
-- Information after your knowledge cutoff
-- Facts you're uncertain about
-- Recent releases or announcements
-When true, provide a concise searchQuery for the web search.`
-
-    return `You are a task analyzer. Today is ${getCurrentDateString()}. Analyze the user's request and determine which capability should handle it.
+CAPABILITIES: ${capabilityList}
 
 ${capabilityDescriptions}
 
-${webSearchGuidance}
+OUTPUT FORMAT (line-based, not JSON):
 
-Respond with JSON:
-${JSON.stringify(outputSchema, null, 2)}
+For SINGLE-STEP tasks:
+---
+capability: <name>
+task: <what to do>
+searchQuery: <query if web search needed, omit if not>
+---
 
-${examples}
+For MULTI-STEP tasks (when steps must chain results):
+---
+PLAN: <brief summary>
 
-IMPORTANT: Respond ONLY with valid JSON. Keep all string values on a single line - do not use literal newlines inside strings.`
+STEP 1
+capability: <name>
+task: <what to do>
+searchQuery: <query if needed>
+
+STEP 2
+capability: <name>
+task: <what to do>
+input: {{step_1_result}}
+
+STEP 3
+capability: <name>
+task: <what to do>
+input: {{step_2_result}}
+---
+
+RULES:
+- Use MULTI-STEP only when results from one step feed into the next
+- Use {{step_N_result}} to reference previous step output
+- capability must be one of: ${capabilityList}
+- searchQuery triggers web search for current info (prices, news, weather)
+- Keep task descriptions concise`
   }
 
   /**
@@ -109,69 +127,14 @@ IMPORTANT: Respond ONLY with valid JSON. Keep all string values on a single line
    * @private
    */
   _formatCapabilitySection(desc) {
-    let section = `${desc.name.toUpperCase()} TASKS`
+    let section = `${desc.name.toUpperCase()}`
     if (desc.description) {
-      section += ` - ${desc.description}`
+      section += `: ${desc.description}`
     }
-    section += ':\n'
-
     if (desc.conditions && desc.conditions.length > 0) {
-      section += desc.conditions.map(c => `- ${c}`).join('\n')
+      section += '\n' + desc.conditions.map(c => `  - ${c}`).join('\n')
     }
-
-    if (desc.antiConditions && desc.antiConditions.length > 0) {
-      section += '\n\nNOT ' + desc.name.toUpperCase() + ':\n'
-      section += desc.antiConditions.map(c => `- ${c}`).join('\n')
-    }
-
     return section
-  }
-
-  /**
-   * Build the combined output schema from all capabilities
-   * @private
-   */
-  _buildOutputSchema() {
-    const schema = {
-      capability: 'string (one of: ' + this.getNames().join(', ') + ')',
-      taskDescription: 'string',
-      inputs: '[...]',
-      expectedOutput: 'string',
-      // Web search fields (cross-cutting, applies to any capability)
-      needsWebSearch: 'boolean (true if current/recent info needed)',
-      searchQuery: 'string (search query if needsWebSearch is true)'
-    }
-
-    // Merge in capability-specific schema fields
-    for (const cap of this.capabilities) {
-      const desc = cap.getRouterDescription()
-      if (desc.outputSchema) {
-        Object.assign(schema, desc.outputSchema)
-      }
-    }
-
-    return schema
-  }
-
-  /**
-   * Build examples section from all capabilities
-   * @private
-   */
-  _buildExamples() {
-    let examplesText = 'Examples:\n'
-
-    for (const cap of this.capabilities) {
-      const desc = cap.getRouterDescription()
-      if (desc.examples && desc.examples.length > 0) {
-        for (const ex of desc.examples) {
-          // Ensure the output has the capability field
-          const output = { capability: cap.name, ...ex.output }
-          examplesText += `\nUser: "${ex.input}"\n${JSON.stringify(output)}\n`
-        }
-      }
-    }
-
-    return examplesText
   }
 
   /**

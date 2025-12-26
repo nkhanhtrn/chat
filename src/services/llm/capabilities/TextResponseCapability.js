@@ -1,6 +1,11 @@
 /**
  * TextResponseCapability - Handles natural language responses
  *
+ * Pipe interface:
+ * - Input: Accepts any type - transforms to text context
+ * - Process: Generates natural language response using LLM
+ * - Output: Produces 'text' type
+ *
  * This is the fallback capability for tasks that require:
  * - Translation, summarization, rewriting
  * - Explanations, creative writing
@@ -8,7 +13,7 @@
  * - Tasks requiring judgment or interpretation
  */
 
-import { BaseCapability } from './BaseCapability.js'
+import { BaseCapability, createPipeData } from './BaseCapability.js'
 
 // Get current date for the system prompt
 const getCurrentDateString = () => {
@@ -74,6 +79,124 @@ export class TextResponseCapability extends BaseCapability {
            (!analysis.canBeCode && !analysis.isVisualization)
   }
 
+  // ===========================================================================
+  // PIPE INTERFACE
+  // ===========================================================================
+
+  /**
+   * Receive raw data from previous capability
+   * Converts to text for inclusion in LLM context
+   */
+  receiveInput(pipeInput, context) {
+    if (!pipeInput?.data) {
+      return { data: null, context }
+    }
+
+    const data = pipeInput.data
+
+    // Convert raw data to text for LLM context
+    let pipedText = ''
+    if (typeof data === 'string') {
+      pipedText = data
+    } else if (Array.isArray(data) && data[0]?.url && data[0]?.content) {
+      // Looks like search results
+      pipedText = data.map((r, i) =>
+        `--- Source ${i + 1}: ${r.title || 'Untitled'} ---\nURL: ${r.url}\n\n${r.content}\n`
+      ).join('\n')
+    } else {
+      // Let LLM handle raw data - just describe it
+      pipedText = `Previous result from ${pipeInput.source || 'prior step'}:\n${String(data)}`
+    }
+
+    return { data, pipedText, context }
+  }
+
+  /**
+   * Main processing: generate text response
+   */
+  async process(input) {
+    const { pipedText, context } = input
+    const {
+      fullContext,
+      messages,
+      models,
+      config,
+      provider,
+      signal,
+      onChunk,
+      webSearchResults = []
+    } = context
+
+    // Build full context including piped data
+    let enhancedContext = fullContext
+    if (pipedText) {
+      enhancedContext = `${fullContext}\n\n${pipedText}`
+    }
+
+    // Build messages with context
+    const messagesWithContext = []
+
+    // Add system prompt
+    messagesWithContext.push({
+      role: 'system',
+      content: this.getSystemPrompt({ webSearchResults })
+    })
+
+    // Add conversation history, replacing last user message with full context
+    messages.forEach((m, i) => {
+      if (m.role === 'user' && i === messages.length - 1) {
+        messagesWithContext.push({ ...m, content: enhancedContext })
+      } else {
+        messagesWithContext.push(m)
+      }
+    })
+
+    const response = await provider.sendMessage(
+      models.executorId,
+      messagesWithContext,
+      onChunk,
+      signal,
+      config
+    )
+
+    return {
+      success: true,
+      result: response,
+      error: null,
+      metadata: {
+        hasWebSearch: webSearchResults.length > 0,
+        sourceCount: webSearchResults.length,
+        hasPipedInput: !!pipedText
+      }
+    }
+  }
+
+  /**
+   * Produce output - just pass raw result
+   */
+  produceOutput(processResult) {
+    const { success, result, error } = processResult
+    return createPipeData(success ? result : { error }, this.name)
+  }
+
+  /**
+   * Execute with pipe support
+   */
+  async execute(context, pipeInput = null) {
+    const transformedInput = this.receiveInput(pipeInput, context)
+    const processResult = await this.process(transformedInput)
+    const pipeOutput = this.produceOutput(processResult)
+
+    return {
+      ...processResult,
+      pipe: pipeOutput
+    }
+  }
+
+  // ===========================================================================
+  // LEGACY INTERFACE
+  // ===========================================================================
+
   getSystemPrompt(context) {
     const { webSearchResults = [] } = context
 
@@ -98,55 +221,6 @@ Today's date is ${getCurrentDateString()}.`
     return `You are a helpful assistant. Today's date is ${getCurrentDateString()}.
 
 Respond naturally and helpfully to the user's request. Be concise but thorough.`
-  }
-
-  async execute(context) {
-    const {
-      fullContext,
-      messages,
-      models,
-      config,
-      provider,
-      signal,
-      onChunk,
-      webSearchResults = []
-    } = context
-
-    // Build messages with context
-    const messagesWithContext = []
-
-    // Add system prompt
-    messagesWithContext.push({
-      role: 'system',
-      content: this.getSystemPrompt({ webSearchResults })
-    })
-
-    // Add conversation history, replacing last user message with full context
-    messages.forEach((m, i) => {
-      if (m.role === 'user' && i === messages.length - 1) {
-        messagesWithContext.push({ ...m, content: fullContext })
-      } else {
-        messagesWithContext.push(m)
-      }
-    })
-
-    const response = await provider.sendMessage(
-      models.executorId,
-      messagesWithContext,
-      onChunk,
-      signal,
-      config
-    )
-
-    return {
-      success: true,
-      result: response,
-      error: null,
-      metadata: {
-        hasWebSearch: webSearchResults.length > 0,
-        sourceCount: webSearchResults.length
-      }
-    }
   }
 
   formatOutput(result, metadata = {}) {

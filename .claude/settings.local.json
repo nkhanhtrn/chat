@@ -27,7 +27,8 @@
       "Bash(git -C /home/kt/dev/chat-clone log --oneline -20)",
       "Bash(npm ls:*)",
       "WebSearch",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(timeout 3 node:*)"
     ],
     "deny": [],
     "ask": []

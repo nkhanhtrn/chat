@@ -1,13 +1,18 @@
 /**
  * BuildCapability - Builds interactive tools from user prompts
  *
+ * Pipe interface:
+ * - Input: Accepts text, json, array, code-result (data to embed in tool)
+ * - Process: Generates interactive tool specification
+ * - Output: Produces 'tool' type with tool spec
+ *
  * This capability:
  * 1. Takes a user description of a tool they want
  * 2. Generates a complete tool specification with UI layout
  * 3. Returns an interactive tool
  */
 
-import { BaseCapability } from './BaseCapability.js'
+import { BaseCapability, createPipeData } from './BaseCapability.js'
 
 const TOOL_BUILDER_SYSTEM_PROMPT = `You are a tool builder that creates simple, functional interactive tools.
 
@@ -698,32 +703,42 @@ export class BuildCapability extends BaseCapability {
            analysis.toolType !== undefined
   }
 
-  getSystemPrompt() {
-    return TOOL_BUILDER_SYSTEM_PROMPT
+  // ===========================================================================
+  // PIPE INTERFACE
+  // ===========================================================================
+
+  receiveInput(pipeInput, context) {
+    return {
+      data: pipeInput?.data ?? null,
+      context
+    }
   }
 
-  buildExecutorPrompt(context) {
-    const { userMessage } = context
-    return `Create a simple, functional tool based on this description:
-
-"${userMessage}"
-
-Output ONLY the JSON specification - no explanations, no markdown, just the raw JSON object starting with { and ending with }:`
-  }
-
-  async execute(context) {
+  async process(input) {
+    const { data: pipedData, context } = input
     const {
       fullContext,
       models,
       config,
       provider,
       signal,
+      previousResults = {},
       callbacks = {}
     } = context
 
     const { onToolGenerated } = callbacks
 
-    const toolSpec = await this._generateToolSpec(fullContext, models.executorId, provider, config, signal)
+    // Merge piped data into previousResults for the prompt
+    const mergedResults = { ...previousResults }
+    if (pipedData !== null) {
+      mergedResults.pipe = {
+        capability: 'pipe',
+        data: pipedData,
+        success: true
+      }
+    }
+
+    const toolSpec = await this._generateToolSpec(fullContext, models.executorId, provider, config, signal, mergedResults)
     const cleanedSpec = this.cleanOutput(toolSpec)
 
     let parsedTool
@@ -770,15 +785,61 @@ Output ONLY the JSON specification - no explanations, no markdown, just the raw 
       result: parsedTool,
       error: null,
       metadata: {
-        toolSpec: parsedTool
+        toolSpec: parsedTool,
+        hasPipedData: !!pipedData
       }
     }
   }
 
-  async _generateToolSpec(userMessage, executorModelId, provider, config, signal) {
+  produceOutput(processResult) {
+    const { success, result, error } = processResult
+    return createPipeData(success ? result : { error }, this.name)
+  }
+
+  async execute(context, pipeInput = null) {
+    const transformedInput = this.receiveInput(pipeInput, context)
+    const processResult = await this.process(transformedInput)
+    const pipeOutput = this.produceOutput(processResult)
+
+    return {
+      ...processResult,
+      pipe: pipeOutput
+    }
+  }
+
+  // ===========================================================================
+  // LEGACY INTERFACE
+  // ===========================================================================
+
+  getSystemPrompt() {
+    return TOOL_BUILDER_SYSTEM_PROMPT
+  }
+
+  buildExecutorPrompt(context) {
+    const { userMessage, previousResults = {} } = context
+
+    let prompt = `Create a simple, functional tool based on this description:
+
+"${userMessage}"`
+
+    // Include data from previous steps that the tool should use
+    if (Object.keys(previousResults).length > 0) {
+      prompt += `\n\nDATA FROM PREVIOUS STEPS (embed this data in the tool's initial state):`
+      for (const [stepNum, stepData] of Object.entries(previousResults)) {
+        prompt += `\nStep ${stepNum} (${stepData.capability}): ${JSON.stringify(stepData.data)}`
+      }
+      prompt += `\n\nIncorporate this data into the tool's state and functionality.`
+    }
+
+    prompt += `\n\nOutput ONLY the JSON specification - no explanations, no markdown, just the raw JSON object starting with { and ending with }:`
+
+    return prompt
+  }
+
+  async _generateToolSpec(userMessage, executorModelId, provider, config, signal, previousResults = {}) {
     const messages = [
       { role: 'system', content: this.getSystemPrompt() },
-      { role: 'user', content: this.buildExecutorPrompt({ userMessage }) }
+      { role: 'user', content: this.buildExecutorPrompt({ userMessage, previousResults }) }
     ]
 
     return provider.sendMessage(

@@ -1,13 +1,18 @@
 /**
  * VisualizationCapability - Handles charts, diagrams, and drawings
  *
+ * Pipe interface:
+ * - Input: Accepts text, json, array, code-result (data to visualize)
+ * - Process: Generates visualization content (chart, diagram, SVG)
+ * - Output: Produces 'visualization' type
+ *
  * Supports multiple visualization types via internal handlers:
  * - chart: ECharts configurations
  * - mermaid: Mermaid diagram syntax
  * - svg: SVG illustrations
  */
 
-import { BaseCapability } from './BaseCapability.js'
+import { BaseCapability, createPipeData } from './BaseCapability.js'
 
 // Handler for ECharts visualizations
 const chartHandler = {
@@ -254,17 +259,19 @@ export class VisualizationCapability extends BaseCapability {
            !!(analysis.visualizationType && handlers[analysis.visualizationType])
   }
 
-  getSystemPrompt(context) {
-    const { analysis } = context
-    const handler = this._getHandler(analysis.visualizationType)
-    return handler.getSystemPrompt()
+  // ===========================================================================
+  // PIPE INTERFACE
+  // ===========================================================================
+
+  receiveInput(pipeInput, context) {
+    return {
+      data: pipeInput?.data ?? null,
+      context
+    }
   }
 
-  _getHandler(type) {
-    return handlers[type] || handlers.chart  // Default to chart
-  }
-
-  async execute(context) {
+  async process(input) {
+    const { data: pipedData, context } = input
     const {
       analysis,
       fullContext,
@@ -276,12 +283,19 @@ export class VisualizationCapability extends BaseCapability {
     } = context
 
     const { onVisualizationGenerated } = callbacks
-
     const handler = this._getHandler(analysis.visualizationType)
+
+    // Include piped data in prompt if available
+    let dataContext = ''
+    if (pipedData !== null) {
+      // Let LLM see the raw data - it handles various formats well
+      const dataStr = typeof pipedData === 'string' ? pipedData : String(pipedData)
+      dataContext = `\n\nDATA TO VISUALIZE:\n${dataStr}`
+    }
 
     const instructionPrompt = `Task: ${analysis.taskDescription}
 Data/Inputs: ${JSON.stringify(analysis.inputs || [])}
-Expected output: ${analysis.expectedOutput || 'Visualization'}
+Expected output: ${analysis.expectedOutput || 'Visualization'}${dataContext}
 
 Original request: "${fullContext}"
 
@@ -318,9 +332,40 @@ Generate the visualization now:`
       error: null,
       metadata: {
         visualizationType,
-        rawResponse: response
+        rawResponse: response,
+        hasPipedData: !!pipedData
       }
     }
+  }
+
+  produceOutput(processResult) {
+    const { success, result, error } = processResult
+    return createPipeData(success ? result : { error }, this.name)
+  }
+
+  async execute(context, pipeInput = null) {
+    const transformedInput = this.receiveInput(pipeInput, context)
+    const processResult = await this.process(transformedInput)
+    const pipeOutput = this.produceOutput(processResult)
+
+    return {
+      ...processResult,
+      pipe: pipeOutput
+    }
+  }
+
+  // ===========================================================================
+  // LEGACY INTERFACE
+  // ===========================================================================
+
+  getSystemPrompt(context) {
+    const { analysis } = context
+    const handler = this._getHandler(analysis.visualizationType)
+    return handler.getSystemPrompt()
+  }
+
+  _getHandler(type) {
+    return handlers[type] || handlers.chart  // Default to chart
   }
 
   formatOutput(result, metadata = {}) {

@@ -76,27 +76,68 @@
             </div>
             <!-- Analysis indicator for AI messages in two-model mode -->
             <div v-if="msg.role === 'assistant' && msg.analysis" class="analysis-indicator">
-              <span v-if="msg.analysis.needsWebSearch" class="analysis-badge search">
-                Web Search
-              </span>
-              <span v-if="msg.analysis.isVisualization" class="analysis-badge visualization">
-                {{ msg.analysis.visualizationType === 'chart' ? 'Chart' : (msg.analysis.visualizationType === 'mermaid' ? 'Diagram' : 'Drawing') }}
-              </span>
-              <span v-else-if="msg.analysis.capability === 'build' || msg.analysis.toolType" class="analysis-badge build">
-                Build Tool
-              </span>
-              <span v-else-if="msg.analysis.canBeCode" class="analysis-badge code">
-                Code Task
-              </span>
-              <span v-else class="analysis-badge text">
-                Text Response
-              </span>
-              <span v-if="msg.analysis.functionName && !msg.analysis.isVisualization" class="analysis-function">
-                {{ msg.analysis.functionName }}()
-              </span>
-              <span v-if="msg.analysis.taskDescription" class="analysis-description">
-                {{ msg.analysis.taskDescription }}
-              </span>
+              <!-- Multi-step plan indicator -->
+              <template v-if="msg.analysis.requiresPlanning && msg.analysis.steps">
+                <span class="analysis-badge plan">Plan: {{ msg.analysis.steps.length }} steps</span>
+                <span v-if="msg.analysis.summary" class="analysis-description">{{ msg.analysis.summary }}</span>
+              </template>
+              <!-- Single-step indicators -->
+              <template v-else>
+                <span v-if="msg.analysis.needsWebSearch" class="analysis-badge search">
+                  Web Search
+                </span>
+                <span v-if="msg.analysis.isVisualization" class="analysis-badge visualization">
+                  {{ msg.analysis.visualizationType === 'chart' ? 'Chart' : (msg.analysis.visualizationType === 'mermaid' ? 'Diagram' : 'Drawing') }}
+                </span>
+                <span v-else-if="msg.analysis.capability === 'build' || msg.analysis.toolType" class="analysis-badge build">
+                  Build Tool
+                </span>
+                <span v-else-if="msg.analysis.canBeCode" class="analysis-badge code">
+                  Code Task
+                </span>
+                <span v-else class="analysis-badge text">
+                  Text Response
+                </span>
+                <span v-if="msg.analysis.functionName && !msg.analysis.isVisualization" class="analysis-function">
+                  {{ msg.analysis.functionName }}()
+                </span>
+                <span v-if="msg.analysis.taskDescription" class="analysis-description">
+                  {{ msg.analysis.taskDescription }}
+                </span>
+              </template>
+            </div>
+            <!-- Multi-step plan progress -->
+            <div v-if="msg.role === 'assistant' && msg.stepProgress && msg.stepProgress.length > 0" class="plan-progress">
+              <div v-for="step in msg.stepProgress" :key="step.stepNumber"
+                   class="plan-step"
+                   :class="[step.status, { expanded: expandedStep === `${index}-${step.stepNumber}` }]"
+                   @click="toggleStepExpand(index, step.stepNumber)">
+                <div class="step-header">
+                  <span class="step-number">{{ step.stepNumber }}</span>
+                  <span class="step-capability">{{ step.capability }}</span>
+                  <span class="step-description">{{ step.description }}</span>
+                  <span class="step-status-icon">
+                    <span v-if="step.status === 'running'" class="spinner"></span>
+                    <span v-else-if="step.status === 'completed'">✓</span>
+                    <span v-else-if="step.status === 'failed'">✗</span>
+                  </span>
+                  <span class="step-expand-icon">{{ expandedStep === `${index}-${step.stepNumber}` ? '▼' : '▶' }}</span>
+                </div>
+                <div v-if="expandedStep === `${index}-${step.stepNumber}`" class="step-details" @click.stop>
+                  <div class="step-detail-row">
+                    <span class="detail-label">Status:</span>
+                    <span :class="['detail-value', 'status-' + step.status]">{{ step.status }}</span>
+                  </div>
+                  <div v-if="step.result" class="step-detail-row">
+                    <span class="detail-label">Output:</span>
+                    <pre class="detail-output">{{ truncateOutput(step.result) }}</pre>
+                  </div>
+                  <div v-else-if="step.status === 'running'" class="step-detail-row">
+                    <span class="detail-label">Output:</span>
+                    <span class="detail-value pending">In progress...</span>
+                  </div>
+                </div>
+              </div>
             </div>
             <!-- Web search results display (shows while fetching and after) -->
             <details v-if="msg.role === 'assistant' && msg.webSearchResults && (msg.webSearchResults.length > 0 || msg.webSearchTotal)"
@@ -207,6 +248,28 @@
                 <span class="attachment-icon">{{ att.type === 'url' ? '🔗' : (att.readerName === 'pdf' ? '📕' : '📄') }}</span>
                 <span class="attachment-name">{{ att.name }}</span>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Plan Approval Overlay -->
+        <div v-if="pendingPlanApproval" class="plan-approval-overlay">
+          <div class="plan-approval-modal">
+            <div class="plan-approval-header">
+              <h3>Confirm Execution Plan</h3>
+              <span class="plan-step-count">{{ pendingPlanApproval.steps.length }} steps</span>
+            </div>
+            <p class="plan-summary">{{ pendingPlanApproval.summary }}</p>
+            <div class="plan-steps-preview">
+              <div v-for="step in pendingPlanApproval.steps" :key="step.stepNumber" class="plan-step-preview">
+                <span class="step-num">{{ step.stepNumber }}</span>
+                <span class="step-cap">{{ step.capability }}</span>
+                <span class="step-desc">{{ step.description }}</span>
+              </div>
+            </div>
+            <div class="plan-approval-actions">
+              <button class="approve-btn" @click="approvePlan">Execute Plan</button>
+              <button class="reject-btn" @click="rejectPlan">Cancel</button>
             </div>
           </div>
         </div>
@@ -380,6 +443,53 @@ const copiedCode = ref(null)  // Track which code was copied
 const isSearching = ref(false)
 const searchQuery = ref('')  // Current search query
 const searchStatus = ref('')  // Status text: "Searching...", "Fetching 1/3...", etc.
+
+// Multi-step plan state
+const currentPlan = ref(null)  // { summary, steps }
+const currentStepIndex = ref(0)
+const expandedStep = ref(null)  // Track which step is expanded: "msgIndex-stepNumber"
+
+// Plan approval state (always wait for user confirmation before executing plans)
+const pendingPlanApproval = ref(null)  // { summary, steps, resolve } when waiting for approval
+
+// Toggle step expansion
+function toggleStepExpand(msgIndex, stepNumber) {
+  const key = `${msgIndex}-${stepNumber}`
+  expandedStep.value = expandedStep.value === key ? null : key
+}
+
+// Plan approval functions
+function approvePlan() {
+  if (pendingPlanApproval.value?.resolve) {
+    pendingPlanApproval.value.resolve(true)
+    pendingPlanApproval.value = null
+  }
+}
+
+function rejectPlan() {
+  if (pendingPlanApproval.value?.resolve) {
+    pendingPlanApproval.value.resolve(false)
+    pendingPlanApproval.value = null
+  }
+}
+
+// Truncate output for display
+function truncateOutput(result) {
+  if (!result) return ''
+  let output = ''
+  if (typeof result === 'string') {
+    output = result
+  } else if (result.content) {
+    output = typeof result.content === 'string' ? result.content : JSON.stringify(result.content, null, 2)
+  } else {
+    output = JSON.stringify(result, null, 2)
+  }
+  // Limit to 500 chars
+  if (output.length > 500) {
+    return output.substring(0, 500) + '...'
+  }
+  return output
+}
 
 // Copy code to clipboard
 async function copyCode(code) {
@@ -849,9 +959,52 @@ async function handleSend() {
             // Store the tool result
             messages.value[messages.value.length - 1].tool = tool
             scrollToBottom()
+          },
+          onPlanCreated: (plan) => {
+            // Store the plan
+            currentPlan.value = plan
+            currentStepIndex.value = 0
+            messages.value[messages.value.length - 1].plan = plan
+            scrollToBottom()
+          },
+          onStepStart: ({ stepNumber, description, capability }) => {
+            currentStepIndex.value = stepNumber
+            const msg = messages.value[messages.value.length - 1]
+            if (!msg.stepProgress) msg.stepProgress = []
+            msg.stepProgress.push({ stepNumber, description, capability, status: 'running' })
+            scrollToBottom()
+          },
+          onStepComplete: ({ stepNumber, capability, success, result }) => {
+            const msg = messages.value[messages.value.length - 1]
+            if (msg.stepProgress) {
+              const step = msg.stepProgress.find(s => s.stepNumber === stepNumber)
+              if (step) {
+                step.status = success ? 'completed' : 'failed'
+                step.result = result
+              }
+            }
+            scrollToBottom()
+          },
+          // Wait for user approval before executing plan
+          waitForPlanApproval: (plan) => {
+            return new Promise((resolve) => {
+              pendingPlanApproval.value = { ...plan, resolve }
+              scrollToBottom()
+            })
           }
         }
       )
+
+      // Handle cancelled plan
+      if (result.cancelled) {
+        messages.value[messages.value.length - 1].content = result.finalResponse || 'Plan execution cancelled.'
+        messages.value[messages.value.length - 1].cancelled = true
+      }
+
+      // Set content from finalResponse if not already streamed
+      if (result.finalResponse && !messages.value[messages.value.length - 1].content) {
+        messages.value[messages.value.length - 1].content = result.finalResponse
+      }
 
       // Store the number of attempts, web search results, visualization, and tool
       messages.value[messages.value.length - 1].attempts = result.attempts
@@ -888,6 +1041,9 @@ async function handleSend() {
     searchQuery.value = ''
     searchStatus.value = ''
     currentVerifyAttempt.value = 0
+    currentPlan.value = null
+    currentStepIndex.value = 0
+    pendingPlanApproval.value = null
     abortController = null
     scrollToBottom()
   }
@@ -1445,6 +1601,335 @@ textarea::placeholder {
 .analysis-badge.build {
   background-color: rgba(34, 197, 94, 0.15);
   color: #22c55e;
+}
+
+.analysis-badge.plan {
+  background-color: rgba(251, 146, 60, 0.15);
+  color: #fb923c;
+}
+
+/* Plan progress display */
+.plan-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem;
+  background-color: var(--color-bg-surface-alt, rgba(0,0,0,0.03));
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-family: system-ui, sans-serif;
+}
+
+.plan-step {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border-radius: 4px;
+  background-color: var(--color-bg-surface, white);
+  border: 1px solid var(--color-border-base, #e5e7eb);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.plan-step:hover {
+  border-color: var(--color-border-strong, #9ca3af);
+}
+
+.plan-step .step-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+}
+
+.plan-step.running {
+  border-color: #3b82f6;
+  background-color: rgba(59, 130, 246, 0.05);
+}
+
+.plan-step.completed {
+  border-color: #22c55e;
+  background-color: rgba(34, 197, 94, 0.05);
+}
+
+.plan-step.failed {
+  border-color: #ef4444;
+  background-color: rgba(239, 68, 68, 0.05);
+}
+
+.step-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  background-color: var(--color-text-muted, #6b7280);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.plan-step.completed .step-number {
+  background-color: #22c55e;
+}
+
+.plan-step.running .step-number {
+  background-color: #3b82f6;
+}
+
+.plan-step.failed .step-number {
+  background-color: #ef4444;
+}
+
+.step-capability {
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  background-color: rgba(0, 0, 0, 0.06);
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.step-description {
+  flex: 1;
+  color: var(--color-text-base, #374151);
+}
+
+.step-status-icon {
+  width: 1rem;
+  text-align: center;
+}
+
+.plan-step.completed .step-status-icon {
+  color: #22c55e;
+}
+
+.plan-step.failed .step-status-icon {
+  color: #ef4444;
+}
+
+.step-expand-icon {
+  font-size: 0.6rem;
+  color: var(--color-text-muted);
+  margin-left: auto;
+  transition: transform 0.15s ease;
+}
+
+.plan-step.expanded .step-expand-icon {
+  transform: rotate(0deg);
+}
+
+.step-details {
+  padding: 0.5rem 0.75rem;
+  background-color: var(--color-bg-hover, #f9fafb);
+  border-top: 1px solid var(--color-border-base, #e5e7eb);
+  cursor: default;
+}
+
+.step-detail-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.75rem;
+}
+
+.step-detail-row:last-child {
+  margin-bottom: 0;
+}
+
+.detail-label {
+  color: var(--color-text-muted);
+  min-width: 50px;
+  font-weight: 500;
+}
+
+.detail-value {
+  color: var(--color-text-base);
+}
+
+.detail-value.status-completed {
+  color: #22c55e;
+  font-weight: 500;
+}
+
+.detail-value.status-running {
+  color: #3b82f6;
+  font-weight: 500;
+}
+
+.detail-value.status-failed {
+  color: #ef4444;
+  font-weight: 500;
+}
+
+.detail-value.pending {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.detail-output {
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  background-color: var(--color-bg-surface, white);
+  border: 1px solid var(--color-border-base, #e5e7eb);
+  border-radius: 3px;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 150px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Plan Approval Overlay */
+.plan-approval-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.plan-approval-modal {
+  background-color: var(--color-bg-surface, white);
+  border-radius: 8px;
+  padding: 1.5rem;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.plan-approval-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.plan-approval-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-text-base);
+}
+
+.plan-step-count {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.plan-summary {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+.plan-steps-preview {
+  background-color: var(--color-bg-hover, #f9fafb);
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.plan-step-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--color-border-base, #e5e7eb);
+}
+
+.plan-step-preview:last-child {
+  border-bottom: none;
+}
+
+.step-num {
+  width: 20px;
+  height: 20px;
+  background-color: #3b82f6;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.step-cap {
+  background-color: var(--color-bg-surface, white);
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.step-desc {
+  font-size: 0.8rem;
+  color: var(--color-text-base);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-approval-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.approve-btn {
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.approve-btn:hover {
+  background-color: #2563eb;
+}
+
+.reject-btn {
+  background-color: transparent;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border-base, #e5e7eb);
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.reject-btn:hover {
+  background-color: var(--color-bg-hover, #f9fafb);
+  color: var(--color-text-base);
 }
 
 /* Search status indicator */

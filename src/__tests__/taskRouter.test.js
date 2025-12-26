@@ -447,21 +447,20 @@ That's my analysis.`)
       expect(callArgs[1].content).toContain('original user request')
     })
 
-    it('should pass through streaming callback', async () => {
-      mockSendMessage.mockResolvedValue('result')
-      const onChunk = vi.fn()
+    it('should generate code and return result', async () => {
+      mockSendMessage.mockResolvedValue('10 + 5')
 
-      await generateCode(
+      const result = await generateCode(
         { taskDescription: 'test', inputs: [], expectedOutput: '', codeType: 'expression', functionName: 'test' },
         'test',
-        'gpt-oss-20b',
-        onChunk
+        'gpt-oss-20b'
       )
 
+      expect(result).toBe('10 + 5')
       expect(mockSendMessage).toHaveBeenCalledWith(
         'gpt-oss-20b',
         expect.any(Array),
-        onChunk,
+        null,
         null,
         expect.any(Object)
       )
@@ -695,7 +694,8 @@ That's my analysis.`)
 
         expect(result.execution.success).toBe(false)
         expect(result.attempts).toBe(3)
-        expect(result.finalResponse).toContain('failed after 3 attempts')
+        // The final response contains the error message from the failed execution
+        expect(result.finalResponse).toContain('Error:')
       })
 
       it('should return attempts count in result', async () => {

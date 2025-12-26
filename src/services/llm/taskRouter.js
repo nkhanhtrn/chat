@@ -53,148 +53,406 @@ const findModelByPattern = (models, patterns) => {
 }
 
 /**
- * Parse router's analysis response into structured data
+ * Try to extract and parse JSON from a response that may contain extra text
  */
-const parseAnalysisResponse = (response) => {
+const tryParseJson = (response) => {
+  // Try to extract JSON from the response
   const jsonMatch = response.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) {
-    console.warn('No JSON object found in response:', response.substring(0, 200))
-    return createFallbackAnalysis(response)
-  }
+  if (!jsonMatch) return null
 
   let jsonStr = jsonMatch[0]
 
-  try {
-    return JSON.parse(jsonStr)
-  } catch (e) {
-    console.warn('Initial JSON parse failed, attempting cleanup:', e.message)
-    console.warn('Failed JSON:', jsonStr)
-  }
+  // Clean up common JSON issues from LLMs
+  // Fix trailing commas
+  jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1')
+  // Fix single quotes
+  jsonStr = jsonStr.replace(/'/g, '"')
 
   try {
-    // Fix literal newlines inside string values (common LLM mistake)
-    // Process character by character to handle multi-line strings
-    let result = ''
-    let inString = false
-    let escape = false
-    for (let i = 0; i < jsonStr.length; i++) {
-      const char = jsonStr[i]
-      if (escape) {
-        result += char
-        escape = false
-        continue
-      }
-      if (char === '\\') {
-        result += char
-        escape = true
-        continue
-      }
-      if (char === '"') {
-        inString = !inString
-        result += char
-        continue
-      }
-      if (inString && (char === '\n' || char === '\r')) {
-        // Replace literal newline with escaped version
-        if (char === '\r' && jsonStr[i + 1] === '\n') {
-          result += '\\n'
-          i++ // Skip the \n
-        } else {
-          result += '\\n'
-        }
-        continue
-      }
-      result += char
-    }
-    jsonStr = result
-
-    // Remove trailing commas before } or ]
-    jsonStr = jsonStr.replace(/,\s*([\]}])/g, '$1')
-
-    // Fix single quotes to double quotes
-    jsonStr = jsonStr.replace(/'([^']*)'(\s*[,:\]}])/g, '"$1"$2')
-    jsonStr = jsonStr.replace(/(\{|\[|,)\s*'([^']*)'/g, '$1"$2"')
-
-    // Fix unquoted property names
-    jsonStr = jsonStr.replace(/(\{|,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":')
-
-    // Remove JavaScript comments
-    jsonStr = jsonStr.replace(/\/\/[^\n]*/g, '')
-    jsonStr = jsonStr.replace(/\/\*[\s\S]*?\*\//g, '')
-
-    // Fix numbers with trailing text (e.g., "30%" -> "30", "5px" -> "5")
-    jsonStr = jsonStr.replace(/:\s*(\d+(?:\.\d+)?)[a-zA-Z%]+(\s*[,}\]])/g, ': $1$2')
-
-    // Fix unquoted string values (common LLM mistake)
-    // Match: key: value, or key: value} where value is unquoted text
-    jsonStr = jsonStr.replace(/:\s*([a-zA-Z][a-zA-Z0-9_\s-]*)(\s*[,}\]])/g, (match, value, ending) => {
-      // Don't quote if it's a boolean or null
-      if (['true', 'false', 'null'].includes(value.trim())) {
-        return `: ${value.trim()}${ending}`
-      }
-      return `: "${value.trim()}"${ending}`
-    })
-
-    // Fix true/false with wrong casing
-    jsonStr = jsonStr.replace(/:\s*"?(True|False|TRUE|FALSE)"?(\s*[,}\]])/g, (match, bool, ending) => {
-      return `: ${bool.toLowerCase()}${ending}`
-    })
-
-    return JSON.parse(jsonStr)
-  } catch (e) {
-    console.warn('JSON cleanup parse failed:', e.message)
-    console.warn('Problematic JSON (first 500 chars):', jsonStr.substring(0, 500))
+    const parsed = JSON.parse(jsonStr)
+    return normalizeJsonAnalysis(parsed)
+  } catch {
+    return null
   }
-
-  return createFallbackAnalysis(response)
 }
 
 /**
- * Create fallback analysis by extracting fields from text
+ * Normalize a JSON analysis response to the expected format
  */
-const createFallbackAnalysis = (response) => {
-  const lowerResponse = response.toLowerCase()
+const normalizeJsonAnalysis = (json) => {
+  const result = {
+    capability: 'text',
+    taskDescription: json.taskDescription || '',
+    needsWebSearch: json.needsWebSearch || false,
+    searchQuery: json.searchQuery || '',
+    inputs: json.inputs || [],
+    isVisualization: json.isVisualization || false,
+    visualizationType: json.visualizationType || null,
+    canBeCode: json.canBeCode !== undefined ? json.canBeCode : true,
+    codeType: json.codeType || 'expression',
+    functionName: json.functionName || '',
+    expectedOutput: json.expectedOutput || ''
+  }
 
-  const isNonCode = lowerResponse.includes('"canbecode": false') ||
-                    lowerResponse.includes('"canbecode":false') ||
-                    lowerResponse.includes('"capability": "text"') ||
-                    lowerResponse.includes('language task')
+  // Determine capability from JSON fields
+  if (json.isVisualization) {
+    result.capability = 'visualization'
+  } else if (json.canBeCode === true) {
+    result.capability = 'code'
+  } else if (json.canBeCode === false) {
+    result.capability = 'text'
+  }
 
-  const needsWebSearch = lowerResponse.includes('"needswebsearch": true') ||
-                         lowerResponse.includes('"needswebsearch":true')
+  return result
+}
 
-  const isVisualization = lowerResponse.includes('"isvisualization": true') ||
-                          lowerResponse.includes('"isvisualization":true') ||
-                          lowerResponse.includes('"capability": "visualization"')
+/**
+ * Extract field values from text using regex patterns (for malformed JSON)
+ */
+const extractFieldsFromText = (text, result) => {
+  // Extract taskDescription
+  const taskMatch = text.match(/"taskDescription"\s*:\s*"([^"]+)"/)
+  if (taskMatch) result.taskDescription = taskMatch[1]
 
-  let visualizationType = null
-  const vizTypeMatch = response.match(/"visualizationType"\s*:\s*"([^"]+)"/i)
-  if (vizTypeMatch) visualizationType = vizTypeMatch[1]
+  // Extract functionName
+  const funcMatch = text.match(/"functionName"\s*:\s*"([^"]+)"/)
+  if (funcMatch) result.functionName = funcMatch[1]
 
-  let searchQuery = ''
-  const queryMatch = response.match(/"searchQuery"\s*:\s*"([^"]+)"/i)
-  if (queryMatch) searchQuery = queryMatch[1]
+  // Extract canBeCode
+  const codeMatch = text.match(/"canBeCode"\s*:\s*(true|false)/)
+  if (codeMatch) result.canBeCode = codeMatch[1] === 'true'
 
-  let taskDescription = 'Process the user request'
-  const taskMatch = response.match(/"taskDescription"\s*:\s*"([^"]+)"/i)
-  if (taskMatch) taskDescription = taskMatch[1]
+  // Extract isVisualization
+  const vizMatch = text.match(/"isVisualization"\s*:\s*(true|false)/)
+  if (vizMatch) {
+    result.isVisualization = vizMatch[1] === 'true'
+    if (result.isVisualization) result.capability = 'visualization'
+  }
 
-  let capability = 'text'
-  const capMatch = response.match(/"capability"\s*:\s*"([^"]+)"/i)
-  if (capMatch) capability = capMatch[1]
+  // Extract visualizationType
+  const vizTypeMatch = text.match(/"visualizationType"\s*:\s*"([^"]+)"/)
+  if (vizTypeMatch) result.visualizationType = vizTypeMatch[1]
+
+  // Detect language task from text content
+  const languageKeywords = ['language task', 'translate', 'translation', 'summarize', 'explain', 'describe']
+  if (languageKeywords.some(kw => text.toLowerCase().includes(kw))) {
+    result.canBeCode = false
+    result.capability = 'text'
+  }
+
+  return result
+}
+
+/**
+ * Parse router's response into structured data
+ * Tries JSON first, then falls back to line-based parsing
+ */
+const parseAnalysisResponse = (response) => {
+  // Try JSON parsing first
+  const jsonResult = tryParseJson(response)
+  if (jsonResult) {
+    return jsonResult
+  }
+
+  // Fall back to line-based parsing
+  const lines = response.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('---'))
+
+  // Check if this is a multi-step plan
+  const planLine = lines.find(l => l.toLowerCase().startsWith('plan:'))
+  if (planLine || lines.some(l => /^step\s+\d+/i.test(l))) {
+    return parseMultiStepPlan(lines, planLine)
+  }
+
+  // Try line-based parsing
+  const result = parseSingleStep(lines)
+
+  // Also try to extract fields from malformed JSON in the response
+  extractFieldsFromText(response, result)
+
+  return result
+}
+
+/**
+ * Parse single-step response
+ */
+const parseSingleStep = (lines) => {
+  const result = {
+    capability: 'text',
+    taskDescription: '',
+    needsWebSearch: false,
+    searchQuery: '',
+    inputs: [],
+    isVisualization: false,
+    visualizationType: null,
+    canBeCode: true,
+    codeType: 'expression',
+    functionName: '',
+    expectedOutput: ''
+  }
+
+  for (const line of lines) {
+    const [key, ...valueParts] = line.split(':')
+    const value = valueParts.join(':').trim()
+
+    switch (key.toLowerCase().trim()) {
+      case 'capability':
+        result.capability = value.toLowerCase()
+        break
+      case 'task':
+      case 'taskdescription':
+        result.taskDescription = value
+        break
+      case 'searchquery':
+      case 'search':
+        result.searchQuery = value
+        result.needsWebSearch = !!value
+        break
+      case 'input':
+      case 'inputs':
+        result.inputs.push({ name: 'input', value, type: 'string' })
+        break
+      case 'codetype':
+        result.codeType = value
+        break
+      case 'visualizationtype':
+        result.visualizationType = value
+        result.isVisualization = true
+        break
+    }
+  }
+
+  // Infer properties from capability
+  if (result.capability === 'visualization') {
+    result.isVisualization = true
+  }
+  if (result.capability === 'code') {
+    result.canBeCode = true
+  }
+
+  return result
+}
+
+/**
+ * Parse multi-step plan response
+ */
+const parseMultiStepPlan = (lines, planLine) => {
+  const result = {
+    requiresPlanning: true,
+    summary: planLine ? planLine.replace(/^plan:\s*/i, '') : 'Multi-step task',
+    steps: []
+  }
+
+  let currentStep = null
+
+  for (const line of lines) {
+    // Check for STEP N header
+    const stepMatch = line.match(/^step\s+(\d+)/i)
+    if (stepMatch) {
+      if (currentStep) {
+        result.steps.push(currentStep)
+      }
+      currentStep = {
+        stepNumber: parseInt(stepMatch[1]),
+        capability: 'text',
+        taskDescription: '',
+        description: '',
+        inputs: [],
+        needsWebSearch: false,
+        searchQuery: ''
+      }
+      continue
+    }
+
+    // Skip if no current step yet (preamble lines)
+    if (!currentStep) continue
+
+    // Parse key: value
+    const colonIdx = line.indexOf(':')
+    if (colonIdx === -1) continue
+
+    const key = line.slice(0, colonIdx).toLowerCase().trim()
+    const value = line.slice(colonIdx + 1).trim()
+
+    switch (key) {
+      case 'capability':
+        currentStep.capability = value.toLowerCase()
+        break
+      case 'task':
+      case 'taskdescription':
+        currentStep.taskDescription = value
+        currentStep.description = value
+        break
+      case 'description':
+        currentStep.description = value
+        if (!currentStep.taskDescription) currentStep.taskDescription = value
+        break
+      case 'searchquery':
+      case 'search':
+        currentStep.searchQuery = value
+        currentStep.needsWebSearch = !!value
+        break
+      case 'input':
+      case 'inputs':
+        // Handle {{step_N_result}} references
+        currentStep.inputs.push({ name: 'input', value, type: 'string' })
+        break
+      case 'codetype':
+        currentStep.codeType = value
+        break
+      case 'visualizationtype':
+        currentStep.visualizationType = value
+        currentStep.isVisualization = true
+        break
+    }
+  }
+
+  // Don't forget the last step
+  if (currentStep) {
+    result.steps.push(currentStep)
+  }
+
+  return result
+}
+
+/**
+ * Check if analysis contains a multi-step plan
+ */
+const isPlanAnalysis = (analysis) => {
+  return analysis.requiresPlanning === true && Array.isArray(analysis.steps) && analysis.steps.length > 0
+}
+
+/**
+ * Replace step result placeholders in inputs
+ * e.g., {{step_1_result}} -> actual result from step 1
+ */
+const resolveStepInputs = (inputs, stepResults) => {
+  if (!inputs || !Array.isArray(inputs)) return inputs
+
+  return inputs.map(input => {
+    if (typeof input.value === 'string') {
+      // Replace {{step_N_result}} placeholders
+      const replaced = input.value.replace(/\{\{step_(\d+)_result\}\}/g, (match, stepNum) => {
+        const result = stepResults[parseInt(stepNum)]
+        return result !== undefined ? JSON.stringify(result) : match
+      })
+      // Try to parse back to original type if it was a placeholder
+      if (replaced !== input.value) {
+        try {
+          return { ...input, value: JSON.parse(replaced) }
+        } catch {
+          return { ...input, value: replaced }
+        }
+      }
+    }
+    return input
+  })
+}
+
+/**
+ * Execute a single step/analysis using its capability
+ * @param {Object} analysis - Step analysis
+ * @param {string} fullContext - Text context for LLM
+ * @param {Object} models - Router/executor model config
+ * @param {AbortSignal} signal - Abort signal
+ * @param {Function} onChunk - Streaming callback
+ * @param {Object} options - Callbacks and options
+ * @param {Object} previousResults - Structured results from previous steps { stepNum: { capability, data } }
+ * @param {Object|null} pipeInput - Piped data from previous capability (PipeData format)
+ */
+const executeSingleStep = async (analysis, fullContext, models, signal, onChunk, options, previousResults = {}, pipeInput = null) => {
+  const capability = registry.resolve(analysis) || registry.getDefault()
+  if (!capability) throw new Error(`No capability for: ${analysis.capability}`)
+
+  const executorProviderId = models.executorProviderId || 'lmstudio'
+
+  const context = {
+    analysis,
+    userMessage: fullContext,
+    fullContext,
+    messages: [{ role: 'user', content: fullContext }],
+    models,
+    config: getProviderConfig(executorProviderId),
+    provider: getProvider(executorProviderId),
+    signal,
+    onChunk,
+    previousResults,  // Pass structured data from previous steps (backwards compatibility)
+    callbacks: {
+      onCodeGenerated: options.onCodeGenerated,
+      onExecutionComplete: options.onExecutionComplete,
+      onVerifyAttempt: options.onVerifyAttempt,
+      onVisualizationGenerated: options.onVisualizationGenerated,
+      onWebSearchStart: options.onWebSearchStart,
+      onWebSearchProgress: options.onWebSearchProgress,
+      onWebSearchResult: options.onWebSearchResult,
+      onWebSearchComplete: options.onWebSearchComplete,
+      verifyMode: options.verifyMode ?? false,
+      maxRetries: options.maxRetries ?? 3
+    }
+  }
+
+  // Execute with pipe interface - pass pipeInput if available
+  const result = await capability.execute(context, pipeInput)
 
   return {
-    capability: isVisualization ? 'visualization' : (isNonCode ? 'text' : 'code'),
-    needsWebSearch,
-    searchQuery,
-    isVisualization,
-    visualizationType,
-    canBeCode: !isNonCode,
-    taskDescription,
-    inputs: [],
-    expectedOutput: 'Result',
-    codeType: 'expression',
-    functionName: 'process'
+    success: result.success,
+    result: result.result,
+    error: result.error,
+    capability: capability.name,
+    code: result.metadata?.code || null,
+    execution: result.metadata?.executionDetails || null,
+    visualization: capability.name === 'visualization' ? result.result : null,
+    tool: capability.name === 'build' ? result.result : null,
+    webSearchResults: capability.name === 'websearch' ? result.result : [],
+    finalResponse: formatStepResponse(capability.name, result),
+    pipe: result.pipe  // Include pipe output for chaining
+  }
+}
+
+/**
+ * Format step response based on capability type
+ */
+const formatStepResponse = (capabilityName, result) => {
+  if (capabilityName === 'code') {
+    return result.success ? formatResult(result.result) : `Error: ${result.error}`
+  }
+  if (capabilityName === 'websearch') {
+    return ''  // Web search results are passed to next step, not displayed directly
+  }
+  if (capabilityName === 'extraction') {
+    return result.success ? formatResult(result.result) : `Error: ${result.error}`
+  }
+  return result.result || ''
+}
+
+/**
+ * Format a step's result for inclusion in context (human-readable)
+ */
+const formatResultForContext = (capability, data) => {
+  if (!data) return 'No data'
+
+  switch (capability) {
+    case 'websearch':
+      // Format web search results as source summaries
+      if (Array.isArray(data)) {
+        return data.map((r, i) =>
+          `Source ${i + 1}: ${r.title || r.url}\n${r.content?.substring(0, 500) || r.snippet || ''}...`
+        ).join('\n\n')
+      }
+      return JSON.stringify(data, null, 2)
+
+    case 'code':
+      // Format code result
+      if (typeof data === 'object') {
+        return JSON.stringify(data, null, 2)
+      }
+      return String(data)
+
+    case 'visualization':
+      return '[Visualization data - use previousResults for raw data]'
+
+    default:
+      if (typeof data === 'string') return data
+      return JSON.stringify(data, null, 2)
   }
 }
 
@@ -378,7 +636,9 @@ export const generateCode = async (analysis, originalRequest, executorModelId, o
     throw new Error('Code capability not registered')
   }
 
-  return codeCapability._generateCode(analysis, originalRequest, executorModelId, config, signal)
+  const provider = getProvider('lmstudio')
+  const providerConfig = config || getProviderConfig('lmstudio')
+  return codeCapability._generateCode(analysis, originalRequest, executorModelId, provider, providerConfig, signal)
 }
 
 /**
@@ -390,7 +650,9 @@ export const regenerateCodeWithError = async (analysis, originalRequest, previou
     throw new Error('Code capability not registered')
   }
 
-  return codeCapability._regenerateWithError(analysis, originalRequest, previousCode, errorMessage, executorModelId, config, signal)
+  const provider = getProvider('lmstudio')
+  const providerConfig = config || getProviderConfig('lmstudio')
+  return codeCapability._regenerateWithError(analysis, originalRequest, previousCode, errorMessage, executorModelId, provider, providerConfig, signal)
 }
 
 /**
@@ -406,7 +668,8 @@ export const generateVisualization = async (analysis, originalRequest, executorM
     analysis,
     fullContext: originalRequest,
     models: { executorId: executorModelId },
-    config,
+    config: config || getProviderConfig('lmstudio'),
+    provider: getProvider('lmstudio'),
     signal,
     callbacks: {}
   })
@@ -474,7 +737,96 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
     onAnalysis(analysis)
   }
 
-  // Step 3: Perform web search if needed
+  // Step 3: Check for multi-step plan
+  if (isPlanAnalysis(analysis)) {
+    const { onPlanCreated, onStepStart, onStepComplete, waitForPlanApproval } = options
+
+    if (onPlanCreated) {
+      onPlanCreated({ summary: analysis.summary, steps: analysis.steps })
+    }
+
+    // If waitForPlanApproval is provided, wait for user confirmation before executing
+    if (waitForPlanApproval) {
+      const approved = await waitForPlanApproval({ summary: analysis.summary, steps: analysis.steps })
+      if (!approved) {
+        // User rejected the plan - return early with just the analysis
+        return {
+          analysis,
+          parsedAttachments,
+          plan: { summary: analysis.summary, steps: analysis.steps, previousResults: {} },
+          cancelled: true,
+          finalResponse: 'Plan execution cancelled by user.'
+        }
+      }
+    }
+
+    // Structured results: { stepNum: { capability, data, success } }
+    const previousResults = {}
+    let finalResponse = null
+    let lastPipeOutput = null  // Track pipe output for chaining
+
+    for (const step of analysis.steps) {
+      if (signal?.aborted) break
+
+      if (onStepStart) {
+        onStepStart({ stepNumber: step.stepNumber, description: step.description, capability: step.capability })
+      }
+
+      // Build text context with formatted previous results (for LLM reasoning)
+      let stepContext = lastUserMessage.content
+      if (attachmentContent) stepContext += `\n\n${attachmentContent}`
+      if (Object.keys(previousResults).length > 0) {
+        stepContext += '\n\nPrevious step results:'
+        for (const [stepNum, stepData] of Object.entries(previousResults)) {
+          stepContext += `\n\nStep ${stepNum} (${stepData.capability}):`
+          stepContext += `\n${formatResultForContext(stepData.capability, stepData.data)}`
+        }
+      }
+
+      // Execute step with both text context AND pipe input from previous step
+      const stepAnalysis = { ...step }
+      const stepOutput = await executeSingleStep(
+        stepAnalysis,
+        stepContext,
+        models,
+        signal,
+        step.stepNumber === analysis.steps.length ? onChunk : null,
+        options,
+        previousResults,  // Pass structured data (backwards compatibility)
+        lastPipeOutput    // Pass pipe output from previous step
+      )
+
+      // Store structured result for next steps (backwards compatibility)
+      previousResults[step.stepNumber] = {
+        capability: stepOutput.capability,
+        data: stepOutput.result,
+        success: stepOutput.success
+      }
+
+      // Store pipe output for next step (new pipe interface)
+      lastPipeOutput = stepOutput.pipe
+      finalResponse = stepOutput
+
+      if (onStepComplete) {
+        onStepComplete({
+          stepNumber: step.stepNumber,
+          capability: step.capability,
+          result: stepOutput.result,
+          success: stepOutput.success,
+          pipe: stepOutput.pipe  // Include pipe output in callback
+        })
+      }
+    }
+
+    return {
+      analysis,
+      parsedAttachments,
+      plan: { summary: analysis.summary, steps: analysis.steps, previousResults },
+      ...finalResponse
+    }
+  }
+
+  // Step 4: Perform web search if needed (single-step flow)
   let webSearchResults = []
   let webSearchContent = ''
 
@@ -526,15 +878,16 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
     }
   }
 
-  // Execute the capability
-  const result = await capability.execute(executionContext)
+  // Execute the capability (no pipe input for single-step)
+  const result = await capability.execute(executionContext, null)
 
   // Build response in expected format for backwards compatibility
   const response = {
     analysis,
     parsedAttachments,
     webSearchResults,
-    attempts: result.metadata?.attempts || 0
+    attempts: result.metadata?.attempts || 0,
+    pipe: result.pipe  // Include pipe output for potential chaining
   }
 
   // Map result based on capability type
@@ -560,6 +913,13 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
     response.visualization = null
     response.tool = result.success ? result.result : null
     response.finalResponse = result.success ? '' : `Error: ${result.error}`
+  } else if (capability.name === 'extraction') {
+    response.code = null
+    response.execution = null
+    response.visualization = null
+    response.tool = null
+    response.extractedData = result.result
+    response.finalResponse = result.success ? formatResult(result.result) : `Error: ${result.error}`
   } else {
     // Text response
     response.code = null

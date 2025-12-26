@@ -1,13 +1,18 @@
 /**
  * CodeCapability - Handles JavaScript code generation and execution
  *
+ * Pipe interface:
+ * - Input: Accepts text, json, array, object, search-results from previous capabilities
+ * - Process: Generates and executes JavaScript code
+ * - Output: Produces 'code-result' type with execution result
+ *
  * This capability:
  * 1. Generates JavaScript code based on user request
  * 2. Executes the code in a sandboxed environment
  * 3. Supports retry on execution failure
  */
 
-import { BaseCapability } from './BaseCapability.js'
+import { BaseCapability, createPipeData } from './BaseCapability.js'
 
 const EXECUTOR_SYSTEM_PROMPT = `You are a JavaScript code generator. You receive instructions and write clean, executable JavaScript code.
 
@@ -113,24 +118,26 @@ export class CodeCapability extends BaseCapability {
            analysis.codeType === 'expression'
   }
 
-  getSystemPrompt() {
-    return EXECUTOR_SYSTEM_PROMPT
+  // ===========================================================================
+  // PIPE INTERFACE
+  // ===========================================================================
+
+  /**
+   * Receive raw data from previous capability
+   */
+  receiveInput(pipeInput, context) {
+    return {
+      data: pipeInput?.data ?? null,
+      source: pipeInput?.source ?? null,
+      context
+    }
   }
 
-  buildExecutorPrompt(context) {
-    const { analysis, userMessage } = context
-    return `Task: ${analysis.taskDescription}
-Inputs: ${JSON.stringify(analysis.inputs || [])}
-Expected output: ${analysis.expectedOutput || 'Result'}
-Code type: ${analysis.codeType || 'expression'}
-Function name: ${analysis.functionName || 'process'}
-
-Original request: "${userMessage}"
-
-Write the JavaScript code now:`
-  }
-
-  async execute(context) {
+  /**
+   * Main processing: generate and execute code
+   */
+  async process(input) {
+    const { data: pipedData, source: pipedSource, context } = input
     const {
       analysis,
       fullContext,
@@ -138,6 +145,7 @@ Write the JavaScript code now:`
       config,
       provider,
       signal,
+      previousResults = {},
       callbacks = {}
     } = context
 
@@ -149,10 +157,21 @@ Write the JavaScript code now:`
       maxRetries = 3
     } = callbacks
 
-    // Generate code
-    let code = await this._generateCode(analysis, fullContext, models.executorId, provider, config, signal)
+    // Merge piped data into previousResults for backwards compatibility
+    const mergedResults = { ...previousResults }
+    if (pipedData !== null) {
+      // Add piped data as a special 'pipe' key
+      mergedResults.pipe = {
+        capability: pipedSource || 'pipe',
+        data: pipedData,
+        success: true
+      }
+    }
+
+    // Generate code with context including piped data
+    let code = await this._generateCode(analysis, fullContext, models.executorId, provider, config, signal, mergedResults)
     let cleanedCode = this.cleanOutput(code)
-    let execution = this._executeCode(cleanedCode)
+    let execution = this._executeCode(cleanedCode, mergedResults)
     let attempts = 1
 
     // Verification mode: retry on failure
@@ -174,11 +193,12 @@ Write the JavaScript code now:`
           models.executorId,
           provider,
           config,
-          signal
+          signal,
+          mergedResults
         )
 
         cleanedCode = this.cleanOutput(code)
-        execution = this._executeCode(cleanedCode)
+        execution = this._executeCode(cleanedCode, mergedResults)
       }
     }
 
@@ -202,10 +222,66 @@ Write the JavaScript code now:`
     }
   }
 
-  async _generateCode(analysis, userMessage, executorModelId, provider, config, signal) {
+  /**
+   * Produce output - just pass raw result
+   */
+  produceOutput(processResult) {
+    const { success, result, error } = processResult
+    return createPipeData(success ? result : { error }, this.name)
+  }
+
+  /**
+   * Execute with pipe support
+   */
+  async execute(context, pipeInput = null) {
+    // Use the pipe interface
+    const transformedInput = this.receiveInput(pipeInput, context)
+    const processResult = await this.process(transformedInput)
+    const pipeOutput = this.produceOutput(processResult)
+
+    return {
+      ...processResult,
+      pipe: pipeOutput
+    }
+  }
+
+  // ===========================================================================
+  // LEGACY INTERFACE
+  // ===========================================================================
+
+  getSystemPrompt() {
+    return EXECUTOR_SYSTEM_PROMPT
+  }
+
+  buildExecutorPrompt(context) {
+    const { analysis, userMessage, previousResults = {} } = context
+
+    let prompt = `Task: ${analysis.taskDescription}
+Inputs: ${JSON.stringify(analysis.inputs || [])}
+Expected output: ${analysis.expectedOutput || 'Result'}`
+
+    // If there's data from previous steps, include it
+    if (Object.keys(previousResults).length > 0) {
+      prompt += `\n\nDATA FROM PREVIOUS STEPS (available as variables):`
+      for (const [stepNum, stepData] of Object.entries(previousResults)) {
+        // Handle both numbered steps and 'pipe' key
+        const varName = stepNum === 'pipe' ? 'pipeData' : `step${stepNum}Data`
+        prompt += `\n${varName} = ${JSON.stringify(stepData.data)}`
+      }
+      prompt += `\n\nUse these variables directly in your code.`
+    }
+
+    prompt += `\n\nOriginal request: "${userMessage}"
+
+Write the JavaScript code now:`
+
+    return prompt
+  }
+
+  async _generateCode(analysis, userMessage, executorModelId, provider, config, signal, previousResults = {}) {
     const messages = [
       { role: 'system', content: this.getSystemPrompt() },
-      { role: 'user', content: this.buildExecutorPrompt({ analysis, userMessage }) }
+      { role: 'user', content: this.buildExecutorPrompt({ analysis, userMessage, previousResults }) }
     ]
 
     return provider.sendMessage(
@@ -217,10 +293,22 @@ Write the JavaScript code now:`
     )
   }
 
-  async _regenerateWithError(analysis, userMessage, previousCode, errorMessage, executorModelId, provider, config, signal) {
-    const fixPrompt = `Original task: ${analysis.taskDescription}
+  async _regenerateWithError(analysis, userMessage, previousCode, errorMessage, executorModelId, provider, config, signal, previousResults = {}) {
+    let fixPrompt = `Original task: ${analysis.taskDescription}
 Inputs: ${JSON.stringify(analysis.inputs || [])}
-Expected output: ${analysis.expectedOutput || 'Result'}
+Expected output: ${analysis.expectedOutput || 'Result'}`
+
+    // Include available data from previous steps
+    if (Object.keys(previousResults).length > 0) {
+      fixPrompt += `\n\nAvailable data from previous steps:`
+      for (const [stepNum, stepData] of Object.entries(previousResults)) {
+        // Handle both numbered steps and 'pipe' key
+        const varName = stepNum === 'pipe' ? 'pipeData' : `step${stepNum}Data`
+        fixPrompt += `\n${varName} = ${JSON.stringify(stepData.data)}`
+      }
+    }
+
+    fixPrompt += `
 
 Your previous code:
 ${previousCode}
@@ -246,8 +334,10 @@ Fix the code to work correctly. Write only the corrected JavaScript code:`
 
   /**
    * Execute JavaScript code safely in a sandboxed environment
+   * @param {string} code - The code to execute
+   * @param {Object} previousResults - Data from previous steps to inject as variables
    */
-  _executeCode(code) {
+  _executeCode(code, previousResults = {}) {
     try {
       const trimmedCode = code.trim()
       const lines = trimmedCode.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('//'))
@@ -276,8 +366,17 @@ Fix the code to work correctly. Write only the corrected JavaScript code:`
         finalExpression = lastDecl.endsWith(';') ? lastDecl.slice(0, -1) : lastDecl
       }
 
+      // Inject previous step data as variables
+      const injectedVars = []
+      for (const [stepNum, stepData] of Object.entries(previousResults)) {
+        // Handle both numbered steps and 'pipe' key
+        const varName = stepNum === 'pipe' ? 'pipeData' : `step${stepNum}Data`
+        injectedVars.push(`const ${varName} = ${JSON.stringify(stepData.data)};`)
+      }
+
       const executableCode = `
         "use strict";
+        ${injectedVars.join('\n')}
         ${declarations.join('\n')}
         return (${finalExpression});
       `

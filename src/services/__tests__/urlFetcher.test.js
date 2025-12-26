@@ -1,12 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   detectUrls,
-  extractTextFromHtml,
   fetchUrlContent,
   fetchMultipleUrls,
-  formatFetchedContentForPrompt,
-  resetProxyIndex,
-  getProxyCount
+  formatFetchedContentForPrompt
 } from '../urlFetcher.js'
 
 describe('urlFetcher', () => {
@@ -64,69 +61,11 @@ describe('urlFetcher', () => {
     })
   })
 
-  describe('extractTextFromHtml', () => {
-    it('should extract text from simple HTML', () => {
-      const html = '<p>Hello World</p>'
-      expect(extractTextFromHtml(html)).toBe('Hello World')
-    })
-
-    it('should remove script tags', () => {
-      const html = '<p>Text</p><script>alert("evil")</script>'
-      expect(extractTextFromHtml(html)).toBe('Text')
-    })
-
-    it('should remove style tags', () => {
-      const html = '<style>.foo { color: red; }</style><p>Content</p>'
-      expect(extractTextFromHtml(html)).toBe('Content')
-    })
-
-    it('should remove nav, header, footer, aside elements', () => {
-      const html = `
-        <nav>Navigation</nav>
-        <header>Header</header>
-        <main>Main Content</main>
-        <aside>Sidebar</aside>
-        <footer>Footer</footer>
-      `
-      expect(extractTextFromHtml(html)).toBe('Main Content')
-    })
-
-    it('should prefer main content selectors', () => {
-      const html = `
-        <div>Other stuff</div>
-        <article>Article content here</article>
-      `
-      expect(extractTextFromHtml(html)).toBe('Article content here')
-    })
-
-    it('should collapse whitespace', () => {
-      const html = '<p>Text   with    extra   spaces</p>'
-      expect(extractTextFromHtml(html)).toBe('Text with extra spaces')
-    })
-
-    it('should handle empty HTML', () => {
-      expect(extractTextFromHtml('')).toBe('')
-    })
-
-    it('should remove noscript and iframe elements', () => {
-      const html = '<p>Visible</p><noscript>No JS</noscript><iframe src="x"></iframe>'
-      expect(extractTextFromHtml(html)).toBe('Visible')
-    })
-  })
-
   describe('fetchUrlContent', () => {
     let originalFetch
 
-    // Helper to create mock headers
-    function createMockHeaders(contentType) {
-      return {
-        get: (name) => name.toLowerCase() === 'content-type' ? contentType : null
-      }
-    }
-
     beforeEach(() => {
       originalFetch = global.fetch
-      resetProxyIndex() // Reset to allorigins (first proxy, returns data.contents)
     })
 
     afterEach(() => {
@@ -134,135 +73,66 @@ describe('urlFetcher', () => {
       vi.clearAllMocks()
     })
 
-    it('should fetch and extract content via proxy', async () => {
-      // First proxy (corsproxy.io) returns raw HTML
+    it('should fetch content via backend API', async () => {
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,
-        headers: createMockHeaders('text/html'),
-        text: () => Promise.resolve('<p>Hello from proxy</p>')
+        json: () => Promise.resolve({ success: true, content: 'Hello from backend' })
       })
 
       const content = await fetchUrlContent('https://example.com')
-      expect(content).toBe('Hello from proxy')
-      expect(global.fetch).toHaveBeenCalled()
-    })
-
-    it('should handle JSON response from allorigins', async () => {
-      // Skip first proxy, test allorigins JSON format
-      global.fetch = vi.fn()
-        .mockRejectedValueOnce(new Error('First failed'))
-        .mockResolvedValueOnce({
-          ok: true,
-          headers: createMockHeaders('application/json'),
-          json: () => Promise.resolve({ contents: '<p>JSON content</p>' })
+      expect(content).toBe('Hello from backend')
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/fetch'),
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: expect.stringContaining('https://example.com')
         })
-
-      const content = await fetchUrlContent('https://example.com')
-      expect(content).toBe('JSON content')
+      )
     })
 
-    it('should truncate long content', async () => {
-      const longContent = 'A'.repeat(10000)
+    it('should pass maxLength option to backend', async () => {
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,
-        headers: createMockHeaders('text/html'),
-        text: () => Promise.resolve(`<p>${longContent}</p>`)
+        json: () => Promise.resolve({ success: true, content: 'Truncated content' })
       })
 
-      const content = await fetchUrlContent('https://example.com', { maxLength: 100 })
-      expect(content.length).toBeLessThanOrEqual(100 + 30) // +30 for truncation message
-      expect(content).toContain('[Content truncated...]')
+      await fetchUrlContent('https://example.com', { maxLength: 100 })
+
+      const callBody = JSON.parse(global.fetch.mock.calls[0][1].body)
+      expect(callBody.maxLength).toBe(100)
     })
 
-    it('should try next proxy on failure', async () => {
-      // First proxy fails, second proxy returns HTML
-      global.fetch = vi.fn()
-        .mockRejectedValueOnce(new Error('First proxy failed'))
-        .mockResolvedValueOnce({
-          ok: true,
-          headers: createMockHeaders('text/html'),
-          text: () => Promise.resolve('<p>Second proxy worked</p>')
-        })
-
-      const content = await fetchUrlContent('https://example.com')
-      expect(content).toBe('Second proxy worked')
-      expect(global.fetch).toHaveBeenCalledTimes(2)
-    })
-
-    it('should throw error when all proxies fail', async () => {
-      global.fetch = vi.fn().mockRejectedValue(new Error('All failed'))
-
-      await expect(fetchUrlContent('https://example.com')).rejects.toThrow('Failed to fetch URL')
-    })
-
-    it('should handle HTTP error responses', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
+    it('should throw error on HTTP failure', async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
         ok: false,
-        status: 404
+        status: 500
       })
 
-      await expect(fetchUrlContent('https://example.com')).rejects.toThrow()
+      await expect(fetchUrlContent('https://example.com')).rejects.toThrow('Backend error: HTTP 500')
     })
 
-    it('should handle non-string content from JSON response', async () => {
-      // When proxy.parseResponse returns an object instead of a string
-      // (e.g., data.contents is an object or undefined)
-      global.fetch = vi.fn()
-        .mockResolvedValueOnce({
-          ok: true,
-          headers: createMockHeaders('application/json'),
-          json: () => Promise.resolve({ contents: { nested: 'object' } })
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          headers: createMockHeaders('text/html'),
-          text: () => Promise.resolve('<p>Fallback content</p>')
-        })
+    it('should throw error when backend returns failure', async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: false, error: 'URL not accessible' })
+      })
 
-      const content = await fetchUrlContent('https://example.com')
-      // Should fallback to next proxy or convert to string
-      expect(typeof content).toBe('string')
+      await expect(fetchUrlContent('https://example.com')).rejects.toThrow('URL not accessible')
     })
 
-    it('should handle null content from JSON response', async () => {
-      // First proxy (corsproxy.io) returns null directly, should throw and try next
-      // Second proxy (allorigins) has contents: null, should also throw
-      // Third proxy (allorigins-raw) returns valid content
-      global.fetch = vi.fn()
-        .mockResolvedValueOnce({
-          ok: true,
-          headers: createMockHeaders('application/json'),
-          json: () => Promise.resolve(null) // corsproxy.io returns data directly, null fails
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          headers: createMockHeaders('application/json'),
-          json: () => Promise.resolve({ contents: null }) // allorigins returns data.contents which is null
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          headers: createMockHeaders('text/html'),
-          text: () => Promise.resolve('<p>Third proxy content</p>')
-        })
+    it('should handle network errors', async () => {
+      global.fetch = vi.fn().mockRejectedValueOnce(new Error('Network error'))
 
-      const content = await fetchUrlContent('https://example.com')
-      expect(content).toBe('Third proxy content')
+      await expect(fetchUrlContent('https://example.com')).rejects.toThrow('Network error')
     })
   })
 
   describe('fetchMultipleUrls', () => {
     let originalFetch
 
-    // Helper to create mock headers
-    function createMockHeaders(contentType) {
-      return {
-        get: (name) => name.toLowerCase() === 'content-type' ? contentType : null
-      }
-    }
-
     beforeEach(() => {
       originalFetch = global.fetch
-      resetProxyIndex()
     })
 
     afterEach(() => {
@@ -272,8 +142,7 @@ describe('urlFetcher', () => {
     it('should fetch multiple URLs in parallel', async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
-        headers: createMockHeaders('text/html'),
-        text: () => Promise.resolve('<p>Content</p>')
+        json: () => Promise.resolve({ success: true, content: 'Content' })
       })
 
       const results = await fetchMultipleUrls([
@@ -283,23 +152,23 @@ describe('urlFetcher', () => {
 
       expect(results['https://example1.com'].success).toBe(true)
       expect(results['https://example2.com'].success).toBe(true)
+      expect(global.fetch).toHaveBeenCalledTimes(2)
     })
 
     it('should handle mixed success and failure', async () => {
-      const proxyCount = getProxyCount()
       let callCount = 0
       global.fetch = vi.fn().mockImplementation(() => {
         callCount++
-        // First call succeeds (for first URL)
         if (callCount === 1) {
           return Promise.resolve({
             ok: true,
-            headers: createMockHeaders('text/html'),
-            text: () => Promise.resolve('<p>Success</p>')
+            json: () => Promise.resolve({ success: true, content: 'Success' })
           })
         }
-        // All other calls fail (second URL tries all proxies)
-        return Promise.reject(new Error('Failed'))
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: false, error: 'Failed' })
+        })
       })
 
       const results = await fetchMultipleUrls([

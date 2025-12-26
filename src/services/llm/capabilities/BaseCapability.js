@@ -4,11 +4,39 @@
  * Each capability represents a high-level task type that the system can handle
  * (e.g., code execution, visualization, text response).
  *
+ * Capabilities follow a Unix pipe-like pattern:
+ * - Input: receiveInput() - receives and transforms piped data from previous capability
+ * - Processing: process() - performs the main work
+ * - Output: produceOutput() - formats result for next capability or final display
+ *
  * To add a new capability:
  * 1. Extend this class
  * 2. Implement all required methods
  * 3. Register it in capabilities/index.js
  */
+
+/**
+ * Standard pipe data format for passing data between capabilities
+ *
+ * Data is passed RAW without serialization - LLMs handle raw data well.
+ * This avoids JSON brittleness (circular refs, type loss, large data).
+ *
+ * @typedef {Object} PipeData
+ * @property {any} data - The raw data payload (passed as-is, not serialized)
+ * @property {string} source - Source capability name
+ */
+
+/**
+ * Create a standard PipeData object
+ * @param {any} data - The raw data payload
+ * @param {string} source - Source capability name
+ * @returns {PipeData}
+ */
+export const createPipeData = (data, source) => ({
+  data,
+  source
+})
+
 export class BaseCapability {
   /**
    * Unique identifier for this capability
@@ -50,6 +78,72 @@ export class BaseCapability {
     throw new Error('canHandle() must be implemented')
   }
 
+  // ===========================================================================
+  // PIPE INTERFACE: Input → Process → Output
+  // ===========================================================================
+
+  /**
+   * PIPE INPUT: Receive raw data from previous capability
+   * Override this to customize how piped data is prepared for processing
+   *
+   * @param {PipeData|null} pipeInput - Input from previous capability, null if first in chain
+   * @param {Object} context - Execution context
+   * @returns {Object} Input ready for processing
+   */
+  receiveInput(pipeInput, context) {
+    return {
+      data: pipeInput?.data ?? null,
+      source: pipeInput?.source ?? null,
+      context
+    }
+  }
+
+  /**
+   * PIPE PROCESS: Main processing logic
+   * This is the core of the capability - transforms input to output
+   *
+   * @param {Object} input - Input from receiveInput()
+   * @returns {Promise<{success: boolean, result: any, error: string|null, metadata: Object}>}
+   */
+  async process(input) {
+    throw new Error('process() must be implemented')
+  }
+
+  /**
+   * PIPE OUTPUT: Package result for next capability
+   * Creates PipeData with raw result data
+   *
+   * @param {Object} processResult - Result from process()
+   * @returns {PipeData}
+   */
+  produceOutput(processResult) {
+    const { success, result, error } = processResult
+    return createPipeData(success ? result : { error }, this.name)
+  }
+
+  /**
+   * Execute the full pipe: Input → Process → Output
+   * This is the main entry point for capability execution
+   *
+   * @param {Object} context - Execution context
+   * @param {PipeData|null} pipeInput - Input from previous capability
+   * @returns {Promise<{success: boolean, result: any, error: string|null, metadata: Object, pipe: PipeData}>}
+   */
+  async execute(context, pipeInput = null) {
+    const input = this.receiveInput(pipeInput, context)
+    const processResult = await this.process(input)
+    const pipeOutput = this.produceOutput(processResult)
+
+    return {
+      ...processResult,
+      pipe: pipeOutput
+    }
+  }
+
+  // ===========================================================================
+  // LEGACY METHODS (for backwards compatibility)
+  // ===========================================================================
+
   /**
    * Get the system prompt for this capability's executor
    *
@@ -79,30 +173,6 @@ Expected output: ${analysis.expectedOutput || 'Result'}
 Original request: "${userMessage}"
 
 Generate the output now:`
-  }
-
-  /**
-   * Execute this capability
-   *
-   * @param {Object} context - Execution context
-   * @param {Object} context.analysis - Router analysis result
-   * @param {string} context.userMessage - Original user message
-   * @param {string} context.fullContext - User message + attachments + web search
-   * @param {Array} context.messages - Full conversation history
-   * @param {Object} context.models - { routerId, executorId }
-   * @param {Object} context.config - LM Studio config
-   * @param {Function|null} context.onChunk - Streaming callback
-   * @param {AbortSignal|null} context.signal - Abort signal
-   * @param {Object} context.callbacks - Capability-specific callbacks
-   * @returns {Promise<{
-   *   success: boolean,
-   *   result: any,
-   *   error: string|null,
-   *   metadata: Object
-   * }>}
-   */
-  async execute(context) {
-    throw new Error('execute() must be implemented')
   }
 
   /**

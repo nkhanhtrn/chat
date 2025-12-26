@@ -27,7 +27,7 @@ vi.mock('../index.js', () => ({
 
 import { lmstudioProvider } from '../providers/lmstudio.js'
 
-describe('taskRouter JSON parsing', () => {
+describe('taskRouter line-based parsing', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -40,164 +40,164 @@ describe('taskRouter JSON parsing', () => {
     return analyzeRequest('test message', 'model-id', {})
   }
 
-  describe('valid JSON responses', () => {
-    it('should parse clean JSON', async () => {
-      const response = JSON.stringify({
-        capability: 'code',
-        taskDescription: 'Calculate sum',
-        needsWebSearch: false
-      })
+  describe('single-step responses', () => {
+    it('should parse capability from line format', async () => {
+      const response = `capability: code
+task: Calculate sum
+`
 
       const result = await testParsing(response)
 
       expect(result.capability).toBe('code')
       expect(result.taskDescription).toBe('Calculate sum')
     })
-  })
 
-  describe('JSON cleanup - trailing commas', () => {
-    it('should fix trailing commas', async () => {
-      const response = `{
-        "capability": "code",
-        "taskDescription": "test",
-      }`
+    it('should parse code capability with codeType', async () => {
+      const response = `capability: code
+task: Write a function
+codeType: javascript
+`
 
       const result = await testParsing(response)
 
       expect(result.capability).toBe('code')
+      expect(result.codeType).toBe('javascript')
+      expect(result.canBeCode).toBe(true)
     })
-  })
 
-  describe('JSON cleanup - numbers with units', () => {
-    it('should fix numbers with percentage signs', async () => {
-      const response = `{
-        "capability": "visualization",
-        "inputs": [{"name": "value", "value": 30%}],
-        "taskDescription": "chart"
-      }`
+    it('should parse visualization capability', async () => {
+      const response = `capability: visualization
+task: Create a chart
+visualizationType: bar
+`
 
       const result = await testParsing(response)
 
-      // Should fallback gracefully if parsing still fails
-      expect(result).toBeDefined()
-    })
-  })
-
-  describe('JSON cleanup - boolean casing', () => {
-    it('should fix True/False casing', async () => {
-      const response = `{
-        "capability": "code",
-        "needsWebSearch": False,
-        "canBeCode": True
-      }`
-
-      const result = await testParsing(response)
-
-      expect(result).toBeDefined()
-    })
-  })
-
-  describe('JSON cleanup - single quotes', () => {
-    it('should fix single-quoted strings', async () => {
-      const response = `{
-        'capability': 'code',
-        'taskDescription': 'test task'
-      }`
-
-      const result = await testParsing(response)
-
-      expect(result).toBeDefined()
-    })
-  })
-
-  describe('fallback analysis', () => {
-    it('should extract capability from malformed JSON', async () => {
-      const response = `Here's the analysis: {"capability": "visualization", broken json...`
-
-      const result = await testParsing(response)
-
-      // Should use fallback and detect visualization
-      expect(result).toBeDefined()
-      expect(result.taskDescription).toBeDefined()
-    })
-
-    it('should detect isVisualization from text', async () => {
-      const response = `{"isVisualization": true, "visualizationType": "chart", broken`
-
-      const result = await testParsing(response)
-
+      expect(result.capability).toBe('visualization')
       expect(result.isVisualization).toBe(true)
-      expect(result.visualizationType).toBe('chart')
+      expect(result.visualizationType).toBe('bar')
     })
 
-    it('should detect canBeCode false from text', async () => {
-      const response = `{"canBeCode": false, this is a language task`
-
-      const result = await testParsing(response)
-
-      expect(result.canBeCode).toBe(false)
-    })
-
-    it('should extract searchQuery from text', async () => {
-      const response = `{"needsWebSearch": true, "searchQuery": "react hooks tutorial", broken`
+    it('should parse search query', async () => {
+      const response = `capability: text
+task: Answer question
+searchQuery: react hooks tutorial
+`
 
       const result = await testParsing(response)
 
       expect(result.needsWebSearch).toBe(true)
       expect(result.searchQuery).toBe('react hooks tutorial')
     })
-  })
 
-  describe('JSON cleanup - multiline strings', () => {
-    it('should fix literal newlines inside string values', async () => {
-      const response = `{
-  "capability": "build",
-  "taskDescription": "Create a translator tool",
-  "expectedOutput": "Interactive widget with:
-   - Input fields
-   - Translation display",
-  "toolType": "custom"
-}`
+    it('should parse inputs', async () => {
+      const response = `capability: code
+task: Calculate
+input: 42
+`
 
       const result = await testParsing(response)
 
-      expect(result.capability).toBe('build')
-      expect(result.toolType).toBe('custom')
-      expect(result.expectedOutput).toContain('Input fields')
+      expect(result.inputs).toHaveLength(1)
+      expect(result.inputs[0].value).toBe('42')
     })
   })
 
-  describe('edge cases', () => {
+  describe('multi-step plan responses', () => {
+    it('should parse multi-step plan', async () => {
+      const response = `PLAN: Research and summarize
+
+STEP 1
+capability: websearch
+task: Search for information
+searchQuery: javascript async await
+
+STEP 2
+capability: text
+task: Summarize results
+input: {{step_1_result}}
+`
+
+      const result = await testParsing(response)
+
+      expect(result.requiresPlanning).toBe(true)
+      expect(result.summary).toBe('Research and summarize')
+      expect(result.steps).toHaveLength(2)
+      expect(result.steps[0].capability).toBe('websearch')
+      expect(result.steps[0].searchQuery).toBe('javascript async await')
+      expect(result.steps[1].capability).toBe('text')
+    })
+  })
+
+  describe('defaults and fallbacks', () => {
+    it('should default capability to text', async () => {
+      const response = `task: Just respond
+`
+
+      const result = await testParsing(response)
+
+      expect(result.capability).toBe('text')
+    })
+
     it('should handle empty response', async () => {
       const result = await testParsing('')
 
       expect(result).toBeDefined()
-      expect(result.capability).toBeDefined()
+      expect(result.capability).toBe('text')
     })
 
-    it('should handle response with no JSON', async () => {
-      const response = 'This is just plain text with no JSON at all'
+    it('should handle response with only dashes', async () => {
+      const response = `---
+---
+---`
 
       const result = await testParsing(response)
 
       expect(result).toBeDefined()
-      // Falls back to defaults
-      expect(result.taskDescription).toBe('Process the user request')
+      expect(result.capability).toBe('text')
+    })
+  })
+
+  describe('edge cases', () => {
+    it('should handle colons in values', async () => {
+      const response = `capability: code
+task: Parse time format like 12:30:45
+`
+
+      const result = await testParsing(response)
+
+      expect(result.taskDescription).toBe('Parse time format like 12:30:45')
     })
 
-    it('should handle nested JSON objects', async () => {
-      const response = JSON.stringify({
-        capability: 'code',
-        inputs: [
-          { name: 'data', value: { nested: 'object' } }
-        ],
-        taskDescription: 'process data'
-      })
+    it('should handle case insensitive capability names', async () => {
+      const response = `CAPABILITY: CODE
+TASK: Test
+`
 
       const result = await testParsing(response)
 
       expect(result.capability).toBe('code')
-      expect(result.inputs[0].value.nested).toBe('object')
+    })
+
+    it('should handle taskDescription alias', async () => {
+      const response = `capability: code
+taskDescription: Calculate sum
+`
+
+      const result = await testParsing(response)
+
+      expect(result.taskDescription).toBe('Calculate sum')
+    })
+
+    it('should handle search alias for searchQuery', async () => {
+      const response = `capability: text
+search: python tutorials
+`
+
+      const result = await testParsing(response)
+
+      expect(result.needsWebSearch).toBe(true)
+      expect(result.searchQuery).toBe('python tutorials')
     })
   })
 })
