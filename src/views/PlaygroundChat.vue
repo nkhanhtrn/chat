@@ -68,8 +68,17 @@
           </div>
           <div v-for="(msg, index) in messages" :key="index" :class="['message', msg.role]">
             <div class="message-role">{{ msg.role === 'user' ? 'You' : 'AI' }}</div>
+            <!-- Web search status indicator (shown while searching) -->
+            <div v-if="msg.role === 'assistant' && isSearching && index === messages.length - 1" class="search-status-indicator">
+              <span class="spinner"></span>
+              <span class="search-status-text">{{ searchStatus }}</span>
+              <span v-if="searchQuery" class="search-query-text">"{{ searchQuery }}"</span>
+            </div>
             <!-- Analysis indicator for AI messages in two-model mode -->
             <div v-if="msg.role === 'assistant' && msg.analysis" class="analysis-indicator">
+              <span v-if="msg.analysis.needsWebSearch" class="analysis-badge search">
+                Web Search
+              </span>
               <span v-if="msg.analysis.canBeCode" class="analysis-badge code">
                 Code Task
               </span>
@@ -83,6 +92,63 @@
                 {{ msg.analysis.taskDescription }}
               </span>
             </div>
+            <!-- Web search results display (shows while fetching and after) -->
+            <details v-if="msg.role === 'assistant' && msg.webSearchResults && (msg.webSearchResults.length > 0 || msg.webSearchTotal)"
+                     class="search-details"
+                     :open="isSearching && index === messages.length - 1">
+              <summary class="search-summary">
+                <span class="search-icon">🔍</span>
+                <span>Web Sources</span>
+                <span class="search-count">
+                  {{ msg.webSearchResults.filter(r => r).length }}{{ msg.webSearchTotal ? `/${msg.webSearchTotal}` : '' }} pages
+                </span>
+                <span v-if="isSearching && index === messages.length - 1" class="spinner search-spinner"></span>
+              </summary>
+              <div class="search-results-container">
+                <div v-if="msg.webSearchResults.some(r => r) || (isSearching && index === messages.length - 1 && searchQuery)" class="search-query-header">
+                  Query: "{{ msg.webSearchResults.find(r => r)?.query || searchQuery }}"
+                </div>
+                <!-- Show slots for expected results -->
+                <div v-for="rIdx in (msg.webSearchTotal || msg.webSearchResults.length)" :key="rIdx" class="search-result-item">
+                  <!-- Fetched result -->
+                  <template v-if="msg.webSearchResults[rIdx - 1]">
+                    <div class="search-result-header">
+                      <span class="result-number">{{ rIdx }}.</span>
+                      <a :href="msg.webSearchResults[rIdx - 1].url" target="_blank" rel="noopener noreferrer" class="search-result-title">
+                        {{ msg.webSearchResults[rIdx - 1].title }}
+                      </a>
+                      <span :class="['fetch-status', msg.webSearchResults[rIdx - 1].success ? 'success' : 'fallback']">
+                        {{ msg.webSearchResults[rIdx - 1].success ? 'Fetched' : 'Snippet' }}
+                      </span>
+                    </div>
+                    <div class="search-result-url">{{ msg.webSearchResults[rIdx - 1].url }}</div>
+                    <details class="search-content-details">
+                      <summary class="search-content-summary">View content ({{ formatSize(msg.webSearchResults[rIdx - 1].content?.length || 0) }})</summary>
+                      <pre class="search-content">{{ msg.webSearchResults[rIdx - 1].content }}</pre>
+                    </details>
+                  </template>
+                  <!-- Loading with URL/title shown -->
+                  <template v-else-if="msg.webSearchPending && msg.webSearchPending[rIdx - 1]">
+                    <div class="search-result-header">
+                      <span class="result-number">{{ rIdx }}.</span>
+                      <a :href="msg.webSearchPending[rIdx - 1].url" target="_blank" rel="noopener noreferrer" class="search-result-title loading">
+                        {{ msg.webSearchPending[rIdx - 1].title }}
+                      </a>
+                      <span class="fetch-status pending">
+                        <span class="spinner"></span>
+                      </span>
+                    </div>
+                    <div class="search-result-url">{{ msg.webSearchPending[rIdx - 1].url }}</div>
+                  </template>
+                  <!-- Fallback loading placeholder -->
+                  <div v-else class="search-result-loading">
+                    <span class="result-number">{{ rIdx }}.</span>
+                    <span class="spinner"></span>
+                    <span class="loading-text">Fetching...</span>
+                  </div>
+                </div>
+              </div>
+            </details>
             <!-- Generated code display (collapsible) -->
             <details v-if="msg.role === 'assistant' && msg.generatedCode" class="code-details">
               <summary class="code-summary">
@@ -196,14 +262,14 @@
               variant="primary"
               class="send-button"
             >
-              {{ (hasLoadingUrls || hasLoadingFiles) ? 'Loading...' : 'Send' }}
+              {{ (hasLoadingUrls || hasLoadingFiles) ? 'Loading...' : (isSearching ? 'Searching...' : 'Send') }}
             </Button>
             <button
               v-else
               @click="handleStop"
               class="stop-button"
             >
-              {{ isRouting ? 'Routing...' : (currentVerifyAttempt > 0 ? `Retrying (${currentVerifyAttempt})...` : 'Stop generating') }}
+              {{ isSearching ? searchStatus : (isRouting ? 'Routing...' : (currentVerifyAttempt > 0 ? `Retrying (${currentVerifyAttempt})...` : 'Stop generating')) }}
             </button>
           </div>
           <button @click="clearChat" class="clear-button" :disabled="messages.length === 0">
@@ -284,6 +350,11 @@ const executorModel = ref('')
 const isRouting = ref(false)
 const currentVerifyAttempt = ref(0)  // Track current retry attempt
 const copiedCode = ref(null)  // Track which code was copied
+
+// Web search state (auto-triggered by router analysis)
+const isSearching = ref(false)
+const searchQuery = ref('')  // Current search query
+const searchStatus = ref('')  // Status text: "Searching...", "Fetching 1/3...", etc.
 
 // Copy code to clipboard
 async function copyCode(code) {
@@ -612,14 +683,14 @@ async function handleSend() {
   }
 
   // Add empty assistant message for streaming
-  messages.value.push({ role: 'assistant', content: '', analysis: null, generatedCode: null, execution: null, attempts: 0 })
+  messages.value.push({ role: 'assistant', content: '', analysis: null, generatedCode: null, execution: null, attempts: 0, webSearchResults: null })
   isStreaming.value = true
   currentVerifyAttempt.value = 0
   abortController = new AbortController()
 
   try {
     if (twoModelMode.value) {
-      // Two-model mode: Analyze with Mistral 3B, generate code with gpt-oss-20b, execute
+      // Two-model mode: Analyze with Mistral 3B, optionally search web, generate code with gpt-oss-20b, execute
       isRouting.value = true
 
       const result = await analyzeGenerateAndExecute(
@@ -644,6 +715,58 @@ async function handleSend() {
             // Update message with analysis info
             messages.value[messages.value.length - 1].analysis = analysis
             isRouting.value = false
+            // Start searching if needed
+            if (analysis.needsWebSearch && analysis.searchQuery) {
+              isSearching.value = true
+              searchQuery.value = analysis.searchQuery
+              searchStatus.value = 'Searching...'
+            }
+            scrollToBottom()
+          },
+          onWebSearchStart: (query) => {
+            // Web search is starting
+            isSearching.value = true
+            searchQuery.value = query
+            searchStatus.value = 'Searching...'
+            scrollToBottom()
+          },
+          onWebSearchProgress: (progress) => {
+            // Update status based on phase
+            if (progress.phase === 'search_complete') {
+              searchStatus.value = `Found ${progress.resultsCount} results`
+              // Initialize with placeholders showing URL/title
+              const msg = messages.value[messages.value.length - 1]
+              msg.webSearchTotal = progress.resultsCount
+              msg.webSearchPending = progress.results // Store pending results with URLs/titles
+              msg.webSearchResults = []
+            } else if (progress.phase === 'fetching') {
+              searchStatus.value = `Fetching ${progress.total} pages...`
+            } else if (progress.phase === 'error') {
+              searchStatus.value = `Search failed: ${progress.error}`
+            }
+            scrollToBottom()
+          },
+          onWebSearchResult: (result, index) => {
+            // Add result to message as it comes in
+            const msg = messages.value[messages.value.length - 1]
+            if (!msg.webSearchResults) {
+              msg.webSearchResults = []
+            }
+            // Insert at correct index to maintain order
+            msg.webSearchResults[index] = result
+            // Update status
+            const fetchedCount = msg.webSearchResults.filter(r => r).length
+            const total = msg.webSearchTotal || 3
+            searchStatus.value = `Fetched ${fetchedCount}/${total} pages...`
+            scrollToBottom()
+          },
+          onWebSearchComplete: (results) => {
+            // All web searches complete
+            isSearching.value = false
+            searchQuery.value = ''
+            searchStatus.value = ''
+            // Ensure final results are set (filter out any undefined slots)
+            messages.value[messages.value.length - 1].webSearchResults = results.filter(r => r)
             scrollToBottom()
           },
           onVerifyAttempt: (attempt, error) => {
@@ -664,8 +787,11 @@ async function handleSend() {
         }
       )
 
-      // Store the number of attempts
+      // Store the number of attempts and web search results
       messages.value[messages.value.length - 1].attempts = result.attempts
+      if (result.webSearchResults && result.webSearchResults.length > 0) {
+        messages.value[messages.value.length - 1].webSearchResults = result.webSearchResults
+      }
     } else {
       // Single model mode
       await sendChatMessage(
@@ -686,6 +812,9 @@ async function handleSend() {
   } finally {
     isStreaming.value = false
     isRouting.value = false
+    isSearching.value = false
+    searchQuery.value = ''
+    searchStatus.value = ''
     currentVerifyAttempt.value = 0
     abortController = null
     scrollToBottom()
@@ -1231,6 +1360,39 @@ textarea::placeholder {
   color: #9ca3af;
 }
 
+.analysis-badge.search {
+  background-color: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+/* Search status indicator */
+.search-status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.5rem;
+  background-color: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-family: system-ui, sans-serif;
+  color: #3b82f6;
+}
+
+.search-status-text {
+  font-weight: 500;
+}
+
+.search-query-text {
+  color: var(--color-text-muted);
+  font-style: italic;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .analysis-function {
   font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
   font-size: 0.75rem;
@@ -1352,6 +1514,191 @@ textarea::placeholder {
 
 .generated-code code {
   font-family: inherit;
+}
+
+/* Search results display styles */
+.search-details {
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--color-border-base);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.search-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background-color: var(--color-bg-hover);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-family: system-ui, sans-serif;
+  color: var(--color-text-muted);
+  user-select: none;
+}
+
+.search-summary:hover {
+  background-color: var(--color-bg-surface);
+}
+
+.search-icon {
+  font-size: 0.85rem;
+}
+
+.search-count {
+  margin-left: auto;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  background-color: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+.search-results-container {
+  padding: 0.75rem 1rem;
+  background-color: var(--color-bg-page);
+  border-top: 1px solid var(--color-border-base);
+}
+
+.search-query-header {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--color-border-base);
+}
+
+.result-number {
+  font-weight: 600;
+  color: var(--color-text-muted);
+  min-width: 1.5rem;
+}
+
+.search-spinner {
+  margin-left: auto;
+}
+
+.search-result-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  color: var(--color-text-muted);
+}
+
+.search-result-loading .spinner {
+  width: 14px;
+  height: 14px;
+}
+
+.loading-text {
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+.search-result-title.loading {
+  opacity: 0.7;
+}
+
+.fetch-status.pending {
+  background-color: rgba(59, 130, 246, 0.15);
+  padding: 0.2rem;
+  display: flex;
+  align-items: center;
+}
+
+.fetch-status.pending .spinner {
+  width: 10px;
+  height: 10px;
+  border-width: 1.5px;
+}
+
+.search-result-item {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--color-border-base);
+}
+
+.search-result-item:last-child {
+  border-bottom: none;
+}
+
+.search-result-title {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #3b82f6;
+  text-decoration: none;
+  margin-bottom: 0.25rem;
+}
+
+.search-result-title:hover {
+  text-decoration: underline;
+}
+
+.search-result-url {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.search-result-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.fetch-status {
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.fetch-status.success {
+  background-color: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.fetch-status.fallback {
+  background-color: rgba(251, 191, 36, 0.15);
+  color: #f59e0b;
+}
+
+.search-content-details {
+  margin-top: 0.5rem;
+}
+
+.search-content-summary {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0.25rem 0;
+}
+
+.search-content-summary:hover {
+  color: var(--color-text-base);
+}
+
+.search-content {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem;
+  background-color: var(--color-bg-hover);
+  border: 1px solid var(--color-border-base);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-family: system-ui, sans-serif;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+  line-height: 1.4;
 }
 
 /* Mobile styles */

@@ -169,14 +169,22 @@ export async function fetchUrlContent(url, options = {}) {
 
       if (contentType.includes('application/json')) {
         const data = await response.json()
-        content = proxy.parseResponse(data) || ''
+        content = proxy.parseResponse(data)
       } else {
         // Raw HTML response
         content = await response.text()
       }
 
+      // Ensure content is a string
+      if (content == null) {
+        throw new Error('Empty response')
+      }
+      if (typeof content !== 'string') {
+        content = String(content)
+      }
+
       // Check if we got actual content
-      if (!content || content.trim().length === 0) {
+      if (content.trim().length === 0) {
         throw new Error('Empty response')
       }
 

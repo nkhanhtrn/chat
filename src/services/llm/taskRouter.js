@@ -16,9 +16,35 @@ import {
   readAttachments,
   formatAttachmentsForPrompt
 } from '../attachmentReader.js'
+import { searchWeb } from '../webSearch.js'
+import { fetchUrlContent } from '../urlFetcher.js'
 
-// Mistral 3B system prompt - analyzes request and creates code instructions
-const ROUTER_SYSTEM_PROMPT = `You are a task analyzer. Determine if a request should be handled by code execution or direct language response.
+// Get current date for the router prompt
+const getCurrentDateString = () => {
+  const now = new Date()
+  const months = ['January', 'February', 'March', 'April', 'May', 'June',
+                  'July', 'August', 'September', 'October', 'November', 'December']
+  return `${months[now.getMonth()]} ${now.getFullYear()}`
+}
+
+// Mistral 3B system prompt - analyzes request, determines web search need, and creates code instructions
+const getRouterSystemPrompt = () => `You are a task analyzer. Today is ${getCurrentDateString()}. Analyze the user's request and determine:
+1. If web search is needed to answer the question
+2. If it should be handled by code execution or direct language response
+
+WEB SEARCH (needsWebSearch: true) - when current/external information is required:
+- Current events, news, recent developments
+- Facts that may have changed or need verification
+- Information about specific products, services, companies
+- Technical documentation, tutorials, how-to guides
+- Anything the user explicitly asks to "search for" or "look up"
+
+NO WEB SEARCH (needsWebSearch: false):
+- General knowledge questions
+- Math calculations, coding tasks
+- Creative writing, translation
+- Questions about attached content
+- Opinions or subjective discussions
 
 CODE TASKS (canBeCode: true) - mechanical/deterministic operations:
 - Math calculations, data transformations, parsing, formatting
@@ -27,29 +53,40 @@ CODE TASKS (canBeCode: true) - mechanical/deterministic operations:
 - Data extraction from structured formats (JSON, CSV)
 
 LANGUAGE TASKS (canBeCode: false) - require understanding/generation:
-- Translation (even with file content attached)
-- Summarization, rewriting, paraphrasing
+- Translation, summarization, rewriting, paraphrasing
 - Explanations, creative writing, answering questions
 - Analysis requiring judgment or interpretation
 
-IMPORTANT: The presence of attached content does NOT make it a code task. Focus on what the user is ASKING to do, not what data is attached.
-
 Respond with JSON:
-{"canBeCode": boolean, "taskDescription": "...", "inputs": [...], "expectedOutput": "...", "codeType": "function|expression|none", "functionName": "..."}
+{
+  "needsWebSearch": boolean,
+  "searchQuery": "the search query",
+  "canBeCode": boolean,
+  "taskDescription": "...",
+  "inputs": [...],
+  "expectedOutput": "...",
+  "codeType": "function|expression|none",
+  "functionName": "..."
+}
+
+IMPORTANT: If needsWebSearch is true, provide exactly 1 specific search query that would find the most relevant information. Make the query specific and targeted.
 
 Examples:
 
+User: "What's the latest news about OpenAI?"
+{"needsWebSearch": true, "searchQuery": "OpenAI latest news", "canBeCode": false, "taskDescription": "Find current news about OpenAI", "inputs": [], "expectedOutput": "News summary", "codeType": "none", "functionName": ""}
+
+User: "How do I install React?"
+{"needsWebSearch": true, "searchQuery": "React installation guide npm", "canBeCode": false, "taskDescription": "Find React installation instructions", "inputs": [], "expectedOutput": "Installation guide", "codeType": "none", "functionName": ""}
+
 User: "convert hello to ASCII"
-{"canBeCode": true, "taskDescription": "Convert text to ASCII codes", "inputs": [{"name": "text", "value": "hello", "type": "string"}], "expectedOutput": "Array of ASCII codes", "codeType": "function", "functionName": "textToAscii"}
+{"needsWebSearch": false, "searchQuery": "", "canBeCode": true, "taskDescription": "Convert text to ASCII codes", "inputs": [{"name": "text", "value": "hello", "type": "string"}], "expectedOutput": "Array of ASCII codes", "codeType": "function", "functionName": "textToAscii"}
 
 User: "what is 25 * 4 + 10?"
-{"canBeCode": true, "taskDescription": "Calculate", "inputs": [], "expectedOutput": "Number", "codeType": "expression", "functionName": "calculate"}
+{"needsWebSearch": false, "searchQuery": "", "canBeCode": true, "taskDescription": "Calculate", "inputs": [], "expectedOutput": "Number", "codeType": "expression", "functionName": "calculate"}
 
-User: "translate this to French\n\nHello world, this is a test."
-{"canBeCode": false, "taskDescription": "Language task", "inputs": [], "expectedOutput": "Translated text", "codeType": "none", "functionName": ""}
-
-User: "summarize this"
-{"canBeCode": false, "taskDescription": "Language task", "inputs": [], "expectedOutput": "Summary", "codeType": "none", "functionName": ""}
+User: "translate this to French: Hello world"
+{"needsWebSearch": false, "searchQuery": "", "canBeCode": false, "taskDescription": "Language task", "inputs": [], "expectedOutput": "Translated text", "codeType": "none", "functionName": ""}
 
 Respond ONLY with JSON.`
 
@@ -199,6 +236,17 @@ const createFallbackAnalysis = (response) => {
 
   const canBeCode = !isNonCode
 
+  // Detect if web search is needed
+  const needsWebSearch = lowerResponse.includes('"needswebsearch": true') ||
+                         lowerResponse.includes('"needswebsearch":true')
+
+  // Try to extract search query
+  let searchQuery = ''
+  const queryMatch = response.match(/"searchQuery"\s*:\s*"([^"]+)"/i)
+  if (queryMatch) {
+    searchQuery = queryMatch[1]
+  }
+
   // Try to extract task description
   let taskDescription = 'Process the user request'
   const taskMatch = response.match(/"taskDescription"\s*:\s*"([^"]+)"/i)
@@ -214,6 +262,8 @@ const createFallbackAnalysis = (response) => {
   }
 
   return {
+    needsWebSearch,
+    searchQuery,
     canBeCode,
     taskDescription,
     inputs: [],
@@ -341,7 +391,7 @@ export const analyzeRequest = async (userMessage, routerModelId, config = {}) =>
   const providerConfig = config || getProviderConfig('lmstudio')
 
   const messages = [
-    { role: 'system', content: ROUTER_SYSTEM_PROMPT },
+    { role: 'system', content: getRouterSystemPrompt() },
     { role: 'user', content: userMessage }
   ]
 
@@ -457,7 +507,7 @@ const cleanCode = (code) => {
 }
 
 /**
- * Full pipeline: Parse Attachments → Analyze → Generate Code → Execute (with optional verification/retry)
+ * Full pipeline: Parse Attachments → Analyze → Web Search → Generate Code → Execute (with optional verification/retry)
  *
  * @param {Array<{role: string, content: string}>} messages - Conversation messages
  * @param {Object} models - { routerId: string, executorId: string }
@@ -467,19 +517,27 @@ const cleanCode = (code) => {
  * @param {Array} options.attachments - Raw attachments to parse (files/URLs)
  * @param {Function|null} options.onAttachmentsParsed - Callback when attachments are parsed
  * @param {Function|null} options.onAnalysis - Callback when analysis is complete
+ * @param {Function|null} options.onWebSearchStart - Callback when web search starts (query string)
+ * @param {Function|null} options.onWebSearchProgress - Callback for search progress updates (phase, details)
+ * @param {Function|null} options.onWebSearchResult - Callback for each fetched page (result, index)
+ * @param {Function|null} options.onWebSearchComplete - Callback when all web searches complete (results array)
  * @param {Function|null} options.onCodeGenerated - Callback when code is generated (before execution)
  * @param {Function|null} options.onExecutionComplete - Callback when execution is complete
  * @param {Function|null} options.onVerifyAttempt - Callback when a verification retry attempt starts (attempt number, error)
  * @param {boolean} options.verifyMode - Enable verification mode (retry on error)
  * @param {number} options.maxRetries - Maximum retry attempts in verify mode (default: 3)
  * @param {Object} options.config - LM Studio config
- * @returns {Promise<{analysis: Object, code: string, execution: Object, finalResponse: string, parsedAttachments: Array, attempts: number}>}
+ * @returns {Promise<{analysis: Object, code: string, execution: Object, finalResponse: string, parsedAttachments: Array, webSearchResults: Array, attempts: number}>}
  */
 export const analyzeGenerateAndExecute = async (messages, models, onChunk = null, signal = null, options = {}) => {
   const {
     attachments = [],
     onAttachmentsParsed,
     onAnalysis,
+    onWebSearchStart,
+    onWebSearchProgress,
+    onWebSearchResult,
+    onWebSearchComplete,
     onCodeGenerated,
     onExecutionComplete,
     onVerifyAttempt,
@@ -507,32 +565,158 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
     }
   }
 
-  // Combine user message with parsed attachment content
-  const messageWithAttachments = attachmentContent
-    ? `${lastUserMessage.content}\n\n${attachmentContent}`
-    : lastUserMessage.content
+  // Combine user message with parsed attachment content for analysis
+  let messageForAnalysis = lastUserMessage.content
+  if (attachmentContent) {
+    messageForAnalysis += `\n\n${attachmentContent}`
+  }
 
-  // Step 1: Analyze with Mistral 3B (using message WITH parsed attachments)
-  const analysis = await analyzeRequest(messageWithAttachments, models.routerId, config)
+  // Step 1: Analyze with Mistral 3B (determines if web search is needed)
+  const analysis = await analyzeRequest(messageForAnalysis, models.routerId, config)
 
   if (onAnalysis) {
     onAnalysis(analysis)
   }
 
+  // Step 2: Perform web search if needed
+  let webSearchResults = []
+  let webSearchContent = ''
+
+  if (analysis.needsWebSearch && analysis.searchQuery) {
+    const query = analysis.searchQuery
+
+    if (onWebSearchStart) {
+      onWebSearchStart(query)
+    }
+
+    try {
+      // Search for the query, get top 3 results
+      const searchResults = await searchWeb(query, { maxResults: 3 })
+
+      // Pass search results with URLs/titles for display while fetching
+      const searchResultsMeta = searchResults.map(r => ({
+        url: r.url,
+        title: r.title,
+        snippet: r.snippet
+      }))
+
+      if (onWebSearchProgress) {
+        onWebSearchProgress({ phase: 'search_complete', resultsCount: searchResults.length, results: searchResultsMeta })
+      }
+
+      if (signal?.aborted) {
+        return
+      }
+
+      // Fetch content for all results concurrently
+      if (onWebSearchProgress) {
+        onWebSearchProgress({ phase: 'fetching', total: searchResults.length, results: searchResultsMeta })
+      }
+
+      const fetchPromises = searchResults.map(async (searchResult, i) => {
+        try {
+          const pageContent = await fetchUrlContent(searchResult.url, { maxLength: 6000 })
+
+          const result = {
+            query,
+            url: searchResult.url,
+            title: searchResult.title,
+            content: pageContent,
+            success: true
+          }
+
+          if (onWebSearchResult) {
+            onWebSearchResult(result, i)
+          }
+
+          return result
+        } catch (fetchError) {
+          // If fetch fails, use the snippet from search
+          const result = {
+            query,
+            url: searchResult.url,
+            title: searchResult.title,
+            content: searchResult.snippet || 'Could not fetch page content',
+            success: false,
+            error: fetchError.message
+          }
+
+          if (onWebSearchResult) {
+            onWebSearchResult(result, i)
+          }
+
+          return result
+        }
+      })
+
+      // Wait for all fetches to complete
+      webSearchResults = await Promise.all(fetchPromises)
+    } catch (searchError) {
+      console.warn(`Search failed for query "${query}":`, searchError.message)
+      if (onWebSearchProgress) {
+        onWebSearchProgress({ phase: 'error', error: searchError.message })
+      }
+    }
+
+    if (onWebSearchComplete) {
+      onWebSearchComplete(webSearchResults)
+    }
+
+    // Format web search results for the prompt
+    if (webSearchResults.length > 0) {
+      webSearchContent = webSearchResults.map((r, i) => {
+        return `--- Source ${i + 1}: ${r.title} ---\nURL: ${r.url}\n\n${r.content}\n--- End of Source ${i + 1} ---`
+      }).join('\n\n')
+    }
+  }
+
+  // Combine all context: user message + web search + attachments
+  let fullContext = lastUserMessage.content
+  if (webSearchContent) {
+    fullContext += `\n\n${webSearchContent}`
+  }
+  if (attachmentContent) {
+    fullContext += `\n\n${attachmentContent}`
+  }
+
   // If it's not a code task, just pass to executor for normal response
   if (!analysis.canBeCode) {
-    // Build messages with attachment content included
-    const messagesWithAttachments = messages.map((m, i) => {
-      // Add attachment content to the last user message
-      if (m.role === 'user' && i === messages.length - 1 && attachmentContent) {
-        return { ...m, content: `${m.content}\n\n${attachmentContent}` }
+    // Build messages with all context included
+    const messagesWithContext = []
+
+    // Add system prompt for summarization if web search was used
+    if (webSearchResults.length > 0) {
+      messagesWithContext.push({
+        role: 'system',
+        content: `You are a research assistant that summarizes web search results. The user asked a question and I searched the web for answers. The search results are included after the user's question.
+
+IMPORTANT INSTRUCTIONS:
+- Summarize the key information from the web sources that answers the user's question
+- Be concise - aim for 2-4 paragraphs maximum
+- Start with the most important/direct answer
+- Mention which source each piece of information comes from (e.g., "According to Source 1...")
+- If sources disagree, note the different perspectives
+- Use bullet points for lists of items
+- Do NOT just repeat the raw content - synthesize and summarize it
+- If the sources don't answer the question well, say so briefly
+
+Today's date is ${getCurrentDateString()}.`
+      })
+    }
+
+    // Add conversation messages
+    messages.forEach((m, i) => {
+      // Add all context to the last user message
+      if (m.role === 'user' && i === messages.length - 1) {
+        messagesWithContext.push({ ...m, content: fullContext })
+      } else {
+        messagesWithContext.push(m)
       }
-      return m
     })
 
     const response = await lmstudioProvider.sendMessage(
       models.executorId,
-      messagesWithAttachments,
+      messagesWithContext,
       onChunk,
       signal,
       config
@@ -543,14 +727,15 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
       execution: null,
       finalResponse: response,
       parsedAttachments,
+      webSearchResults,
       attempts: 0
     }
   }
 
-  // Step 2: Generate code with gpt-oss-20b (using message WITH parsed attachments)
+  // Step 3: Generate code with gpt-oss-20b (using full context including web search)
   let code = await generateCode(
     analysis,
-    messageWithAttachments,
+    fullContext,
     models.executorId,
     null,  // No streaming for code
     signal,
@@ -577,7 +762,7 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
       // Regenerate code with error feedback
       code = await regenerateCodeWithError(
         analysis,
-        messageWithAttachments,
+        fullContext,
         cleanedCode,
         execution.error,
         models.executorId,
@@ -620,6 +805,7 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
     execution,
     finalResponse,
     parsedAttachments,
+    webSearchResults,
     attempts
   }
 }

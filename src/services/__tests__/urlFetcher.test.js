@@ -203,6 +203,51 @@ describe('urlFetcher', () => {
 
       await expect(fetchUrlContent('https://example.com')).rejects.toThrow()
     })
+
+    it('should handle non-string content from JSON response', async () => {
+      // When proxy.parseResponse returns an object instead of a string
+      // (e.g., data.contents is an object or undefined)
+      global.fetch = vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          headers: createMockHeaders('application/json'),
+          json: () => Promise.resolve({ contents: { nested: 'object' } })
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          headers: createMockHeaders('text/html'),
+          text: () => Promise.resolve('<p>Fallback content</p>')
+        })
+
+      const content = await fetchUrlContent('https://example.com')
+      // Should fallback to next proxy or convert to string
+      expect(typeof content).toBe('string')
+    })
+
+    it('should handle null content from JSON response', async () => {
+      // First proxy (corsproxy.io) returns null directly, should throw and try next
+      // Second proxy (allorigins) has contents: null, should also throw
+      // Third proxy (allorigins-raw) returns valid content
+      global.fetch = vi.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          headers: createMockHeaders('application/json'),
+          json: () => Promise.resolve(null) // corsproxy.io returns data directly, null fails
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          headers: createMockHeaders('application/json'),
+          json: () => Promise.resolve({ contents: null }) // allorigins returns data.contents which is null
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          headers: createMockHeaders('text/html'),
+          text: () => Promise.resolve('<p>Third proxy content</p>')
+        })
+
+      const content = await fetchUrlContent('https://example.com')
+      expect(content).toBe('Third proxy content')
+    })
   })
 
   describe('fetchMultipleUrls', () => {
