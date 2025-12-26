@@ -8,7 +8,6 @@
  */
 
 import { BaseCapability } from './BaseCapability.js'
-import { lmstudioProvider } from '../providers/lmstudio.js'
 
 const TOOL_BUILDER_SYSTEM_PROMPT = `You are a tool builder that creates sophisticated, realistic interactive tools.
 
@@ -355,13 +354,14 @@ Generate the complete JSON specification for this tool with all necessary UI ele
       fullContext,
       models,
       config,
+      provider,
       signal,
       callbacks = {}
     } = context
 
     const { onToolGenerated } = callbacks
 
-    const toolSpec = await this._generateToolSpec(fullContext, models.executorId, config, signal)
+    const toolSpec = await this._generateToolSpec(fullContext, models.executorId, provider, config, signal)
     const cleanedSpec = this.cleanOutput(toolSpec)
 
     let parsedTool
@@ -413,13 +413,13 @@ Generate the complete JSON specification for this tool with all necessary UI ele
     }
   }
 
-  async _generateToolSpec(userMessage, executorModelId, config, signal) {
+  async _generateToolSpec(userMessage, executorModelId, provider, config, signal) {
     const messages = [
       { role: 'system', content: this.getSystemPrompt() },
       { role: 'user', content: this.buildExecutorPrompt({ userMessage }) }
     ]
 
-    return lmstudioProvider.sendMessage(
+    return provider.sendMessage(
       executorModelId,
       messages,
       null,

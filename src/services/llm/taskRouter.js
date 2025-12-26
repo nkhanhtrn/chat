@@ -13,7 +13,23 @@
  */
 
 import { lmstudioProvider } from './providers/lmstudio.js'
+import { googleProvider } from './providers/google.js'
+import { cerebrasProvider } from './providers/cerebras.js'
 import { getProviderConfig } from './index.js'
+
+// Provider registry for multi-provider support
+const providerRegistry = {
+  lmstudio: lmstudioProvider,
+  google: googleProvider,
+  cerebras: cerebrasProvider
+}
+
+/**
+ * Get provider instance by ID
+ */
+export const getProvider = (providerId) => {
+  return providerRegistry[providerId] || lmstudioProvider
+}
 import {
   readAttachments,
   formatAttachmentsForPrompt
@@ -251,7 +267,7 @@ export const fetchAvailableModels = async (config = {}) => {
  */
 export const findRouterAndExecutorModels = (models) => {
   const routerPatterns = ['ministral', 'mistral-3b', 'mistral3b', 'mistral-3', 'mistral']
-  const executorPatterns = ['gpt-oss-20b', 'gpt-oss', 'openai']
+  const executorPatterns = ['gpt-oss-20b', 'gpt-oss', 'openai', 'cerebras']
 
   return {
     router: findModelByPattern(models, routerPatterns),
@@ -261,16 +277,21 @@ export const findRouterAndExecutorModels = (models) => {
 
 /**
  * Analyze user request with the router model
+ * @param {string} userMessage - The user message to analyze
+ * @param {string} routerModelId - The model ID to use
+ * @param {string} routerProviderId - The provider ID (lmstudio, google, cerebras)
+ * @param {Object} config - Provider config (optional, will be fetched if not provided)
  */
-export const analyzeRequest = async (userMessage, routerModelId, config = {}) => {
-  const providerConfig = config || getProviderConfig('lmstudio')
+export const analyzeRequest = async (userMessage, routerModelId, routerProviderId = 'lmstudio', config = null) => {
+  const provider = getProvider(routerProviderId)
+  const providerConfig = config || getProviderConfig(routerProviderId)
 
   const messages = [
     { role: 'system', content: registry.buildRouterPrompt() },
     { role: 'user', content: userMessage }
   ]
 
-  const response = await lmstudioProvider.sendMessage(
+  const response = await provider.sendMessage(
     routerModelId,
     messages,
     null,
@@ -361,7 +382,7 @@ export const generateVisualization = async (analysis, originalRequest, executorM
  * Full pipeline: Parse Attachments → Analyze → Web Search → Execute Capability
  *
  * @param {Array<{role: string, content: string}>} messages - Conversation messages
- * @param {Object} models - { routerId: string, executorId: string }
+ * @param {Object} models - { routerId: string, routerProviderId?: string, executorId: string, executorProviderId?: string }
  * @param {Function|null} onChunk - Streaming callback for final result only
  * @param {AbortSignal|null} signal - Abort signal
  * @param {Object} options - Additional options
@@ -410,7 +431,8 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
   }
 
   // Step 2: Analyze with router model (uses dynamic prompt from registry)
-  const analysis = await analyzeRequest(messageForAnalysis, models.routerId, config)
+  const routerProviderId = models.routerProviderId || 'lmstudio'
+  const analysis = await analyzeRequest(messageForAnalysis, models.routerId, routerProviderId)
 
   if (onAnalysis) {
     onAnalysis(analysis)
@@ -441,6 +463,11 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
     throw new Error('No capability available to handle this request')
   }
 
+  // Get the executor provider
+  const executorProviderId = models.executorProviderId || 'lmstudio'
+  const executorProvider = getProvider(executorProviderId)
+  const executorConfig = getProviderConfig(executorProviderId)
+
   // Build execution context
   const executionContext = {
     analysis,
@@ -448,7 +475,8 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
     fullContext,
     messages,
     models,
-    config,
+    config: executorConfig,
+    provider: executorProvider,  // Pass the provider instance
     signal,
     onChunk,
     webSearchResults,

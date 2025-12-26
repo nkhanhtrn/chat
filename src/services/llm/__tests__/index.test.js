@@ -524,4 +524,139 @@ describe('LLM Provider Manager', () => {
       expect(provider.name).toBe('Google AI')
     })
   })
+
+  describe('fetchAllModels', () => {
+    it('should fetch models from all providers', async () => {
+      vi.resetModules()
+
+      const lmstudioModule = await import('../providers/lmstudio.js')
+      const googleModule = await import('../providers/google.js')
+      const cerebrasModule = await import('../providers/cerebras.js')
+      const firestoreModule = await import('../../firestore.js')
+
+      vi.mocked(firestoreModule.loadUserSettings).mockResolvedValue({
+        llmProvider: 'lmstudio',
+        providerConfigs: {
+          google: { apiKey: 'google-key' },
+          cerebras: { apiKey: 'cerebras-key' }
+        }
+      })
+
+      vi.mocked(lmstudioModule.lmstudioProvider.fetchModels).mockResolvedValue([
+        { id: 'local-model-1', name: 'Local Model 1' },
+        { id: 'local-model-2', name: 'Local Model 2' }
+      ])
+      vi.mocked(googleModule.googleProvider.fetchModels).mockResolvedValue([
+        { id: 'gemini-pro', name: 'Gemini Pro' }
+      ])
+      vi.mocked(cerebrasModule.cerebrasProvider.fetchModels).mockResolvedValue([
+        { id: 'gpt-oss-20b', name: 'GPT OSS 20B' }
+      ])
+
+      const freshModule = await import('../index.js')
+      await freshModule.initProvider()
+
+      const allModels = await freshModule.fetchAllModels()
+
+      expect(allModels).toHaveLength(4)
+      expect(allModels.map(m => m.id)).toContain('local-model-1')
+      expect(allModels.map(m => m.id)).toContain('local-model-2')
+      expect(allModels.map(m => m.id)).toContain('gemini-pro')
+      expect(allModels.map(m => m.id)).toContain('gpt-oss-20b')
+    })
+
+    it('should include provider info in model name', async () => {
+      vi.resetModules()
+
+      const lmstudioModule = await import('../providers/lmstudio.js')
+      const googleModule = await import('../providers/google.js')
+      const cerebrasModule = await import('../providers/cerebras.js')
+      const firestoreModule = await import('../../firestore.js')
+
+      vi.mocked(firestoreModule.loadUserSettings).mockResolvedValue(null)
+
+      vi.mocked(lmstudioModule.lmstudioProvider.fetchModels).mockResolvedValue([
+        { id: 'local-model', name: 'Local Model' }
+      ])
+      vi.mocked(googleModule.googleProvider.fetchModels).mockResolvedValue([
+        { id: 'gemini-pro', name: 'Gemini Pro' }
+      ])
+      vi.mocked(cerebrasModule.cerebrasProvider.fetchModels).mockResolvedValue([
+        { id: 'gpt-oss-20b', name: 'GPT OSS 20B' }
+      ])
+
+      const freshModule = await import('../index.js')
+
+      const allModels = await freshModule.fetchAllModels()
+
+      const lmModel = allModels.find(m => m.id === 'local-model')
+      const googleModel = allModels.find(m => m.id === 'gemini-pro')
+      const cerebrasModel = allModels.find(m => m.id === 'gpt-oss-20b')
+
+      expect(lmModel.name).toBe('Local Model (LM Studio)')
+      expect(lmModel.providerId).toBe('lmstudio')
+      expect(googleModel.name).toBe('Gemini Pro (Google AI)')
+      expect(googleModel.providerId).toBe('google')
+      expect(cerebrasModel.name).toBe('GPT OSS 20B (Cerebras)')
+      expect(cerebrasModel.providerId).toBe('cerebras')
+    })
+
+    it('should continue fetching from other providers if one fails', async () => {
+      vi.resetModules()
+
+      const lmstudioModule = await import('../providers/lmstudio.js')
+      const googleModule = await import('../providers/google.js')
+      const cerebrasModule = await import('../providers/cerebras.js')
+      const firestoreModule = await import('../../firestore.js')
+
+      vi.mocked(firestoreModule.loadUserSettings).mockResolvedValue(null)
+
+      vi.mocked(lmstudioModule.lmstudioProvider.fetchModels).mockResolvedValue([
+        { id: 'local-model', name: 'Local Model' }
+      ])
+      vi.mocked(googleModule.googleProvider.fetchModels).mockRejectedValue(
+        new Error('API key invalid')
+      )
+      vi.mocked(cerebrasModule.cerebrasProvider.fetchModels).mockResolvedValue([
+        { id: 'gpt-oss-20b', name: 'GPT OSS 20B' }
+      ])
+
+      const freshModule = await import('../index.js')
+
+      const allModels = await freshModule.fetchAllModels()
+
+      // Should have models from lmstudio and cerebras, but not google
+      expect(allModels).toHaveLength(2)
+      expect(allModels.map(m => m.id)).toContain('local-model')
+      expect(allModels.map(m => m.id)).toContain('gpt-oss-20b')
+      expect(allModels.map(m => m.id)).not.toContain('gemini-pro')
+    })
+
+    it('should return empty array if all providers fail', async () => {
+      vi.resetModules()
+
+      const lmstudioModule = await import('../providers/lmstudio.js')
+      const googleModule = await import('../providers/google.js')
+      const cerebrasModule = await import('../providers/cerebras.js')
+      const firestoreModule = await import('../../firestore.js')
+
+      vi.mocked(firestoreModule.loadUserSettings).mockResolvedValue(null)
+
+      vi.mocked(lmstudioModule.lmstudioProvider.fetchModels).mockRejectedValue(
+        new Error('Connection refused')
+      )
+      vi.mocked(googleModule.googleProvider.fetchModels).mockRejectedValue(
+        new Error('API key invalid')
+      )
+      vi.mocked(cerebrasModule.cerebrasProvider.fetchModels).mockRejectedValue(
+        new Error('Service unavailable')
+      )
+
+      const freshModule = await import('../index.js')
+
+      const allModels = await freshModule.fetchAllModels()
+
+      expect(allModels).toHaveLength(0)
+    })
+  })
 })

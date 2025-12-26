@@ -32,23 +32,23 @@
           </select>
         </template>
 
-        <!-- Two-model mode: Router + Executor -->
+        <!-- Two-model mode: Router + Executor (all providers) -->
         <template v-else>
           <div class="model-pair">
             <div class="model-selector">
               <span class="model-label">Router</span>
-              <select v-model="routerModel" class="model-select small" :disabled="models.length === 0">
-                <option v-if="models.length === 0" value="">Loading...</option>
-                <option v-for="m in models" :key="m.id" :value="m.id">
+              <select v-model="routerModel" class="model-select small" :disabled="allModels.length === 0">
+                <option v-if="allModels.length === 0" value="">Loading...</option>
+                <option v-for="m in allModels" :key="m.id" :value="m.id">
                   {{ m.name }}
                 </option>
               </select>
             </div>
             <div class="model-selector">
               <span class="model-label">Executor</span>
-              <select v-model="executorModel" class="model-select small" :disabled="models.length === 0">
-                <option v-if="models.length === 0" value="">Loading...</option>
-                <option v-for="m in models" :key="m.id" :value="m.id">
+              <select v-model="executorModel" class="model-select small" :disabled="allModels.length === 0">
+                <option v-if="allModels.length === 0" value="">Loading...</option>
+                <option v-for="m in allModels" :key="m.id" :value="m.id">
                   {{ m.name }}
                 </option>
               </select>
@@ -277,7 +277,7 @@
             <Button
               v-if="!isStreaming"
               @click="handleSend"
-              :disabled="!inputText.trim() || (!twoModelMode && !selectedModel) || (twoModelMode && (!routerModel || !executorModel)) || hasLoadingUrls || hasLoadingFiles"
+              :disabled="!inputText.trim() || (!twoModelMode && !selectedModel) || (twoModelMode && (allModels.length === 0 || !routerModel || !executorModel)) || hasLoadingUrls || hasLoadingFiles"
               variant="primary"
               class="send-button"
             >
@@ -315,6 +315,7 @@ import {
   getProviderConfig,
   setProvider,
   fetchModels,
+  fetchAllModels,
   sendChatMessage
 } from '../services/llm/index.js'
 import {
@@ -358,6 +359,7 @@ function buildRawAttachments(uploadedFiles, detectedUrls, fetchedContents = {}) 
 const providers = ref([])
 const selectedProvider = ref('')
 const models = ref([])
+const allModels = ref([])  // All models from all providers (for 2-model mode)
 const selectedModel = ref('')
 const messages = ref([])
 const inputText = ref('')
@@ -581,9 +583,35 @@ onMounted(async () => {
   providers.value = listProviders()
   selectedProvider.value = getCurrentProviderId()
   await loadModels()
+  await loadAllModels()
 })
 
-// Load models for current provider
+// Load models from all providers (for 2-model mode)
+async function loadAllModels() {
+  try {
+    const modelList = await fetchAllModels()
+    allModels.value = modelList
+
+    // Auto-select router and executor models
+    if (modelList.length > 0) {
+      const { router, executor } = findRouterAndExecutorModels(modelList)
+      if (router) {
+        routerModel.value = router.id
+      } else {
+        routerModel.value = modelList[0].id
+      }
+      if (executor) {
+        executorModel.value = executor.id
+      } else {
+        executorModel.value = modelList.length > 1 ? modelList[1].id : modelList[0].id
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load all models:', error)
+  }
+}
+
+// Load models for current provider (single-model mode)
 async function loadModels() {
   try {
     models.value = []
@@ -591,20 +619,6 @@ async function loadModels() {
     models.value = modelList
     if (modelList.length > 0) {
       selectedModel.value = modelList[0].id
-
-      // Auto-select router and executor models based on name patterns
-      const { router, executor } = findRouterAndExecutorModels(modelList)
-      if (router) {
-        routerModel.value = router.id
-      } else if (modelList.length > 0) {
-        routerModel.value = modelList[0].id
-      }
-      if (executor) {
-        executorModel.value = executor.id
-      } else if (modelList.length > 0) {
-        // Use second model if available, else first
-        executorModel.value = modelList.length > 1 ? modelList[1].id : modelList[0].id
-      }
     }
   } catch (error) {
     console.error('Failed to load models:', error)
@@ -723,12 +737,21 @@ async function handleSend() {
 
   try {
     if (twoModelMode.value) {
-      // Two-model mode: Analyze with Mistral 3B, optionally search web, generate code with gpt-oss-20b, execute
+      // Two-model mode: Analyze with router, optionally search web, generate with executor
       isRouting.value = true
+
+      // Get provider IDs for selected models
+      const routerModelData = allModels.value.find(m => m.id === routerModel.value)
+      const executorModelData = allModels.value.find(m => m.id === executorModel.value)
 
       const result = await analyzeGenerateAndExecute(
         apiMessages,
-        { routerId: routerModel.value, executorId: executorModel.value },
+        {
+          routerId: routerModel.value,
+          routerProviderId: routerModelData?.providerId || 'lmstudio',
+          executorId: executorModel.value,
+          executorProviderId: executorModelData?.providerId || 'lmstudio'
+        },
         (chunk) => {
           // Update the last message with result content
           messages.value[messages.value.length - 1].content += chunk

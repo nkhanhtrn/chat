@@ -260,15 +260,9 @@ watch([() => state.r, () => state.g, () => state.b], ([r, g, b]) => {
   padding: 1.5rem;
   background-color: var(--color-bg-elevated);
   margin: 1rem 0;
-  max-width: 400px;
-}
-
-.tool-container.layout-calculator {
-  max-width: 320px;
-}
-
-.tool-container.layout-text-processor {
-  max-width: 600px;
+  width: fit-content;
+  min-width: 200px;
+  max-width: 100%;
 }
 
 .tool-header {

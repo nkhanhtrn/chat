@@ -1,20 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { BuildCapability } from '../BuildCapability.js'
 
-// Mock the LM Studio provider
-vi.mock('../../providers/lmstudio.js', () => ({
-  lmstudioProvider: {
-    sendMessage: vi.fn()
-  }
-}))
-
-import { lmstudioProvider } from '../../providers/lmstudio.js'
-
 describe('BuildCapability', () => {
   let capability
+  let mockProvider
 
   beforeEach(() => {
     capability = new BuildCapability()
+    mockProvider = {
+      sendMessage: vi.fn()
+    }
     vi.clearAllMocks()
   })
 
@@ -205,12 +200,13 @@ describe('BuildCapability', () => {
         displayFormatter: 'return state.display;'
       })
 
-      lmstudioProvider.sendMessage.mockResolvedValue(validToolSpec)
+      mockProvider.sendMessage.mockResolvedValue(validToolSpec)
 
       const context = {
         fullContext: 'build a calculator',
         models: { executorId: 'test-model' },
         config: {},
+        provider: mockProvider,
         signal: new AbortController().signal,
         callbacks: {}
       }
@@ -225,12 +221,13 @@ describe('BuildCapability', () => {
 
     it('should handle JSON wrapped in markdown', async () => {
       const wrappedSpec = '```json\n{"name": "Test", "elements": []}\n```'
-      lmstudioProvider.sendMessage.mockResolvedValue(wrappedSpec)
+      mockProvider.sendMessage.mockResolvedValue(wrappedSpec)
 
       const context = {
         fullContext: 'build a test tool',
         models: { executorId: 'test-model' },
         config: {},
+        provider: mockProvider,
         signal: new AbortController().signal,
         callbacks: {}
       }
@@ -242,12 +239,13 @@ describe('BuildCapability', () => {
     })
 
     it('should return error for invalid JSON', async () => {
-      lmstudioProvider.sendMessage.mockResolvedValue('not valid json at all')
+      mockProvider.sendMessage.mockResolvedValue('not valid json at all')
 
       const context = {
         fullContext: 'build something',
         models: { executorId: 'test-model' },
         config: {},
+        provider: mockProvider,
         signal: new AbortController().signal,
         callbacks: {}
       }
@@ -260,12 +258,13 @@ describe('BuildCapability', () => {
 
     it('should return error when name is missing', async () => {
       const invalidSpec = JSON.stringify({ elements: [] })
-      lmstudioProvider.sendMessage.mockResolvedValue(invalidSpec)
+      mockProvider.sendMessage.mockResolvedValue(invalidSpec)
 
       const context = {
         fullContext: 'build something',
         models: { executorId: 'test-model' },
         config: {},
+        provider: mockProvider,
         signal: new AbortController().signal,
         callbacks: {}
       }
@@ -278,12 +277,13 @@ describe('BuildCapability', () => {
 
     it('should return error when elements is missing', async () => {
       const invalidSpec = JSON.stringify({ name: 'Test' })
-      lmstudioProvider.sendMessage.mockResolvedValue(invalidSpec)
+      mockProvider.sendMessage.mockResolvedValue(invalidSpec)
 
       const context = {
         fullContext: 'build something',
         models: { executorId: 'test-model' },
         config: {},
+        provider: mockProvider,
         signal: new AbortController().signal,
         callbacks: {}
       }
@@ -299,13 +299,14 @@ describe('BuildCapability', () => {
         name: 'Test',
         elements: [{ type: 'button', label: 'Click', action: 'test' }]
       })
-      lmstudioProvider.sendMessage.mockResolvedValue(validSpec)
+      mockProvider.sendMessage.mockResolvedValue(validSpec)
 
       const onToolGenerated = vi.fn()
       const context = {
         fullContext: 'build a test',
         models: { executorId: 'test-model' },
         config: {},
+        provider: mockProvider,
         signal: new AbortController().signal,
         callbacks: { onToolGenerated }
       }
@@ -320,12 +321,13 @@ describe('BuildCapability', () => {
 
     it('should extract JSON from text with surrounding content', async () => {
       const messyOutput = 'Here is the tool:\n{"name": "Tool", "elements": []}\nEnjoy!'
-      lmstudioProvider.sendMessage.mockResolvedValue(messyOutput)
+      mockProvider.sendMessage.mockResolvedValue(messyOutput)
 
       const context = {
         fullContext: 'build something',
         models: { executorId: 'test-model' },
         config: {},
+        provider: mockProvider,
         signal: new AbortController().signal,
         callbacks: {}
       }

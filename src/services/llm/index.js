@@ -195,6 +195,32 @@ export const fetchModels = async () => {
 }
 
 /**
+ * Fetch available models from all providers
+ * @returns {Promise<Array<{id: string, name: string, providerId: string}>>}
+ */
+export const fetchAllModels = async () => {
+  const allModels = []
+
+  for (const [providerId, provider] of Object.entries(providers)) {
+    try {
+      const config = getProviderConfig(providerId)
+      const models = await provider.fetchModels(config)
+      for (const model of models) {
+        allModels.push({
+          ...model,
+          providerId,
+          name: `${model.name} (${provider.name})`
+        })
+      }
+    } catch (error) {
+      console.warn(`Failed to fetch models from ${providerId}:`, error.message)
+    }
+  }
+
+  return allModels
+}
+
+/**
  * Send a chat message using current provider
  * @param {string} model - Model ID
  * @param {Array<{role: string, content: string}>} messages

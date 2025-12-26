@@ -9,7 +9,6 @@
  */
 
 import { BaseCapability } from './BaseCapability.js'
-import { lmstudioProvider } from '../providers/lmstudio.js'
 
 // Get current date for the system prompt
 const getCurrentDateString = () => {
@@ -107,6 +106,7 @@ Respond naturally and helpfully to the user's request. Be concise but thorough.`
       messages,
       models,
       config,
+      provider,
       signal,
       onChunk,
       webSearchResults = []
@@ -130,7 +130,7 @@ Respond naturally and helpfully to the user's request. Be concise but thorough.`
       }
     })
 
-    const response = await lmstudioProvider.sendMessage(
+    const response = await provider.sendMessage(
       models.executorId,
       messagesWithContext,
       onChunk,

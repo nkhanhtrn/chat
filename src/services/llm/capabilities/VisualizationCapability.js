@@ -8,7 +8,6 @@
  */
 
 import { BaseCapability } from './BaseCapability.js'
-import { lmstudioProvider } from '../providers/lmstudio.js'
 
 // Handler for ECharts visualizations
 const chartHandler = {
@@ -271,6 +270,7 @@ export class VisualizationCapability extends BaseCapability {
       fullContext,
       models,
       config,
+      provider,
       signal,
       callbacks = {}
     } = context
@@ -292,7 +292,7 @@ Generate the visualization now:`
       { role: 'user', content: instructionPrompt }
     ]
 
-    const response = await lmstudioProvider.sendMessage(
+    const response = await provider.sendMessage(
       models.executorId,
       messages,
       null,

@@ -1,20 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { TextResponseCapability } from '../TextResponseCapability.js'
 
-// Mock the LM Studio provider
-vi.mock('../../providers/lmstudio.js', () => ({
-  lmstudioProvider: {
-    sendMessage: vi.fn()
-  }
-}))
-
-import { lmstudioProvider } from '../../providers/lmstudio.js'
-
 describe('TextResponseCapability', () => {
   let capability
+  let mockProvider
 
   beforeEach(() => {
     capability = new TextResponseCapability()
+    mockProvider = {
+      sendMessage: vi.fn()
+    }
     vi.clearAllMocks()
   })
 
@@ -109,13 +104,14 @@ describe('TextResponseCapability', () => {
 
   describe('execute', () => {
     it('should send message to LLM provider', async () => {
-      vi.mocked(lmstudioProvider.sendMessage).mockResolvedValue('LLM response')
+      mockProvider.sendMessage.mockResolvedValue('LLM response')
 
       const context = {
         fullContext: 'translate hello to French',
         messages: [{ role: 'user', content: 'translate hello to French' }],
         models: { executorId: 'model-1' },
         config: {},
+        provider: mockProvider,
         signal: null,
         onChunk: null,
         webSearchResults: []
@@ -125,17 +121,18 @@ describe('TextResponseCapability', () => {
 
       expect(result.success).toBe(true)
       expect(result.result).toBe('LLM response')
-      expect(lmstudioProvider.sendMessage).toHaveBeenCalled()
+      expect(mockProvider.sendMessage).toHaveBeenCalled()
     })
 
     it('should include web search context in messages', async () => {
-      vi.mocked(lmstudioProvider.sendMessage).mockResolvedValue('Summary response')
+      mockProvider.sendMessage.mockResolvedValue('Summary response')
 
       const context = {
         fullContext: 'question with web results',
         messages: [{ role: 'user', content: 'what is X?' }],
         models: { executorId: 'model-1' },
         config: {},
+        provider: mockProvider,
         signal: null,
         onChunk: null,
         webSearchResults: [{ url: 'http://test.com', content: 'info about X' }]
@@ -144,7 +141,7 @@ describe('TextResponseCapability', () => {
       await capability.execute(context)
 
       // Check that system message mentions research
-      const callArgs = vi.mocked(lmstudioProvider.sendMessage).mock.calls[0]
+      const callArgs = mockProvider.sendMessage.mock.calls[0]
       const messages = callArgs[1]
       const systemMessage = messages.find(m => m.role === 'system')
 
@@ -152,7 +149,7 @@ describe('TextResponseCapability', () => {
     })
 
     it('should pass streaming callback', async () => {
-      vi.mocked(lmstudioProvider.sendMessage).mockResolvedValue('streamed response')
+      mockProvider.sendMessage.mockResolvedValue('streamed response')
       const onChunk = vi.fn()
 
       const context = {
@@ -160,6 +157,7 @@ describe('TextResponseCapability', () => {
         messages: [{ role: 'user', content: 'test' }],
         models: { executorId: 'model-1' },
         config: {},
+        provider: mockProvider,
         signal: null,
         onChunk,
         webSearchResults: []
@@ -167,18 +165,19 @@ describe('TextResponseCapability', () => {
 
       await capability.execute(context)
 
-      const callArgs = vi.mocked(lmstudioProvider.sendMessage).mock.calls[0]
+      const callArgs = mockProvider.sendMessage.mock.calls[0]
       expect(callArgs[2]).toBe(onChunk)
     })
 
     it('should include metadata about web search', async () => {
-      vi.mocked(lmstudioProvider.sendMessage).mockResolvedValue('response')
+      mockProvider.sendMessage.mockResolvedValue('response')
 
       const context = {
         fullContext: 'test',
         messages: [{ role: 'user', content: 'test' }],
         models: { executorId: 'model-1' },
         config: {},
+        provider: mockProvider,
         signal: null,
         onChunk: null,
         webSearchResults: [{ url: 'a' }, { url: 'b' }]

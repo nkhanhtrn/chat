@@ -8,7 +8,6 @@
  */
 
 import { BaseCapability } from './BaseCapability.js'
-import { lmstudioProvider } from '../providers/lmstudio.js'
 
 const EXECUTOR_SYSTEM_PROMPT = `You are a JavaScript code generator. You receive instructions and write clean, executable JavaScript code.
 
@@ -137,6 +136,7 @@ Write the JavaScript code now:`
       fullContext,
       models,
       config,
+      provider,
       signal,
       callbacks = {}
     } = context
@@ -150,7 +150,7 @@ Write the JavaScript code now:`
     } = callbacks
 
     // Generate code
-    let code = await this._generateCode(analysis, fullContext, models.executorId, config, signal)
+    let code = await this._generateCode(analysis, fullContext, models.executorId, provider, config, signal)
     let cleanedCode = this.cleanOutput(code)
     let execution = this._executeCode(cleanedCode)
     let attempts = 1
@@ -172,6 +172,7 @@ Write the JavaScript code now:`
           cleanedCode,
           execution.error,
           models.executorId,
+          provider,
           config,
           signal
         )
@@ -201,13 +202,13 @@ Write the JavaScript code now:`
     }
   }
 
-  async _generateCode(analysis, userMessage, executorModelId, config, signal) {
+  async _generateCode(analysis, userMessage, executorModelId, provider, config, signal) {
     const messages = [
       { role: 'system', content: this.getSystemPrompt() },
       { role: 'user', content: this.buildExecutorPrompt({ analysis, userMessage }) }
     ]
 
-    return lmstudioProvider.sendMessage(
+    return provider.sendMessage(
       executorModelId,
       messages,
       null,
@@ -216,7 +217,7 @@ Write the JavaScript code now:`
     )
   }
 
-  async _regenerateWithError(analysis, userMessage, previousCode, errorMessage, executorModelId, config, signal) {
+  async _regenerateWithError(analysis, userMessage, previousCode, errorMessage, executorModelId, provider, config, signal) {
     const fixPrompt = `Original task: ${analysis.taskDescription}
 Inputs: ${JSON.stringify(analysis.inputs || [])}
 Expected output: ${analysis.expectedOutput || 'Result'}
@@ -234,7 +235,7 @@ Fix the code to work correctly. Write only the corrected JavaScript code:`
       { role: 'user', content: fixPrompt }
     ]
 
-    return lmstudioProvider.sendMessage(
+    return provider.sendMessage(
       executorModelId,
       messages,
       null,
