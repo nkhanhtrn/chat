@@ -82,6 +82,9 @@
               <span v-if="msg.analysis.isVisualization" class="analysis-badge visualization">
                 {{ msg.analysis.visualizationType === 'chart' ? 'Chart' : (msg.analysis.visualizationType === 'mermaid' ? 'Diagram' : 'Drawing') }}
               </span>
+              <span v-else-if="msg.analysis.capability === 'build' || msg.analysis.toolType" class="analysis-badge build">
+                Build Tool
+              </span>
               <span v-else-if="msg.analysis.canBeCode" class="analysis-badge code">
                 Code Task
               </span>
@@ -186,6 +189,10 @@
                 <MermaidBlock v-else-if="msg.visualization.type === 'mermaid'" :code="msg.visualization.content" />
                 <!-- SVG drawing -->
                 <div v-else-if="msg.visualization.type === 'svg'" class="svg-container" v-html="msg.visualization.content"></div>
+              </template>
+              <!-- Tool output -->
+              <template v-else-if="msg.role === 'assistant' && msg.tool">
+                <ToolRenderer :tool="msg.tool" />
               </template>
               <!-- Code execution output: display in code block -->
               <CodeBlock v-else-if="msg.role === 'assistant' && msg.execution && msg.execution.success" language="output" :code="msg.content" />
@@ -301,6 +308,7 @@ import SlideTransition from '../components/SlideTransition.vue'
 import CodeBlock from '../components/markdown/CodeBlock.vue'
 import ChartRenderer from '../components/ChartRenderer.vue'
 import MermaidBlock from '../components/markdown/MermaidBlock.vue'
+import ToolRenderer from '../components/ToolRenderer.vue'
 import {
   listProviders,
   getCurrentProviderId,
@@ -708,7 +716,7 @@ async function handleSend() {
   }
 
   // Add empty assistant message for streaming
-  messages.value.push({ role: 'assistant', content: '', analysis: null, generatedCode: null, execution: null, visualization: null, attempts: 0, webSearchResults: null })
+  messages.value.push({ role: 'assistant', content: '', analysis: null, generatedCode: null, execution: null, visualization: null, tool: null, attempts: 0, webSearchResults: null })
   isStreaming.value = true
   currentVerifyAttempt.value = 0
   abortController = new AbortController()
@@ -813,17 +821,25 @@ async function handleSend() {
             // Store the visualization result
             messages.value[messages.value.length - 1].visualization = visualization
             scrollToBottom()
+          },
+          onToolGenerated: (tool) => {
+            // Store the tool result
+            messages.value[messages.value.length - 1].tool = tool
+            scrollToBottom()
           }
         }
       )
 
-      // Store the number of attempts, web search results, and visualization
+      // Store the number of attempts, web search results, visualization, and tool
       messages.value[messages.value.length - 1].attempts = result.attempts
       if (result.webSearchResults && result.webSearchResults.length > 0) {
         messages.value[messages.value.length - 1].webSearchResults = result.webSearchResults
       }
       if (result.visualization) {
         messages.value[messages.value.length - 1].visualization = result.visualization
+      }
+      if (result.tool) {
+        messages.value[messages.value.length - 1].tool = result.tool
       }
     } else {
       // Single model mode
@@ -1401,6 +1417,11 @@ textarea::placeholder {
 .analysis-badge.visualization {
   background-color: rgba(168, 85, 247, 0.15);
   color: #a855f7;
+}
+
+.analysis-badge.build {
+  background-color: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
 }
 
 /* Search status indicator */

@@ -12,9 +12,11 @@ import { registry } from './CapabilityRegistry.js'
 import { CodeCapability } from './CodeCapability.js'
 import { VisualizationCapability } from './VisualizationCapability.js'
 import { TextResponseCapability } from './TextResponseCapability.js'
+import { BuildCapability } from './BuildCapability.js'
 
 // Register all capabilities
 registry.register(new VisualizationCapability())  // Priority 60
+registry.register(new BuildCapability())          // Priority 55
 registry.register(new CodeCapability())           // Priority 50
 registry.register(new TextResponseCapability())   // Priority 0 (fallback)
 
@@ -28,5 +30,6 @@ export { BaseCapability } from './BaseCapability.js'
 export { CodeCapability } from './CodeCapability.js'
 export { VisualizationCapability, visualizationHandlers } from './VisualizationCapability.js'
 export { TextResponseCapability } from './TextResponseCapability.js'
+export { BuildCapability } from './BuildCapability.js'
 
 export default registry

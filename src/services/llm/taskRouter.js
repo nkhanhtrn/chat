@@ -478,6 +478,7 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
     response.code = result.metadata?.code || null
     response.execution = result.metadata?.executionDetails || null
     response.visualization = null
+    response.tool = null
     response.finalResponse = result.success ? formatResult(result.result) : `Error: ${result.error}`
 
     if (onChunk && response.finalResponse) {
@@ -487,12 +488,20 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
     response.code = null
     response.execution = null
     response.visualization = result.result
+    response.tool = null
     response.finalResponse = ''
+  } else if (capability.name === 'build') {
+    response.code = null
+    response.execution = null
+    response.visualization = null
+    response.tool = result.success ? result.result : null
+    response.finalResponse = result.success ? '' : `Error: ${result.error}`
   } else {
     // Text response
     response.code = null
     response.execution = null
     response.visualization = null
+    response.tool = null
     response.finalResponse = result.result || ''
   }
 

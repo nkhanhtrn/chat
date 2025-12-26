@@ -38,7 +38,7 @@ export default {
     },
     code: {
       type: String,
-      required: true
+      default: ''
     }
   },
   data() {
@@ -49,7 +49,7 @@ export default {
   },
   computed: {
     lineCount() {
-      return this.code.split('\n').length
+      return (this.code || '').split('\n').length
     }
   },
   methods: {
@@ -58,7 +58,7 @@ export default {
     },
     async copyCode() {
       try {
-        await navigator.clipboard.writeText(this.code)
+        await navigator.clipboard.writeText(this.code || '')
         this.isFlashing = true
         setTimeout(() => {
           this.isFlashing = false
