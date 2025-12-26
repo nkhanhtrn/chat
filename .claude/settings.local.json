@@ -26,7 +26,8 @@
       "Bash(tree:*)",
       "Bash(git -C /home/kt/dev/chat-clone log --oneline -20)",
       "Bash(npm ls:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(mkdir:*)"
     ],
     "deny": [],
     "ask": []
