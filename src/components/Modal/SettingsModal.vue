@@ -364,16 +364,25 @@ const loadProviderSettings = async () => {
   connectionStatus.value = null
 
   // Load available models and current selection
-  selectedModel.value = chatStore.currentModel || ''
+  // Prefer Firestore settings for cross-device sync, fallback to store
+  selectedModel.value = settings?.currentModel || chatStore.currentModel || ''
   await loadModels()
 }
 
 const loadModels = async () => {
   try {
     availableModels.value = await fetchModels()
-    // If no model selected yet, select the first one
-    if (!selectedModel.value && availableModels.value.length > 0) {
+
+    // Validate selected model exists in available models
+    const modelExists = availableModels.value.some(m => m.id === selectedModel.value)
+
+    // If no model selected or selected model not available, select the first one
+    if ((!selectedModel.value || !modelExists) && availableModels.value.length > 0) {
       selectedModel.value = availableModels.value[0].id
+      chatStore.setCurrentModel(selectedModel.value)
+      saveUserSettings({ currentModel: selectedModel.value })
+    } else if (selectedModel.value && modelExists) {
+      // Sync Firestore model selection to store
       chatStore.setCurrentModel(selectedModel.value)
     }
   } catch (error) {
@@ -385,6 +394,8 @@ const loadModels = async () => {
 const onModelChange = () => {
   if (selectedModel.value) {
     chatStore.setCurrentModel(selectedModel.value)
+    // Also save to Firestore for cross-device sync
+    saveUserSettings({ currentModel: selectedModel.value })
   }
 }
 

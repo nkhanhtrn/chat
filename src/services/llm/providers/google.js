@@ -108,28 +108,44 @@ export const googleProvider = {
   defaultBaseUrl: DEFAULT_BASE_URL,
 
   async fetchModels(config = {}) {
-    const { apiKey, apiKeys } = config
+    const { apiKey, apiKeys, baseUrl = DEFAULT_BASE_URL } = config
     const keyToUse = getNextApiKey(apiKeys || apiKey)
 
     if (!keyToUse) {
       throw new Error('Google AI API key is required')
     }
 
-    // Available Gemini models (gemini-3-flash is default)
-    return [
-      {
-        id: 'models/gemini-3-flash',
-        name: 'Gemini 3 Flash'
-      },
-      {
-        id: 'models/gemini-2.5-flash',
-        name: 'Gemini 2.5 Flash'
-      },
-      {
-        id: 'models/gemini-2.5-flash-lite',
-        name: 'Gemini 2.5 Flash Lite'
+    try {
+      const response = await fetch(
+        `${baseUrl}/models?key=${keyToUse}`,
+        {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        throw new Error(error.error?.message || `HTTP ${response.status}`)
       }
-    ]
+
+      const data = await response.json()
+
+      // Filter for models that support content generation and map to expected format
+      const models = (data.models || [])
+        .filter(model =>
+          model.supportedGenerationMethods?.includes('generateContent')
+        )
+        .map(model => ({
+          id: model.name,
+          name: model.displayName || model.name.replace('models/', '')
+        }))
+
+      return models
+    } catch (error) {
+      console.error('Failed to fetch Google models:', error.message)
+      throw new Error(error.message || 'Failed to fetch models from Google API')
+    }
   },
 
   async sendMessage(model, messages, onChunk = null, signal = null, config = {}) {

@@ -1,9 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
-// We need to test the actual round-robin logic, so we'll test the helper function directly
-// by importing the module fresh each time
-
-describe('Google Provider - Round Robin API Keys', () => {
+describe('Google Provider', () => {
   let googleProvider
 
   beforeEach(async () => {
@@ -15,71 +12,240 @@ describe('Google Provider - Round Robin API Keys', () => {
 
   afterEach(() => {
     vi.clearAllMocks()
+    vi.restoreAllMocks()
   })
 
-  describe('Single API Key (string)', () => {
-    it('should work with a single API key string', async () => {
-      const config = { apiKey: 'single-key' }
-
-      // fetchModels doesn't make API calls, it just returns hardcoded models
-      const models = await googleProvider.fetchModels(config)
-      expect(models).toHaveLength(3)
-      expect(models[0].id).toBe('models/gemini-3-flash')
-      expect(models[1].id).toBe('models/gemini-2.5-flash')
-      expect(models[2].id).toBe('models/gemini-2.5-flash-lite')
-    })
-
+  describe('fetchModels', () => {
     it('should throw error when no API key provided', async () => {
       await expect(googleProvider.fetchModels({})).rejects.toThrow('Google AI API key is required')
-    })
-  })
-
-  describe('Multiple API Keys (array)', () => {
-    it('should accept apiKeys array', async () => {
-      const config = { apiKeys: ['key1', 'key2', 'key3'] }
-
-      const models = await googleProvider.fetchModels(config)
-      expect(models).toHaveLength(3)
     })
 
     it('should throw error when apiKeys array is empty', async () => {
       await expect(googleProvider.fetchModels({ apiKeys: [] })).rejects.toThrow('Google AI API key is required')
     })
 
-    it('should prefer apiKeys over apiKey when both provided', async () => {
-      const config = {
-        apiKey: 'single-key',
-        apiKeys: ['array-key1', 'array-key2']
+    it('should fetch models from Google API', async () => {
+      const mockResponse = {
+        models: [
+          {
+            name: 'models/gemini-2.0-flash',
+            displayName: 'Gemini 2.0 Flash',
+            supportedGenerationMethods: ['generateContent', 'streamGenerateContent']
+          },
+          {
+            name: 'models/gemini-1.5-pro',
+            displayName: 'Gemini 1.5 Pro',
+            supportedGenerationMethods: ['generateContent', 'streamGenerateContent']
+          }
+        ]
       }
 
-      // Should not throw - apiKeys takes precedence
-      const models = await googleProvider.fetchModels(config)
-      expect(models).toHaveLength(3)
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResponse)
+      }))
+
+      const models = await googleProvider.fetchModels({ apiKey: 'test-key' })
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://generativelanguage.googleapis.com/v1beta/models?key=test-key',
+        expect.objectContaining({
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        })
+      )
+
+      expect(models).toHaveLength(2)
+      expect(models[0]).toEqual({ id: 'models/gemini-2.0-flash', name: 'Gemini 2.0 Flash' })
+      expect(models[1]).toEqual({ id: 'models/gemini-1.5-pro', name: 'Gemini 1.5 Pro' })
+    })
+
+    it('should filter out models that do not support generateContent', async () => {
+      const mockResponse = {
+        models: [
+          {
+            name: 'models/gemini-2.0-flash',
+            displayName: 'Gemini 2.0 Flash',
+            supportedGenerationMethods: ['generateContent', 'streamGenerateContent']
+          },
+          {
+            name: 'models/text-embedding-004',
+            displayName: 'Text Embedding 004',
+            supportedGenerationMethods: ['embedContent']
+          },
+          {
+            name: 'models/gemini-1.5-pro',
+            displayName: 'Gemini 1.5 Pro',
+            supportedGenerationMethods: ['generateContent']
+          }
+        ]
+      }
+
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResponse)
+      }))
+
+      const models = await googleProvider.fetchModels({ apiKey: 'test-key' })
+
+      expect(models).toHaveLength(2)
+      expect(models.map(m => m.id)).toEqual([
+        'models/gemini-2.0-flash',
+        'models/gemini-1.5-pro'
+      ])
+    })
+
+    it('should use displayName when available, fallback to cleaned model name', async () => {
+      const mockResponse = {
+        models: [
+          {
+            name: 'models/gemini-2.0-flash',
+            displayName: 'Gemini 2.0 Flash',
+            supportedGenerationMethods: ['generateContent']
+          },
+          {
+            name: 'models/custom-model',
+            // No displayName
+            supportedGenerationMethods: ['generateContent']
+          }
+        ]
+      }
+
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResponse)
+      }))
+
+      const models = await googleProvider.fetchModels({ apiKey: 'test-key' })
+
+      expect(models[0].name).toBe('Gemini 2.0 Flash')
+      expect(models[1].name).toBe('custom-model') // Fallback: models/ prefix removed
+    })
+
+    it('should handle empty models array', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ models: [] })
+      }))
+
+      const models = await googleProvider.fetchModels({ apiKey: 'test-key' })
+      expect(models).toEqual([])
+    })
+
+    it('should handle missing models field in response', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({})
+      }))
+
+      const models = await googleProvider.fetchModels({ apiKey: 'test-key' })
+      expect(models).toEqual([])
+    })
+
+    it('should throw error on API error response', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({ error: { message: 'Invalid API key' } })
+      }))
+
+      await expect(googleProvider.fetchModels({ apiKey: 'invalid-key' }))
+        .rejects.toThrow('Invalid API key')
+    })
+
+    it('should handle API error without message', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({})
+      }))
+
+      await expect(googleProvider.fetchModels({ apiKey: 'test-key' }))
+        .rejects.toThrow('HTTP 500')
+    })
+
+    it('should handle network errors', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')))
+
+      await expect(googleProvider.fetchModels({ apiKey: 'test-key' }))
+        .rejects.toThrow('Network error')
+    })
+
+    it('should use custom baseUrl when provided', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ models: [] })
+      }))
+
+      await googleProvider.fetchModels({
+        apiKey: 'test-key',
+        baseUrl: 'https://custom.api.com/v1'
+      })
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://custom.api.com/v1/models?key=test-key',
+        expect.any(Object)
+      )
+    })
+
+    it('should prefer apiKeys array over single apiKey', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ models: [] })
+      }))
+
+      await googleProvider.fetchModels({
+        apiKey: 'single-key',
+        apiKeys: ['array-key1', 'array-key2']
+      })
+
+      // Should use the first key from apiKeys array
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('key=array-key1'),
+        expect.any(Object)
+      )
     })
   })
 
-  describe('Round Robin Selection', () => {
+  describe('Round Robin API Keys', () => {
     it('should cycle through keys on successive calls', async () => {
-      // We can't directly test which key is used without mocking fetch,
-      // but we can verify the module accepts the config without error
+      const fetchCalls = []
+      vi.stubGlobal('fetch', vi.fn().mockImplementation((url) => {
+        fetchCalls.push(url)
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ models: [] })
+        })
+      }))
+
       const config = { apiKeys: ['key1', 'key2', 'key3'] }
 
-      // Multiple calls should work (internally cycling through keys)
       await googleProvider.fetchModels(config)
       await googleProvider.fetchModels(config)
       await googleProvider.fetchModels(config)
       await googleProvider.fetchModels(config) // Should wrap around to key1
 
-      // If we got here without errors, round-robin is working
-      expect(true).toBe(true)
+      expect(fetchCalls[0]).toContain('key=key1')
+      expect(fetchCalls[1]).toContain('key=key2')
+      expect(fetchCalls[2]).toContain('key=key3')
+      expect(fetchCalls[3]).toContain('key=key1') // Wrapped around
     })
   })
 
   describe('testConnection', () => {
-    it('should return true when API key is valid', async () => {
-      const config = { apiKey: 'valid-key' }
-      // testConnection just calls fetchModels which returns hardcoded models
-      const result = await googleProvider.testConnection(config)
+    it('should return true when API returns models', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          models: [{
+            name: 'models/gemini-2.0-flash',
+            displayName: 'Gemini 2.0 Flash',
+            supportedGenerationMethods: ['generateContent']
+          }]
+        })
+      }))
+
+      const result = await googleProvider.testConnection({ apiKey: 'valid-key' })
       expect(result).toBe(true)
     })
 
@@ -88,10 +254,31 @@ describe('Google Provider - Round Robin API Keys', () => {
       expect(result).toBe(false)
     })
 
-    it('should work with apiKeys array', async () => {
-      const config = { apiKeys: ['key1', 'key2'] }
-      const result = await googleProvider.testConnection(config)
-      expect(result).toBe(true)
+    it('should return false when API returns error', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: () => Promise.resolve({ error: { message: 'Invalid API key' } })
+      }))
+
+      const result = await googleProvider.testConnection({ apiKey: 'invalid-key' })
+      expect(result).toBe(false)
+    })
+
+    it('should return false on network error', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')))
+
+      const result = await googleProvider.testConnection({ apiKey: 'test-key' })
+      expect(result).toBe(false)
+    })
+  })
+
+  describe('Provider metadata', () => {
+    it('should have correct provider properties', () => {
+      expect(googleProvider.id).toBe('google')
+      expect(googleProvider.name).toBe('Google AI Studio')
+      expect(googleProvider.requiresApiKey).toBe(true)
+      expect(googleProvider.defaultBaseUrl).toBe('https://generativelanguage.googleapis.com/v1beta')
     })
   })
 })
