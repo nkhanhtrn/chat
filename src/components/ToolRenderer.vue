@@ -65,6 +65,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import CodeBlock from './markdown/CodeBlock.vue'
 import ToolElement from './ToolElement.vue'
+import { useToolDataStore } from '../composables/studio/useToolDataStore.js'
 
 const props = defineProps({
   tool: {
@@ -72,6 +73,9 @@ const props = defineProps({
     required: true
   }
 })
+
+// Initialize per-tool data store
+const db = useToolDataStore(props.tool.name || 'unnamed-tool')
 
 const state = reactive({})
 const openAccordions = reactive({})
@@ -104,13 +108,13 @@ function fixEscapeSequences(code) {
 // Try to execute formatter, with fallback escape sequence fix
 function executeFormatter(formatter) {
   try {
-    const fn = new Function('state', formatter)
-    return fn(state)
+    const fn = new Function('state', 'db', formatter)
+    return fn(state, db)
   } catch (e) {
     if (e.message.includes('escape') || e.message.includes('Invalid')) {
       const fixed = fixEscapeSequences(formatter)
-      const fn = new Function('state', fixed)
-      return fn(state)
+      const fn = new Function('state', 'db', fixed)
+      return fn(state, db)
     }
     throw e
   }
@@ -158,15 +162,15 @@ function executeAction(actionName, value) {
   let actionCode = props.tool.actions[actionName]
 
   try {
-    const fn = new Function('state', 'value', 'updateDisplay', actionCode)
-    fn(state, value, () => {})
+    const fn = new Function('state', 'value', 'updateDisplay', 'db', actionCode)
+    fn(state, value, () => {}, db)
   } catch (e) {
     // Try fixing escape sequences and retry
     if (e.message.includes('escape') || e.message.includes('Invalid')) {
       try {
         actionCode = fixEscapeSequences(actionCode)
-        const fn = new Function('state', 'value', 'updateDisplay', actionCode)
-        fn(state, value, () => {})
+        const fn = new Function('state', 'value', 'updateDisplay', 'db', actionCode)
+        fn(state, value, () => {}, db)
       } catch (e2) {
         console.error('Action error after fix attempt:', e2)
       }
@@ -241,6 +245,7 @@ watch([() => state.r, () => state.g, () => state.b], ([r, g, b]) => {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  color: var(--color-text-base);
 }
 
 /* Display Styles */
