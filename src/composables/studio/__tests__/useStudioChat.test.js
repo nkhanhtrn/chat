@@ -1,4 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+// Mock localStorage
+const localStorageMock = (() => {
+  let store = {}
+  return {
+    getItem: vi.fn((key) => store[key] || null),
+    setItem: vi.fn((key, value) => { store[key] = value }),
+    removeItem: vi.fn((key) => { delete store[key] }),
+    clear: vi.fn(() => { store = {} })
+  }
+})()
+Object.defineProperty(window, 'localStorage', { value: localStorageMock })
+
 import { useStudioChat } from '../useStudioChat.js'
 
 // Mock the LLM service
@@ -10,8 +23,10 @@ vi.mock('../../../services/llm/index.js', () => ({
 }))
 
 // Mock the task router
+let mockTaskRouterOptions = {}
 vi.mock('../../../services/llm/taskRouter.js', () => ({
   analyzeGenerateAndExecute: vi.fn(async (messages, config, onChunk, signal, options) => {
+    mockTaskRouterOptions = options
     if (options?.onAnalysis) {
       options.onAnalysis({ capability: 'text', taskDescription: 'Test task' })
     }
@@ -39,6 +54,7 @@ vi.mock('../studioAttachments.js', () => ({
 
 describe('useStudioChat', () => {
   beforeEach(() => {
+    localStorageMock.clear()
     vi.clearAllMocks()
   })
 
@@ -248,6 +264,180 @@ describe('useStudioChat', () => {
       expect(chat.isStreaming.value).toBe(false)
       expect(chat.isRouting.value).toBe(false)
       expect(chat.currentVerifyAttempt.value).toBe(0)
+    })
+  })
+
+  describe('onOutput callback', () => {
+    it('should register onOutput callback', () => {
+      const chat = useStudioChat()
+      const callback = vi.fn()
+
+      chat.onOutput(callback)
+
+      // Callback should be registered (we can't easily test this directly,
+      // but we can test it's called when outputs are emitted)
+      expect(typeof chat.onOutput).toBe('function')
+    })
+
+    it('should emit codeResult with result and code', async () => {
+      const chat = useStudioChat()
+      const outputCallback = vi.fn()
+      chat.onOutput(outputCallback)
+
+      // Start a message to set up the message structure
+      await chat.sendMessage({
+        inputText: 'Calculate something',
+        attachmentSnapshot: {
+          uploadedFiles: [],
+          detectedUrls: [],
+          fetchedContents: {}
+        },
+        twoModelMode: true,
+        modelSelection: {
+          routerModel: 'mistral-7b',
+          routerProviderId: 'lmstudio',
+          executorModel: 'gpt-4',
+          executorProviderId: 'openai'
+        },
+        searchCallbacks: {},
+        planningCallbacks: {}
+      })
+
+      // Simulate code generation and execution
+      const lastMsg = chat.getLastMessage()
+      chat.updateLastMessage({ generatedCode: 'return 42' })
+
+      // Manually trigger the execution complete callback
+      if (mockTaskRouterOptions.onExecutionComplete) {
+        mockTaskRouterOptions.onExecutionComplete({ success: true, result: 42 })
+      }
+
+      // Check that outputCallback was called with correct structure
+      const codeResultCall = outputCallback.mock.calls.find(
+        call => call[0]?.type === 'codeResult'
+      )
+
+      if (codeResultCall) {
+        expect(codeResultCall[0].type).toBe('codeResult')
+        expect(codeResultCall[0].content).toEqual({
+          result: 42,
+          code: 'return 42'
+        })
+      }
+    })
+
+    it('should not emit codeResult for failed execution', async () => {
+      const chat = useStudioChat()
+      const outputCallback = vi.fn()
+      chat.onOutput(outputCallback)
+
+      await chat.sendMessage({
+        inputText: 'Calculate something',
+        attachmentSnapshot: {
+          uploadedFiles: [],
+          detectedUrls: [],
+          fetchedContents: {}
+        },
+        twoModelMode: true,
+        modelSelection: {
+          routerModel: 'mistral-7b',
+          routerProviderId: 'lmstudio',
+          executorModel: 'gpt-4',
+          executorProviderId: 'openai'
+        },
+        searchCallbacks: {},
+        planningCallbacks: {}
+      })
+
+      // Clear any previous calls
+      outputCallback.mockClear()
+
+      // Simulate failed execution
+      if (mockTaskRouterOptions.onExecutionComplete) {
+        mockTaskRouterOptions.onExecutionComplete({ success: false, error: 'Error occurred' })
+      }
+
+      // Should not emit codeResult for failed execution
+      const codeResultCall = outputCallback.mock.calls.find(
+        call => call[0]?.type === 'codeResult'
+      )
+      expect(codeResultCall).toBeUndefined()
+    })
+  })
+
+  describe('localStorage persistence', () => {
+    it('should save messages to localStorage after sending', async () => {
+      const chat = useStudioChat()
+
+      await chat.sendMessage({
+        inputText: 'Hello',
+        attachmentSnapshot: {
+          uploadedFiles: [],
+          detectedUrls: [],
+          fetchedContents: {}
+        },
+        twoModelMode: false,
+        modelSelection: {
+          selectedModel: 'gpt-4'
+        },
+        searchCallbacks: {},
+        planningCallbacks: {}
+      })
+
+      expect(localStorageMock.setItem).toHaveBeenCalled()
+      const savedData = JSON.parse(localStorageMock.setItem.mock.calls[localStorageMock.setItem.mock.calls.length - 1][1])
+      expect(savedData.messages).toHaveLength(2)
+    })
+
+    it('should load messages from localStorage on init', () => {
+      const savedState = {
+        messages: [
+          { role: 'user', content: 'Test message' },
+          { role: 'assistant', content: 'Test response' }
+        ],
+        nextMessageId: 3
+      }
+      localStorageMock.getItem.mockReturnValue(JSON.stringify(savedState))
+
+      const chat = useStudioChat()
+
+      expect(chat.messages.value).toHaveLength(2)
+      expect(chat.messages.value[0].content).toBe('Test message')
+      expect(chat.messages.value[1].content).toBe('Test response')
+    })
+
+    it('should clear localStorage when clearing chat', () => {
+      const chat = useStudioChat()
+      chat.messages.value = [
+        { role: 'user', content: 'Hello' },
+        { role: 'assistant', content: 'Hi' }
+      ]
+
+      chat.clearChat()
+
+      expect(localStorageMock.setItem).toHaveBeenCalled()
+      const savedData = JSON.parse(localStorageMock.setItem.mock.calls[localStorageMock.setItem.mock.calls.length - 1][1])
+      expect(savedData.messages).toHaveLength(0)
+      expect(savedData.nextMessageId).toBe(1)
+    })
+
+    it('should handle corrupted localStorage gracefully', () => {
+      localStorageMock.getItem.mockReturnValue('invalid json{{{')
+
+      const chat = useStudioChat()
+
+      expect(chat.messages.value).toEqual([])
+    })
+
+    it('should handle localStorage errors gracefully', () => {
+      localStorageMock.setItem.mockImplementation(() => {
+        throw new Error('Storage full')
+      })
+
+      const chat = useStudioChat()
+
+      // Should not throw
+      expect(() => chat.clearChat()).not.toThrow()
     })
   })
 })

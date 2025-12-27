@@ -140,6 +140,8 @@ function initChart() {
 }
 
 // Handle resize
+let resizeObserver = null
+
 function handleResize() {
   if (chartInstance) {
     chartInstance.resize()
@@ -168,7 +170,14 @@ let themeObserver = null
 
 onMounted(() => {
   initChart()
-  window.addEventListener('resize', handleResize)
+
+  // Use ResizeObserver for container resize detection
+  if (chartRef.value) {
+    resizeObserver = new ResizeObserver(() => {
+      handleResize()
+    })
+    resizeObserver.observe(chartRef.value)
+  }
 
   // Watch for theme changes on document
   themeObserver = new MutationObserver(handleThemeChange)
@@ -182,8 +191,12 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  window.removeEventListener('resize', handleResize)
   window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', handleThemeChange)
+
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = null
+  }
 
   if (themeObserver) {
     themeObserver.disconnect()
@@ -199,14 +212,16 @@ onUnmounted(() => {
 <style scoped>
 .chart-container {
   width: 100%;
+  height: v-bind(height);
   background-color: var(--color-bg-surface);
   border: 1px solid var(--color-border-base);
   border-radius: 8px;
-  padding: 1rem;
+  padding: 0.75rem;
+  box-sizing: border-box;
 }
 
 .chart {
   width: 100%;
-  height: v-bind(height);
+  height: 100%;
 }
 </style>

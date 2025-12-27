@@ -19,44 +19,23 @@
     />
 
     <div class="message-content">
-      <!-- Visualization output -->
-      <template v-if="msg.role === 'assistant' && msg.visualization">
-        <!-- ECharts -->
-        <ChartRenderer
-          v-if="msg.visualization.type === 'chart'"
-          :option="parseChartOption(msg.visualization.content)"
-          height="350px"
-        />
-        <!-- Mermaid diagram -->
-        <MermaidBlock
-          v-else-if="msg.visualization.type === 'mermaid'"
-          :code="msg.visualization.content"
-        />
-        <!-- SVG drawing -->
-        <div
-          v-else-if="msg.visualization.type === 'svg'"
-          class="svg-container"
-          v-html="msg.visualization.content"
-        ></div>
-      </template>
+      <!-- Output sent to canvas indicator -->
+      <div v-if="msg.role === 'assistant' && hasCanvasOutput" class="canvas-output-indicator">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="9" y1="3" x2="9" y2="21"></line>
+        </svg>
+        <span>{{ canvasOutputLabel }}</span>
+      </div>
 
-      <!-- Tool output -->
-      <template v-else-if="msg.role === 'assistant' && msg.tool">
-        <ToolRenderer :tool="msg.tool" />
-      </template>
-
-      <!-- Code execution output: display in code block -->
-      <CodeBlock
-        v-else-if="msg.role === 'assistant' && msg.execution && msg.execution.success"
-        language="output"
-        :code="msg.content"
-      />
-
-      <!-- Regular assistant response or failed execution: render as markdown -->
+      <!-- Regular assistant response: render as markdown -->
       <MarkdownRenderer
-        v-else-if="msg.role === 'assistant'"
+        v-else-if="msg.role === 'assistant' && msg.content"
         :content="msg.content"
       />
+
+      <!-- Empty assistant message while streaming -->
+      <template v-else-if="msg.role === 'assistant'"></template>
 
       <!-- User message -->
       <template v-else>{{ msg.content }}</template>
@@ -78,12 +57,7 @@
 <script setup>
 import { computed } from 'vue'
 import MarkdownRenderer from '../MarkdownRenderer.vue'
-import CodeBlock from '../markdown/CodeBlock.vue'
-import ChartRenderer from '../ChartRenderer.vue'
-import MermaidBlock from '../markdown/MermaidBlock.vue'
-import ToolRenderer from '../ToolRenderer.vue'
 import CapabilityProgress from '../CapabilityProgress.vue'
-import { parseChartOption } from '../../utils/chart.js'
 import {
   getCapabilityType,
   getMessageStatus,
@@ -139,6 +113,28 @@ const showCursor = computed(() =>
   props.isStreaming && props.isLastMessage && props.msg.role === 'assistant'
 )
 
+// Check if message has output that goes to canvas
+const hasCanvasOutput = computed(() => {
+  const msg = props.msg
+  return msg.visualization || msg.tool || (msg.execution && msg.execution.success)
+})
+
+// Label for canvas output indicator
+const canvasOutputLabel = computed(() => {
+  const msg = props.msg
+  if (msg.visualization) {
+    switch (msg.visualization.type) {
+      case 'chart': return 'Chart in canvas'
+      case 'mermaid': return 'Diagram in canvas'
+      case 'svg': return 'SVG in canvas'
+      default: return 'Output in canvas'
+    }
+  }
+  if (msg.tool) return 'Tool in canvas'
+  if (msg.execution?.success) return 'Result in canvas'
+  return 'Output in canvas'
+})
+
 function getAttachmentIcon(att) {
   if (att.type === 'url') return '🔗'
   if (att.readerName === 'pdf') return '📕'
@@ -148,39 +144,41 @@ function getAttachmentIcon(att) {
 
 <style scoped>
 .message {
-  margin-bottom: 1.5rem;
-  max-width: 800px;
-  margin-left: auto;
-  margin-right: auto;
+  margin-bottom: 1.25rem;
 }
 
 .message-role {
-  font-size: 0.75rem;
+  font-size: 0.65rem;
+  font-weight: 600;
   color: var(--color-text-muted);
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.35rem;
   font-family: system-ui, sans-serif;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
+.message.user .message-role {
+  color: var(--color-primary, #6366f1);
+}
+
 .message-content {
   font-family: 'Georgia', serif;
-  font-size: 1.05rem;
-  line-height: 1.7;
+  font-size: 0.95rem;
+  line-height: 1.6;
   color: var(--color-text-base);
 }
 
 .message.user .message-content {
-  background-color: var(--color-bg-hover);
-  padding: 1rem 1.25rem;
-  border-radius: 4px;
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  padding: 0.75rem 1rem;
   white-space: pre-wrap;
-  max-height: 200px;
+  max-height: 150px;
   overflow-y: auto;
 }
 
 .message.assistant .message-content {
-  padding: 0.5rem 0;
+  padding: 0.25rem 0;
 }
 
 .cursor {
@@ -197,50 +195,46 @@ function getAttachmentIcon(att) {
 .attachments-indicator {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.35rem;
   margin-top: 0.5rem;
-  max-width: 800px;
 }
 
 .attachment-badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  padding: 0.25rem 0.5rem;
-  background-color: var(--color-bg-surface);
-  border: 1px solid var(--color-border-base);
-  border-radius: 3px;
-  font-size: 0.75rem;
+  gap: 0.25rem;
+  padding: 0.2rem 0.4rem;
+  background-color: var(--color-bg-hover);
+  font-size: 0.7rem;
   font-family: system-ui, sans-serif;
   color: var(--color-text-muted);
 }
 
 .attachment-icon {
-  font-size: 0.85rem;
+  font-size: 0.75rem;
 }
 
 .attachment-name {
-  max-width: 150px;
+  max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* SVG visualization container */
-.svg-container {
-  max-width: 400px;
-  margin: 0.5rem 0;
-  background-color: var(--color-bg-surface);
-  border: 1px solid var(--color-border-base);
-  border-radius: 4px;
-  padding: 1rem;
-  display: flex;
-  justify-content: center;
+/* Canvas output indicator */
+.canvas-output-indicator {
+  display: inline-flex;
   align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  font-family: system-ui, sans-serif;
 }
 
-.svg-container :deep(svg) {
-  max-width: 100%;
-  height: auto;
+.canvas-output-indicator svg {
+  opacity: 0.6;
 }
 </style>

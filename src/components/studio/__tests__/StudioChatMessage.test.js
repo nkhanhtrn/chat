@@ -158,8 +158,8 @@ describe('StudioChatMessage', () => {
     })
   })
 
-  describe('Visualization Rendering', () => {
-    it('should render ChartRenderer for chart visualization', () => {
+  describe('Canvas Output Indicator', () => {
+    it('should show canvas indicator for chart visualization', () => {
       wrapper = mount(StudioChatMessage, {
         props: {
           ...defaultProps,
@@ -170,10 +170,10 @@ describe('StudioChatMessage', () => {
           }
         }
       })
-      expect(wrapper.find('.mock-chart').exists()).toBe(true)
+      expect(wrapper.find('.canvas-output-indicator').exists()).toBe(true)
     })
 
-    it('should render MermaidBlock for mermaid visualization', () => {
+    it('should show canvas indicator for mermaid visualization', () => {
       wrapper = mount(StudioChatMessage, {
         props: {
           ...defaultProps,
@@ -184,10 +184,10 @@ describe('StudioChatMessage', () => {
           }
         }
       })
-      expect(wrapper.find('.mock-mermaid').exists()).toBe(true)
+      expect(wrapper.find('.canvas-output-indicator').exists()).toBe(true)
     })
 
-    it('should render SVG content for svg visualization', () => {
+    it('should show canvas indicator for svg visualization', () => {
       wrapper = mount(StudioChatMessage, {
         props: {
           ...defaultProps,
@@ -198,12 +198,10 @@ describe('StudioChatMessage', () => {
           }
         }
       })
-      expect(wrapper.find('.svg-container').exists()).toBe(true)
+      expect(wrapper.find('.canvas-output-indicator').exists()).toBe(true)
     })
-  })
 
-  describe('Tool Rendering', () => {
-    it('should render ToolRenderer when tool is present', () => {
+    it('should show canvas indicator when tool is present', () => {
       wrapper = mount(StudioChatMessage, {
         props: {
           ...defaultProps,
@@ -214,12 +212,10 @@ describe('StudioChatMessage', () => {
           }
         }
       })
-      expect(wrapper.find('.mock-tool').exists()).toBe(true)
+      expect(wrapper.find('.canvas-output-indicator').exists()).toBe(true)
     })
-  })
 
-  describe('Code Execution Rendering', () => {
-    it('should render CodeBlock for successful execution', () => {
+    it('should show canvas indicator for successful execution', () => {
       wrapper = mount(StudioChatMessage, {
         props: {
           ...defaultProps,
@@ -230,10 +226,10 @@ describe('StudioChatMessage', () => {
           }
         }
       })
-      expect(wrapper.find('.mock-codeblock').exists()).toBe(true)
+      expect(wrapper.find('.canvas-output-indicator').exists()).toBe(true)
     })
 
-    it('should render MarkdownRenderer for failed execution', () => {
+    it('should not show canvas indicator for failed execution', () => {
       wrapper = mount(StudioChatMessage, {
         props: {
           ...defaultProps,
@@ -244,7 +240,20 @@ describe('StudioChatMessage', () => {
           }
         }
       })
-      expect(wrapper.find('.mock-markdown').exists()).toBe(true)
+      expect(wrapper.find('.canvas-output-indicator').exists()).toBe(false)
+    })
+
+    it('should not show canvas indicator for plain assistant messages', () => {
+      wrapper = mount(StudioChatMessage, {
+        props: {
+          ...defaultProps,
+          msg: {
+            role: 'assistant',
+            content: 'Just a text response'
+          }
+        }
+      })
+      expect(wrapper.find('.canvas-output-indicator').exists()).toBe(false)
     })
   })
 

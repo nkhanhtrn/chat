@@ -42,14 +42,14 @@ describe('MessageList', () => {
       expect(wrapper.find('.empty-state').exists()).toBe(true)
     })
 
-    it('should display start conversation text', () => {
+    it('should display empty state prompt', () => {
       wrapper = mount(MessageList, { props: defaultProps })
-      expect(wrapper.find('.empty-state').text()).toContain('Start a conversation')
+      expect(wrapper.find('.empty-state').text()).toContain('What do you want to build today?')
     })
 
-    it('should display hint about messages not being saved', () => {
+    it('should display empty state subtext', () => {
       wrapper = mount(MessageList, { props: defaultProps })
-      expect(wrapper.find('.hint').text()).toContain('Messages are not saved')
+      expect(wrapper.find('.subtext').text()).toContain('to get started')
     })
 
     it('should hide empty state when messages exist', () => {

@@ -1,8 +1,8 @@
 <template>
   <div class="messages-container" ref="containerRef">
     <div v-if="messages.length === 0" class="empty-state">
-      <p>Start a conversation with the AI.</p>
-      <p class="hint">Messages are not saved.</p>
+      <p>What do you want to build today? ✨</p>
+      <p class="subtext">Describe your idea to get started</p>
     </div>
     <StudioChatMessage
       v-for="(msg, index) in messages"
@@ -56,7 +56,7 @@ defineExpose({
 .messages-container {
   flex: 1;
   overflow-y: auto;
-  padding: 2rem 4rem;
+  padding: 1.25rem;
 }
 
 .empty-state {
@@ -66,13 +66,20 @@ defineExpose({
   justify-content: center;
   height: 100%;
   color: var(--color-text-muted);
-  font-family: 'Georgia', serif;
-  font-style: italic;
+  font-family: system-ui, sans-serif;
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 2rem;
 }
 
-.empty-state .hint {
+.empty-state p {
+  margin: 0;
+}
+
+.empty-state .subtext {
   font-size: 0.85rem;
   margin-top: 0.5rem;
+  opacity: 0.7;
 }
 
 @media (max-width: 768px) {

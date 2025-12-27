@@ -19,37 +19,34 @@ vi.mock('../components/studio/StudioHeader.vue', () => ({
   }
 }))
 
-vi.mock('../components/studio/MessageList.vue', () => ({
+vi.mock('../components/studio/StudioLayout.vue', () => ({
   default: {
-    name: 'MessageList',
-    template: '<div class="message-list"></div>',
-    props: ['messages', 'isStreaming', 'isSearching', 'searchQuery', 'currentPlanningStep'],
-    setup() {
-      return { containerRef: ref(null) }
-    }
+    name: 'StudioLayout',
+    template: '<div class="studio-layout"><slot name="chat" /><slot name="canvas" /></div>'
   }
 }))
 
-vi.mock('../components/studio/MessageInput.vue', () => ({
+vi.mock('../components/studio/ChatPanel.vue', () => ({
   default: {
-    name: 'MessageInput',
-    template: '<div class="message-input"></div>',
-    props: ['modelValue', 'isStreaming', 'isSearching', 'isRouting', 'currentVerifyAttempt', 'searchStatus', 'hasLoadingUrls', 'hasLoadingFiles', 'isModelReady', 'messagesEmpty', 'detectedUrls', 'uploadedFiles'],
+    name: 'ChatPanel',
+    template: '<div class="chat-panel"></div>',
+    props: ['modelValue', 'messages', 'isStreaming', 'isSearching', 'searchQuery', 'currentPlanningStep', 'isRouting', 'currentVerifyAttempt', 'searchStatus', 'hasLoadingUrls', 'hasLoadingFiles', 'isModelReady', 'detectedUrls', 'uploadedFiles'],
     emits: ['update:modelValue', 'send', 'stop', 'clear', 'trigger-upload', 'file-upload', 'remove-file'],
     setup() {
       return {
-        fileInputRef: { click: vi.fn() },
-        resetHeight: vi.fn()
+        messageListRef: { containerRef: ref(null) },
+        messageInputRef: { fileInputRef: { click: vi.fn() }, resetHeight: vi.fn() }
       }
     }
   }
 }))
 
-vi.mock('../components/MobileFooter.vue', () => ({
+vi.mock('../components/studio/CanvasPanel.vue', () => ({
   default: {
-    name: 'MobileFooter',
-    template: '<div class="mobile-footer"></div>',
-    props: ['activePage', 'showHome', 'showNewNotebook', 'mobileOnly']
+    name: 'CanvasPanel',
+    template: '<div class="canvas-panel"></div>',
+    props: ['windows'],
+    emits: ['close-window', 'update-position', 'update-size', 'bring-to-front']
   }
 }))
 
@@ -112,7 +109,18 @@ const mockChat = {
   clearChat: vi.fn(),
   updateLastMessage: vi.fn(),
   getLastMessage: vi.fn(),
-  scrollToBottom: vi.fn()
+  scrollToBottom: vi.fn(),
+  onOutput: vi.fn()
+}
+
+const mockCanvas = {
+  windows: ref([]),
+  addWindow: vi.fn(),
+  removeWindow: vi.fn(),
+  updateWindowPosition: vi.fn(),
+  updateWindowSize: vi.fn(),
+  bringToFront: vi.fn(),
+  clearWindows: vi.fn()
 }
 
 vi.mock('../composables/useModelSelection.js', () => ({
@@ -135,6 +143,10 @@ vi.mock('../composables/studio/useStudioChat.js', () => ({
   useStudioChat: () => mockChat
 }))
 
+vi.mock('../composables/studio/useStudioCanvas.js', () => ({
+  useStudioCanvas: () => mockCanvas
+}))
+
 describe('StudioChat', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -143,6 +155,7 @@ describe('StudioChat', () => {
     mockAttachments.hasLoadingAttachments.value = false
     mockChat.messages.value = []
     mockChat.isStreaming.value = false
+    mockCanvas.windows.value = []
   })
 
   describe('rendering', () => {
@@ -150,37 +163,23 @@ describe('StudioChat', () => {
       const wrapper = mount(StudioChat)
 
       expect(wrapper.find('.studio-page').exists()).toBe(true)
-      expect(wrapper.find('.studio-content').exists()).toBe(true)
+      expect(wrapper.find('.studio-layout').exists()).toBe(true)
     })
 
     it('should render child components', () => {
       const wrapper = mount(StudioChat)
 
       expect(wrapper.findComponent({ name: 'StudioHeader' }).exists()).toBe(true)
-      expect(wrapper.findComponent({ name: 'MessageList' }).exists()).toBe(true)
-      expect(wrapper.findComponent({ name: 'MessageInput' }).exists()).toBe(true)
+      expect(wrapper.findComponent({ name: 'ChatPanel' }).exists()).toBe(true)
+      expect(wrapper.findComponent({ name: 'CanvasPanel' }).exists()).toBe(true)
     })
 
-    it('should pass correct props to MessageList', () => {
+    it('should pass correct props to ChatPanel', () => {
       mockChat.messages.value = [{ role: 'user', content: 'Hello' }]
       mockChat.isStreaming.value = true
       mockWebSearch.isSearching.value = true
       mockWebSearch.searchQuery.value = 'test query'
       mockPlanning.currentPlanningStep.value = 2
-
-      const wrapper = mount(StudioChat)
-      const messageList = wrapper.findComponent({ name: 'MessageList' })
-
-      expect(messageList.props('messages')).toEqual([{ role: 'user', content: 'Hello' }])
-      expect(messageList.props('isStreaming')).toBe(true)
-      expect(messageList.props('isSearching')).toBe(true)
-      expect(messageList.props('searchQuery')).toBe('test query')
-      expect(messageList.props('currentPlanningStep')).toBe(2)
-    })
-
-    it('should pass correct props to MessageInput', () => {
-      mockChat.isStreaming.value = true
-      mockWebSearch.isSearching.value = true
       mockChat.isRouting.value = true
       mockChat.currentVerifyAttempt.value = 2
       mockWebSearch.searchStatus.value = 'Searching...'
@@ -189,16 +188,19 @@ describe('StudioChat', () => {
       mockModelSelection.isModelReady.value = false
 
       const wrapper = mount(StudioChat)
-      const messageInput = wrapper.findComponent({ name: 'MessageInput' })
+      const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
 
-      expect(messageInput.props('isStreaming')).toBe(true)
-      expect(messageInput.props('isSearching')).toBe(true)
-      expect(messageInput.props('isRouting')).toBe(true)
-      expect(messageInput.props('currentVerifyAttempt')).toBe(2)
-      expect(messageInput.props('searchStatus')).toBe('Searching...')
-      expect(messageInput.props('hasLoadingUrls')).toBe(true)
-      expect(messageInput.props('hasLoadingFiles')).toBe(true)
-      expect(messageInput.props('isModelReady')).toBe(false)
+      expect(chatPanel.props('messages')).toEqual([{ role: 'user', content: 'Hello' }])
+      expect(chatPanel.props('isStreaming')).toBe(true)
+      expect(chatPanel.props('isSearching')).toBe(true)
+      expect(chatPanel.props('searchQuery')).toBe('test query')
+      expect(chatPanel.props('currentPlanningStep')).toBe(2)
+      expect(chatPanel.props('isRouting')).toBe(true)
+      expect(chatPanel.props('currentVerifyAttempt')).toBe(2)
+      expect(chatPanel.props('searchStatus')).toBe('Searching...')
+      expect(chatPanel.props('hasLoadingUrls')).toBe(true)
+      expect(chatPanel.props('hasLoadingFiles')).toBe(true)
+      expect(chatPanel.props('isModelReady')).toBe(false)
     })
   })
 
@@ -220,9 +222,9 @@ describe('StudioChat', () => {
   describe('handleSend', () => {
     it('should not send when input is empty', async () => {
       const wrapper = mount(StudioChat)
-      const messageInput = wrapper.findComponent({ name: 'MessageInput' })
+      const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
 
-      await messageInput.vm.$emit('send')
+      await chatPanel.vm.$emit('send')
 
       expect(mockChat.sendMessage).not.toHaveBeenCalled()
     })
@@ -231,11 +233,11 @@ describe('StudioChat', () => {
       mockModelSelection.isModelReady.value = false
 
       const wrapper = mount(StudioChat)
-      const messageInput = wrapper.findComponent({ name: 'MessageInput' })
+      const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
 
       // Simulate typing via v-model update
-      await messageInput.vm.$emit('update:modelValue', 'Hello')
-      await messageInput.vm.$emit('send')
+      await chatPanel.vm.$emit('update:modelValue', 'Hello')
+      await chatPanel.vm.$emit('send')
 
       expect(mockChat.sendMessage).not.toHaveBeenCalled()
     })
@@ -244,10 +246,10 @@ describe('StudioChat', () => {
       mockChat.isStreaming.value = true
 
       const wrapper = mount(StudioChat)
-      const messageInput = wrapper.findComponent({ name: 'MessageInput' })
+      const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
 
-      await messageInput.vm.$emit('update:modelValue', 'Hello')
-      await messageInput.vm.$emit('send')
+      await chatPanel.vm.$emit('update:modelValue', 'Hello')
+      await chatPanel.vm.$emit('send')
 
       expect(mockChat.sendMessage).not.toHaveBeenCalled()
     })
@@ -256,10 +258,10 @@ describe('StudioChat', () => {
       mockAttachments.hasLoadingAttachments.value = true
 
       const wrapper = mount(StudioChat)
-      const messageInput = wrapper.findComponent({ name: 'MessageInput' })
+      const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
 
-      await messageInput.vm.$emit('update:modelValue', 'Hello')
-      await messageInput.vm.$emit('send')
+      await chatPanel.vm.$emit('update:modelValue', 'Hello')
+      await chatPanel.vm.$emit('send')
 
       expect(mockChat.sendMessage).not.toHaveBeenCalled()
     })
@@ -272,10 +274,10 @@ describe('StudioChat', () => {
       })
 
       const wrapper = mount(StudioChat)
-      const messageInput = wrapper.findComponent({ name: 'MessageInput' })
+      const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
 
-      await messageInput.vm.$emit('update:modelValue', 'Hello world')
-      await messageInput.vm.$emit('send')
+      await chatPanel.vm.$emit('update:modelValue', 'Hello world')
+      await chatPanel.vm.$emit('send')
       await flushPromises()
 
       expect(mockChat.sendMessage).toHaveBeenCalledWith({
@@ -298,22 +300,22 @@ describe('StudioChat', () => {
 
     it('should clear input after sending', async () => {
       const wrapper = mount(StudioChat)
-      const messageInput = wrapper.findComponent({ name: 'MessageInput' })
+      const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
 
-      await messageInput.vm.$emit('update:modelValue', 'Hello')
-      await messageInput.vm.$emit('send')
+      await chatPanel.vm.$emit('update:modelValue', 'Hello')
+      await chatPanel.vm.$emit('send')
       await flushPromises()
 
-      // Check that input was cleared by checking the prop passed to MessageInput
-      expect(messageInput.props('modelValue')).toBe('')
+      // Check that input was cleared by checking the prop passed to ChatPanel
+      expect(chatPanel.props('modelValue')).toBe('')
     })
 
     it('should clear attachments after sending', async () => {
       const wrapper = mount(StudioChat)
-      const messageInput = wrapper.findComponent({ name: 'MessageInput' })
+      const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
 
-      await messageInput.vm.$emit('update:modelValue', 'Hello')
-      await messageInput.vm.$emit('send')
+      await chatPanel.vm.$emit('update:modelValue', 'Hello')
+      await chatPanel.vm.$emit('send')
       await flushPromises()
 
       expect(mockAttachments.clearAll).toHaveBeenCalled()
@@ -321,10 +323,10 @@ describe('StudioChat', () => {
 
     it('should reset web search state after sending', async () => {
       const wrapper = mount(StudioChat)
-      const messageInput = wrapper.findComponent({ name: 'MessageInput' })
+      const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
 
-      await messageInput.vm.$emit('update:modelValue', 'Hello')
-      await messageInput.vm.$emit('send')
+      await chatPanel.vm.$emit('update:modelValue', 'Hello')
+      await chatPanel.vm.$emit('send')
       await flushPromises()
 
       expect(mockWebSearch.reset).toHaveBeenCalled()
@@ -332,10 +334,10 @@ describe('StudioChat', () => {
 
     it('should reset planning state after sending', async () => {
       const wrapper = mount(StudioChat)
-      const messageInput = wrapper.findComponent({ name: 'MessageInput' })
+      const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
 
-      await messageInput.vm.$emit('update:modelValue', 'Hello')
-      await messageInput.vm.$emit('send')
+      await chatPanel.vm.$emit('update:modelValue', 'Hello')
+      await chatPanel.vm.$emit('send')
       await flushPromises()
 
       expect(mockPlanning.reset).toHaveBeenCalled()
@@ -343,10 +345,10 @@ describe('StudioChat', () => {
 
     it('should create search callbacks with correct handlers', async () => {
       const wrapper = mount(StudioChat)
-      const messageInput = wrapper.findComponent({ name: 'MessageInput' })
+      const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
 
-      await messageInput.vm.$emit('update:modelValue', 'Hello')
-      await messageInput.vm.$emit('send')
+      await chatPanel.vm.$emit('update:modelValue', 'Hello')
+      await chatPanel.vm.$emit('send')
       await flushPromises()
 
       expect(mockWebSearch.createSearchCallbacks).toHaveBeenCalledWith({
@@ -357,10 +359,10 @@ describe('StudioChat', () => {
 
     it('should create planning callbacks with correct handlers', async () => {
       const wrapper = mount(StudioChat)
-      const messageInput = wrapper.findComponent({ name: 'MessageInput' })
+      const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
 
-      await messageInput.vm.$emit('update:modelValue', 'Hello')
-      await messageInput.vm.$emit('send')
+      await chatPanel.vm.$emit('update:modelValue', 'Hello')
+      await chatPanel.vm.$emit('send')
       await flushPromises()
 
       expect(mockPlanning.createPlanningCallbacks).toHaveBeenCalledWith({
@@ -374,37 +376,38 @@ describe('StudioChat', () => {
   describe('event handling', () => {
     it('should call stopStreaming on stop event', async () => {
       const wrapper = mount(StudioChat)
-      const messageInput = wrapper.findComponent({ name: 'MessageInput' })
+      const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
 
-      await messageInput.vm.$emit('stop')
+      await chatPanel.vm.$emit('stop')
 
       expect(mockChat.stopStreaming).toHaveBeenCalled()
     })
 
     it('should call clearChat on clear event', async () => {
       const wrapper = mount(StudioChat)
-      const messageInput = wrapper.findComponent({ name: 'MessageInput' })
+      const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
 
-      await messageInput.vm.$emit('clear')
+      await chatPanel.vm.$emit('clear')
 
       expect(mockChat.clearChat).toHaveBeenCalled()
+      expect(mockCanvas.clearWindows).toHaveBeenCalled()
     })
 
     it('should call handleFileUpload on file-upload event', async () => {
       const wrapper = mount(StudioChat)
-      const messageInput = wrapper.findComponent({ name: 'MessageInput' })
+      const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
       const mockEvent = { target: { files: [] } }
 
-      await messageInput.vm.$emit('file-upload', mockEvent)
+      await chatPanel.vm.$emit('file-upload', mockEvent)
 
       expect(mockAttachments.handleFileUpload).toHaveBeenCalledWith(mockEvent)
     })
 
     it('should call removeFile on remove-file event', async () => {
       const wrapper = mount(StudioChat)
-      const messageInput = wrapper.findComponent({ name: 'MessageInput' })
+      const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
 
-      await messageInput.vm.$emit('remove-file', 0)
+      await chatPanel.vm.$emit('remove-file', 0)
 
       expect(mockAttachments.removeFile).toHaveBeenCalledWith(0)
     })
@@ -415,10 +418,10 @@ describe('StudioChat', () => {
       mockModelSelection.twoModelMode.value = true
 
       const wrapper = mount(StudioChat)
-      const messageInput = wrapper.findComponent({ name: 'MessageInput' })
+      const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
 
-      await messageInput.vm.$emit('update:modelValue', 'Hello')
-      await messageInput.vm.$emit('send')
+      await chatPanel.vm.$emit('update:modelValue', 'Hello')
+      await chatPanel.vm.$emit('send')
       await flushPromises()
 
       expect(mockChat.sendMessage).toHaveBeenCalledWith(
@@ -429,23 +432,23 @@ describe('StudioChat', () => {
     })
   })
 
-  describe('messagesEmpty prop', () => {
-    it('should pass messagesEmpty as true when no messages', () => {
+  describe('messages state', () => {
+    it('should have empty messages initially', () => {
       mockChat.messages.value = []
 
       const wrapper = mount(StudioChat)
-      const messageInput = wrapper.findComponent({ name: 'MessageInput' })
+      const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
 
-      expect(messageInput.props('messagesEmpty')).toBe(true)
+      expect(chatPanel.props('messages')).toEqual([])
     })
 
-    it('should pass messagesEmpty as false when has messages', () => {
+    it('should pass messages when they exist', () => {
       mockChat.messages.value = [{ role: 'user', content: 'Hello' }]
 
       const wrapper = mount(StudioChat)
-      const messageInput = wrapper.findComponent({ name: 'MessageInput' })
+      const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
 
-      expect(messageInput.props('messagesEmpty')).toBe(false)
+      expect(chatPanel.props('messages')).toEqual([{ role: 'user', content: 'Hello' }])
     })
   })
 })

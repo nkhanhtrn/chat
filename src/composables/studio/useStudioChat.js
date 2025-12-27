@@ -9,6 +9,8 @@ import {
   buildAttachmentsForDisplay
 } from './studioAttachments.js'
 
+const STORAGE_KEY = 'studio-chat-history'
+
 /**
  * Composable for managing chat messages and streaming in StudioChat
  */
@@ -24,6 +26,71 @@ export function useStudioChat() {
 
   // Abort controller for stopping requests
   let abortController = null
+
+  // Message ID counter
+  let nextMessageId = 1
+
+  // Output event callbacks
+  let onOutputCallback = null
+
+  /**
+   * Save messages to localStorage
+   */
+  function saveToStorage() {
+    try {
+      const state = {
+        messages: messages.value,
+        nextMessageId
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+    } catch (e) {
+      console.warn('Failed to save chat history:', e)
+    }
+  }
+
+  /**
+   * Load messages from localStorage
+   */
+  function loadFromStorage() {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY)
+      if (stored) {
+        const state = JSON.parse(stored)
+        messages.value = state.messages || []
+        nextMessageId = state.nextMessageId || 1
+        return true
+      }
+    } catch (e) {
+      console.warn('Failed to load chat history:', e)
+    }
+    return false
+  }
+
+  // Load from storage on init
+  loadFromStorage()
+
+  /**
+   * Generate unique message ID
+   */
+  function generateMessageId() {
+    return `msg-${nextMessageId++}`
+  }
+
+  /**
+   * Set callback for output events
+   */
+  function onOutput(callback) {
+    onOutputCallback = callback
+  }
+
+  /**
+   * Emit output event
+   */
+  function emitOutput(output) {
+    if (onOutputCallback) {
+      onOutputCallback(output)
+    }
+  }
 
   /**
    * Scroll messages container to bottom
@@ -102,6 +169,7 @@ export function useStudioChat() {
       fullContent: preparedMessage.fullContent,
       attachments: preparedMessage.attachmentsForDisplay
     })
+    saveToStorage()
     scrollToBottom()
   }
 
@@ -111,6 +179,7 @@ export function useStudioChat() {
    */
   function addEmptyAssistantMessage() {
     const msg = {
+      id: generateMessageId(),
       role: 'assistant',
       content: '',
       analysis: null,
@@ -209,14 +278,40 @@ export function useStudioChat() {
         },
         onExecutionComplete: (execution) => {
           updateLastMessage({ execution })
+          // Emit output event for successful execution
+          if (execution.success) {
+            const lastMsg = getLastMessage()
+            emitOutput({
+              messageId: lastMsg.id,
+              type: 'codeResult',
+              content: {
+                result: execution.result,
+                code: lastMsg.generatedCode || ''
+              }
+            })
+          }
           scrollToBottom()
         },
         onVisualizationGenerated: (visualization) => {
           updateLastMessage({ visualization })
+          // Emit output event
+          const lastMsg = getLastMessage()
+          emitOutput({
+            messageId: lastMsg.id,
+            type: visualization.type, // 'chart', 'mermaid', 'svg'
+            content: visualization.content
+          })
           scrollToBottom()
         },
         onToolGenerated: (tool) => {
           updateLastMessage({ tool })
+          // Emit output event
+          const lastMsg = getLastMessage()
+          emitOutput({
+            messageId: lastMsg.id,
+            type: 'tool',
+            content: tool
+          })
           scrollToBottom()
         },
         onPlanGenerated: planningCallbacks.onPlanGenerated,
@@ -304,6 +399,7 @@ export function useStudioChat() {
       isRouting.value = false
       currentVerifyAttempt.value = 0
       abortController = null
+      saveToStorage()
       scrollToBottom()
     }
   }
@@ -322,6 +418,8 @@ export function useStudioChat() {
    */
   function clearChat() {
     messages.value = []
+    nextMessageId = 1
+    saveToStorage()
   }
 
   return {
@@ -338,6 +436,7 @@ export function useStudioChat() {
     updateLastMessage,
     sendMessage,
     stopStreaming,
-    clearChat
+    clearChat,
+    onOutput
   }
 }

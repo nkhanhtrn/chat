@@ -14,58 +14,62 @@
     />
 
     <SlideTransition appear direction="vertical">
-      <div class="studio-content">
-        <!-- Messages -->
-        <MessageList
-          ref="messageListRef"
-          :messages="chat.messages.value"
-          :is-streaming="chat.isStreaming.value"
-          :is-searching="webSearch.isSearching.value"
-          :search-query="webSearch.searchQuery.value"
-          :current-planning-step="planning.currentPlanningStep.value"
-        />
+      <StudioLayout class="studio-content">
+        <!-- Chat Panel (Left) -->
+        <template #chat>
+          <ChatPanel
+            ref="chatPanelRef"
+            v-model="inputText"
+            :messages="chat.messages.value"
+            :is-streaming="chat.isStreaming.value"
+            :is-searching="webSearch.isSearching.value"
+            :search-query="webSearch.searchQuery.value"
+            :current-planning-step="planning.currentPlanningStep.value"
+            :is-routing="chat.isRouting.value"
+            :current-verify-attempt="chat.currentVerifyAttempt.value"
+            :search-status="webSearch.searchStatus.value"
+            :has-loading-urls="attachments.hasLoadingUrls.value"
+            :has-loading-files="attachments.hasLoadingFiles.value"
+            :is-model-ready="modelSelection.isModelReady.value"
+            :detected-urls="attachments.detectedUrls.value"
+            :uploaded-files="attachments.uploadedFiles.value"
+            @send="handleSend"
+            @stop="chat.stopStreaming"
+            @clear="handleClearChat"
+            @trigger-upload="triggerFileUpload"
+            @file-upload="attachments.handleFileUpload"
+            @remove-file="attachments.removeFile"
+          />
+        </template>
 
-        <!-- Input -->
-        <MessageInput
-          ref="messageInputRef"
-          v-model="inputText"
-          :is-streaming="chat.isStreaming.value"
-          :is-searching="webSearch.isSearching.value"
-          :is-routing="chat.isRouting.value"
-          :current-verify-attempt="chat.currentVerifyAttempt.value"
-          :search-status="webSearch.searchStatus.value"
-          :has-loading-urls="attachments.hasLoadingUrls.value"
-          :has-loading-files="attachments.hasLoadingFiles.value"
-          :is-model-ready="modelSelection.isModelReady.value"
-          :messages-empty="chat.messages.value.length === 0"
-          :detected-urls="attachments.detectedUrls.value"
-          :uploaded-files="attachments.uploadedFiles.value"
-          @send="handleSend"
-          @stop="chat.stopStreaming"
-          @clear="chat.clearChat"
-          @trigger-upload="triggerFileUpload"
-          @file-upload="attachments.handleFileUpload"
-          @remove-file="attachments.removeFile"
-        />
-      </div>
+        <!-- Canvas Panel (Right) -->
+        <template #canvas>
+          <CanvasPanel
+            :windows="canvas.windows.value"
+            @close-window="canvas.removeWindow"
+            @update-position="canvas.updateWindowPosition"
+            @update-size="canvas.updateWindowSize"
+            @bring-to-front="canvas.bringToFront"
+          />
+        </template>
+      </StudioLayout>
     </SlideTransition>
-
-    <MobileFooter active-page="studio" show-home />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch, nextTick } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import SlideTransition from '../components/SlideTransition.vue'
 import StudioHeader from '../components/studio/StudioHeader.vue'
-import MessageList from '../components/studio/MessageList.vue'
-import MessageInput from '../components/studio/MessageInput.vue'
-import MobileFooter from '../components/MobileFooter.vue'
+import StudioLayout from '../components/studio/StudioLayout.vue'
+import ChatPanel from '../components/studio/ChatPanel.vue'
+import CanvasPanel from '../components/studio/CanvasPanel.vue'
 import { useModelSelection } from '../composables/useModelSelection.js'
 import { useAttachments } from '../composables/useAttachments.js'
 import { useWebSearch } from '../composables/studio/useWebSearch.js'
 import { usePlanning } from '../composables/studio/usePlanning.js'
 import { useStudioChat } from '../composables/studio/useStudioChat.js'
+import { useStudioCanvas } from '../composables/studio/useStudioCanvas.js'
 
 // Initialize composables
 const modelSelection = useModelSelection()
@@ -73,20 +77,25 @@ const attachments = useAttachments()
 const webSearch = useWebSearch()
 const planning = usePlanning()
 const chat = useStudioChat()
+const canvas = useStudioCanvas()
 
 // Local state
 const inputText = ref('')
-const messageListRef = ref(null)
-const messageInputRef = ref(null)
+const chatPanelRef = ref(null)
 
 // Watch input for URL detection
 attachments.watchInputForUrls(inputText)
 
 // Connect message container ref
-watch(messageListRef, (newRef) => {
-  if (newRef?.containerRef) {
-    chat.messagesContainer.value = newRef.containerRef
+watch(() => chatPanelRef.value?.messageListRef?.containerRef, (newRef) => {
+  if (newRef) {
+    chat.messagesContainer.value = newRef
   }
+})
+
+// Listen for output events and add windows to canvas
+chat.onOutput((output) => {
+  canvas.addWindow(output)
 })
 
 // Initialize on mount
@@ -96,7 +105,13 @@ onMounted(async () => {
 
 // Trigger file upload
 function triggerFileUpload() {
-  messageInputRef.value?.fileInputRef?.click()
+  chatPanelRef.value?.messageInputRef?.fileInputRef?.click()
+}
+
+// Handle clear chat - also clear canvas
+function handleClearChat() {
+  chat.clearChat()
+  canvas.clearWindows()
 }
 
 // Handle send message
@@ -118,7 +133,7 @@ async function handleSend() {
   attachments.clearAll()
 
   // Reset textarea height
-  messageInputRef.value?.resetHeight()
+  chatPanelRef.value?.messageInputRef?.resetHeight()
 
   // Create callbacks for web search
   const searchCallbacks = webSearch.createSearchCallbacks({
@@ -165,7 +180,6 @@ async function handleSend() {
 
 .studio-content {
   display: flex;
-  flex-direction: column;
   flex: 1;
   min-height: 0;
 }

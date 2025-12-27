@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import MessageInput from '../MessageInput.vue'
-import Button from '../../Button.vue'
 import AttachmentStatus from '../AttachmentStatus.vue'
 
 describe('MessageInput', () => {
@@ -34,9 +33,9 @@ describe('MessageInput', () => {
       expect(wrapper.find('.input-container').exists()).toBe(true)
     })
 
-    it('should render the input wrapper', () => {
+    it('should render the input box', () => {
       wrapper = mount(MessageInput, { props: defaultProps })
-      expect(wrapper.find('.input-wrapper').exists()).toBe(true)
+      expect(wrapper.find('.input-box').exists()).toBe(true)
     })
 
     it('should render textarea', () => {
@@ -46,7 +45,7 @@ describe('MessageInput', () => {
 
     it('should render upload button', () => {
       wrapper = mount(MessageInput, { props: defaultProps })
-      expect(wrapper.find('.upload-button').exists()).toBe(true)
+      expect(wrapper.find('.upload-btn').exists()).toBe(true)
     })
 
     it('should render hidden file input', () => {
@@ -56,9 +55,16 @@ describe('MessageInput', () => {
       expect(fileInput.attributes('style')).toContain('display: none')
     })
 
-    it('should render clear button', () => {
+    it('should render clear button when messages exist', () => {
+      wrapper = mount(MessageInput, {
+        props: { ...defaultProps, messagesEmpty: false }
+      })
+      expect(wrapper.find('.clear-btn').exists()).toBe(true)
+    })
+
+    it('should not render clear button when messages empty', () => {
       wrapper = mount(MessageInput, { props: defaultProps })
-      expect(wrapper.find('.clear-button').exists()).toBe(true)
+      expect(wrapper.find('.clear-btn').exists()).toBe(false)
     })
 
     it('should render AttachmentStatus component', () => {
@@ -72,136 +78,102 @@ describe('MessageInput', () => {
       wrapper = mount(MessageInput, {
         props: { ...defaultProps, isStreaming: false }
       })
-      expect(wrapper.findComponent(Button).exists()).toBe(true)
+      expect(wrapper.find('.send-btn').exists()).toBe(true)
     })
 
     it('should show stop button when streaming', () => {
       wrapper = mount(MessageInput, {
         props: { ...defaultProps, isStreaming: true }
       })
-      expect(wrapper.find('.stop-button').exists()).toBe(true)
+      expect(wrapper.find('.stop-btn').exists()).toBe(true)
     })
 
     it('should not show send button when streaming', () => {
       wrapper = mount(MessageInput, {
         props: { ...defaultProps, isStreaming: true }
       })
-      expect(wrapper.find('.send-button').exists()).toBe(false)
+      expect(wrapper.find('.send-btn').exists()).toBe(false)
+    })
+
+    it('should not show stop button when not streaming', () => {
+      wrapper = mount(MessageInput, {
+        props: { ...defaultProps, isStreaming: false }
+      })
+      expect(wrapper.find('.stop-btn').exists()).toBe(false)
     })
   })
 
-  describe('Button Text', () => {
-    it('should show "Send" by default', () => {
-      wrapper = mount(MessageInput, { props: defaultProps })
-      expect(wrapper.findComponent(Button).text()).toBe('Send')
+  describe('Send Button State', () => {
+    it('should disable send button when model not ready', () => {
+      wrapper = mount(MessageInput, {
+        props: { ...defaultProps, isModelReady: false }
+      })
+      expect(wrapper.find('.send-btn').attributes('disabled')).toBeDefined()
     })
 
-    it('should show "Loading..." when URLs are loading', () => {
+    it('should enable send button when model ready and has input', () => {
+      wrapper = mount(MessageInput, {
+        props: { ...defaultProps, isModelReady: true, modelValue: 'hello' }
+      })
+      expect(wrapper.find('.send-btn').attributes('disabled')).toBeUndefined()
+    })
+
+    it('should show loading spinner when URLs are loading', () => {
       wrapper = mount(MessageInput, {
         props: { ...defaultProps, hasLoadingUrls: true }
       })
-      expect(wrapper.findComponent(Button).text()).toBe('Loading...')
+      expect(wrapper.find('.loading-spinner').exists()).toBe(true)
     })
 
-    it('should show "Loading..." when files are loading', () => {
+    it('should show loading spinner when files are loading', () => {
       wrapper = mount(MessageInput, {
         props: { ...defaultProps, hasLoadingFiles: true }
       })
-      expect(wrapper.findComponent(Button).text()).toBe('Loading...')
-    })
-
-    it('should show "Searching..." when searching', () => {
-      wrapper = mount(MessageInput, {
-        props: { ...defaultProps, isSearching: true }
-      })
-      expect(wrapper.findComponent(Button).text()).toBe('Searching...')
+      expect(wrapper.find('.loading-spinner').exists()).toBe(true)
     })
   })
 
-  describe('Stop Button Text', () => {
-    it('should show "Stop generating" by default when streaming', () => {
+  describe('Status Text', () => {
+    it('should show status text when streaming', () => {
       wrapper = mount(MessageInput, {
         props: { ...defaultProps, isStreaming: true }
       })
-      expect(wrapper.find('.stop-button').text()).toBe('Stop generating')
+      expect(wrapper.find('.status-text').exists()).toBe(true)
+    })
+
+    it('should not show status text when not streaming', () => {
+      wrapper = mount(MessageInput, {
+        props: { ...defaultProps, isStreaming: false }
+      })
+      expect(wrapper.find('.status-text').exists()).toBe(false)
     })
 
     it('should show search status when searching', () => {
       wrapper = mount(MessageInput, {
-        props: { ...defaultProps, isStreaming: true, isSearching: true, searchStatus: 'Fetching results...' }
+        props: { ...defaultProps, isStreaming: true, isSearching: true, searchStatus: 'Searching web...' }
       })
-      expect(wrapper.find('.stop-button').text()).toBe('Fetching results...')
+      expect(wrapper.find('.status-text').text()).toContain('Searching web')
     })
 
-    it('should show "Routing..." when routing', () => {
+    it('should show "Analyzing..." when routing', () => {
       wrapper = mount(MessageInput, {
         props: { ...defaultProps, isStreaming: true, isRouting: true }
       })
-      expect(wrapper.find('.stop-button').text()).toBe('Routing...')
+      expect(wrapper.find('.status-text').text()).toContain('Analyzing')
     })
 
-    it('should show retry attempt when verifying', () => {
+    it('should show "Generating..." by default when streaming', () => {
       wrapper = mount(MessageInput, {
-        props: { ...defaultProps, isStreaming: true, currentVerifyAttempt: 2 }
+        props: { ...defaultProps, isStreaming: true }
       })
-      expect(wrapper.find('.stop-button').text()).toBe('Retrying (2)...')
-    })
-  })
-
-  describe('Can Send Logic', () => {
-    it('should disable send when input is empty', () => {
-      wrapper = mount(MessageInput, {
-        props: { ...defaultProps, modelValue: '', isModelReady: true }
-      })
-      expect(wrapper.findComponent(Button).props('disabled')).toBe(true)
-    })
-
-    it('should disable send when model is not ready', () => {
-      wrapper = mount(MessageInput, {
-        props: { ...defaultProps, modelValue: 'hello', isModelReady: false }
-      })
-      expect(wrapper.findComponent(Button).props('disabled')).toBe(true)
-    })
-
-    it('should disable send when URLs are loading', () => {
-      wrapper = mount(MessageInput, {
-        props: { ...defaultProps, modelValue: 'hello', isModelReady: true, hasLoadingUrls: true }
-      })
-      expect(wrapper.findComponent(Button).props('disabled')).toBe(true)
-    })
-
-    it('should disable send when files are loading', () => {
-      wrapper = mount(MessageInput, {
-        props: { ...defaultProps, modelValue: 'hello', isModelReady: true, hasLoadingFiles: true }
-      })
-      expect(wrapper.findComponent(Button).props('disabled')).toBe(true)
-    })
-
-    it('should enable send when all conditions met', () => {
-      wrapper = mount(MessageInput, {
-        props: {
-          ...defaultProps,
-          modelValue: 'hello',
-          isModelReady: true,
-          hasLoadingUrls: false,
-          hasLoadingFiles: false
-        }
-      })
-      expect(wrapper.findComponent(Button).props('disabled')).toBe(false)
-    })
-
-    it('should disable send when input is only whitespace', () => {
-      wrapper = mount(MessageInput, {
-        props: { ...defaultProps, modelValue: '   ', isModelReady: true }
-      })
-      expect(wrapper.findComponent(Button).props('disabled')).toBe(true)
+      expect(wrapper.find('.status-text').text()).toContain('Generating')
     })
   })
 
   describe('Textarea', () => {
     it('should have correct placeholder', () => {
       wrapper = mount(MessageInput, { props: defaultProps })
-      expect(wrapper.find('textarea').attributes('placeholder')).toBe('Type your message...')
+      expect(wrapper.find('textarea').attributes('placeholder')).toBe('Message...')
     })
 
     it('should be disabled when streaming', () => {
@@ -211,55 +183,11 @@ describe('MessageInput', () => {
       expect(wrapper.find('textarea').attributes('disabled')).toBeDefined()
     })
 
-    it('should not be disabled when not streaming', () => {
-      wrapper = mount(MessageInput, {
-        props: { ...defaultProps, isStreaming: false }
-      })
-      expect(wrapper.find('textarea').attributes('disabled')).toBeUndefined()
-    })
-
     it('should display modelValue', () => {
       wrapper = mount(MessageInput, {
-        props: { ...defaultProps, modelValue: 'test message' }
+        props: { ...defaultProps, modelValue: 'Hello world' }
       })
-      expect(wrapper.find('textarea').element.value).toBe('test message')
-    })
-  })
-
-  describe('Upload Button', () => {
-    it('should be disabled when streaming', () => {
-      wrapper = mount(MessageInput, {
-        props: { ...defaultProps, isStreaming: true }
-      })
-      expect(wrapper.find('.upload-button').attributes('disabled')).toBeDefined()
-    })
-
-    it('should not be disabled when not streaming', () => {
-      wrapper = mount(MessageInput, {
-        props: { ...defaultProps, isStreaming: false }
-      })
-      expect(wrapper.find('.upload-button').attributes('disabled')).toBeUndefined()
-    })
-  })
-
-  describe('Clear Button', () => {
-    it('should be disabled when messages are empty', () => {
-      wrapper = mount(MessageInput, {
-        props: { ...defaultProps, messagesEmpty: true }
-      })
-      expect(wrapper.find('.clear-button').attributes('disabled')).toBeDefined()
-    })
-
-    it('should not be disabled when messages exist', () => {
-      wrapper = mount(MessageInput, {
-        props: { ...defaultProps, messagesEmpty: false }
-      })
-      expect(wrapper.find('.clear-button').attributes('disabled')).toBeUndefined()
-    })
-
-    it('should show "Clear chat" text', () => {
-      wrapper = mount(MessageInput, { props: defaultProps })
-      expect(wrapper.find('.clear-button').text()).toBe('Clear chat')
+      expect(wrapper.find('textarea').element.value).toBe('Hello world')
     })
   })
 
@@ -267,23 +195,24 @@ describe('MessageInput', () => {
     it('should emit update:modelValue on input', async () => {
       wrapper = mount(MessageInput, { props: defaultProps })
       const textarea = wrapper.find('textarea')
-      await textarea.setValue('new text')
+      await textarea.setValue('test message')
       expect(wrapper.emitted('update:modelValue')).toBeTruthy()
-      expect(wrapper.emitted('update:modelValue')[0]).toEqual(['new text'])
+      expect(wrapper.emitted('update:modelValue')[0]).toEqual(['test message'])
     })
 
-    it('should emit send on enter key', async () => {
-      wrapper = mount(MessageInput, { props: defaultProps })
-      const textarea = wrapper.find('textarea')
-      await textarea.trigger('keydown.enter')
+    it('should emit send on Enter key', async () => {
+      wrapper = mount(MessageInput, {
+        props: { ...defaultProps, modelValue: 'test' }
+      })
+      await wrapper.find('textarea').trigger('keydown.enter')
       expect(wrapper.emitted('send')).toBeTruthy()
     })
 
     it('should emit send when send button clicked', async () => {
       wrapper = mount(MessageInput, {
-        props: { ...defaultProps, modelValue: 'test', isModelReady: true }
+        props: { ...defaultProps, modelValue: 'test' }
       })
-      await wrapper.findComponent(Button).trigger('click')
+      await wrapper.find('.send-btn').trigger('click')
       expect(wrapper.emitted('send')).toBeTruthy()
     })
 
@@ -291,7 +220,7 @@ describe('MessageInput', () => {
       wrapper = mount(MessageInput, {
         props: { ...defaultProps, isStreaming: true }
       })
-      await wrapper.find('.stop-button').trigger('click')
+      await wrapper.find('.stop-btn').trigger('click')
       expect(wrapper.emitted('stop')).toBeTruthy()
     })
 
@@ -299,13 +228,13 @@ describe('MessageInput', () => {
       wrapper = mount(MessageInput, {
         props: { ...defaultProps, messagesEmpty: false }
       })
-      await wrapper.find('.clear-button').trigger('click')
+      await wrapper.find('.clear-btn').trigger('click')
       expect(wrapper.emitted('clear')).toBeTruthy()
     })
 
     it('should emit triggerUpload when upload button clicked', async () => {
       wrapper = mount(MessageInput, { props: defaultProps })
-      await wrapper.find('.upload-button').trigger('click')
+      await wrapper.find('.upload-btn').trigger('click')
       expect(wrapper.emitted('triggerUpload')).toBeTruthy()
     })
 
@@ -324,7 +253,7 @@ describe('MessageInput', () => {
         }
       })
       const attachmentStatus = wrapper.findComponent(AttachmentStatus)
-      attachmentStatus.vm.$emit('removeFile', 0)
+      await attachmentStatus.vm.$emit('remove-file', 0)
       expect(wrapper.emitted('removeFile')).toBeTruthy()
       expect(wrapper.emitted('removeFile')[0]).toEqual([0])
     })
@@ -338,40 +267,12 @@ describe('MessageInput', () => {
     })
   })
 
-  describe('Exposed Refs and Methods', () => {
-    it('should expose textareaRef', () => {
-      wrapper = mount(MessageInput, { props: defaultProps })
-      expect(wrapper.vm.textareaRef).toBeDefined()
-    })
-
-    it('should expose fileInputRef', () => {
-      wrapper = mount(MessageInput, { props: defaultProps })
-      expect(wrapper.vm.fileInputRef).toBeDefined()
-    })
-
-    it('should expose resetHeight method', () => {
-      wrapper = mount(MessageInput, { props: defaultProps })
-      expect(typeof wrapper.vm.resetHeight).toBe('function')
-    })
-  })
-
-  describe('AttachmentStatus Props', () => {
-    it('should pass detectedUrls to AttachmentStatus', () => {
-      const urls = [{ url: 'https://test.com', status: 'success', content: 'data' }]
+  describe('Button Disabling', () => {
+    it('should disable upload button when streaming', () => {
       wrapper = mount(MessageInput, {
-        props: { ...defaultProps, detectedUrls: urls }
+        props: { ...defaultProps, isStreaming: true }
       })
-      const attachmentStatus = wrapper.findComponent(AttachmentStatus)
-      expect(attachmentStatus.props('detectedUrls')).toEqual(urls)
-    })
-
-    it('should pass uploadedFiles to AttachmentStatus', () => {
-      const files = [{ name: 'test.txt', status: 'success', content: 'data' }]
-      wrapper = mount(MessageInput, {
-        props: { ...defaultProps, uploadedFiles: files }
-      })
-      const attachmentStatus = wrapper.findComponent(AttachmentStatus)
-      expect(attachmentStatus.props('uploadedFiles')).toEqual(files)
+      expect(wrapper.find('.upload-btn').attributes('disabled')).toBeDefined()
     })
   })
 })
