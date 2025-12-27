@@ -217,6 +217,16 @@ export const parseAnalysisResponse = (response) => {
   // Also try to extract fields from malformed JSON in the response
   extractFieldsFromText(response, result)
 
+  // Detect language/text tasks from fallback text content
+  const lowerResponse = response.toLowerCase()
+  if (lowerResponse.includes('language task') ||
+      lowerResponse.includes('text task') ||
+      lowerResponse.includes('not code') ||
+      lowerResponse.includes('cannot be code')) {
+    result.canBeCode = false
+    result.capability = 'text'
+  }
+
   console.log('[Router] Parsed as lines:', result)
   return result
 }

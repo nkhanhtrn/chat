@@ -35,16 +35,16 @@ export const fetchAvailableModels = async (config = {}) => {
 }
 
 /**
- * Find executor model from available models
- * Router model must be explicitly specified by user
+ * Find router and executor models from available models
  * @param {Array} models - List of available models
- * @returns {Object} Object with router (null) and executor model
+ * @returns {Object} Object with router and executor model
  */
 export const findRouterAndExecutorModels = (models) => {
+  const routerPatterns = ['mistral', 'ministral']
   const executorPatterns = ['gpt-oss-20b', 'gpt-oss', 'openai', 'cerebras']
 
   return {
-    router: null,  // User must specify router model explicitly
+    router: findModelByPattern(models, routerPatterns),
     executor: findModelByPattern(models, executorPatterns)
   }
 }

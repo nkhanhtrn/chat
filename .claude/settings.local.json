@@ -29,7 +29,8 @@
       "WebSearch",
       "Bash(mkdir:*)",
       "Bash(timeout 3 node:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(xargs -I {} sh -c 'echo \"\"=== {} ===\"\" && grep -E \"\"name =|routerDescription\"\" {} | head -3')"
     ],
     "deny": [],
     "ask": []
