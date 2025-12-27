@@ -217,6 +217,15 @@ export const fetchAllModels = async () => {
     }
   }
 
+  // Sort: local (lmstudio) first, then cerebras, then google, then others
+  const providerOrder = { lmstudio: 0, cerebras: 1, google: 2 }
+  allModels.sort((a, b) => {
+    const orderA = providerOrder[a.providerId] ?? 99
+    const orderB = providerOrder[b.providerId] ?? 99
+    if (orderA !== orderB) return orderA - orderB
+    return a.name.localeCompare(b.name)
+  })
+
   return allModels
 }
 

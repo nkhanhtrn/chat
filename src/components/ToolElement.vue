@@ -379,6 +379,177 @@
     </div>
   </div>
 
+  <!-- Row (horizontal flex) -->
+  <div v-else-if="element.type === 'row'" class="layout-row" :class="element.class" :style="rowStyle(element)">
+    <div
+      v-for="(child, idx) in element.children"
+      :key="idx"
+      class="row-child"
+      :style="{ flex: child.flex || 1 }"
+    >
+      <ToolElement
+        :element="child"
+        :state="state"
+        @update="(key, val) => $emit('update', key, val)"
+        @action="(action, val) => $emit('action', action, val)"
+        @toggle-checkbox="(key, val, checked) => $emit('toggle-checkbox', key, val, checked)"
+        @toggle-row="(key, idx, col) => $emit('toggle-row', key, idx, col)"
+        @step="(key, delta, min, max) => $emit('step', key, delta, min, max)"
+      />
+    </div>
+  </div>
+
+  <!-- Column (vertical flex) -->
+  <div v-else-if="element.type === 'column'" class="layout-column" :class="element.class">
+    <ToolElement
+      v-for="(child, idx) in element.children"
+      :key="idx"
+      :element="child"
+      :state="state"
+      @update="(key, val) => $emit('update', key, val)"
+      @action="(action, val) => $emit('action', action, val)"
+      @toggle-checkbox="(key, val, checked) => $emit('toggle-checkbox', key, val, checked)"
+      @toggle-row="(key, idx, col) => $emit('toggle-row', key, idx, col)"
+      @step="(key, delta, min, max) => $emit('step', key, delta, min, max)"
+    />
+  </div>
+
+  <!-- Grid -->
+  <div v-else-if="element.type === 'grid'" class="layout-grid" :style="gridStyle(element)">
+    <div
+      v-for="(child, idx) in element.children"
+      :key="idx"
+      class="grid-child"
+      :style="child.gridArea ? { gridArea: child.gridArea } : {}"
+    >
+      <ToolElement
+        :element="child"
+        :state="state"
+        @update="(key, val) => $emit('update', key, val)"
+        @action="(action, val) => $emit('action', action, val)"
+        @toggle-checkbox="(key, val, checked) => $emit('toggle-checkbox', key, val, checked)"
+        @toggle-row="(key, idx, col) => $emit('toggle-row', key, idx, col)"
+        @step="(key, delta, min, max) => $emit('step', key, delta, min, max)"
+      />
+    </div>
+  </div>
+
+  <!-- Item List (CRUD-optimized) -->
+  <div v-else-if="element.type === 'item-list'" class="item-list-container">
+    <!-- Empty State -->
+    <div v-if="!(getItems(element) || []).length" class="empty-state">
+      <div class="empty-icon">{{ element.emptyIcon || '📝' }}</div>
+      <div class="empty-text">{{ element.emptyText || 'No items yet' }}</div>
+      <div class="empty-hint">{{ element.emptyHint || 'Add your first item above' }}</div>
+    </div>
+
+    <!-- Item List -->
+    <div v-else class="item-list">
+      <div
+        v-for="(item, idx) in getItems(element)"
+        :key="item.id || idx"
+        class="item-row"
+        :class="{ 'item-done': item[element.doneKey || 'done'] }"
+      >
+        <!-- Checkbox -->
+        <input
+          v-if="element.showCheckbox !== false"
+          type="checkbox"
+          class="item-checkbox"
+          :checked="item[element.doneKey || 'done']"
+          @change="$emit('action', element.onToggle || 'toggleItem', item.id || idx)"
+        />
+
+        <!-- Content -->
+        <div class="item-content">
+          <span
+            class="item-text"
+            :class="{ 'item-text-done': item[element.doneKey || 'done'] }"
+          >{{ item[element.textKey || 'text'] || item.title || item.name }}</span>
+          <span v-if="element.subtextKey && item[element.subtextKey]" class="item-subtext">
+            {{ item[element.subtextKey] }}
+          </span>
+        </div>
+
+        <!-- Actions -->
+        <div class="item-actions">
+          <button
+            v-if="element.showEdit !== false"
+            class="item-action-btn edit"
+            @click="$emit('action', element.onEdit || 'editItem', item.id || idx)"
+            title="Edit"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+          </button>
+          <button
+            class="item-action-btn delete"
+            @click="$emit('action', element.onDelete || 'deleteItem', item.id || idx)"
+            title="Delete"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Count Footer -->
+    <div v-if="element.showCount !== false && getItems(element)?.length" class="item-count">
+      {{ getItemCount(element) }}
+    </div>
+  </div>
+
+  <!-- Filter Tabs -->
+  <div v-else-if="element.type === 'filter-tabs'" class="filter-tabs">
+    <button
+      v-for="tab in element.tabs"
+      :key="tab.value"
+      class="filter-tab"
+      :class="{ active: state[element.stateKey] === tab.value }"
+      @click="$emit('update', element.stateKey, tab.value)"
+    >
+      {{ tab.label }}
+      <span v-if="tab.countKey && state[tab.countKey] !== undefined" class="filter-count">
+        {{ state[tab.countKey] }}
+      </span>
+    </button>
+  </div>
+
+  <!-- Inline Add (input + button combined) -->
+  <div v-else-if="element.type === 'inline-add'" class="inline-add">
+    <input
+      type="text"
+      class="inline-add-input"
+      :placeholder="element.placeholder || 'Add new item...'"
+      :value="state[element.stateKey]"
+      @input="$emit('update', element.stateKey, $event.target.value)"
+      @keydown.enter="$emit('action', element.action || 'addItem')"
+    />
+    <button
+      class="inline-add-btn"
+      @click="$emit('action', element.action || 'addItem')"
+      :disabled="!state[element.stateKey]?.trim()"
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Stats Bar -->
+  <div v-else-if="element.type === 'stats-bar'" class="stats-bar">
+    <div v-for="stat in element.stats" :key="stat.label" class="stats-bar-item">
+      <span class="stats-bar-value">{{ state[stat.stateKey] ?? stat.value ?? 0 }}</span>
+      <span class="stats-bar-label">{{ stat.label }}</span>
+    </div>
+  </div>
+
   <!-- Tabs -->
   <div v-else-if="element.type === 'tabs'" class="tabs-container">
     <div class="tabs-header">
@@ -436,6 +607,45 @@ const activeTab = ref(0)
 
 // Local state for dismissible alerts
 const dismissed = ref(false)
+
+// Helper for row layout style
+function rowStyle(element) {
+  return {
+    gap: element.gap || '0.75rem',
+    alignItems: element.align || 'stretch',
+    justifyContent: element.justify || 'flex-start'
+  }
+}
+
+// Helper for grid layout style
+function gridStyle(element) {
+  return {
+    gridTemplateColumns: element.columns || 'repeat(2, 1fr)',
+    gridTemplateRows: element.rows || 'auto',
+    gap: element.gap || '0.75rem'
+  }
+}
+
+// Helper to get items from state (supports computed keys like 'filteredItems')
+function getItems(element) {
+  const key = element.itemsKey || element.stateKey || 'items'
+  return props.state[key] || []
+}
+
+// Helper to format item count
+function getItemCount(element) {
+  const items = getItems(element)
+  const doneKey = element.doneKey || 'done'
+  const done = items.filter(i => i[doneKey]).length
+  const total = items.length
+
+  if (element.countFormat === 'done') {
+    return `${done}/${total} done`
+  } else if (element.countFormat === 'remaining') {
+    return `${total - done} remaining`
+  }
+  return `${total} item${total !== 1 ? 's' : ''}`
+}
 </script>
 
 <style scoped>
@@ -1187,5 +1397,309 @@ h6.heading-element { font-size: 0.9rem; }
   max-width: 100%;
   height: auto;
   border-radius: 6px;
+}
+
+/* Item List (CRUD-optimized) */
+.item-list-container {
+  margin-bottom: 0.75rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: var(--color-text-muted);
+}
+
+.empty-icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+  opacity: 0.5;
+}
+
+.empty-text {
+  font-size: 1rem;
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+}
+
+.empty-hint {
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+.item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.item-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background-color: var(--color-bg-elevated);
+  border-radius: 6px;
+  transition: background-color 0.15s;
+}
+
+.item-row:hover {
+  background-color: var(--color-bg-hover);
+}
+
+.item-row.item-done {
+  opacity: 0.6;
+}
+
+.item-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.item-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.item-text {
+  font-size: 0.95rem;
+  color: var(--color-text-base);
+  word-break: break-word;
+}
+
+.item-text-done {
+  text-decoration: line-through;
+  color: var(--color-text-muted);
+}
+
+.item-subtext {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.item-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.item-row:hover .item-actions {
+  opacity: 1;
+}
+
+.item-action-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.item-action-btn:hover {
+  background-color: var(--color-bg-secondary);
+}
+
+.item-action-btn.edit:hover {
+  color: var(--color-primary);
+}
+
+.item-action-btn.delete:hover {
+  color: var(--color-error-text);
+  background-color: var(--color-error-bg);
+}
+
+.item-count {
+  text-align: center;
+  padding: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  border-top: 1px solid var(--color-border-subtle);
+  margin-top: 0.5rem;
+}
+
+/* Filter Tabs */
+.filter-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background-color: var(--color-bg-secondary);
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+}
+
+.filter-tab {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.filter-tab:hover {
+  color: var(--color-text-base);
+}
+
+.filter-tab.active {
+  background-color: var(--color-bg-elevated);
+  color: var(--color-text-strong);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.filter-count {
+  font-size: 0.75rem;
+  padding: 0.1rem 0.4rem;
+  background-color: var(--color-bg-secondary);
+  border-radius: 10px;
+  min-width: 1.25rem;
+  text-align: center;
+}
+
+.filter-tab.active .filter-count {
+  background-color: var(--color-primary);
+  color: var(--color-text-inverse);
+}
+
+/* Inline Add */
+.inline-add {
+  display: flex;
+  gap: 0;
+  margin-bottom: 0.75rem;
+}
+
+.inline-add-input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  font-size: 0.95rem;
+  border: 1px solid var(--color-border-input);
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  background-color: var(--color-bg-input);
+  color: var(--color-text-base);
+}
+
+.inline-add-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.inline-add-input:focus + .inline-add-btn {
+  border-color: var(--color-primary);
+}
+
+.inline-add-btn {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-border-input);
+  border-radius: 0 8px 8px 0;
+  background-color: var(--color-primary);
+  color: var(--color-text-inverse);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s, opacity 0.15s;
+}
+
+.inline-add-btn:hover:not(:disabled) {
+  background-color: var(--color-primary-hover);
+}
+
+.inline-add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Stats Bar */
+.stats-bar {
+  display: flex;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background-color: var(--color-bg-secondary);
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+}
+
+.stats-bar-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.stats-bar-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text-strong);
+}
+
+.stats-bar-label {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+/* Layout: Row */
+.layout-row {
+  display: flex;
+  flex-direction: row;
+  margin-bottom: 0.75rem;
+}
+
+.row-child {
+  min-width: 0; /* Allow children to shrink */
+}
+
+.layout-row.wrap {
+  flex-wrap: wrap;
+}
+
+.layout-row.center {
+  align-items: center;
+}
+
+.layout-row.end {
+  justify-content: flex-end;
+}
+
+.layout-row.space-between {
+  justify-content: space-between;
+}
+
+/* Layout: Column */
+.layout-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+/* Layout: Grid */
+.layout-grid {
+  display: grid;
+  margin-bottom: 0.75rem;
+}
+
+.grid-child {
+  min-width: 0; /* Allow children to shrink */
 }
 </style>

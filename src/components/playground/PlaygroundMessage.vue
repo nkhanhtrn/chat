@@ -15,6 +15,7 @@
         :search-query="msg.webSearchQuery || searchQuery"
         :web-sources="webSources"
         :plan-steps="planSteps"
+        :build-steps="msg.buildSteps || []"
         :generated-code="msg.generatedCode || ''"
         :attempts="msg.attempts || 0"
         :execution-status="msg.execution?.success ? 'success' : (msg.execution ? 'failed' : null)"

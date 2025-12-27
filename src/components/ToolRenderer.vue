@@ -5,12 +5,30 @@
       <!-- Single line display (calculator style) -->
       <template v-if="tool.display.type === 'single'">
         <div class="display-single">{{ displayValue }}</div>
+        <button class="copy-btn" @click="copyToClipboard(displayValue)" :title="copied ? 'Copied!' : 'Copy'">
+          <svg v-if="!copied" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+        </button>
       </template>
 
       <!-- Multi-line display -->
       <template v-else-if="tool.display.type === 'multi'">
         <div class="display-secondary">{{ displayData.secondary || '' }}</div>
         <div class="display-main">{{ displayData.main || '' }}</div>
+        <button class="copy-btn" @click="copyToClipboard(displayData.main)" :title="copied ? 'Copied!' : 'Copy'">
+          <svg v-if="!copied" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+        </button>
       </template>
 
       <!-- Stats display -->
@@ -67,10 +85,24 @@ const props = defineProps({
   }
 })
 
-// Initialize per-tool data store
+// Initialize per-tool data store - this is REACTIVE Vue state
 const state = reactive({})
 const openAccordions = reactive({})
 const dismissedAlerts = reactive({})
+const copied = ref(false)
+
+// Copy to clipboard with visual feedback
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(String(text))
+    copied.value = true
+    setTimeout(() => {
+      copied.value = false
+    }, 1500)
+  } catch (e) {
+    console.error('Failed to copy:', e)
+  }
+}
 
 // Computed db store that updates when tool name changes
 const db = computed(() => useToolDataStore(props.tool.name || 'unnamed-tool'))
@@ -122,8 +154,13 @@ function executeFormatter(formatter) {
   }
 }
 
+// Create a reactive snapshot of state to track all changes
+const stateSnapshot = computed(() => JSON.stringify(state))
+
 // Compute display value using displayFormatter
 const displayValue = computed(() => {
+  // Track all state changes by depending on snapshot
+  void stateSnapshot.value
   if (!props.tool.displayFormatter) {
     return state.display || ''
   }
@@ -137,6 +174,8 @@ const displayValue = computed(() => {
 
 // Compute display data for complex displays
 const displayData = computed(() => {
+  // Track all state changes by depending on snapshot
+  void stateSnapshot.value
   if (!props.tool.displayFormatter) {
     return { main: '', secondary: '', stats: [], color: '#000000', formats: [] }
   }
@@ -164,20 +203,29 @@ function executeAction(actionName, value) {
   let actionCode = props.tool.actions[actionName]
 
   try {
-    const fn = new Function('state', 'value', 'updateDisplay', 'db', actionCode)
-    fn(state, value, () => {}, db.value)
+    // Strip wrapping function if LLM generated one
+    const trimmed = actionCode.trim()
+    if (trimmed.startsWith('function')) {
+      const match = trimmed.match(/^function\s*\([^)]*\)\s*\{([\s\S]*)\}\s*$/)
+      if (match) {
+        actionCode = match[1].trim()
+      }
+    }
+    // Pass reactive state - Vue will auto-update when state changes
+    const fn = new Function('state', 'value', 'db', actionCode)
+    fn(state, value, db.value)
   } catch (e) {
     // Try fixing escape sequences and retry
     if (e.message.includes('escape') || e.message.includes('Invalid')) {
       try {
         actionCode = fixEscapeSequences(actionCode)
-        const fn = new Function('state', 'value', 'updateDisplay', 'db', actionCode)
-        fn(state, value, () => {}, db.value)
+        const fn = new Function('state', 'value', 'db', actionCode)
+        fn(state, value, db.value)
       } catch (e2) {
         console.error('Action error after fix attempt:', e2)
       }
     } else {
-      console.error('Action error:', e)
+      console.error('Action error:', e, '\nAction code:', actionCode)
     }
   }
 }
@@ -256,6 +304,37 @@ watch([() => state.r, () => state.g, () => state.b], ([r, g, b]) => {
   border-radius: 8px;
   overflow: hidden;
   flex-shrink: 0;
+  position: relative;
+}
+
+.copy-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  padding: 0.35rem;
+  border: none;
+  border-radius: 4px;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background-color 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tool-display:hover .copy-btn {
+  opacity: 1;
+}
+
+.copy-btn:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: var(--color-text-base);
+}
+
+.copy-btn svg {
+  display: block;
 }
 
 .display-single {

@@ -78,7 +78,8 @@
 
       <!-- Tool -->
       <div v-else-if="window.type === 'tool'" class="tool-wrapper" :class="{ 'is-improving': isImproving }">
-        <ToolRenderer :tool="window.content" />
+        <VueToolRenderer v-if="isVueSfcTool" :code="window.content.code" />
+        <ToolRenderer v-else :tool="window.content" />
         <div v-if="isImproving" class="tool-overlay">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinning">
             <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="12"></circle>
@@ -102,19 +103,17 @@
     <!-- Improve Tool Panel -->
     <div v-if="showImprovePanel && window.type === 'tool'" class="improve-panel">
       <div class="improve-input-row">
-        <textarea
+        <input
           v-model="improvePrompt"
           class="improve-input"
           placeholder="Describe improvements..."
-          rows="1"
-          @keydown.ctrl.enter="submitImprove"
-          @keydown.meta.enter="submitImprove"
-        ></textarea>
+          @keydown.enter="submitImprove"
+        />
         <button
           class="improve-submit-btn"
           @click="submitImprove"
           :disabled="!improvePrompt.trim() || isImproving"
-          title="Send (Ctrl+Enter)"
+          title="Send (Enter)"
         >
           <svg v-if="!isImproving" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -126,8 +125,11 @@
         </button>
       </div>
       <details class="spec-details">
-        <summary>Current Specification</summary>
-        <CodeDisplay language="json" :code="JSON.stringify(window.content, null, 2)" />
+        <summary>Current {{ isVueSfcTool ? 'Component' : 'Specification' }}</summary>
+        <CodeDisplay
+          :language="isVueSfcTool ? 'vue' : 'json'"
+          :code="isVueSfcTool ? window.content.code : JSON.stringify(window.content, null, 2)"
+        />
       </details>
     </div>
 
@@ -148,6 +150,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import ChartRenderer from '../ChartRenderer.vue'
 import MermaidBlock from '../markdown/MermaidBlock.vue'
 import ToolRenderer from '../ToolRenderer.vue'
+import VueToolRenderer from '../VueToolRenderer.vue'
 import InlineEdit from '../InlineEdit.vue'
 import CodeDisplay from './CodeDisplay.vue'
 import { parseChartOption } from '../../utils/chart.js'
@@ -206,6 +209,13 @@ const typeIcon = computed(() => {
     case 'codeResult': return '💻'
     default: return '📋'
   }
+})
+
+// Check if tool is Vue SFC type
+const isVueSfcTool = computed(() => {
+  return props.window.type === 'tool' &&
+         props.window.content?.type === 'vue-sfc' &&
+         props.window.content?.code
 })
 
 // Format result to ensure it's a string
@@ -498,6 +508,8 @@ onUnmounted(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  margin: -0.5rem; /* Negate window-content padding */
+  background: var(--color-bg-base);
 }
 
 .tool-wrapper.is-improving > :first-child {
@@ -729,9 +741,7 @@ onUnmounted(() => {
   border-radius: 6px;
   background-color: var(--color-bg-input);
   color: var(--color-text-base);
-  resize: none;
-  min-height: 36px;
-  max-height: 80px;
+  height: 36px;
 }
 
 .improve-input:focus {

@@ -50,20 +50,56 @@
 
       <!-- Build Progress -->
       <template v-else-if="capability === 'build'">
-        <pre v-if="rawOutput" class="output-content">{{ formatOutput(rawOutput) }}</pre>
+        <div v-if="buildSteps && buildSteps.length > 0" class="build-progress">
+          <div
+            v-for="(step, idx) in buildSteps"
+            :key="idx"
+            class="build-step-item"
+            :class="step.status"
+          >
+            <div
+              class="build-step-summary"
+              :class="{ clickable: step.output && step.status === 'complete' }"
+              @click="step.output && step.status === 'complete' && toggleBuildStep(idx)"
+            >
+              <span v-if="step.status === 'running'" class="spinner small"></span>
+              <span v-else-if="step.status === 'complete'" class="step-check">✓</span>
+              <span v-else class="step-pending">○</span>
+              <span class="step-label">{{ step.task }}</span>
+              <span v-if="step.output && step.status === 'complete'" class="step-expand">
+                {{ expandedBuildSteps[idx] ? '▼' : '▶' }}
+              </span>
+            </div>
+            <CodeDisplay
+              v-if="step.output && step.status === 'complete' && expandedBuildSteps[idx]"
+              language="json"
+              :code="formatOutput(step.output)"
+              class="build-step-output"
+            />
+          </div>
+        </div>
+        <pre v-else-if="rawOutput" class="output-content">{{ formatOutput(rawOutput) }}</pre>
       </template>
     </div>
   </details>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, reactive } from 'vue'
 import WebSearchProgress from './WebSearchProgress.vue'
+import CodeDisplay from './studio/CodeDisplay.vue'
 
 // Component name for recursive use
 defineOptions({
   name: 'CapabilityProgress'
 })
+
+// Track which build steps are expanded (collapsed by default)
+const expandedBuildSteps = reactive({})
+
+function toggleBuildStep(idx) {
+  expandedBuildSteps[idx] = !expandedBuildSteps[idx]
+}
 
 const props = defineProps({
   capability: {
@@ -109,6 +145,11 @@ const props = defineProps({
   vizType: {
     type: String,
     default: ''
+  },
+  // Build specific
+  buildSteps: {
+    type: Array,
+    default: () => []
   },
   // Raw output (JSON, code result, etc.)
   rawOutput: {
@@ -160,7 +201,7 @@ const hasContent = computed(() => {
   if (props.capability === 'websearch') return props.searchQuery || props.webSources.length > 0
   if (props.capability === 'code') return !!props.generatedCode
   if (props.capability === 'visualization') return !!props.rawOutput
-  if (props.capability === 'build') return !!props.rawOutput
+  if (props.capability === 'build') return props.buildSteps.length > 0 || !!props.rawOutput
   return false
 })
 </script>
@@ -498,6 +539,65 @@ const hasContent = computed(() => {
 
 .status-icon.pending {
   color: var(--color-text-muted);
+}
+
+/* Build Progress */
+.build-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 0.2rem;
+}
+
+.build-step-item {
+  font-size: 0.7rem;
+}
+
+.build-step-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0;
+  color: var(--color-text-muted);
+}
+
+.build-step-item.complete .build-step-summary,
+.build-step-item.running .build-step-summary {
+  color: var(--color-text-base);
+}
+
+.build-step-summary .step-check {
+  color: #22c55e;
+  font-size: 0.65rem;
+}
+
+.build-step-summary .step-pending {
+  opacity: 0.5;
+  font-size: 0.65rem;
+}
+
+.build-step-summary .step-label {
+  font-size: 0.65rem;
+}
+
+.build-step-summary.clickable {
+  cursor: pointer;
+}
+
+.build-step-summary.clickable:hover {
+  color: var(--color-text-base);
+}
+
+.build-step-summary .step-expand {
+  font-size: 0.5rem;
+  opacity: 0.4;
+  margin-left: 0.15rem;
+}
+
+.build-step-output {
+  margin-left: 1rem;
+  margin-top: 0.15rem;
+  margin-bottom: 0.15rem;
 }
 
 </style>

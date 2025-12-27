@@ -1432,4 +1432,256 @@ describe('ToolRenderer', () => {
       expect(wrapper.vm.state.result).toBe('hello world')
     })
   })
+
+  describe('Copy Button', () => {
+    let writeTextMock
+
+    beforeEach(() => {
+      writeTextMock = vi.fn().mockResolvedValue(undefined)
+      vi.stubGlobal('navigator', {
+        clipboard: {
+          writeText: writeTextMock
+        }
+      })
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('should render copy button for single display', () => {
+      wrapper = mount(ToolRenderer, {
+        props: { tool: createCalculatorTool() }
+      })
+
+      expect(wrapper.find('.copy-btn').exists()).toBe(true)
+    })
+
+    it('should render copy button for multi display', () => {
+      wrapper = mount(ToolRenderer, {
+        props: { tool: createConverterTool() }
+      })
+
+      expect(wrapper.find('.copy-btn').exists()).toBe(true)
+    })
+
+    it('should not render copy button for stats display', () => {
+      wrapper = mount(ToolRenderer, {
+        props: { tool: createTextProcessorTool() }
+      })
+
+      expect(wrapper.find('.copy-btn').exists()).toBe(false)
+    })
+
+    it('should copy single display value to clipboard', async () => {
+      const tool = {
+        name: 'Test',
+        state: { value: '12345' },
+        display: { type: 'single' },
+        elements: [],
+        actions: {},
+        displayFormatter: 'return state.value;'
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      await wrapper.find('.copy-btn').trigger('click')
+
+      expect(writeTextMock).toHaveBeenCalledWith('12345')
+    })
+
+    it('should copy multi display main value to clipboard', async () => {
+      const tool = {
+        name: 'Test',
+        state: { result: 'Hello World' },
+        display: { type: 'multi' },
+        elements: [],
+        actions: {},
+        displayFormatter: "return { main: state.result, secondary: 'info' };"
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      await wrapper.find('.copy-btn').trigger('click')
+
+      expect(writeTextMock).toHaveBeenCalledWith('Hello World')
+    })
+
+    it('should show checkmark icon after copying', async () => {
+      vi.useFakeTimers()
+
+      const tool = {
+        name: 'Test',
+        state: { value: 'test' },
+        display: { type: 'single' },
+        elements: [],
+        actions: {},
+        displayFormatter: 'return state.value;'
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      // Before click - should show copy icon (has rect element)
+      expect(wrapper.find('.copy-btn svg rect').exists()).toBe(true)
+
+      await wrapper.find('.copy-btn').trigger('click')
+      await nextTick()
+
+      // After click - should show checkmark (has polyline element)
+      expect(wrapper.find('.copy-btn svg polyline').exists()).toBe(true)
+
+      // After timeout - should revert to copy icon
+      vi.advanceTimersByTime(1600)
+      await nextTick()
+
+      expect(wrapper.find('.copy-btn svg rect').exists()).toBe(true)
+
+      vi.useRealTimers()
+    })
+
+    it('should handle clipboard errors gracefully', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      writeTextMock.mockRejectedValue(new Error('Clipboard error'))
+
+      const tool = {
+        name: 'Test',
+        state: { value: 'test' },
+        display: { type: 'single' },
+        elements: [],
+        actions: {},
+        displayFormatter: 'return state.value;'
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      // Should not throw
+      await wrapper.find('.copy-btn').trigger('click')
+
+      expect(consoleSpy).toHaveBeenCalledWith('Failed to copy:', expect.any(Error))
+      consoleSpy.mockRestore()
+    })
+  })
+
+  describe('Function Wrapper Stripping', () => {
+    it('should strip anonymous function wrapper from action', async () => {
+      const tool = {
+        name: 'Test',
+        state: { count: 0 },
+        elements: [
+          { type: 'button', label: 'Increment', action: 'increment' }
+        ],
+        actions: {
+          // LLM sometimes generates function wrappers
+          increment: "function() { state.count++; }"
+        }
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      await wrapper.find('.single-button').trigger('click')
+      expect(wrapper.vm.state.count).toBe(1)
+    })
+
+    it('should strip function wrapper with parameters', async () => {
+      const tool = {
+        name: 'Test',
+        state: { value: '' },
+        elements: [
+          { type: 'button', label: 'Set', action: 'setValue', value: 'test' }
+        ],
+        actions: {
+          setValue: "function(state, value) { state.value = value; }"
+        }
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      await wrapper.find('.single-button').trigger('click')
+      expect(wrapper.vm.state.value).toBe('test')
+    })
+
+    it('should strip function wrapper with whitespace', async () => {
+      const tool = {
+        name: 'Test',
+        state: { done: false },
+        elements: [
+          { type: 'button', label: 'Done', action: 'markDone' }
+        ],
+        actions: {
+          markDone: "  function ()  {\n  state.done = true;\n}  "
+        }
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      await wrapper.find('.single-button').trigger('click')
+      expect(wrapper.vm.state.done).toBe(true)
+    })
+
+    it('should handle multiline function body', async () => {
+      const tool = {
+        name: 'Test',
+        state: { a: 1, b: 2, sum: 0 },
+        elements: [
+          { type: 'button', label: 'Calculate', action: 'calculate' }
+        ],
+        actions: {
+          calculate: `function() {
+            const result = state.a + state.b;
+            state.sum = result;
+          }`
+        }
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      await wrapper.find('.single-button').trigger('click')
+      expect(wrapper.vm.state.sum).toBe(3)
+    })
+
+    it('should not modify action without function wrapper', async () => {
+      const tool = {
+        name: 'Test',
+        state: { count: 0 },
+        elements: [
+          { type: 'button', label: 'Add', action: 'add' }
+        ],
+        actions: {
+          add: "state.count += 1;"
+        }
+      }
+
+      wrapper = mount(ToolRenderer, {
+        props: { tool }
+      })
+      await nextTick()
+
+      await wrapper.find('.single-button').trigger('click')
+      expect(wrapper.vm.state.count).toBe(1)
+    })
+  })
 })

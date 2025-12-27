@@ -30,11 +30,10 @@ describe('BuildCapability', () => {
       expect(desc.description).toContain('INTERACTIVE')
     })
 
-    it('should have conditions for interactive tool creation', () => {
+    it('should have conditions for tool creation', () => {
       const desc = capability.getRouterDescription()
       expect(desc.conditions.length).toBeGreaterThan(0)
-      // Conditions should describe interactive intent
-      expect(desc.conditions.some(c => c.toLowerCase().includes('interactive') || c.toLowerCase().includes('tool'))).toBe(true)
+      expect(desc.conditions.some(c => c.toLowerCase().includes('tool'))).toBe(true)
     })
 
     it('should include examples', () => {
@@ -58,140 +57,80 @@ describe('BuildCapability', () => {
     })
 
     it('should not handle without explicit build signals', () => {
-      // canHandle relies on router setting capability/isBuildTool/toolType
-      // not on parsing taskDescription - that's the router's job
       expect(capability.canHandle({ taskDescription: 'Build a calculator' })).toBe(false)
     })
 
-    it('should handle when router sets toolType', () => {
-      expect(capability.canHandle({ toolType: 'custom', toolName: 'My App' })).toBe(true)
-    })
-
-    it('should not handle plain text requests', () => {
-      expect(capability.canHandle({ capability: 'text', taskDescription: 'Explain how to make a tool' })).toBe(false)
-    })
-
-    it('should not handle unrelated capabilities', () => {
-      expect(capability.canHandle({ capability: 'text', taskDescription: 'Explain something' })).toBe(false)
-    })
-
-    it('should not handle code capability', () => {
-      expect(capability.canHandle({ capability: 'code', canBeCode: true })).toBeFalsy()
+    it('should not handle other capabilities', () => {
+      expect(capability.canHandle({ capability: 'text' })).toBe(false)
+      expect(capability.canHandle({ capability: 'code' })).toBe(false)
     })
   })
 
-  describe('getSystemPrompt', () => {
-    it('should return a system prompt string', () => {
-      const prompt = capability.getSystemPrompt()
-      expect(typeof prompt).toBe('string')
-      expect(prompt.length).toBeGreaterThan(100)
+  describe('_parseOutput', () => {
+    it('should extract Vue SFC from clean code', () => {
+      const code = `<template>
+  <div>Hello</div>
+</template>
+
+<script>
+export default {
+  data() { return {} }
+}
+</script>`
+
+      const result = capability._parseOutput(code)
+      expect(result.type).toBe('vue-sfc')
+      expect(result.code).toContain('<template>')
+      expect(result.code).toContain('</script>')
     })
 
-    it('should include tool specification format', () => {
-      const prompt = capability.getSystemPrompt()
-      expect(prompt).toContain('TOOL SPECIFICATION FORMAT')
-      expect(prompt).toContain('"name"')
-      expect(prompt).toContain('"elements"')
-      expect(prompt).toContain('"actions"')
+    it('should remove markdown code fences', () => {
+      const code = '```vue\n<template><div>Test</div></template>\n<script>export default {}</script>\n```'
+      const result = capability._parseOutput(code)
+      expect(result.code).not.toContain('```')
+      expect(result.code).toContain('<template>')
     })
 
-    it('should include element types', () => {
-      const prompt = capability.getSystemPrompt()
-      expect(prompt).toContain('button-grid')
-      expect(prompt).toContain('button-row')
-      expect(prompt).toContain('input')
-      expect(prompt).toContain('select')
+    it('should throw error for invalid Vue component', () => {
+      expect(() => capability._parseOutput('not a vue component')).toThrow('Invalid Vue component')
     })
 
-    it('should include layout options', () => {
-      const prompt = capability.getSystemPrompt()
-      expect(prompt).toContain('calculator')
-      expect(prompt).toContain('converter')
-      expect(prompt).toContain('form')
-    })
-  })
+    it('should handle code with style block', () => {
+      const code = `<template><div>Test</div></template>
+<script>export default {}</script>
+<style>.test { color: red; }</style>`
 
-  describe('buildExecutorPrompt', () => {
-    it('should include user message', () => {
-      const context = { userMessage: 'build me a calculator' }
-      const prompt = capability.buildExecutorPrompt(context)
-      expect(prompt).toContain('build me a calculator')
-    })
-
-    it('should ask for complete JSON specification', () => {
-      const context = { userMessage: 'create a word counter' }
-      const prompt = capability.buildExecutorPrompt(context)
-      expect(prompt).toContain('JSON specification')
-    })
-  })
-
-  describe('cleanOutput', () => {
-    it('should remove markdown code blocks with json', () => {
-      const input = '```json\n{"name": "Test"}\n```'
-      const output = capability.cleanOutput(input)
-      expect(output).toBe('{"name": "Test"}')
-    })
-
-    it('should remove plain markdown code blocks', () => {
-      const input = '```\n{"name": "Test"}\n```'
-      const output = capability.cleanOutput(input)
-      expect(output).toBe('{"name": "Test"}')
-    })
-
-    it('should handle clean JSON', () => {
-      const input = '{"name": "Test", "elements": []}'
-      const output = capability.cleanOutput(input)
-      expect(output).toBe('{"name": "Test", "elements": []}')
-    })
-
-    it('should trim whitespace', () => {
-      const input = '  \n{"name": "Test"}\n  '
-      const output = capability.cleanOutput(input)
-      expect(output).toBe('{"name": "Test"}')
-    })
-  })
-
-  describe('formatOutput', () => {
-    it('should return tool type and displayHint', () => {
-      const result = { name: 'Calculator', elements: [] }
-      const output = capability.formatOutput(result, { toolSpec: result })
-
-      expect(output.type).toBe('tool')
-      expect(output.displayHint).toBe('tool')
-      expect(output.content).toEqual(result)
-    })
-
-    it('should include toolSpec in metadata', () => {
-      const result = { name: 'Test', elements: [] }
-      const output = capability.formatOutput(result, { toolSpec: result })
-
-      expect(output.metadata.toolSpec).toEqual(result)
+      const result = capability._parseOutput(code)
+      expect(result.code).toContain('<style>')
+      expect(result.code).toContain('</style>')
     })
   })
 
   describe('execute', () => {
-    it('should return success with valid tool spec', async () => {
-      const validToolSpec = JSON.stringify({
-        name: 'Calculator',
-        description: 'A simple calculator',
-        layout: 'calculator',
-        state: { display: '0' },
-        elements: [
-          {
-            type: 'button-grid',
-            columns: 4,
-            buttons: [
-              { label: '1', action: 'digit', value: '1' }
-            ]
-          }
-        ],
-        actions: {
-          digit: 'state.display = value;'
-        },
-        displayFormatter: 'return state.display;'
-      })
+    it('should return success with valid Vue component', async () => {
+      const vueComponent = `<template>
+  <div class="calculator">
+    <div class="display">{{ display }}</div>
+    <button @click="add">+</button>
+  </div>
+</template>
 
-      mockProvider.sendMessage.mockResolvedValue(validToolSpec)
+<script>
+export default {
+  data() {
+    return { display: '0' }
+  },
+  methods: {
+    add() { this.display = '1' }
+  }
+}
+</script>
+
+<style>
+.calculator { padding: 1rem; }
+</style>`
+
+      mockProvider.sendMessage.mockResolvedValue(vueComponent)
 
       const context = {
         fullContext: 'build a calculator',
@@ -205,14 +144,14 @@ describe('BuildCapability', () => {
       const result = await capability.execute(context)
 
       expect(result.success).toBe(true)
-      expect(result.result.name).toBe('Calculator')
-      expect(result.result.elements).toHaveLength(1)
+      expect(result.result.type).toBe('vue-sfc')
+      expect(result.result.code).toContain('<template>')
       expect(result.error).toBeNull()
     })
 
-    it('should handle JSON wrapped in markdown', async () => {
-      const wrappedSpec = '```json\n{"name": "Test", "elements": []}\n```'
-      mockProvider.sendMessage.mockResolvedValue(wrappedSpec)
+    it('should handle Vue code wrapped in markdown', async () => {
+      const wrappedCode = '```vue\n<template><div>Test</div></template>\n<script>export default {}</script>\n```'
+      mockProvider.sendMessage.mockResolvedValue(wrappedCode)
 
       const context = {
         fullContext: 'build a test tool',
@@ -226,11 +165,11 @@ describe('BuildCapability', () => {
       const result = await capability.execute(context)
 
       expect(result.success).toBe(true)
-      expect(result.result.name).toBe('Test')
+      expect(result.result.code).not.toContain('```')
     })
 
-    it('should return error for invalid JSON', async () => {
-      mockProvider.sendMessage.mockResolvedValue('not valid json at all')
+    it('should return error for invalid output', async () => {
+      mockProvider.sendMessage.mockResolvedValue('not a vue component at all')
 
       const context = {
         fullContext: 'build something',
@@ -244,53 +183,12 @@ describe('BuildCapability', () => {
       const result = await capability.execute(context)
 
       expect(result.success).toBe(false)
-      expect(result.error).toContain('No valid tool specification')
-    })
-
-    it('should return error when name is missing', async () => {
-      const invalidSpec = JSON.stringify({ elements: [] })
-      mockProvider.sendMessage.mockResolvedValue(invalidSpec)
-
-      const context = {
-        fullContext: 'build something',
-        models: { executorId: 'test-model' },
-        config: {},
-        provider: mockProvider,
-        signal: new AbortController().signal,
-        callbacks: {}
-      }
-
-      const result = await capability.execute(context)
-
-      expect(result.success).toBe(false)
-      expect(result.error).toContain('missing required fields')
-    })
-
-    it('should return error when elements is missing', async () => {
-      const invalidSpec = JSON.stringify({ name: 'Test' })
-      mockProvider.sendMessage.mockResolvedValue(invalidSpec)
-
-      const context = {
-        fullContext: 'build something',
-        models: { executorId: 'test-model' },
-        config: {},
-        provider: mockProvider,
-        signal: new AbortController().signal,
-        callbacks: {}
-      }
-
-      const result = await capability.execute(context)
-
-      expect(result.success).toBe(false)
-      expect(result.error).toContain('missing required fields')
+      expect(result.error).toContain('Invalid Vue component')
     })
 
     it('should call onToolGenerated callback', async () => {
-      const validSpec = JSON.stringify({
-        name: 'Test',
-        elements: [{ type: 'button', label: 'Click', action: 'test' }]
-      })
-      mockProvider.sendMessage.mockResolvedValue(validSpec)
+      const vueCode = '<template><div>Test</div></template>\n<script>export default {}</script>'
+      mockProvider.sendMessage.mockResolvedValue(vueCode)
 
       const onToolGenerated = vi.fn()
       const context = {
@@ -306,16 +204,16 @@ describe('BuildCapability', () => {
 
       expect(onToolGenerated).toHaveBeenCalledTimes(1)
       expect(onToolGenerated).toHaveBeenCalledWith(expect.objectContaining({
-        name: 'Test'
+        type: 'vue-sfc'
       }))
     })
 
-    it('should extract JSON from text with surrounding content', async () => {
-      const messyOutput = 'Here is the tool:\n{"name": "Tool", "elements": []}\nEnjoy!'
-      mockProvider.sendMessage.mockResolvedValue(messyOutput)
+    it('should make single LLM call', async () => {
+      const vueCode = '<template><div>Test</div></template>\n<script>export default {}</script>'
+      mockProvider.sendMessage.mockResolvedValue(vueCode)
 
       const context = {
-        fullContext: 'build something',
+        fullContext: 'build a test tool',
         models: { executorId: 'test-model' },
         config: {},
         provider: mockProvider,
@@ -323,10 +221,207 @@ describe('BuildCapability', () => {
         callbacks: {}
       }
 
-      const result = await capability.execute(context)
+      await capability.execute(context)
 
-      expect(result.success).toBe(true)
-      expect(result.result.name).toBe('Tool')
+      expect(mockProvider.sendMessage).toHaveBeenCalledTimes(1)
+    })
+
+    it('should include piped data in prompt', async () => {
+      const vueCode = '<template><div>Test</div></template>\n<script>export default {}</script>'
+      mockProvider.sendMessage.mockResolvedValue(vueCode)
+
+      const context = {
+        fullContext: 'build a data viewer',
+        models: { executorId: 'test-model' },
+        config: {},
+        provider: mockProvider,
+        signal: new AbortController().signal,
+        callbacks: {}
+      }
+
+      await capability.execute(context, { data: { items: [1, 2, 3] } })
+
+      const callArgs = mockProvider.sendMessage.mock.calls[0]
+      const userMessage = callArgs[1].find(m => m.role === 'user')
+      expect(userMessage.content).toContain('items')
+    })
+  })
+
+  describe('editTool', () => {
+    it('should send consolidated code and request to LLM', async () => {
+      const currentCode = '<template><div>Old</div></template>\n<script>export default {}</script>'
+      const newCode = '<template><div>New</div></template>\n<script>export default {}</script>'
+
+      mockProvider.sendMessage.mockResolvedValue(newCode)
+
+      const result = await capability.editTool(
+        currentCode,
+        'change text to New',
+        'test-model',
+        mockProvider,
+        {},
+        new AbortController().signal
+      )
+
+      expect(result.type).toBe('vue-sfc')
+      expect(result.code).toContain('New')
+
+      const callArgs = mockProvider.sendMessage.mock.calls[0]
+      const userMessage = callArgs[1].find(m => m.role === 'user')
+      expect(userMessage.content).toContain('<template>')
+      expect(userMessage.content).toContain('change text to New')
+    })
+
+    it('should instruct LLM to consolidate code', async () => {
+      const newCode = '<template><div>New</div></template>\n<script>export default {}</script>'
+      mockProvider.sendMessage.mockResolvedValue(newCode)
+
+      await capability.editTool(
+        '<template><div>Test</div></template>\n<script>export default {}</script>',
+        'update',
+        'test-model',
+        mockProvider,
+        {},
+        new AbortController().signal
+      )
+
+      const callArgs = mockProvider.sendMessage.mock.calls[0]
+      const systemMessage = callArgs[1].find(m => m.role === 'system')
+      expect(systemMessage.content).toContain('consolidate')
+      expect(systemMessage.content).toContain('Remove comments')
+    })
+
+    it('should include all consolidation instructions in system prompt', async () => {
+      const newCode = '<template><div>New</div></template>\n<script>export default {}</script>'
+      mockProvider.sendMessage.mockResolvedValue(newCode)
+
+      await capability.editTool(
+        '<template><div>Test</div></template>\n<script>export default {}</script>',
+        'update',
+        'test-model',
+        mockProvider,
+        {},
+        new AbortController().signal
+      )
+
+      const callArgs = mockProvider.sendMessage.mock.calls[0]
+      const systemMessage = callArgs[1].find(m => m.role === 'system')
+      expect(systemMessage.content).toContain('Remove comments and unused code')
+      expect(systemMessage.content).toContain('Simplify verbose patterns')
+      expect(systemMessage.content).toContain('Keep functionality identical')
+    })
+
+    it('should include full code in user prompt for consolidation', async () => {
+      const currentCode = `<template>
+  <div class="container">
+    <h1>Title</h1>
+    <p>Content</p>
+  </div>
+</template>
+<script>
+export default {
+  data() { return { count: 0 } }
+}
+</script>`
+      const newCode = '<template><div>New</div></template>\n<script>export default {}</script>'
+      mockProvider.sendMessage.mockResolvedValue(newCode)
+
+      await capability.editTool(
+        currentCode,
+        'simplify',
+        'test-model',
+        mockProvider,
+        {},
+        new AbortController().signal
+      )
+
+      const callArgs = mockProvider.sendMessage.mock.calls[0]
+      const userMessage = callArgs[1].find(m => m.role === 'user')
+      expect(userMessage.content).toContain('container')
+      expect(userMessage.content).toContain('count')
+      expect(userMessage.content).toContain('simplify')
+    })
+
+    it('should log token estimate', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+      const currentCode = '<template><div>Test</div></template>\n<script>export default {}</script>'
+      const newCode = '<template><div>New</div></template>\n<script>export default {}</script>'
+
+      mockProvider.sendMessage.mockResolvedValue(newCode)
+
+      await capability.editTool(
+        currentCode,
+        'update',
+        'test-model',
+        mockProvider,
+        {},
+        new AbortController().signal
+      )
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[BuildCapability] Edit tokens:')
+      )
+
+      consoleSpy.mockRestore()
+    })
+
+    it('should return parsed Vue component', async () => {
+      const newCode = `<template>
+  <div>Updated</div>
+</template>
+
+<script>
+export default {
+  data() { return { count: 0 } }
+}
+</script>`
+
+      mockProvider.sendMessage.mockResolvedValue(newCode)
+
+      const result = await capability.editTool(
+        '<template><div>Old</div></template><script>export default {}</script>',
+        'add a counter',
+        'test-model',
+        mockProvider,
+        {},
+        new AbortController().signal
+      )
+
+      expect(result.type).toBe('vue-sfc')
+      expect(result.code).toContain('Updated')
+      expect(result.code).toContain('count')
+    })
+  })
+
+  describe('formatOutput', () => {
+    it('should return tool type and displayHint', () => {
+      const result = { code: '<template></template>', type: 'vue-sfc' }
+      const output = capability.formatOutput(result)
+
+      expect(output.type).toBe('tool')
+      expect(output.displayHint).toBe('tool')
+      expect(output.content).toEqual(result)
+    })
+  })
+
+  describe('receiveInput', () => {
+    it('should extract data from pipe input', () => {
+      const context = { fullContext: 'test' }
+      const pipeInput = { data: { items: [1, 2, 3] } }
+
+      const result = capability.receiveInput(pipeInput, context)
+
+      expect(result.data).toEqual({ items: [1, 2, 3] })
+      expect(result.context).toBe(context)
+    })
+
+    it('should handle null pipe input', () => {
+      const context = { fullContext: 'test' }
+
+      const result = capability.receiveInput(null, context)
+
+      expect(result.data).toBeNull()
+      expect(result.context).toBe(context)
     })
   })
 })

@@ -190,6 +190,7 @@ export function useStudioChat() {
       execution: null,
       visualization: null,
       tool: null,
+      buildSteps: null,
       attempts: 0,
       webSearchResults: null
     }
@@ -315,6 +316,32 @@ export function useStudioChat() {
             type: 'tool',
             content: tool
           })
+          scrollToBottom()
+        },
+        onBuildStepStart: (stepInfo) => {
+          const lastMsg = getLastMessage()
+          const buildSteps = lastMsg.buildSteps || []
+          buildSteps.push({
+            step: stepInfo.step,
+            task: stepInfo.task,
+            status: 'running',
+            output: null
+          })
+          updateLastMessage({ buildSteps: [...buildSteps] })
+          scrollToBottom()
+        },
+        onBuildStepComplete: (stepInfo) => {
+          const lastMsg = getLastMessage()
+          const buildSteps = lastMsg.buildSteps || []
+          const stepIndex = buildSteps.findIndex(s => s.step === stepInfo.step)
+          if (stepIndex !== -1) {
+            buildSteps[stepIndex] = {
+              ...buildSteps[stepIndex],
+              status: 'complete',
+              output: stepInfo.output
+            }
+            updateLastMessage({ buildSteps: [...buildSteps] })
+          }
           scrollToBottom()
         },
         onPlanGenerated: planningCallbacks.onPlanGenerated,
@@ -462,8 +489,11 @@ export function useStudioChat() {
       const provider = getProvider(providerId)
       const config = getProviderConfigById(providerId)
 
+      // For Vue SFC tools, pass the code; for legacy JSON, pass the spec
+      const codeOrSpec = currentSpec.type === 'vue-sfc' ? currentSpec.code : currentSpec
+
       const improvedTool = await buildCapability.editTool(
-        currentSpec,
+        codeOrSpec,
         prompt,
         modelId,
         provider,

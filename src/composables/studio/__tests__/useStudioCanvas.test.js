@@ -378,6 +378,55 @@ describe('useStudioCanvas', () => {
     })
   })
 
+  describe('updateWindowContent', () => {
+    it('should update window content', () => {
+      const canvas = useStudioCanvas()
+      const window = canvas.addWindow({ messageId: 'msg-1', type: 'tool', content: { code: 'old' } })
+
+      canvas.updateWindowContent(window.id, { code: 'new', type: 'vue-sfc' })
+
+      expect(canvas.windows.value[0].content).toEqual({ code: 'new', type: 'vue-sfc' })
+    })
+
+    it('should trigger reactivity by replacing window object', () => {
+      const canvas = useStudioCanvas()
+      const window = canvas.addWindow({ messageId: 'msg-1', type: 'tool', content: { code: 'old' } })
+
+      const originalWindow = canvas.windows.value[0]
+      canvas.updateWindowContent(window.id, { code: 'new' })
+
+      // Should be a new object reference (for reactivity)
+      expect(canvas.windows.value[0]).not.toBe(originalWindow)
+      expect(canvas.windows.value[0].content).toEqual({ code: 'new' })
+    })
+
+    it('should preserve other window properties', () => {
+      const canvas = useStudioCanvas()
+      const window = canvas.addWindow({ messageId: 'msg-1', type: 'tool', content: { code: 'old' } })
+
+      canvas.updateWindowPosition(window.id, { x: 100, y: 200 })
+      canvas.updateWindowContent(window.id, { code: 'new' })
+
+      expect(canvas.windows.value[0].position).toEqual({ x: 100, y: 200 })
+      expect(canvas.windows.value[0].type).toBe('tool')
+      expect(canvas.windows.value[0].messageId).toBe('msg-1')
+    })
+
+    it('should not error for non-existent window', () => {
+      const canvas = useStudioCanvas()
+      expect(() => canvas.updateWindowContent('non-existent', { code: 'test' })).not.toThrow()
+    })
+
+    it('should save to localStorage after updating', () => {
+      const canvas = useStudioCanvas()
+      const window = canvas.addWindow({ messageId: 'msg-1', type: 'tool', content: {} })
+      vi.clearAllMocks()
+
+      canvas.updateWindowContent(window.id, { code: 'new' })
+      expect(localStorageMock.setItem).toHaveBeenCalled()
+    })
+  })
+
   describe('minimizedWindowsByCategory', () => {
     it('should group minimized windows by type', () => {
       const canvas = useStudioCanvas()

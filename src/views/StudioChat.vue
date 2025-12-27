@@ -1,17 +1,7 @@
 <template>
   <div class="studio-page">
     <!-- Header -->
-    <StudioHeader
-      v-model:two-model-mode="modelSelection.twoModelMode.value"
-      v-model:selected-provider="modelSelection.selectedProvider.value"
-      v-model:selected-model="modelSelection.selectedModel.value"
-      v-model:router-model="modelSelection.routerModel.value"
-      v-model:executor-model="modelSelection.executorModel.value"
-      :providers="modelSelection.providers.value"
-      :models="modelSelection.models.value"
-      :all-models="modelSelection.allModels.value"
-      @update:selected-provider="modelSelection.onProviderChange"
-    />
+    <StudioHeader />
 
     <SlideTransition appear direction="vertical">
       <StudioLayout class="studio-content">
@@ -20,6 +10,11 @@
           <ChatPanel
             ref="chatPanelRef"
             v-model="inputText"
+            v-model:two-model-mode="modelSelection.twoModelMode.value"
+            v-model:router-model="modelSelection.routerModel.value"
+            v-model:executor-model="modelSelection.executorModel.value"
+            v-model:selected-provider="modelSelection.selectedProvider.value"
+            v-model:selected-model="modelSelection.selectedModel.value"
             :messages="chat.messages.value"
             :is-streaming="chat.isStreaming.value"
             :is-searching="webSearch.isSearching.value"
@@ -33,6 +28,10 @@
             :is-model-ready="modelSelection.isModelReady.value"
             :detected-urls="attachments.detectedUrls.value"
             :uploaded-files="attachments.uploadedFiles.value"
+            :all-models="modelSelection.allModels.value"
+            :providers="modelSelection.providers.value"
+            :models="modelSelection.models.value"
+            @update:selected-provider="modelSelection.onProviderChange"
             @send="handleSend"
             @stop="chat.stopStreaming"
             @clear="handleClearChat"
