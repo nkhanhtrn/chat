@@ -604,13 +604,6 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
     response.visualization = null
     response.tool = result.success ? result.result : null
     response.finalResponse = result.success ? '' : `Error: ${result.error}`
-  } else if (finalCapability.name === 'extraction') {
-    response.code = null
-    response.execution = null
-    response.visualization = null
-    response.tool = null
-    response.extractedData = result.result
-    response.finalResponse = result.success ? formatResult(result.result) : `Error: ${result.error}`
   } else {
     // Text response
     response.code = null
