@@ -35,7 +35,7 @@ import {
   formatAttachmentsForPrompt
 } from '../attachmentReader.js'
 import { searchWeb } from '../webSearch.js'
-import { fetchUrlContent } from '../urlFetcher.js'
+import { fetchUrlContent, cleanHtml } from '../urlFetcher.js'
 import { registry } from './capabilities/index.js'
 
 /**
@@ -80,30 +80,18 @@ const tryParseJson = (response) => {
  * Normalize a JSON analysis response to the expected format
  */
 const normalizeJsonAnalysis = (json) => {
-  const result = {
-    capability: 'text',
-    taskDescription: json.taskDescription || '',
+  return {
+    capability: json.capability?.toLowerCase() || 'text',
+    taskDescription: json.taskDescription || json.task || '',
     needsWebSearch: json.needsWebSearch || false,
     searchQuery: json.searchQuery || '',
     inputs: json.inputs || [],
     isVisualization: json.isVisualization || false,
     visualizationType: json.visualizationType || null,
-    canBeCode: json.canBeCode !== undefined ? json.canBeCode : true,
     codeType: json.codeType || 'expression',
     functionName: json.functionName || '',
     expectedOutput: json.expectedOutput || ''
   }
-
-  // Determine capability from JSON fields
-  if (json.isVisualization) {
-    result.capability = 'visualization'
-  } else if (json.canBeCode === true) {
-    result.capability = 'code'
-  } else if (json.canBeCode === false) {
-    result.capability = 'text'
-  }
-
-  return result
 }
 
 /**
@@ -118,9 +106,9 @@ const extractFieldsFromText = (text, result) => {
   const funcMatch = text.match(/"functionName"\s*:\s*"([^"]+)"/)
   if (funcMatch) result.functionName = funcMatch[1]
 
-  // Extract canBeCode
-  const codeMatch = text.match(/"canBeCode"\s*:\s*(true|false)/)
-  if (codeMatch) result.canBeCode = codeMatch[1] === 'true'
+  // Extract capability
+  const capMatch = text.match(/"capability"\s*:\s*"([^"]+)"/)
+  if (capMatch) result.capability = capMatch[1].toLowerCase()
 
   // Extract isVisualization
   const vizMatch = text.match(/"isVisualization"\s*:\s*(true|false)/)
@@ -133,13 +121,6 @@ const extractFieldsFromText = (text, result) => {
   const vizTypeMatch = text.match(/"visualizationType"\s*:\s*"([^"]+)"/)
   if (vizTypeMatch) result.visualizationType = vizTypeMatch[1]
 
-  // Detect language task from text content
-  const languageKeywords = ['language task', 'translate', 'translation', 'summarize', 'explain', 'describe']
-  if (languageKeywords.some(kw => text.toLowerCase().includes(kw))) {
-    result.canBeCode = false
-    result.capability = 'text'
-  }
-
   return result
 }
 
@@ -148,20 +129,17 @@ const extractFieldsFromText = (text, result) => {
  * Tries JSON first, then falls back to line-based parsing
  */
 const parseAnalysisResponse = (response) => {
+  console.log('[Router] Raw response:\n', response)
+
   // Try JSON parsing first
   const jsonResult = tryParseJson(response)
   if (jsonResult) {
+    console.log('[Router] Parsed as JSON:', jsonResult)
     return jsonResult
   }
 
   // Fall back to line-based parsing
   const lines = response.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('---'))
-
-  // Check if this is a multi-step plan
-  const planLine = lines.find(l => l.toLowerCase().startsWith('plan:'))
-  if (planLine || lines.some(l => /^step\s+\d+/i.test(l))) {
-    return parseMultiStepPlan(lines, planLine)
-  }
 
   // Try line-based parsing
   const result = parseSingleStep(lines)
@@ -169,6 +147,7 @@ const parseAnalysisResponse = (response) => {
   // Also try to extract fields from malformed JSON in the response
   extractFieldsFromText(response, result)
 
+  console.log('[Router] Parsed as lines:', result)
   return result
 }
 
@@ -184,7 +163,6 @@ const parseSingleStep = (lines) => {
     inputs: [],
     isVisualization: false,
     visualizationType: null,
-    canBeCode: true,
     codeType: 'expression',
     functionName: '',
     expectedOutput: ''
@@ -221,239 +199,12 @@ const parseSingleStep = (lines) => {
     }
   }
 
-  // Infer properties from capability
+  // Infer isVisualization from capability
   if (result.capability === 'visualization') {
     result.isVisualization = true
   }
-  if (result.capability === 'code') {
-    result.canBeCode = true
-  }
 
   return result
-}
-
-/**
- * Parse multi-step plan response
- */
-const parseMultiStepPlan = (lines, planLine) => {
-  const result = {
-    requiresPlanning: true,
-    summary: planLine ? planLine.replace(/^plan:\s*/i, '') : 'Multi-step task',
-    steps: []
-  }
-
-  let currentStep = null
-
-  for (const line of lines) {
-    // Check for STEP N header
-    const stepMatch = line.match(/^step\s+(\d+)/i)
-    if (stepMatch) {
-      if (currentStep) {
-        result.steps.push(currentStep)
-      }
-      currentStep = {
-        stepNumber: parseInt(stepMatch[1]),
-        capability: 'text',
-        taskDescription: '',
-        description: '',
-        inputs: [],
-        needsWebSearch: false,
-        searchQuery: ''
-      }
-      continue
-    }
-
-    // Skip if no current step yet (preamble lines)
-    if (!currentStep) continue
-
-    // Parse key: value
-    const colonIdx = line.indexOf(':')
-    if (colonIdx === -1) continue
-
-    const key = line.slice(0, colonIdx).toLowerCase().trim()
-    const value = line.slice(colonIdx + 1).trim()
-
-    switch (key) {
-      case 'capability':
-        currentStep.capability = value.toLowerCase()
-        break
-      case 'task':
-      case 'taskdescription':
-        currentStep.taskDescription = value
-        currentStep.description = value
-        break
-      case 'description':
-        currentStep.description = value
-        if (!currentStep.taskDescription) currentStep.taskDescription = value
-        break
-      case 'searchquery':
-      case 'search':
-        currentStep.searchQuery = value
-        currentStep.needsWebSearch = !!value
-        break
-      case 'input':
-      case 'inputs':
-        // Handle {{step_N_result}} references
-        currentStep.inputs.push({ name: 'input', value, type: 'string' })
-        break
-      case 'codetype':
-        currentStep.codeType = value
-        break
-      case 'visualizationtype':
-        currentStep.visualizationType = value
-        currentStep.isVisualization = true
-        break
-    }
-  }
-
-  // Don't forget the last step
-  if (currentStep) {
-    result.steps.push(currentStep)
-  }
-
-  return result
-}
-
-/**
- * Check if analysis contains a multi-step plan
- */
-const isPlanAnalysis = (analysis) => {
-  return analysis.requiresPlanning === true && Array.isArray(analysis.steps) && analysis.steps.length > 0
-}
-
-/**
- * Replace step result placeholders in inputs
- * e.g., {{step_1_result}} -> actual result from step 1
- */
-const resolveStepInputs = (inputs, stepResults) => {
-  if (!inputs || !Array.isArray(inputs)) return inputs
-
-  return inputs.map(input => {
-    if (typeof input.value === 'string') {
-      // Replace {{step_N_result}} placeholders
-      const replaced = input.value.replace(/\{\{step_(\d+)_result\}\}/g, (match, stepNum) => {
-        const result = stepResults[parseInt(stepNum)]
-        return result !== undefined ? JSON.stringify(result) : match
-      })
-      // Try to parse back to original type if it was a placeholder
-      if (replaced !== input.value) {
-        try {
-          return { ...input, value: JSON.parse(replaced) }
-        } catch {
-          return { ...input, value: replaced }
-        }
-      }
-    }
-    return input
-  })
-}
-
-/**
- * Execute a single step/analysis using its capability
- * @param {Object} analysis - Step analysis
- * @param {string} fullContext - Text context for LLM
- * @param {Object} models - Router/executor model config
- * @param {AbortSignal} signal - Abort signal
- * @param {Function} onChunk - Streaming callback
- * @param {Object} options - Callbacks and options
- * @param {Object} previousResults - Structured results from previous steps { stepNum: { capability, data } }
- * @param {Object|null} pipeInput - Piped data from previous capability (PipeData format)
- */
-const executeSingleStep = async (analysis, fullContext, models, signal, onChunk, options, previousResults = {}, pipeInput = null) => {
-  const capability = registry.resolve(analysis) || registry.getDefault()
-  if (!capability) throw new Error(`No capability for: ${analysis.capability}`)
-
-  const executorProviderId = models.executorProviderId || 'lmstudio'
-
-  const context = {
-    analysis,
-    userMessage: fullContext,
-    fullContext,
-    messages: [{ role: 'user', content: fullContext }],
-    models,
-    config: getProviderConfig(executorProviderId),
-    provider: getProvider(executorProviderId),
-    signal,
-    onChunk,
-    previousResults,  // Pass structured data from previous steps (backwards compatibility)
-    callbacks: {
-      onCodeGenerated: options.onCodeGenerated,
-      onExecutionComplete: options.onExecutionComplete,
-      onVerifyAttempt: options.onVerifyAttempt,
-      onVisualizationGenerated: options.onVisualizationGenerated,
-      onWebSearchStart: options.onWebSearchStart,
-      onWebSearchProgress: options.onWebSearchProgress,
-      onWebSearchResult: options.onWebSearchResult,
-      onWebSearchComplete: options.onWebSearchComplete,
-      verifyMode: options.verifyMode ?? false,
-      maxRetries: options.maxRetries ?? 3
-    }
-  }
-
-  // Execute with pipe interface - pass pipeInput if available
-  const result = await capability.execute(context, pipeInput)
-
-  return {
-    success: result.success,
-    result: result.result,
-    error: result.error,
-    capability: capability.name,
-    code: result.metadata?.code || null,
-    execution: result.metadata?.executionDetails || null,
-    visualization: capability.name === 'visualization' ? result.result : null,
-    tool: capability.name === 'build' ? result.result : null,
-    webSearchResults: capability.name === 'websearch' ? result.result : [],
-    finalResponse: formatStepResponse(capability.name, result),
-    pipe: result.pipe  // Include pipe output for chaining
-  }
-}
-
-/**
- * Format step response based on capability type
- */
-const formatStepResponse = (capabilityName, result) => {
-  if (capabilityName === 'code') {
-    return result.success ? formatResult(result.result) : `Error: ${result.error}`
-  }
-  if (capabilityName === 'websearch') {
-    return ''  // Web search results are passed to next step, not displayed directly
-  }
-  if (capabilityName === 'extraction') {
-    return result.success ? formatResult(result.result) : `Error: ${result.error}`
-  }
-  return result.result || ''
-}
-
-/**
- * Format a step's result for inclusion in context (human-readable)
- */
-const formatResultForContext = (capability, data) => {
-  if (!data) return 'No data'
-
-  switch (capability) {
-    case 'websearch':
-      // Format web search results as source summaries
-      if (Array.isArray(data)) {
-        return data.map((r, i) =>
-          `Source ${i + 1}: ${r.title || r.url}\n${r.content?.substring(0, 500) || r.snippet || ''}...`
-        ).join('\n\n')
-      }
-      return JSON.stringify(data, null, 2)
-
-    case 'code':
-      // Format code result
-      if (typeof data === 'object') {
-        return JSON.stringify(data, null, 2)
-      }
-      return String(data)
-
-    case 'visualization':
-      return '[Visualization data - use previousResults for raw data]'
-
-    default:
-      if (typeof data === 'string') return data
-      return JSON.stringify(data, null, 2)
-  }
 }
 
 /**
@@ -494,7 +245,8 @@ const performWebSearch = async (query, callbacks = {}, signal = null) => {
 
     const fetchPromises = searchResults.map(async (searchResult, i) => {
       try {
-        const pageContent = await fetchUrlContent(searchResult.url, { maxLength: 6000 })
+        const rawContent = await fetchUrlContent(searchResult.url)
+        const pageContent = cleanHtml(rawContent)
         const result = {
           query,
           url: searchResult.url,
@@ -557,14 +309,14 @@ export const fetchAvailableModels = async (config = {}) => {
 }
 
 /**
- * Find router and executor models from available models
+ * Find executor model from available models
+ * Router model must be explicitly specified by user
  */
 export const findRouterAndExecutorModels = (models) => {
-  const routerPatterns = ['ministral', 'mistral-3b', 'mistral3b', 'mistral-3', 'mistral']
   const executorPatterns = ['gpt-oss-20b', 'gpt-oss', 'openai', 'cerebras']
 
   return {
-    router: findModelByPattern(models, routerPatterns),
+    router: null,  // User must specify router model explicitly
     executor: findModelByPattern(models, executorPatterns)
   }
 }
@@ -737,115 +489,18 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
     onAnalysis(analysis)
   }
 
-  // Step 3: Check for multi-step plan
-  if (isPlanAnalysis(analysis)) {
-    const { onPlanCreated, onStepStart, onStepComplete, waitForPlanApproval } = options
-
-    if (onPlanCreated) {
-      onPlanCreated({ summary: analysis.summary, steps: analysis.steps })
-    }
-
-    // If waitForPlanApproval is provided, wait for user confirmation before executing
-    if (waitForPlanApproval) {
-      const approved = await waitForPlanApproval({ summary: analysis.summary, steps: analysis.steps })
-      if (!approved) {
-        // User rejected the plan - return early with just the analysis
-        return {
-          analysis,
-          parsedAttachments,
-          plan: { summary: analysis.summary, steps: analysis.steps, previousResults: {} },
-          cancelled: true,
-          finalResponse: 'Plan execution cancelled by user.'
-        }
-      }
-    }
-
-    // Structured results: { stepNum: { capability, data, success } }
-    const previousResults = {}
-    let finalResponse = null
-    let lastPipeOutput = null  // Track pipe output for chaining
-
-    for (const step of analysis.steps) {
-      if (signal?.aborted) break
-
-      if (onStepStart) {
-        onStepStart({ stepNumber: step.stepNumber, description: step.description, capability: step.capability })
-      }
-
-      // Build text context with formatted previous results (for LLM reasoning)
-      let stepContext = lastUserMessage.content
-      if (attachmentContent) stepContext += `\n\n${attachmentContent}`
-      if (Object.keys(previousResults).length > 0) {
-        stepContext += '\n\nPrevious step results:'
-        for (const [stepNum, stepData] of Object.entries(previousResults)) {
-          stepContext += `\n\nStep ${stepNum} (${stepData.capability}):`
-          stepContext += `\n${formatResultForContext(stepData.capability, stepData.data)}`
-        }
-      }
-
-      // Execute step with both text context AND pipe input from previous step
-      const stepAnalysis = { ...step }
-      const stepOutput = await executeSingleStep(
-        stepAnalysis,
-        stepContext,
-        models,
-        signal,
-        step.stepNumber === analysis.steps.length ? onChunk : null,
-        options,
-        previousResults,  // Pass structured data (backwards compatibility)
-        lastPipeOutput    // Pass pipe output from previous step
-      )
-
-      // Store structured result for next steps (backwards compatibility)
-      previousResults[step.stepNumber] = {
-        capability: stepOutput.capability,
-        data: stepOutput.result,
-        success: stepOutput.success
-      }
-
-      // Store pipe output for next step (new pipe interface)
-      lastPipeOutput = stepOutput.pipe
-      finalResponse = stepOutput
-
-      if (onStepComplete) {
-        onStepComplete({
-          stepNumber: step.stepNumber,
-          capability: step.capability,
-          result: stepOutput.result,
-          success: stepOutput.success,
-          pipe: stepOutput.pipe  // Include pipe output in callback
-        })
-      }
-    }
-
-    return {
-      analysis,
-      parsedAttachments,
-      plan: { summary: analysis.summary, steps: analysis.steps, previousResults },
-      ...finalResponse
-    }
-  }
-
-  // Step 4: Perform web search if needed (single-step flow)
-  let webSearchResults = []
-  let webSearchContent = ''
-
-  if (analysis.needsWebSearch && analysis.searchQuery) {
-    webSearchResults = await performWebSearch(
-      analysis.searchQuery,
-      { onWebSearchStart, onWebSearchProgress, onWebSearchResult, onWebSearchComplete },
-      signal
-    )
-    webSearchContent = formatWebSearchContent(webSearchResults)
-  }
-
   // Build full context
   let fullContext = lastUserMessage.content
-  if (webSearchContent) fullContext += `\n\n${webSearchContent}`
   if (attachmentContent) fullContext += `\n\n${attachmentContent}`
 
-  // Step 4: Resolve and execute capability
-  const capability = registry.resolve(analysis) || registry.getDefault()
+  // Step 3: Resolve and execute capability chain
+  // If needsWebSearch is true, force websearch capability (which chains to text)
+  let capability
+  if (analysis.needsWebSearch && analysis.searchQuery) {
+    capability = registry.get('websearch') || registry.resolve(analysis) || registry.getDefault()
+  } else {
+    capability = registry.resolve(analysis) || registry.getDefault()
+  }
 
   if (!capability) {
     throw new Error('No capability available to handle this request')
@@ -856,42 +511,78 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
   const executorProvider = getProvider(executorProviderId)
   const executorConfig = getProviderConfig(executorProviderId)
 
+  // Track web search results across chain
+  let webSearchResults = []
+
   // Build execution context
-  const executionContext = {
+  let executionContext = {
     analysis,
     userMessage: lastUserMessage.content,
     fullContext,
     messages,
     models,
     config: executorConfig,
-    provider: executorProvider,  // Pass the provider instance
+    provider: executorProvider,
     signal,
-    onChunk,
+    onChunk: null,  // Only stream on final capability
     webSearchResults,
     callbacks: {
       onCodeGenerated,
       onExecutionComplete,
       onVerifyAttempt,
       onVisualizationGenerated,
+      onWebSearchStart,
+      onWebSearchProgress,
+      onWebSearchResult,
+      onWebSearchComplete,
       verifyMode,
       maxRetries
     }
   }
 
-  // Execute the capability (no pipe input for single-step)
-  const result = await capability.execute(executionContext, null)
+  // Execute capability chain (capabilities can specify chainTo for next capability)
+  let result = null
+  let pipeInput = null
+  let finalCapability = capability
+  const MAX_CHAIN_DEPTH = 5  // Prevent infinite loops
+
+  for (let depth = 0; depth < MAX_CHAIN_DEPTH; depth++) {
+    if (signal?.aborted) break
+
+    // Only stream output on the last capability in the chain
+    const isLastInChain = !capability.getChainTo || depth === MAX_CHAIN_DEPTH - 1
+    executionContext.onChunk = isLastInChain ? onChunk : null
+
+    result = await capability.execute(executionContext, pipeInput)
+    finalCapability = capability
+
+    // Check if we should chain to another capability
+    if (result.chainTo) {
+      const nextCapability = registry.get(result.chainTo)
+      if (nextCapability) {
+        pipeInput = result.pipe
+        capability = nextCapability
+        // Update context with results from previous capability
+        if (result.result && Array.isArray(result.result)) {
+          executionContext.webSearchResults = result.result
+        }
+        continue
+      }
+    }
+    break  // No more chaining
+  }
 
   // Build response in expected format for backwards compatibility
   const response = {
     analysis,
     parsedAttachments,
-    webSearchResults,
+    webSearchResults: executionContext.webSearchResults,
     attempts: result.metadata?.attempts || 0,
-    pipe: result.pipe  // Include pipe output for potential chaining
+    pipe: result.pipe
   }
 
-  // Map result based on capability type
-  if (capability.name === 'code') {
+  // Map result based on final capability type
+  if (finalCapability.name === 'code') {
     response.code = result.metadata?.code || null
     response.execution = result.metadata?.executionDetails || null
     response.visualization = null
@@ -901,19 +592,19 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
     if (onChunk && response.finalResponse) {
       onChunk(response.finalResponse)
     }
-  } else if (capability.name === 'visualization') {
+  } else if (finalCapability.name === 'visualization') {
     response.code = null
     response.execution = null
     response.visualization = result.result
     response.tool = null
     response.finalResponse = ''
-  } else if (capability.name === 'build') {
+  } else if (finalCapability.name === 'build') {
     response.code = null
     response.execution = null
     response.visualization = null
     response.tool = result.success ? result.result : null
     response.finalResponse = result.success ? '' : `Error: ${result.error}`
-  } else if (capability.name === 'extraction') {
+  } else if (finalCapability.name === 'extraction') {
     response.code = null
     response.execution = null
     response.visualization = null

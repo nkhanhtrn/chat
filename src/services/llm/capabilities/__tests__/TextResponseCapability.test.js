@@ -24,26 +24,27 @@ describe('TextResponseCapability', () => {
   })
 
   describe('getRouterDescription', () => {
-    it('should return description for language tasks', () => {
+    it('should return description with name and description', () => {
       const desc = capability.getRouterDescription()
 
-      expect(desc.name).toBe('TEXT/LANGUAGE')
-      expect(desc.conditions.some(c => c.includes('Translation'))).toBe(true)
-      expect(desc.conditions.some(c => c.includes('summarization'))).toBe(true)
-      expect(desc.conditions.some(c => c.includes('creative writing'))).toBe(true)
+      expect(desc.name).toBe('text')
+      expect(desc.description).toContain('NOT for questions requiring calculation')
     })
 
-    it('should have empty antiConditions (accepts anything as fallback)', () => {
+    it('should include conditions for language tasks', () => {
       const desc = capability.getRouterDescription()
 
-      expect(desc.antiConditions).toEqual([])
+      expect(desc.conditions).toBeDefined()
+      expect(desc.conditions.length).toBeGreaterThan(0)
+      // Check it mentions translation or explanation
+      expect(desc.conditions.some(c => c.toLowerCase().includes('translation') || c.toLowerCase().includes('explanation'))).toBe(true)
     })
 
     it('should include examples', () => {
       const desc = capability.getRouterDescription()
 
       expect(desc.examples.length).toBeGreaterThan(0)
-      expect(desc.examples.some(e => e.input.includes('translate'))).toBe(true)
+      expect(desc.examples[0]).toHaveProperty('input')
     })
   })
 
@@ -52,25 +53,16 @@ describe('TextResponseCapability', () => {
       expect(capability.canHandle({ capability: 'text' })).toBe(true)
     })
 
-    it('should handle when canBeCode is false', () => {
-      expect(capability.canHandle({ canBeCode: false })).toBe(true)
+    it('should not handle other capabilities', () => {
+      expect(capability.canHandle({ capability: 'code' })).toBe(false)
+      expect(capability.canHandle({ capability: 'build' })).toBe(false)
+      expect(capability.canHandle({ capability: 'visualization' })).toBe(false)
     })
 
-    it('should handle when codeType is "none"', () => {
-      expect(capability.canHandle({ codeType: 'none' })).toBe(true)
-    })
-
-    it('should handle as fallback when nothing else matches', () => {
-      // No canBeCode and no isVisualization
-      expect(capability.canHandle({})).toBe(true)
-    })
-
-    it('should not handle code capability', () => {
-      expect(capability.canHandle({ capability: 'code', canBeCode: true })).toBe(false)
-    })
-
-    it('should not handle visualization capability', () => {
-      expect(capability.canHandle({ capability: 'visualization', isVisualization: true })).toBe(false)
+    it('should not handle when capability is not specified', () => {
+      // Text capability only handles explicit text routing now
+      // The registry uses getDefault() for fallback
+      expect(capability.canHandle({})).toBe(false)
     })
   })
 

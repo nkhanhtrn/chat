@@ -122,21 +122,35 @@ export class BaseCapability {
   }
 
   /**
+   * Determine if this capability should chain to another capability
+   * Override this to enable automatic chaining
+   *
+   * @param {Object} processResult - Result from process()
+   * @param {Object} context - Execution context
+   * @returns {string|null} - Name of next capability to chain to, or null
+   */
+  getChainTo(processResult, context) {
+    return null  // No chaining by default
+  }
+
+  /**
    * Execute the full pipe: Input → Process → Output
    * This is the main entry point for capability execution
    *
    * @param {Object} context - Execution context
    * @param {PipeData|null} pipeInput - Input from previous capability
-   * @returns {Promise<{success: boolean, result: any, error: string|null, metadata: Object, pipe: PipeData}>}
+   * @returns {Promise<{success: boolean, result: any, error: string|null, metadata: Object, pipe: PipeData, chainTo: string|null}>}
    */
   async execute(context, pipeInput = null) {
     const input = this.receiveInput(pipeInput, context)
     const processResult = await this.process(input)
     const pipeOutput = this.produceOutput(processResult)
+    const chainTo = this.getChainTo(processResult, context)
 
     return {
       ...processResult,
-      pipe: pipeOutput
+      pipe: pipeOutput,
+      chainTo
     }
   }
 

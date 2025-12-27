@@ -24,37 +24,23 @@ describe('BuildCapability', () => {
   })
 
   describe('getRouterDescription', () => {
-    it('should return description with name BUILD', () => {
+    it('should return description with name and description', () => {
       const desc = capability.getRouterDescription()
-      expect(desc.name).toBe('BUILD')
+      expect(desc.name).toBe('build')
+      expect(desc.description).toContain('INTERACTIVE')
     })
 
     it('should have conditions for interactive tool creation', () => {
       const desc = capability.getRouterDescription()
       expect(desc.conditions.length).toBeGreaterThan(0)
-      // Conditions should describe interactive intent, not hardcoded keywords
-      expect(desc.conditions.some(c => c.toLowerCase().includes('interact'))).toBe(true)
-    })
-
-    it('should have anti-conditions', () => {
-      const desc = capability.getRouterDescription()
-      expect(desc.antiConditions.length).toBeGreaterThan(0)
-      // Should distinguish from other capabilities
-      expect(desc.antiConditions.some(c => c.includes('CODE') || c.includes('calculation'))).toBe(true)
-    })
-
-    it('should include output schema with toolType and toolName', () => {
-      const desc = capability.getRouterDescription()
-      expect(desc.outputSchema).toHaveProperty('toolType')
-      expect(desc.outputSchema).toHaveProperty('toolName')
+      // Conditions should describe interactive intent
+      expect(desc.conditions.some(c => c.toLowerCase().includes('interactive') || c.toLowerCase().includes('tool'))).toBe(true)
     })
 
     it('should include examples', () => {
       const desc = capability.getRouterDescription()
       expect(desc.examples.length).toBeGreaterThan(0)
       expect(desc.examples[0]).toHaveProperty('input')
-      expect(desc.examples[0]).toHaveProperty('output')
-      expect(desc.examples[0].output.capability).toBe('build')
     })
   })
 

@@ -17,7 +17,7 @@
  *   })
  */
 
-import { fetchUrlContent } from './urlFetcher.js'
+import { fetchUrlContent, cleanHtml } from './urlFetcher.js'
 
 /**
  * Attachment types
@@ -153,11 +153,11 @@ export const urlReader = {
     return attachment.type === AttachmentType.URL && !!attachment.url
   },
 
-  async read(attachment, options = {}) {
+  async read(attachment) {
     // Use pre-fetched content if available to avoid duplicate network requests
-    const content = attachment.prefetchedContent || await fetchUrlContent(attachment.url, options)
+    const rawContent = attachment.prefetchedContent || await fetchUrlContent(attachment.url)
     return {
-      content,
+      content: cleanHtml(rawContent),
       metadata: {
         url: attachment.url,
         fetchedAt: new Date().toISOString()

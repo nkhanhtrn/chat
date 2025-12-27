@@ -79,47 +79,36 @@ class CapabilityRegistry {
       return this._formatCapabilitySection(desc)
     }).join('\n\n')
 
-    return `You are a task analyzer. Today is ${getCurrentDateString()}.
+    return `You are a task router. Analyze the user's request and select the appropriate capability.
+Today is ${getCurrentDateString()}.
 
-CAPABILITIES: ${capabilityList}
+═══════════════════════════════════════════════════════════════
+AVAILABLE CAPABILITIES
+═══════════════════════════════════════════════════════════════
 
 ${capabilityDescriptions}
 
-OUTPUT FORMAT (line-based, not JSON):
+═══════════════════════════════════════════════════════════════
+OUTPUT FORMAT
+═══════════════════════════════════════════════════════════════
 
-For SINGLE-STEP tasks:
----
-capability: <name>
-task: <what to do>
-searchQuery: <query if web search needed, omit if not>
----
+Respond with ONLY this format (no markdown, no explanation):
 
-For MULTI-STEP tasks (when steps must chain results):
----
-PLAN: <brief summary>
+capability: <${capabilityList}>
+task: <brief description of what to do>
+searchQuery: <query if websearch needed, otherwise omit this line>
+
+MULTI-STEP (only when one step's output feeds into the next):
+
+PLAN: <one line summary>
 
 STEP 1
 capability: <name>
 task: <what to do>
-searchQuery: <query if needed>
 
 STEP 2
 capability: <name>
-task: <what to do>
-input: {{step_1_result}}
-
-STEP 3
-capability: <name>
-task: <what to do>
-input: {{step_2_result}}
----
-
-RULES:
-- Use MULTI-STEP only when results from one step feed into the next
-- Use {{step_N_result}} to reference previous step output
-- capability must be one of: ${capabilityList}
-- searchQuery triggers web search for current info (prices, news, weather)
-- Keep task descriptions concise`
+task: <what to do using {{step_1_result}}>`
   }
 
   /**
@@ -127,12 +116,17 @@ RULES:
    * @private
    */
   _formatCapabilitySection(desc) {
-    let section = `${desc.name.toUpperCase()}`
+    let section = `【${desc.name.toUpperCase()}】`
     if (desc.description) {
-      section += `: ${desc.description}`
+      section += `\n${desc.description}`
     }
     if (desc.conditions && desc.conditions.length > 0) {
-      section += '\n' + desc.conditions.map(c => `  - ${c}`).join('\n')
+      section += '\n\nUSE WHEN:'
+      section += '\n' + desc.conditions.map(c => `  ✓ ${c}`).join('\n')
+    }
+    if (desc.examples && desc.examples.length > 0) {
+      section += '\n\nEXAMPLES:'
+      section += '\n' + desc.examples.map(ex => `  "${ex.input}" → ${desc.name}`).join('\n')
     }
     return section
   }
@@ -143,22 +137,9 @@ RULES:
    * @returns {import('./BaseCapability').BaseCapability|null}
    */
   resolve(analysis) {
-    // First, check if analysis explicitly specifies a capability
-    if (analysis.capability) {
-      const explicit = this.get(analysis.capability)
-      if (explicit && explicit.canHandle(analysis)) {
-        return explicit
-      }
-    }
-
-    // Otherwise, check each capability in priority order
-    for (const cap of this.capabilities) {
-      if (cap.canHandle(analysis)) {
-        return cap
-      }
-    }
-
-    return null
+    const capability = this.get(analysis.capability) || this.getDefault()
+    console.log('[Router] analysis.capability:', analysis.capability, '-> resolved:', capability?.name)
+    return capability
   }
 
   /**

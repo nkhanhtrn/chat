@@ -185,6 +185,21 @@
           </div>
         </div>
 
+        <!-- Custom Fetch URL Section -->
+        <div class="setting-item setting-item-vertical fetch-section">
+          <label class="setting-label">Website Fetch Service</label>
+          <div class="api-key-section">
+            <input
+              type="text"
+              v-model="customFetchUrl"
+              placeholder="https://your-fetch-service.com/api/fetch"
+              class="api-key-input"
+              @input="onCustomFetchUrlChange"
+            />
+            <div class="api-key-hint">Custom fetch service URL (leave empty to use default fallback chain)</div>
+          </div>
+        </div>
+
         <!-- Dev Toolbar Toggle -->
         <div class="setting-item dev-toolbar-section">
           <label class="setting-label">Dev Toolbar</label>
@@ -218,6 +233,7 @@ import {
 } from '../../services/api.js'
 import { useChatStore } from '../../stores/chat.js'
 import { saveUserSettings, loadUserSettings } from '../../services/firestore.js'
+import { invalidateFetchSettingsCache } from '../../services/urlFetcher.js'
 
 const props = defineProps({
   modelValue: {
@@ -252,6 +268,7 @@ const connectionStatus = ref(null)
 const restoreStatus = ref(null)
 const availableModels = ref([])
 const selectedModel = ref('')
+const customFetchUrl = ref('')
 const chatStore = useChatStore()
 
 // Computed properties for current provider's config
@@ -469,6 +486,11 @@ const onBaseUrlChange = () => {
   saveUserSettings({ providerConfigs: buildCleanProviderConfigs() })
 }
 
+const onCustomFetchUrlChange = () => {
+  saveUserSettings({ customFetchUrl: customFetchUrl.value.trim() })
+  invalidateFetchSettingsCache()
+}
+
 // API key change handlers
 const onGoogleApiKeysChange = async (keys) => {
   googleApiKeys.value = keys
@@ -547,6 +569,10 @@ onMounted(async () => {
     if (settings.contentWidth) {
       contentWidth.value = settings.contentWidth
       applyContentWidth(settings.contentWidth)
+    }
+
+    if (settings.customFetchUrl) {
+      customFetchUrl.value = settings.customFetchUrl
     }
   } else {
     currentTheme.value = window.__getTheme?.() || 'light'
@@ -1064,6 +1090,12 @@ const restoreNotebooks = async (event) => {
 
 .file-input {
   display: none;
+}
+
+.fetch-section {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--color-border-subtle);
 }
 
 .dev-toolbar-section {

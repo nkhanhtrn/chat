@@ -68,54 +68,27 @@ export class CodeCapability extends BaseCapability {
 
   getRouterDescription() {
     return {
-      name: 'CODE',
-      description: 'mechanical/deterministic operations',
+      name: 'code',
+      description: 'Runs JavaScript code to COMPUTE a numerical or data result. Use when the ANSWER requires calculation, even if phrased as a question.',
       conditions: [
-        'Math calculations, data transformations, parsing, formatting',
-        'String manipulation (reverse, encode, split, etc.)',
-        'Array/object operations (sort, filter, extract, count)',
-        'Data extraction from structured formats (JSON, CSV)',
-        'QR codes, barcodes, hashing, encryption, image processing'
+        'Questions that need a computed/calculated answer',
+        'Math, formulas, geometry, physics calculations',
+        'Data transformations (sort, filter, convert, parse)',
+        'String operations (reverse, encode/decode, split)',
+        'Array or object processing'
       ],
-      antiConditions: [
-        'Translation, summarization, rewriting, paraphrasing',
-        'Explanations, creative writing, answering questions',
-        'Analysis requiring judgment or interpretation'
-      ],
-      outputSchema: {
-        codeType: 'function|expression',
-        functionName: 'string'
-      },
       examples: [
-        {
-          input: 'convert hello to ASCII',
-          output: {
-            taskDescription: 'Convert text to ASCII codes',
-            inputs: [{ name: 'text', value: 'hello', type: 'string' }],
-            expectedOutput: 'Array of ASCII codes',
-            codeType: 'function',
-            functionName: 'textToAscii'
-          }
-        },
-        {
-          input: 'what is 25 * 4 + 10?',
-          output: {
-            taskDescription: 'Calculate',
-            inputs: [],
-            expectedOutput: 'Number',
-            codeType: 'expression',
-            functionName: 'calculate'
-          }
-        }
+        { input: 'What is 25 * 17 + 33?' },
+        { input: 'What is the square root of the area of a 10cm circle?' },
+        { input: 'Convert hello to ASCII codes' },
+        { input: 'How many days between Jan 1 and Dec 31?' },
+        { input: 'Sort these numbers: 5, 2, 8, 1, 9' }
       ]
     }
   }
 
   canHandle(analysis) {
-    return analysis.capability === 'code' ||
-           analysis.canBeCode === true ||
-           analysis.codeType === 'function' ||
-           analysis.codeType === 'expression'
+    return analysis.capability === 'code'
   }
 
   // ===========================================================================

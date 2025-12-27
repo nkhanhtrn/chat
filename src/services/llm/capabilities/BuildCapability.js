@@ -658,41 +658,20 @@ export class BuildCapability extends BaseCapability {
 
   getRouterDescription() {
     return {
-      name: 'BUILD',
-      description: 'creating interactive UI tools that users can interact with (click buttons, enter data, see results)',
+      name: 'build',
+      description: 'Creates INTERACTIVE UI tools with buttons, forms, and controls. Use when the user wants something they can USE repeatedly, not just get an answer.',
       conditions: [
-        'User wants something they can interact with - buttons to click, forms to fill, data to manage',
-        'User describes a tool, app, or utility they want to use (not just get an answer)',
-        'The result should be a persistent interactive widget, not a one-time computation',
-        'User wants to manage data (add/edit/delete items), track things, or have controls'
+        'User wants an interactive tool (buttons, inputs, controls)',
+        'User describes an app, widget, or utility to use',
+        'Request involves managing or tracking data over time',
+        'User wants a persistent interface, not a one-time result'
       ],
-      antiConditions: [
-        'User just wants an answer or explanation (use TEXT)',
-        'User wants a one-time calculation with a result (use CODE)',
-        'User wants to see data visualized as a chart or graph (use VISUALIZATION)',
-        'User wants actual source code files written'
-      ],
-      outputSchema: {
-        toolType: 'string',
-        toolName: 'string'
-      },
       examples: [
-        {
-          input: 'build me a calculator',
-          output: { capability: 'build', toolType: 'calculator', toolName: 'Calculator' }
-        },
-        {
-          input: 'I want a todo list where I can add and remove tasks',
-          output: { capability: 'build', toolType: 'custom', toolName: 'Todo List' }
-        },
-        {
-          input: 'create something to track my expenses',
-          output: { capability: 'build', toolType: 'custom', toolName: 'Expense Tracker' }
-        },
-        {
-          input: 'make a timer with start/stop buttons',
-          output: { capability: 'build', toolType: 'custom', toolName: 'Timer' }
-        }
+        { input: 'Build me a calculator' },
+        { input: 'Create a todo list' },
+        { input: 'Make a timer with start/stop buttons' },
+        { input: 'I need something to track my expenses' },
+        { input: 'Create a unit converter' }
       ]
     }
   }

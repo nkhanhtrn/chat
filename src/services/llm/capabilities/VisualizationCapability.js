@@ -206,49 +206,19 @@ export class VisualizationCapability extends BaseCapability {
 
   getRouterDescription() {
     return {
-      name: 'VISUALIZATION',
-      description: 'displaying data or concepts visually',
+      name: 'visualization',
+      description: 'Creates VISUAL output - charts, diagrams, or drawings. Use when the user wants to SEE data or concepts displayed graphically.',
       conditions: [
-        'Charts/graphs for data (bar, line, pie, scatter, etc.) -> visualizationType: "chart"',
-        'Flowcharts, diagrams, sequences, entity relationships -> visualizationType: "mermaid"',
-        'Simple illustrations, icons, shapes -> visualizationType: "svg"'
+        'Charts and graphs (bar, line, pie, scatter)',
+        'Flowcharts, diagrams, sequences, entity relationships',
+        'Simple drawings and illustrations'
       ],
-      antiConditions: [
-        'QR codes, barcodes (use code capability - needs library)',
-        'Image processing, encoding (use code capability)',
-        'Any output requiring computation or external libraries'
-      ],
-      outputSchema: {
-        visualizationType: 'chart|mermaid|svg'
-      },
       examples: [
-        {
-          input: 'draw a pie chart showing: Apple 30%, Google 25%, Microsoft 45%',
-          output: {
-            taskDescription: 'Create pie chart with company market shares',
-            inputs: [{ name: 'data', value: [{ name: 'Apple', value: 30 }, { name: 'Google', value: 25 }, { name: 'Microsoft', value: 45 }], type: 'array' }],
-            expectedOutput: 'Pie chart visualization',
-            visualizationType: 'chart'
-          }
-        },
-        {
-          input: 'create a flowchart: Start -> Check Input -> Valid? -> Process / Error -> End',
-          output: {
-            taskDescription: 'Create flowchart for input validation process',
-            inputs: [],
-            expectedOutput: 'Mermaid flowchart',
-            visualizationType: 'mermaid'
-          }
-        },
-        {
-          input: 'draw a simple smiley face',
-          output: {
-            taskDescription: 'Draw SVG smiley face',
-            inputs: [],
-            expectedOutput: 'SVG drawing',
-            visualizationType: 'svg'
-          }
-        }
+        { input: 'Draw a pie chart of sales by region' },
+        { input: 'Create a flowchart for the login process' },
+        { input: 'Show me a bar chart of monthly revenue' },
+        { input: 'Draw a class diagram for User and Order' },
+        { input: 'Draw a simple smiley face' }
       ]
     }
   }

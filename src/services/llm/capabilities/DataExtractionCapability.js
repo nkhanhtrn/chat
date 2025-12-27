@@ -49,58 +49,19 @@ export class DataExtractionCapability extends BaseCapability {
 
   getRouterDescription() {
     return {
-      name: 'DATA EXTRACTION',
-      description: 'extracting structured data from unstructured or semi-structured content',
+      name: 'extraction',
+      description: 'EXTRACTS structured data from unstructured content. Use when the user wants to pull specific fields or entities from text or documents.',
       conditions: [
-        'Extract specific fields/properties from text, documents, or web content',
-        'Parse and pull data from tables, lists, or tabular content',
-        'Entity extraction (names, dates, emails, phones, addresses, prices)',
-        'Convert unstructured text to structured JSON',
-        'Scrape/extract patterns from semi-structured data'
+        'Extract specific fields from text or documents',
+        'Entity extraction (names, dates, emails, phones, prices)',
+        'Parse data from tables or lists',
+        'Convert unstructured text to structured JSON'
       ],
-      antiConditions: [
-        'Math calculations or data transformations (use CODE)',
-        'Creating charts or diagrams (use VISUALIZATION)',
-        'Building interactive tools (use BUILD)',
-        'General questions or explanations (use TEXT)',
-        'Need current web data (use WEBSEARCH first)'
-      ],
-      outputSchema: {
-        extractionType: 'fields|entities|table|patterns',
-        fields: 'array of field names to extract (optional)',
-        outputFormat: 'json|csv|text'
-      },
       examples: [
-        {
-          input: 'extract all emails and names from this text',
-          output: {
-            capability: 'extraction',
-            taskDescription: 'Extract emails and names from content',
-            extractionType: 'entities',
-            fields: ['email', 'name'],
-            outputFormat: 'json'
-          }
-        },
-        {
-          input: 'pull the product name, price, and description from this page',
-          output: {
-            capability: 'extraction',
-            taskDescription: 'Extract product information',
-            extractionType: 'fields',
-            fields: ['productName', 'price', 'description'],
-            outputFormat: 'json'
-          }
-        },
-        {
-          input: 'get all the dates and events mentioned',
-          output: {
-            capability: 'extraction',
-            taskDescription: 'Extract dates and associated events',
-            extractionType: 'entities',
-            fields: ['date', 'event'],
-            outputFormat: 'json'
-          }
-        }
+        { input: 'Extract all emails and names from this text' },
+        { input: 'Pull the product name and price from this page' },
+        { input: 'Get all the dates and events mentioned' },
+        { input: 'Parse the contact information from this document' }
       ]
     }
   }

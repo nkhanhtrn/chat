@@ -14,7 +14,7 @@
 
 import { BaseCapability, createPipeData } from './BaseCapability.js'
 import { searchWeb } from '../../webSearch.js'
-import { fetchUrlContent } from '../../urlFetcher.js'
+import { fetchUrlContent, cleanHtml } from '../../urlFetcher.js'
 
 export class WebSearchCapability extends BaseCapability {
   name = 'websearch'
@@ -63,7 +63,8 @@ export class WebSearchCapability extends BaseCapability {
       const fetchedResults = await Promise.all(
         searchResults.map(async (searchResult, i) => {
           try {
-            const content = await fetchUrlContent(searchResult.url, { maxLength: 6000 })
+            const rawContent = await fetchUrlContent(searchResult.url)
+            const content = cleanHtml(rawContent)
             const result = {
               url: searchResult.url,
               title: searchResult.title,
@@ -111,15 +112,12 @@ export class WebSearchCapability extends BaseCapability {
     return createPipeData(success ? result : { error }, this.name)
   }
 
-  async execute(context, pipeInput = null) {
-    const transformedInput = this.receiveInput(pipeInput, context)
-    const processResult = await this.process(transformedInput)
-    const pipeOutput = this.produceOutput(processResult)
-
-    return {
-      ...processResult,
-      pipe: pipeOutput
-    }
+  /**
+   * Web search always chains to text capability for response generation
+   */
+  getChainTo(processResult, context) {
+    // Chain to text capability to generate a summary of search results
+    return processResult.success ? 'text' : null
   }
 
   // ===========================================================================
@@ -128,32 +126,19 @@ export class WebSearchCapability extends BaseCapability {
 
   getRouterDescription() {
     return {
-      name: 'WEBSEARCH',
-      description: 'search the web for current information',
+      name: 'websearch',
+      description: 'Searches the web for CURRENT information. Use when the user needs real-time or recent data that may not be in training data.',
       conditions: [
-        'Need current/real-time information (prices, news, weather)',
-        'Information after knowledge cutoff',
-        'Facts that need verification from sources',
-        'Research requiring multiple web sources'
+        'Current/real-time information (prices, weather, news)',
+        'Recent events or updates after knowledge cutoff',
+        'Facts that need verification from web sources',
+        'Research requiring multiple current sources'
       ],
-      antiConditions: [
-        'Static calculations or conversions',
-        'Questions about provided content/attachments',
-        'Creative tasks not requiring facts'
-      ],
-      outputSchema: {
-        searchQuery: 'string (what to search for)'
-      },
       examples: [
-        {
-          input: 'what is the current Bitcoin price',
-          output: {
-            capability: 'websearch',
-            taskDescription: 'Search for current Bitcoin price',
-            searchQuery: 'Bitcoin BTC price USD today',
-            expectedOutput: 'Current price information'
-          }
-        }
+        { input: 'What is the current Bitcoin price?' },
+        { input: 'What\'s the weather in Tokyo?' },
+        { input: 'Latest news about AI' },
+        { input: 'Who won the game yesterday?' }
       ]
     }
   }

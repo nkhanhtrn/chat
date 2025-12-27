@@ -27,19 +27,19 @@ describe('CodeCapability', () => {
   })
 
   describe('getRouterDescription', () => {
-    it('should return description with conditions', () => {
+    it('should return description with name and description', () => {
       const desc = capability.getRouterDescription()
 
-      expect(desc.name).toBe('CODE')
-      expect(desc.conditions).toContain('Math calculations, data transformations, parsing, formatting')
-      expect(desc.antiConditions).toContain('Translation, summarization, rewriting, paraphrasing')
+      expect(desc.name).toBe('code')
+      expect(desc.description).toContain('COMPUTE')
     })
 
-    it('should include output schema', () => {
+    it('should include conditions for when to use', () => {
       const desc = capability.getRouterDescription()
 
-      expect(desc.outputSchema).toHaveProperty('codeType')
-      expect(desc.outputSchema).toHaveProperty('functionName')
+      expect(desc.conditions).toBeDefined()
+      expect(desc.conditions.length).toBeGreaterThan(0)
+      expect(desc.conditions.some(c => c.toLowerCase().includes('computed') || c.toLowerCase().includes('math'))).toBe(true)
     })
 
     it('should include examples', () => {
@@ -47,7 +47,6 @@ describe('CodeCapability', () => {
 
       expect(desc.examples.length).toBeGreaterThan(0)
       expect(desc.examples[0]).toHaveProperty('input')
-      expect(desc.examples[0]).toHaveProperty('output')
     })
   })
 
@@ -56,20 +55,14 @@ describe('CodeCapability', () => {
       expect(capability.canHandle({ capability: 'code' })).toBe(true)
     })
 
-    it('should handle when canBeCode is true', () => {
-      expect(capability.canHandle({ canBeCode: true })).toBe(true)
+    it('should not handle other capabilities', () => {
+      expect(capability.canHandle({ capability: 'text' })).toBe(false)
+      expect(capability.canHandle({ capability: 'build' })).toBe(false)
+      expect(capability.canHandle({ capability: 'visualization' })).toBe(false)
     })
 
-    it('should handle when codeType is "function"', () => {
-      expect(capability.canHandle({ codeType: 'function' })).toBe(true)
-    })
-
-    it('should handle when codeType is "expression"', () => {
-      expect(capability.canHandle({ codeType: 'expression' })).toBe(true)
-    })
-
-    it('should not handle text capability', () => {
-      expect(capability.canHandle({ capability: 'text', canBeCode: false })).toBe(false)
+    it('should not handle when capability is not specified', () => {
+      expect(capability.canHandle({})).toBe(false)
     })
   })
 

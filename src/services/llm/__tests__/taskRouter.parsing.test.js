@@ -62,7 +62,6 @@ codeType: javascript
 
       expect(result.capability).toBe('code')
       expect(result.codeType).toBe('javascript')
-      expect(result.canBeCode).toBe(true)
     })
 
     it('should parse visualization capability', async () => {
@@ -100,32 +99,6 @@ input: 42
 
       expect(result.inputs).toHaveLength(1)
       expect(result.inputs[0].value).toBe('42')
-    })
-  })
-
-  describe('multi-step plan responses', () => {
-    it('should parse multi-step plan', async () => {
-      const response = `PLAN: Research and summarize
-
-STEP 1
-capability: websearch
-task: Search for information
-searchQuery: javascript async await
-
-STEP 2
-capability: text
-task: Summarize results
-input: {{step_1_result}}
-`
-
-      const result = await testParsing(response)
-
-      expect(result.requiresPlanning).toBe(true)
-      expect(result.summary).toBe('Research and summarize')
-      expect(result.steps).toHaveLength(2)
-      expect(result.steps[0].capability).toBe('websearch')
-      expect(result.steps[0].searchQuery).toBe('javascript async await')
-      expect(result.steps[1].capability).toBe('text')
     })
   })
 

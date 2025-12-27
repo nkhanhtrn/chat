@@ -29,54 +29,27 @@ export class TextResponseCapability extends BaseCapability {
 
   getRouterDescription() {
     return {
-      name: 'TEXT/LANGUAGE',
-      description: 'require understanding, generation, or judgment',
+      name: 'text',
+      description: 'Generates natural language responses. Use for explanations, translations, writing, and opinions. NOT for questions requiring calculation (use CODE instead).',
       conditions: [
-        'Translation, summarization, rewriting, paraphrasing',
-        'Explanations, creative writing, answering questions',
-        'Analysis requiring judgment or interpretation',
-        'General conversation and Q&A',
-        'Opinions or subjective discussions'
+        'Explanations and educational content (how/why things work)',
+        'Translation, summarization, rewriting',
+        'Creative writing and content generation',
+        'Opinions, recommendations, comparisons',
+        'Questions answered with knowledge, not computation'
       ],
-      antiConditions: [],  // This is the fallback, accepts anything
-      outputSchema: {},
       examples: [
-        {
-          input: 'translate this to French: Hello world',
-          output: {
-            taskDescription: 'Translate text to French',
-            inputs: [{ name: 'text', value: 'Hello world', type: 'string' }],
-            expectedOutput: 'Translated text'
-          }
-        },
-        {
-          input: 'explain how photosynthesis works',
-          output: {
-            taskDescription: 'Explain photosynthesis',
-            inputs: [],
-            expectedOutput: 'Educational explanation'
-          }
-        },
-        {
-          input: 'summarize this article',
-          output: {
-            taskDescription: 'Summarize content',
-            inputs: [],
-            expectedOutput: 'Summary text'
-          }
-        }
+        { input: 'Explain how photosynthesis works' },
+        { input: 'Translate this to French: Hello world' },
+        { input: 'Summarize this article' },
+        { input: 'Write a poem about nature' },
+        { input: 'What are the pros and cons of React vs Vue?' }
       ]
     }
   }
 
   canHandle(analysis) {
-    // This is the fallback - always returns true
-    // But check for explicit routing first
-    return analysis.capability === 'text' ||
-           analysis.canBeCode === false ||
-           analysis.codeType === 'none' ||
-           // Fallback: if no other capability matched
-           (!analysis.canBeCode && !analysis.isVisualization)
+    return analysis.capability === 'text'
   }
 
   // ===========================================================================

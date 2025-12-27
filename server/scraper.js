@@ -32,73 +32,18 @@ async function fetchWithTimeout(url, options = {}, timeout = FETCH_TIMEOUT) {
   }
 }
 
-/**
- * Extract readable text from HTML
- */
-function extractTextFromHtml(html) {
-  const dom = new JSDOM(html)
-  const doc = dom.window.document
-
-  // Remove unwanted elements
-  const selectorsToRemove = [
-    'script', 'style', 'nav', 'header', 'footer',
-    'aside', 'noscript', 'iframe', 'svg', 'form',
-    '.nav', '.header', '.footer', '.sidebar', '.ad', '.advertisement'
-  ]
-
-  selectorsToRemove.forEach(selector => {
-    doc.querySelectorAll(selector).forEach(el => el.remove())
-  })
-
-  // Try to find main content
-  const mainContent =
-    doc.querySelector('main, article, .content, #content, .post, .article, .entry-content, .post-content') ||
-    doc.body
-
-  // Get text content
-  let text = mainContent?.textContent || ''
-
-  // Clean up whitespace
-  text = text
-    .replace(/\s+/g, ' ')
-    .replace(/\n\s*\n/g, '\n\n')
-    .trim()
-
-  return text
-}
 
 /**
- * Fetch URL and extract text content
- * Focus on extracting readable data, not API structures
+ * Fetch URL and return raw content
  */
-export async function fetchUrl(url, options = {}) {
-  const { maxLength = 8000 } = options
-
+export async function fetchUrl(url) {
   const response = await fetchWithTimeout(url)
 
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${response.statusText}`)
   }
 
-  const contentType = response.headers.get('content-type') || ''
-  const text = await response.text()
-
-  let content
-
-  // For HTML pages - extract readable text content
-  if (contentType.includes('text/html') || text.trim().startsWith('<')) {
-    content = extractTextFromHtml(text)
-  } else {
-    // For other content (JSON, plain text, etc.) - just use as-is
-    // LLM can interpret raw data formats well
-    content = text
-  }
-
-  if (content.length > maxLength) {
-    content = content.substring(0, maxLength) + '\n\n[Content truncated...]'
-  }
-
-  return content
+  return await response.text()
 }
 
 /**
