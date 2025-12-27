@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useStudioChat } from '../useStudioChat.js'
 
 // Mock the LLM service
-vi.mock('../../services/llm/index.js', () => ({
+vi.mock('../../../services/llm/index.js', () => ({
   sendChatMessage: vi.fn(async (model, messages, onChunk) => {
     onChunk('Hello ')
     onChunk('World!')
@@ -10,7 +10,7 @@ vi.mock('../../services/llm/index.js', () => ({
 }))
 
 // Mock the task router
-vi.mock('../../services/llm/taskRouter.js', () => ({
+vi.mock('../../../services/llm/taskRouter.js', () => ({
   analyzeGenerateAndExecute: vi.fn(async (messages, config, onChunk, signal, options) => {
     if (options?.onAnalysis) {
       options.onAnalysis({ capability: 'text', taskDescription: 'Test task' })
@@ -25,12 +25,12 @@ vi.mock('../../services/llm/taskRouter.js', () => ({
 }))
 
 // Mock utility functions
-vi.mock('../../utils/format.js', () => ({
+vi.mock('../../../utils/format.js', () => ({
   truncateUrl: vi.fn((url) => url.slice(0, 20)),
   truncateFileName: vi.fn((name) => name.slice(0, 15))
 }))
 
-vi.mock('../../utils/studioAttachments.js', () => ({
+vi.mock('../studioAttachments.js', () => ({
   buildRawAttachments: vi.fn(() => []),
   formatUploadedFilesForPrompt: vi.fn(() => ''),
   formatFetchedContentForPrompt: vi.fn(() => ''),
@@ -112,7 +112,7 @@ describe('useStudioChat', () => {
 
   describe('sendMessage', () => {
     it('should send message in single model mode', async () => {
-      const { sendChatMessage } = await import('../../services/llm/index.js')
+      const { sendChatMessage } = await import('../../../services/llm/index.js')
       const chat = useStudioChat()
 
       await chat.sendMessage({
@@ -139,7 +139,7 @@ describe('useStudioChat', () => {
     })
 
     it('should send message in two model mode', async () => {
-      const { analyzeGenerateAndExecute } = await import('../../services/llm/taskRouter.js')
+      const { analyzeGenerateAndExecute } = await import('../../../services/llm/taskRouter.js')
       const chat = useStudioChat()
 
       await chat.sendMessage({
@@ -177,7 +177,7 @@ describe('useStudioChat', () => {
     })
 
     it('should handle errors gracefully', async () => {
-      const { sendChatMessage } = await import('../../services/llm/index.js')
+      const { sendChatMessage } = await import('../../../services/llm/index.js')
       sendChatMessage.mockRejectedValueOnce(new Error('Network error'))
 
       const chat = useStudioChat()
@@ -202,7 +202,7 @@ describe('useStudioChat', () => {
     })
 
     it('should not show error for AbortError', async () => {
-      const { sendChatMessage } = await import('../../services/llm/index.js')
+      const { sendChatMessage } = await import('../../../services/llm/index.js')
       const abortError = new Error('Aborted')
       abortError.name = 'AbortError'
       sendChatMessage.mockRejectedValueOnce(abortError)

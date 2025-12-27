@@ -1,13 +1,13 @@
 import { ref, nextTick } from 'vue'
-import { sendChatMessage } from '../services/llm/index.js'
-import { analyzeGenerateAndExecute } from '../services/llm/taskRouter.js'
-import { truncateUrl, truncateFileName } from '../utils/format.js'
+import { sendChatMessage } from '../../services/llm/index.js'
+import { analyzeGenerateAndExecute } from '../../services/llm/taskRouter.js'
+import { truncateUrl, truncateFileName } from '../../utils/format.js'
 import {
   buildRawAttachments,
   formatUploadedFilesForPrompt,
   formatFetchedContentForPrompt,
   buildAttachmentsForDisplay
-} from '../utils/studioAttachments.js'
+} from './studioAttachments.js'
 
 /**
  * Composable for managing chat messages and streaming in StudioChat

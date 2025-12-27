@@ -60,9 +60,9 @@ import MessageList from '../components/studio/MessageList.vue'
 import MessageInput from '../components/studio/MessageInput.vue'
 import { useModelSelection } from '../composables/useModelSelection.js'
 import { useAttachments } from '../composables/useAttachments.js'
-import { useWebSearch } from '../composables/useWebSearch.js'
-import { usePlanning } from '../composables/usePlanning.js'
-import { useStudioChat } from '../composables/useStudioChat.js'
+import { useWebSearch } from '../composables/studio/useWebSearch.js'
+import { usePlanning } from '../composables/studio/usePlanning.js'
+import { useStudioChat } from '../composables/studio/useStudioChat.js'
 
 // Initialize composables
 const modelSelection = useModelSelection()

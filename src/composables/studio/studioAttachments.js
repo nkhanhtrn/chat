@@ -5,7 +5,7 @@
 import {
   AttachmentType,
   formatAttachmentForPrompt
-} from '../services/attachmentReader.js'
+} from '../../services/attachmentReader.js'
 
 /**
  * Build raw attachments for taskRouter (2-model mode)
