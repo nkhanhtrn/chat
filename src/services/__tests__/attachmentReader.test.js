@@ -22,10 +22,11 @@ import {
 
 // Mock the urlFetcher module
 vi.mock('../urlFetcher.js', () => ({
-  fetchUrlContent: vi.fn()
+  fetchUrlContent: vi.fn(),
+  cleanHtml: vi.fn((html) => html) // Pass through content unchanged for testing
 }))
 
-import { fetchUrlContent } from '../urlFetcher.js'
+import { fetchUrlContent, cleanHtml } from '../urlFetcher.js'
 
 // Helper to create a mock File object
 function createMockFile(name, content, type = '') {
@@ -202,18 +203,18 @@ describe('attachmentReader', () => {
         expect(result.content).toBe('Fetched content')
         expect(result.metadata.url).toBe('https://example.com')
         expect(result.metadata.fetchedAt).toBeDefined()
-        expect(fetchUrlContent).toHaveBeenCalledWith('https://example.com', {})
+        expect(fetchUrlContent).toHaveBeenCalledWith('https://example.com')
       })
 
-      it('should pass options to fetchUrlContent', async () => {
-        fetchUrlContent.mockResolvedValueOnce('Content')
+      it('should use prefetched content when available', async () => {
+        const result = await urlReader.read({
+          type: AttachmentType.URL,
+          url: 'https://example.com',
+          prefetchedContent: 'Prefetched content'
+        })
 
-        await urlReader.read(
-          { type: AttachmentType.URL, url: 'https://example.com' },
-          { maxLength: 5000 }
-        )
-
-        expect(fetchUrlContent).toHaveBeenCalledWith('https://example.com', { maxLength: 5000 })
+        expect(result.content).toBe('Prefetched content')
+        expect(fetchUrlContent).not.toHaveBeenCalled()
       })
     })
   })

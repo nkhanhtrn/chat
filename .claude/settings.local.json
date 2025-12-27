@@ -28,7 +28,8 @@
       "Bash(npm ls:*)",
       "WebSearch",
       "Bash(mkdir:*)",
-      "Bash(timeout 3 node:*)"
+      "Bash(timeout 3 node:*)",
+      "Bash(git stash:*)"
     ],
     "deny": [],
     "ask": []

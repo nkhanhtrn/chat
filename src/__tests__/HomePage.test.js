@@ -1339,56 +1339,56 @@ describe('HomePage', () => {
     })
   })
 
-  describe('Playground Link', () => {
-    it('should render playground link in header', () => {
+  describe('Studio Link', () => {
+    it('should render studio link in header', () => {
       wrapper = mount(HomePage, {
         global: {
           plugins: [pinia],
           stubs: {
             RouterLink: {
-              template: '<a class="playground-link" :href="to"><slot /></a>',
+              template: '<a class="studio-link" :href="to"><slot /></a>',
               props: ['to']
             }
           }
         }
       })
 
-      const playgroundLink = wrapper.find('.playground-link')
-      expect(playgroundLink.exists()).toBe(true)
+      const studioLink = wrapper.find('.studio-link')
+      expect(studioLink.exists()).toBe(true)
     })
 
-    it('should display "Playground" text', () => {
+    it('should display "Studio" text', () => {
       wrapper = mount(HomePage, {
         global: {
           plugins: [pinia],
           stubs: {
             RouterLink: {
-              template: '<a class="playground-link" :href="to"><slot /></a>',
+              template: '<a class="studio-link" :href="to"><slot /></a>',
               props: ['to']
             }
           }
         }
       })
 
-      const playgroundLink = wrapper.find('.playground-link')
-      expect(playgroundLink.text()).toBe('Playground')
+      const studioLink = wrapper.find('.studio-link')
+      expect(studioLink.text()).toBe('Studio')
     })
 
-    it('should link to /playground path', () => {
+    it('should link to /studio path', () => {
       wrapper = mount(HomePage, {
         global: {
           plugins: [pinia],
           stubs: {
             RouterLink: {
-              template: '<a class="playground-link" :href="to"><slot /></a>',
+              template: '<a class="studio-link" :href="to"><slot /></a>',
               props: ['to']
             }
           }
         }
       })
 
-      const playgroundLink = wrapper.find('.playground-link')
-      expect(playgroundLink.attributes('href')).toBe('/playground')
+      const studioLink = wrapper.find('.studio-link')
+      expect(studioLink.attributes('href')).toBe('/studio')
     })
   })
 })

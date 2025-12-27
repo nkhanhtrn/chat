@@ -1,15 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { searchWeb, formatSearchResultsForPrompt } from '../webSearch.js'
 
-describe('webSearch', () => {
-  let originalFetch
+// Mock the urlFetcher module
+vi.mock('../urlFetcher.js', () => ({
+  fetchUrlContent: vi.fn()
+}))
 
+import { fetchUrlContent } from '../urlFetcher.js'
+
+describe('webSearch', () => {
   beforeEach(() => {
-    originalFetch = global.fetch
+    vi.clearAllMocks()
   })
 
   afterEach(() => {
-    global.fetch = originalFetch
     vi.clearAllMocks()
   })
 
@@ -51,16 +55,36 @@ describe('webSearch', () => {
   })
 
   describe('searchWeb', () => {
-    it('should search and return results from backend', async () => {
-      const mockResults = [
-        { title: 'Example Page 1', url: 'https://example.com/page1', snippet: 'This is snippet 1' },
-        { title: 'Example Page 2', url: 'https://example.com/page2', snippet: 'This is snippet 2' }
-      ]
+    // Mock DDG HTML response
+    const mockDDGHtml = `
+      <html>
+        <body>
+          <div class="result">
+            <a class="result__a" href="https://example.com/page1">Example Page 1</a>
+            <div class="result__snippet">This is snippet 1</div>
+          </div>
+          <div class="result">
+            <a class="result__a" href="https://example.com/page2">Example Page 2</a>
+            <div class="result__snippet">This is snippet 2</div>
+          </div>
+        </body>
+      </html>
+    `
 
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ success: true, results: mockResults })
-      })
+    // Mock Brave HTML response
+    const mockBraveHtml = `
+      <html>
+        <body>
+          <div data-type="web">
+            <a class="result-header" href="https://brave-result.com/1">Brave Result 1</a>
+            <div class="snippet-description">Brave snippet 1</div>
+          </div>
+        </body>
+      </html>
+    `
+
+    it('should search and return results from DuckDuckGo', async () => {
+      fetchUrlContent.mockResolvedValueOnce(mockDDGHtml)
 
       const results = await searchWeb('test query')
 
@@ -77,70 +101,104 @@ describe('webSearch', () => {
       })
     })
 
-    it('should pass maxResults option to backend', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ success: true, results: [] })
-      })
+    it('should fall back to Brave when DDG fails', async () => {
+      fetchUrlContent
+        .mockRejectedValueOnce(new Error('DDG failed'))
+        .mockResolvedValueOnce(mockBraveHtml)
 
-      await searchWeb('test query', { maxResults: 3 })
+      const results = await searchWeb('test query')
 
-      const callBody = JSON.parse(global.fetch.mock.calls[0][1].body)
-      expect(callBody.maxResults).toBe(3)
+      expect(results).toHaveLength(1)
+      expect(results[0].url).toBe('https://brave-result.com/1')
+      expect(fetchUrlContent).toHaveBeenCalledTimes(2)
     })
 
-    it('should send POST request to backend API', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ success: true, results: [] })
-      })
+    it('should call DDG URL first', async () => {
+      fetchUrlContent.mockResolvedValueOnce(mockDDGHtml)
 
       await searchWeb('hello world')
 
-      expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/search'),
-        expect.objectContaining({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: expect.stringContaining('hello world')
-        })
+      expect(fetchUrlContent).toHaveBeenCalledWith(
+        'https://html.duckduckgo.com/html/?q=hello%20world'
       )
     })
 
-    it('should throw error on HTTP failure', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 500
-      })
+    it('should throw error when all search engines fail', async () => {
+      fetchUrlContent
+        .mockRejectedValueOnce(new Error('DDG failed'))
+        .mockRejectedValueOnce(new Error('Brave failed'))
 
-      await expect(searchWeb('test')).rejects.toThrow('Backend error: HTTP 500')
+      await expect(searchWeb('test')).rejects.toThrow('Search failed')
     })
 
-    it('should throw error when backend returns failure', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ success: false, error: 'Search service unavailable' })
-      })
+    it('should throw error when no results found', async () => {
+      // Return empty HTML with no results
+      fetchUrlContent
+        .mockResolvedValueOnce('<html><body></body></html>')
+        .mockResolvedValueOnce('<html><body></body></html>')
 
-      await expect(searchWeb('test')).rejects.toThrow('Search service unavailable')
+      await expect(searchWeb('test')).rejects.toThrow('Search failed')
     })
 
-    it('should handle network errors', async () => {
-      global.fetch = vi.fn().mockRejectedValue(new Error('Network error'))
+    it('should respect maxResults option', async () => {
+      const manyResultsHtml = `
+        <html>
+          <body>
+            ${Array.from({ length: 10 }, (_, i) => `
+              <div class="result">
+                <a class="result__a" href="https://example.com/page${i}">Result ${i}</a>
+                <div class="result__snippet">Snippet ${i}</div>
+              </div>
+            `).join('')}
+          </body>
+        </html>
+      `
 
-      await expect(searchWeb('test')).rejects.toThrow('Network error')
+      fetchUrlContent.mockResolvedValueOnce(manyResultsHtml)
+
+      const results = await searchWeb('test query', { maxResults: 3 })
+
+      expect(results).toHaveLength(3)
     })
 
     it('should use default maxResults of 5', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ success: true, results: [] })
-      })
+      const manyResultsHtml = `
+        <html>
+          <body>
+            ${Array.from({ length: 10 }, (_, i) => `
+              <div class="result">
+                <a class="result__a" href="https://example.com/page${i}">Result ${i}</a>
+                <div class="result__snippet">Snippet ${i}</div>
+              </div>
+            `).join('')}
+          </body>
+        </html>
+      `
 
-      await searchWeb('test query')
+      fetchUrlContent.mockResolvedValueOnce(manyResultsHtml)
 
-      const callBody = JSON.parse(global.fetch.mock.calls[0][1].body)
-      expect(callBody.maxResults).toBe(5)
+      const results = await searchWeb('test query')
+
+      expect(results).toHaveLength(5)
+    })
+
+    it('should handle DDG redirect URLs', async () => {
+      const ddgWithRedirects = `
+        <html>
+          <body>
+            <div class="result">
+              <a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Freal-site.com%2Fpage">Redirected Result</a>
+              <div class="result__snippet">Snippet for redirect</div>
+            </div>
+          </body>
+        </html>
+      `
+
+      fetchUrlContent.mockResolvedValueOnce(ddgWithRedirects)
+
+      const results = await searchWeb('test')
+
+      expect(results[0].url).toBe('https://real-site.com/page')
     })
   })
 })

@@ -1,7 +1,7 @@
 <template>
-  <div class="playground-page">
+  <div class="studio-page">
     <!-- Header -->
-    <header class="playground-header">
+    <header class="studio-header">
       <router-link to="/" class="back-link">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="19" y1="12" x2="5" y2="12"></line>
@@ -9,7 +9,7 @@
         </svg>
         Home
       </router-link>
-      <h1>AI Playground</h1>
+      <h1>AI Studio</h1>
       <div class="header-controls">
         <!-- Two-model mode toggle -->
         <label class="two-model-toggle">
@@ -59,7 +59,7 @@
     </header>
 
     <SlideTransition appear direction="vertical">
-      <div class="playground-content">
+      <div class="studio-content">
         <!-- Messages -->
         <div class="messages-container" ref="messagesContainer">
           <div v-if="messages.length === 0" class="empty-state">
@@ -68,118 +68,21 @@
           </div>
           <div v-for="(msg, index) in messages" :key="index" :class="['message', msg.role]">
             <div class="message-role">{{ msg.role === 'user' ? 'You' : 'AI' }}</div>
-            <!-- Web search status indicator (shown while searching) -->
-            <div v-if="msg.role === 'assistant' && isSearching && index === messages.length - 1" class="search-status-indicator">
-              <span class="spinner"></span>
-              <span class="search-status-text">{{ searchStatus }}</span>
-              <span v-if="searchQuery" class="search-query-text">"{{ searchQuery }}"</span>
-            </div>
-            <!-- Analysis indicator for AI messages in two-model mode -->
-            <div v-if="msg.role === 'assistant' && msg.analysis" class="analysis-indicator">
-              <span v-if="msg.analysis.needsWebSearch" class="analysis-badge search">
-                Web Search
-              </span>
-              <span v-if="msg.analysis.isVisualization" class="analysis-badge visualization">
-                {{ msg.analysis.visualizationType === 'chart' ? 'Chart' : (msg.analysis.visualizationType === 'mermaid' ? 'Diagram' : 'Drawing') }}
-              </span>
-              <span v-else-if="msg.analysis.capability === 'build' || msg.analysis.toolType" class="analysis-badge build">
-                Build Tool
-              </span>
-              <span v-else-if="msg.analysis.capability === 'code'" class="analysis-badge code">
-                Code Task
-              </span>
-              <span v-else class="analysis-badge text">
-                Text Response
-              </span>
-              <span v-if="msg.analysis.functionName && !msg.analysis.isVisualization" class="analysis-function">
-                {{ msg.analysis.functionName }}()
-              </span>
-              <span v-if="msg.analysis.taskDescription" class="analysis-description">
-                {{ msg.analysis.taskDescription }}
-              </span>
-            </div>
-            <!-- Web search results display (shows while fetching and after) -->
-            <details v-if="msg.role === 'assistant' && msg.webSearchResults && (msg.webSearchResults.length > 0 || msg.webSearchTotal)"
-                     class="search-details"
-                     :open="isSearching && index === messages.length - 1">
-              <summary class="search-summary">
-                <span class="search-icon">🔍</span>
-                <span>Web Sources</span>
-                <span class="search-count">
-                  {{ msg.webSearchResults.filter(r => r).length }}{{ msg.webSearchTotal ? `/${msg.webSearchTotal}` : '' }} pages
-                </span>
-                <span v-if="isSearching && index === messages.length - 1" class="spinner search-spinner"></span>
-              </summary>
-              <div class="search-results-container">
-                <div v-if="msg.webSearchResults.some(r => r) || (isSearching && index === messages.length - 1 && searchQuery)" class="search-query-header">
-                  Query: "{{ msg.webSearchResults.find(r => r)?.query || searchQuery }}"
-                </div>
-                <!-- Show slots for expected results -->
-                <div v-for="rIdx in (msg.webSearchTotal || msg.webSearchResults.length)" :key="rIdx" class="search-result-item">
-                  <!-- Fetched result -->
-                  <template v-if="msg.webSearchResults[rIdx - 1]">
-                    <div class="search-result-header">
-                      <span class="result-number">{{ rIdx }}.</span>
-                      <a :href="msg.webSearchResults[rIdx - 1].url" target="_blank" rel="noopener noreferrer" class="search-result-title">
-                        {{ msg.webSearchResults[rIdx - 1].title }}
-                      </a>
-                      <span :class="['fetch-status', msg.webSearchResults[rIdx - 1].success ? 'success' : 'fallback']">
-                        {{ msg.webSearchResults[rIdx - 1].success ? 'Fetched' : 'Snippet' }}
-                      </span>
-                    </div>
-                    <div class="search-result-url">{{ msg.webSearchResults[rIdx - 1].url }}</div>
-                    <details class="search-content-details">
-                      <summary class="search-content-summary">View content ({{ formatSize(msg.webSearchResults[rIdx - 1].content?.length || 0) }})</summary>
-                      <pre class="search-content">{{ msg.webSearchResults[rIdx - 1].content }}</pre>
-                    </details>
-                  </template>
-                  <!-- Loading with URL/title shown -->
-                  <template v-else-if="msg.webSearchPending && msg.webSearchPending[rIdx - 1]">
-                    <div class="search-result-header">
-                      <span class="result-number">{{ rIdx }}.</span>
-                      <a :href="msg.webSearchPending[rIdx - 1].url" target="_blank" rel="noopener noreferrer" class="search-result-title loading">
-                        {{ msg.webSearchPending[rIdx - 1].title }}
-                      </a>
-                      <span class="fetch-status pending">
-                        <span class="spinner"></span>
-                      </span>
-                    </div>
-                    <div class="search-result-url">{{ msg.webSearchPending[rIdx - 1].url }}</div>
-                  </template>
-                  <!-- Fallback loading placeholder -->
-                  <div v-else class="search-result-loading">
-                    <span class="result-number">{{ rIdx }}.</span>
-                    <span class="spinner"></span>
-                    <span class="loading-text">Fetching...</span>
-                  </div>
-                </div>
-              </div>
-            </details>
-            <!-- Generated code display (collapsible) -->
-            <details v-if="msg.role === 'assistant' && msg.generatedCode" class="code-details">
-              <summary class="code-summary">
-                <span class="code-icon">{ }</span>
-                <span>Generated Code</span>
-                <span v-if="msg.attempts > 1" class="attempts-badge">
-                  {{ msg.attempts }} attempts
-                </span>
-                <span v-if="msg.execution" :class="['execution-status', msg.execution.success ? 'success' : 'error']">
-                  {{ msg.execution.success ? 'Executed' : 'Failed' }}
-                </span>
-              </summary>
-              <div class="generated-code-container">
-                <button class="copy-code-btn" @click="copyCode(msg.generatedCode)" :title="copiedCode === msg.generatedCode ? 'Copied!' : 'Copy code'">
-                  <svg v-if="copiedCode !== msg.generatedCode" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                  </svg>
-                  <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                </button>
-                <pre class="generated-code"><code>{{ msg.generatedCode }}</code></pre>
-              </div>
-            </details>
+            <!-- Capability Progress (unified progress display) -->
+            <CapabilityProgress
+              v-if="msg.role === 'assistant' && msg.analysis"
+              :capability="getCapabilityType(msg)"
+              :task-description="msg.analysis.taskDescription || ''"
+              :status="getMessageStatus(msg, index)"
+              :search-query="msg.webSearchQuery || searchQuery"
+              :web-sources="getWebSources(msg, index)"
+              :plan-steps="getPlanSteps(msg)"
+              :generated-code="msg.generatedCode || ''"
+              :attempts="msg.attempts || 0"
+              :execution-status="msg.execution?.success ? 'success' : (msg.execution ? 'failed' : null)"
+              :viz-type="msg.analysis.visualizationType || 'chart'"
+              :raw-output="getRawOutput(msg)"
+            />
             <div class="message-content">
               <!-- Visualization output -->
               <template v-if="msg.role === 'assistant' && msg.visualization">
@@ -309,6 +212,7 @@ import CodeBlock from '../components/markdown/CodeBlock.vue'
 import ChartRenderer from '../components/ChartRenderer.vue'
 import MermaidBlock from '../components/markdown/MermaidBlock.vue'
 import ToolRenderer from '../components/ToolRenderer.vue'
+import CapabilityProgress from '../components/CapabilityProgress.vue'
 import {
   listProviders,
   getCurrentProviderId,
@@ -380,6 +284,115 @@ const copiedCode = ref(null)  // Track which code was copied
 const isSearching = ref(false)
 const searchQuery = ref('')  // Current search query
 const searchStatus = ref('')  // Status text: "Searching...", "Fetching 1/3...", etc.
+
+// Planning state
+const currentPlanningStep = ref(-1)  // -1 = not started, 0+ = current step index
+
+// Get capability type from message
+function getCapabilityType(msg) {
+  if (!msg.analysis) return 'text'
+  if (msg.analysis.capability === 'planning' || msg.planning) return 'planning'
+  if (msg.analysis.needsWebSearch || msg.analysis.capability === 'websearch') return 'websearch'
+  if (msg.analysis.isVisualization || msg.analysis.capability === 'visualization') return 'visualization'
+  if (msg.analysis.capability === 'build') return 'build'
+  if (msg.analysis.capability === 'code') return 'code'
+  return 'text'
+}
+
+// Get message status (running, complete, failed)
+function getMessageStatus(msg, index) {
+  const isLastMessage = index === messages.value.length - 1
+  if (isLastMessage && isStreaming.value) return 'running'
+  if (msg.execution?.success === false) return 'failed'
+  if (msg.content || msg.visualization || msg.tool || msg.planningComplete) return 'complete'
+  if (isLastMessage) return 'running'
+  return 'complete'
+}
+
+// Get web sources for display
+function getWebSources(msg, index) {
+  const sources = []
+  const isLastMessage = index === messages.value.length - 1
+
+  // Show pending sources being fetched
+  if (msg.webSearchPending) {
+    for (const pending of msg.webSearchPending) {
+      const fetched = msg.webSearchResults?.find(r => r?.url === pending.url)
+      sources.push({
+        title: pending.title || pending.url,
+        url: pending.url,
+        status: fetched ? (fetched.success ? 'success' : 'error') : 'loading',
+        fetchStatus: fetched ? (fetched.success ? 'fetched' : 'snippet') : null
+      })
+    }
+  }
+  // Or show completed results
+  else if (msg.webSearchResults) {
+    for (const result of msg.webSearchResults) {
+      if (result) {
+        sources.push({
+          title: result.title || result.url,
+          url: result.url,
+          status: result.success ? 'success' : 'error',
+          fetchStatus: result.success ? 'fetched' : 'snippet'
+        })
+      }
+    }
+  }
+  // Show loading placeholders for current search
+  else if (isLastMessage && isSearching.value && msg.webSearchTotal) {
+    for (let i = 0; i < msg.webSearchTotal; i++) {
+      sources.push({ title: 'Loading...', status: 'loading', url: null, fetchStatus: null })
+    }
+  }
+
+  return sources
+}
+
+// Get plan steps for display
+function getPlanSteps(msg) {
+  if (!msg.planning?.plan?.steps) return []
+
+  return msg.planning.plan.steps.map((step, idx) => {
+    let status = 'pending'
+    const result = msg.planning.stepResults?.[idx]
+
+    if (result) {
+      status = result.success ? 'complete' : 'failed'
+    } else if (idx === currentPlanningStep.value) {
+      status = 'running'
+    } else if (idx < currentPlanningStep.value) {
+      status = 'complete'
+    }
+
+    return {
+      capability: step.capability,
+      task: step.task,
+      status
+    }
+  })
+}
+
+// Get raw output for display (execution result, visualization config, tool spec, etc.)
+function getRawOutput(msg) {
+  // Code execution result
+  if (msg.execution) {
+    return msg.execution.success ? msg.execution.result : msg.execution.error
+  }
+  // Visualization config
+  if (msg.visualization) {
+    return msg.visualization.content
+  }
+  // Tool spec
+  if (msg.tool) {
+    return msg.tool
+  }
+  // Planning results
+  if (msg.planning?.stepResults) {
+    return msg.planning.stepResults
+  }
+  return null
+}
 
 // Copy code to clipboard
 async function copyCode(code) {
@@ -784,6 +797,8 @@ async function handleSend() {
             isSearching.value = true
             searchQuery.value = query
             searchStatus.value = 'Searching...'
+            // Store query in message for display
+            messages.value[messages.value.length - 1].webSearchQuery = query
             scrollToBottom()
           },
           onWebSearchProgress: (progress) => {
@@ -849,6 +864,37 @@ async function handleSend() {
             // Store the tool result
             messages.value[messages.value.length - 1].tool = tool
             scrollToBottom()
+          },
+          onPlanGenerated: (plan) => {
+            // Store the plan and initialize planning display
+            const msg = messages.value[messages.value.length - 1]
+            msg.planning = { plan, stepResults: [] }
+            msg.planningComplete = false
+            currentPlanningStep.value = -1
+            scrollToBottom()
+          },
+          onStepStart: (step, index) => {
+            // Update current step
+            currentPlanningStep.value = index
+            scrollToBottom()
+          },
+          onStepComplete: (stepResult, index) => {
+            // Add step result
+            const msg = messages.value[messages.value.length - 1]
+            if (msg.planning) {
+              msg.planning.stepResults[index] = stepResult
+            }
+            scrollToBottom()
+          },
+          onPlanComplete: (stepResults) => {
+            // Mark planning as complete
+            const msg = messages.value[messages.value.length - 1]
+            if (msg.planning) {
+              msg.planning.stepResults = stepResults
+              msg.planningComplete = true
+            }
+            currentPlanningStep.value = -1
+            scrollToBottom()
           }
         }
       )
@@ -858,7 +904,7 @@ async function handleSend() {
         messages.value[messages.value.length - 1].content = result.finalResponse
       }
 
-      // Store the number of attempts, web search results, visualization, and tool
+      // Store the number of attempts, web search results, visualization, tool, and planning
       messages.value[messages.value.length - 1].attempts = result.attempts
       if (result.webSearchResults && result.webSearchResults.length > 0) {
         messages.value[messages.value.length - 1].webSearchResults = result.webSearchResults
@@ -868,6 +914,10 @@ async function handleSend() {
       }
       if (result.tool) {
         messages.value[messages.value.length - 1].tool = result.tool
+      }
+      if (result.planning) {
+        messages.value[messages.value.length - 1].planning = result.planning
+        messages.value[messages.value.length - 1].planningComplete = true
       }
     } else {
       // Single model mode
@@ -912,21 +962,21 @@ function clearChat() {
 </script>
 
 <style scoped>
-.playground-page {
+.studio-page {
   display: flex;
   flex-direction: column;
   height: 100vh;
   background-color: var(--color-bg-page);
 }
 
-.playground-content {
+.studio-content {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
 }
 
-.playground-header {
+.studio-header {
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -950,7 +1000,7 @@ function clearChat() {
   color: var(--color-text-base);
 }
 
-.playground-header h1 {
+.studio-header h1 {
   font-family: 'Georgia', serif;
   font-size: 1.25rem;
   font-weight: normal;
@@ -1452,6 +1502,11 @@ textarea::placeholder {
   color: #22c55e;
 }
 
+.analysis-badge.planning {
+  background-color: rgba(236, 72, 153, 0.15);
+  color: #ec4899;
+}
+
 /* Search status indicator */
 .search-status-indicator {
   display: flex;
@@ -1603,6 +1658,194 @@ textarea::placeholder {
   font-family: inherit;
 }
 
+/* Planning container styles */
+.planning-container {
+  margin-bottom: 1rem;
+  border: 1px solid var(--color-border-base);
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: var(--color-bg-surface);
+}
+
+.planning-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.85rem;
+  background-color: rgba(236, 72, 153, 0.08);
+  border-bottom: 1px solid var(--color-border-base);
+  font-size: 0.85rem;
+}
+
+.planning-icon {
+  font-size: 1rem;
+}
+
+.planning-title {
+  flex: 1;
+  font-weight: 500;
+  color: var(--color-text-base);
+}
+
+.planning-status {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  background-color: rgba(236, 72, 153, 0.15);
+  color: #ec4899;
+  font-weight: 600;
+}
+
+.planning-steps {
+  padding: 0.5rem;
+}
+
+.planning-step {
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 0.4rem;
+  border: 1px solid var(--color-border-base);
+  border-radius: 4px;
+  background-color: var(--color-bg-page);
+  transition: all 0.2s;
+}
+
+.planning-step:last-child {
+  margin-bottom: 0;
+}
+
+.planning-step.pending {
+  opacity: 0.6;
+}
+
+.planning-step.running {
+  border-color: #3b82f6;
+  background-color: rgba(59, 130, 246, 0.05);
+}
+
+.planning-step.complete {
+  border-color: #22c55e;
+  background-color: rgba(34, 197, 94, 0.05);
+}
+
+.planning-step.failed {
+  border-color: #ef4444;
+  background-color: rgba(239, 68, 68, 0.05);
+}
+
+.step-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.step-number {
+  width: 1.4rem;
+  height: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-bg-hover);
+  border-radius: 50%;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.step-capability {
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.step-capability.websearch {
+  background-color: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+.step-capability.code {
+  background-color: rgba(99, 102, 241, 0.15);
+  color: #6366f1;
+}
+
+.step-capability.visualization {
+  background-color: rgba(168, 85, 247, 0.15);
+  color: #a855f7;
+}
+
+.step-capability.build {
+  background-color: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.step-capability.text {
+  background-color: rgba(156, 163, 175, 0.15);
+  color: #9ca3af;
+}
+
+.step-status-icon {
+  margin-left: auto;
+  font-size: 0.85rem;
+}
+
+.step-status-icon .spinner {
+  width: 12px;
+  height: 12px;
+}
+
+.planning-step.complete .step-status-icon {
+  color: #22c55e;
+}
+
+.planning-step.failed .step-status-icon {
+  color: #ef4444;
+}
+
+.step-task {
+  font-size: 0.85rem;
+  color: var(--color-text-base);
+  line-height: 1.4;
+}
+
+.step-expected {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-top: 0.25rem;
+  font-style: italic;
+}
+
+.step-result-details {
+  margin-top: 0.5rem;
+}
+
+.step-result-summary {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0.2rem 0;
+}
+
+.step-result-summary:hover {
+  color: var(--color-text-base);
+}
+
+.step-result {
+  margin: 0.3rem 0 0;
+  padding: 0.4rem 0.5rem;
+  background-color: var(--color-bg-hover);
+  border: 1px solid var(--color-border-base);
+  border-radius: 3px;
+  font-size: 0.7rem;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 150px;
+  overflow-y: auto;
+  line-height: 1.3;
+}
+
 /* SVG visualization container */
 .svg-container {
   max-width: 400px;
@@ -1621,199 +1864,14 @@ textarea::placeholder {
   height: auto;
 }
 
-/* Search results display styles */
-.search-details {
-  margin-bottom: 0.75rem;
-  border: 1px solid var(--color-border-base);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.search-summary {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background-color: var(--color-bg-hover);
-  cursor: pointer;
-  font-size: 0.8rem;
-  font-family: system-ui, sans-serif;
-  color: var(--color-text-muted);
-  user-select: none;
-}
-
-.search-summary:hover {
-  background-color: var(--color-bg-surface);
-}
-
-.search-icon {
-  font-size: 0.85rem;
-}
-
-.search-count {
-  margin-left: auto;
-  padding: 0.1rem 0.4rem;
-  border-radius: 3px;
-  font-size: 0.65rem;
-  font-weight: 600;
-  background-color: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
-}
-
-.search-results-container {
-  padding: 0.75rem 1rem;
-  background-color: var(--color-bg-page);
-  border-top: 1px solid var(--color-border-base);
-}
-
-.search-query-header {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-  font-style: italic;
-  margin-bottom: 0.75rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--color-border-base);
-}
-
-.result-number {
-  font-weight: 600;
-  color: var(--color-text-muted);
-  min-width: 1.5rem;
-}
-
-.search-spinner {
-  margin-left: auto;
-}
-
-.search-result-loading {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.25rem 0;
-  color: var(--color-text-muted);
-}
-
-.search-result-loading .spinner {
-  width: 14px;
-  height: 14px;
-}
-
-.loading-text {
-  font-size: 0.85rem;
-  font-style: italic;
-}
-
-.search-result-title.loading {
-  opacity: 0.7;
-}
-
-.fetch-status.pending {
-  background-color: rgba(59, 130, 246, 0.15);
-  padding: 0.2rem;
-  display: flex;
-  align-items: center;
-}
-
-.fetch-status.pending .spinner {
-  width: 10px;
-  height: 10px;
-  border-width: 1.5px;
-}
-
-.search-result-item {
-  padding: 0.5rem 0;
-  border-bottom: 1px solid var(--color-border-base);
-}
-
-.search-result-item:last-child {
-  border-bottom: none;
-}
-
-.search-result-title {
-  display: block;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #3b82f6;
-  text-decoration: none;
-  margin-bottom: 0.25rem;
-}
-
-.search-result-title:hover {
-  text-decoration: underline;
-}
-
-.search-result-url {
-  font-size: 0.7rem;
-  color: var(--color-text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
-}
-
-.search-result-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.fetch-status {
-  padding: 0.1rem 0.4rem;
-  border-radius: 3px;
-  font-size: 0.65rem;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.fetch-status.success {
-  background-color: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
-}
-
-.fetch-status.fallback {
-  background-color: rgba(251, 191, 36, 0.15);
-  color: #f59e0b;
-}
-
-.search-content-details {
-  margin-top: 0.5rem;
-}
-
-.search-content-summary {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  padding: 0.25rem 0;
-}
-
-.search-content-summary:hover {
-  color: var(--color-text-base);
-}
-
-.search-content {
-  margin: 0.5rem 0 0;
-  padding: 0.5rem;
-  background-color: var(--color-bg-hover);
-  border: 1px solid var(--color-border-base);
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-family: system-ui, sans-serif;
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 200px;
-  overflow-y: auto;
-  line-height: 1.4;
-}
-
 /* Mobile styles */
 @media (max-width: 768px) {
-  .playground-header {
+  .studio-header {
     flex-wrap: wrap;
     padding: 1rem;
   }
 
-  .playground-header h1 {
+  .studio-header h1 {
     order: -1;
     width: 100%;
     margin-bottom: 0.75rem;

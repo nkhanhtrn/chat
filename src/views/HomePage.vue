@@ -12,8 +12,8 @@
         <button v-else class="sign-in-btn" @click="showLoginModal = true">
           Sign In
         </button>
-        <router-link to="/playground" class="playground-link">
-          Playground
+        <router-link to="/studio" class="studio-link">
+          Studio
         </router-link>
         <Button variant="primary" @click="createNewNotebook">
           + New Notebook
@@ -340,7 +340,7 @@ const handleDrop = (event, targetIndex) => {
   box-shadow: 0 2px 8px var(--shadow-primary);
 }
 
-.playground-link {
+.studio-link {
   padding: 0.5rem 1rem;
   font-size: 0.9375rem;
   background: var(--color-bg-page);
@@ -352,7 +352,7 @@ const handleDrop = (event, targetIndex) => {
   font-weight: 500;
 }
 
-.playground-link:hover {
+.studio-link:hover {
   background: var(--color-bg-hover);
   border-color: var(--color-border-accent);
 }

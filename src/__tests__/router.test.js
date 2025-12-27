@@ -27,10 +27,10 @@ describe('Router Configuration', () => {
       expect(calendarRoute.path).toBe('/calendar')
     })
 
-    it('should have playground route', () => {
-      const playgroundRoute = router.getRoutes().find(r => r.name === 'playground')
-      expect(playgroundRoute).toBeDefined()
-      expect(playgroundRoute.path).toBe('/playground')
+    it('should have studio route', () => {
+      const studioRoute = router.getRoutes().find(r => r.name === 'studio')
+      expect(studioRoute).toBeDefined()
+      expect(studioRoute.path).toBe('/studio')
     })
 
     it('should have correct number of routes', () => {
@@ -92,14 +92,14 @@ describe('Router Configuration', () => {
       expect(resolved.fullPath).toBe('/calendar')
     })
 
-    it('should resolve playground route correctly', () => {
-      const resolved = router.resolve('/playground')
-      expect(resolved.name).toBe('playground')
+    it('should resolve studio route correctly', () => {
+      const resolved = router.resolve('/studio')
+      expect(resolved.name).toBe('studio')
     })
 
-    it('should resolve playground route by name', () => {
-      const resolved = router.resolve({ name: 'playground' })
-      expect(resolved.fullPath).toBe('/playground')
+    it('should resolve studio route by name', () => {
+      const resolved = router.resolve({ name: 'studio' })
+      expect(resolved.fullPath).toBe('/studio')
     })
   })
 })

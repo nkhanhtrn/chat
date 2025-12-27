@@ -217,12 +217,12 @@ describe('MobileFooter', () => {
       expect(mockRouterPush).toHaveBeenCalledWith({ name: 'calendar' })
     })
 
-    it('should navigate to playground when playground button is clicked', async () => {
+    it('should navigate to studio when studio button is clicked', async () => {
       wrapper = mount(MobileFooter)
-      const playgroundBtn = wrapper.find('[title="AI Playground"]')
-      await playgroundBtn.trigger('click')
+      const studioBtn = wrapper.find('[title="AI Studio"]')
+      await studioBtn.trigger('click')
 
-      expect(mockRouterPush).toHaveBeenCalledWith({ name: 'playground' })
+      expect(mockRouterPush).toHaveBeenCalledWith({ name: 'studio' })
     })
 
     it('should disable current question button when no current question', () => {
@@ -271,34 +271,34 @@ describe('MobileFooter', () => {
       expect(questionBtn.classes()).toContain('active')
     })
 
-    it('should apply active class to playground button when activePage is playground', () => {
+    it('should apply active class to studio button when activePage is studio', () => {
       wrapper = mount(MobileFooter, {
         props: {
-          activePage: 'playground'
+          activePage: 'studio'
         }
       })
-      const playgroundBtn = wrapper.find('[title="AI Playground"]')
-      expect(playgroundBtn.classes()).toContain('active')
+      const studioBtn = wrapper.find('[title="AI Studio"]')
+      expect(studioBtn.classes()).toContain('active')
     })
   })
 
-  describe('Playground Button', () => {
-    it('should render playground button', () => {
+  describe('Studio Button', () => {
+    it('should render studio button', () => {
       wrapper = mount(MobileFooter)
-      const playgroundBtn = wrapper.find('[title="AI Playground"]')
-      expect(playgroundBtn.exists()).toBe(true)
+      const studioBtn = wrapper.find('[title="AI Studio"]')
+      expect(studioBtn.exists()).toBe(true)
     })
 
-    it('should render playground button with chat icon', () => {
+    it('should render studio button with chat icon', () => {
       wrapper = mount(MobileFooter)
-      const playgroundBtn = wrapper.find('[title="AI Playground"]')
-      expect(playgroundBtn.find('svg').exists()).toBe(true)
+      const studioBtn = wrapper.find('[title="AI Studio"]')
+      expect(studioBtn.find('svg').exists()).toBe(true)
     })
 
-    it('should have footer-btn class on playground button', () => {
+    it('should have footer-btn class on studio button', () => {
       wrapper = mount(MobileFooter)
-      const playgroundBtn = wrapper.find('[title="AI Playground"]')
-      expect(playgroundBtn.classes()).toContain('footer-btn')
+      const studioBtn = wrapper.find('[title="AI Studio"]')
+      expect(studioBtn.classes()).toContain('footer-btn')
     })
   })
 

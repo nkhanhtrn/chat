@@ -37,9 +37,9 @@
     </button>
     <button
       class="footer-btn"
-      :class="{ active: activePage === 'playground' }"
-      @click="goPlayground"
-      title="AI Playground"
+      :class="{ active: activePage === 'studio' }"
+      @click="goStudio"
+      title="AI Studio"
     >
       <svg class="footer-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
     </button>
@@ -121,8 +121,8 @@ function goCalendar() {
   router.push({ name: 'calendar' })
 }
 
-function goPlayground() {
-  router.push({ name: 'playground' })
+function goStudio() {
+  router.push({ name: 'studio' })
 }
 
 function goCurrentQuestion() {
