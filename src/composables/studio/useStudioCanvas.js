@@ -203,6 +203,17 @@ function updateWindowTitle(windowId, title) {
 }
 
 /**
+ * Update window content
+ */
+function updateWindowContent(windowId, content) {
+  const window = windows.value.find(w => w.id === windowId)
+  if (window) {
+    window.content = content
+    saveToStorage()
+  }
+}
+
+/**
  * Minimize a window
  */
 function minimizeWindow(windowId) {
@@ -312,6 +323,7 @@ export function useStudioCanvas() {
     updateWindowPosition,
     updateWindowSize,
     updateWindowTitle,
+    updateWindowContent,
     bringToFront,
     minimizeWindow,
     restoreWindow,

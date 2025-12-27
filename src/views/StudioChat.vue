@@ -55,6 +55,7 @@
             @update-size="canvas.updateWindowSize"
             @update-title="canvas.updateWindowTitle"
             @bring-to-front="canvas.bringToFront"
+            @improve-tool="handleImproveTool"
           />
         </template>
       </StudioLayout>
@@ -124,6 +125,35 @@ async function handleEdit(messageIndex, newContent) {
   chat.deleteMessagePair(messageIndex)
   inputText.value = newContent
   await handleSend()
+}
+
+// Handle tool improvement request
+async function handleImproveTool({ windowId, currentSpec, prompt, onDone }) {
+  if (!modelSelection.isModelReady.value || chat.isStreaming.value) {
+    onDone?.()
+    return
+  }
+
+  try {
+    await chat.improveTool({
+      currentSpec,
+      prompt,
+      modelSelection: {
+        executorModel: modelSelection.executorModel.value,
+        executorProviderId: modelSelection.executorModelData.value?.providerId || 'lmstudio',
+        routerProviderId: modelSelection.routerModelData.value?.providerId || 'lmstudio',
+        selectedModel: modelSelection.selectedModel.value
+      },
+      onComplete: (improvedTool) => {
+        // Update the window with the improved tool
+        canvas.updateWindowContent(windowId, improvedTool)
+      }
+    })
+  } catch (error) {
+    console.error('Failed to improve tool:', error)
+  } finally {
+    onDone?.()
+  }
 }
 
 // Handle send message

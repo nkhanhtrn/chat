@@ -103,10 +103,11 @@ describe('BuildCapability', () => {
       expect(prompt).toContain('select')
     })
 
-    it('should include calculator example', () => {
+    it('should include layout options', () => {
       const prompt = capability.getSystemPrompt()
-      expect(prompt).toContain('Calculator')
-      expect(prompt).toContain('"layout": "calculator"')
+      expect(prompt).toContain('calculator')
+      expect(prompt).toContain('converter')
+      expect(prompt).toContain('form')
     })
   })
 

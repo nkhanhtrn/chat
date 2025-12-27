@@ -22,6 +22,17 @@
       </div>
       <div class="window-controls">
         <button
+          v-if="window.type === 'tool'"
+          class="window-control-btn edit-btn"
+          @click.stop="showImprovePanel = !showImprovePanel"
+          title="Improve Tool"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+        </button>
+        <button
           class="window-control-btn minimize-btn"
           @click.stop="$emit('minimize')"
           title="Minimize"
@@ -66,10 +77,15 @@
       ></div>
 
       <!-- Tool -->
-      <ToolRenderer
-        v-else-if="window.type === 'tool'"
-        :tool="window.content"
-      />
+      <div v-else-if="window.type === 'tool'" class="tool-wrapper" :class="{ 'is-improving': isImproving }">
+        <ToolRenderer :tool="window.content" />
+        <div v-if="isImproving" class="tool-overlay">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinning">
+            <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="12"></circle>
+          </svg>
+          <span>Improving...</span>
+        </div>
+      </div>
 
       <!-- Code Result -->
       <div v-else-if="window.type === 'codeResult'" class="code-result">
@@ -81,6 +97,38 @@
           <pre class="code-source"><code>{{ window.content.code }}</code></pre>
         </details>
       </div>
+    </div>
+
+    <!-- Improve Tool Panel -->
+    <div v-if="showImprovePanel && window.type === 'tool'" class="improve-panel">
+      <div class="improve-input-row">
+        <textarea
+          v-model="improvePrompt"
+          class="improve-input"
+          placeholder="Describe improvements..."
+          rows="1"
+          @keydown.ctrl.enter="submitImprove"
+          @keydown.meta.enter="submitImprove"
+        ></textarea>
+        <button
+          class="improve-submit-btn"
+          @click="submitImprove"
+          :disabled="!improvePrompt.trim() || isImproving"
+          title="Send (Ctrl+Enter)"
+        >
+          <svg v-if="!isImproving" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinning">
+            <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="12"></circle>
+          </svg>
+        </button>
+      </div>
+      <details class="spec-details">
+        <summary>Current Specification</summary>
+        <CodeDisplay language="json" :code="JSON.stringify(window.content, null, 2)" />
+      </details>
     </div>
 
     <!-- Resize Handles -->
@@ -101,6 +149,7 @@ import ChartRenderer from '../ChartRenderer.vue'
 import MermaidBlock from '../markdown/MermaidBlock.vue'
 import ToolRenderer from '../ToolRenderer.vue'
 import InlineEdit from '../InlineEdit.vue'
+import CodeDisplay from './CodeDisplay.vue'
 import { parseChartOption } from '../../utils/chart.js'
 
 const props = defineProps({
@@ -108,7 +157,7 @@ const props = defineProps({
   containerRect: { type: Object, default: () => ({ width: 0, height: 0 }) }
 })
 
-const emit = defineEmits(['close', 'minimize', 'update:position', 'update:size', 'update:title', 'bring-to-front'])
+const emit = defineEmits(['close', 'minimize', 'update:position', 'update:size', 'update:title', 'bring-to-front', 'improve-tool'])
 
 const windowRef = ref(null)
 const isDragging = ref(false)
@@ -116,6 +165,27 @@ const isResizing = ref(false)
 const resizeDirection = ref('')
 const dragStart = ref({ x: 0, y: 0 })
 const resizeStart = ref({ x: 0, y: 0, width: 0, height: 0, posX: 0, posY: 0 })
+
+// Improve tool panel state
+const showImprovePanel = ref(false)
+const improvePrompt = ref('')
+const isImproving = ref(false)
+
+function submitImprove() {
+  if (!improvePrompt.value.trim() || isImproving.value) return
+
+  isImproving.value = true
+  emit('improve-tool', {
+    windowId: props.window.id,
+    currentSpec: props.window.content,
+    prompt: improvePrompt.value.trim(),
+    onDone: () => {
+      improvePrompt.value = ''
+      showImprovePanel.value = false
+      isImproving.value = false
+    }
+  })
+}
 
 // Computed styles
 const windowStyle = computed(() => ({
@@ -421,6 +491,39 @@ onUnmounted(() => {
   max-height: 100%;
 }
 
+/* Tool Wrapper */
+.tool-wrapper {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tool-wrapper.is-improving > :first-child {
+  opacity: 0.4;
+  pointer-events: none;
+  filter: blur(1px);
+}
+
+.tool-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-color: rgba(0, 0, 0, 0.3);
+  color: var(--color-text-base);
+  font-size: 0.85rem;
+  z-index: 5;
+}
+
+.tool-overlay .spinning {
+  animation: spin 1s linear infinite;
+}
+
 /* Resize Handles */
 .resize-handle {
   position: absolute;
@@ -552,5 +655,130 @@ onUnmounted(() => {
 
 .code-source code {
   font-family: inherit;
+}
+
+/* Improve Tool Panel */
+.improve-panel {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 0.75rem;
+  background: linear-gradient(to bottom, var(--color-bg-elevated, #2a2a2a), var(--color-bg-base, #1a1a1a));
+  border-top: 1px solid var(--color-primary, #3b82f6);
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.2);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 50%;
+  overflow: hidden;
+}
+
+.spec-details {
+  font-size: 0.75rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.spec-details summary {
+  cursor: pointer;
+  color: var(--color-text-muted);
+  user-select: none;
+  padding: 0.25rem 0;
+  flex-shrink: 0;
+}
+
+.spec-details summary:hover {
+  color: var(--color-text-base);
+}
+
+.spec-details[open] {
+  flex: 1;
+}
+
+.spec-preview {
+  margin: 0;
+  padding: 0.5rem;
+  background-color: var(--color-code-block-bg);
+  color: var(--color-code-block-text);
+  border-radius: 4px;
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 0.7rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  flex: 1;
+  min-height: 0;
+}
+
+.improve-input-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.improve-input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  border: 1px solid var(--color-border-input);
+  border-radius: 6px;
+  background-color: var(--color-bg-input);
+  color: var(--color-text-base);
+  resize: none;
+  min-height: 36px;
+  max-height: 80px;
+}
+
+.improve-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.improve-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.improve-submit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background-color: var(--color-primary);
+  color: var(--color-text-inverse);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  flex-shrink: 0;
+}
+
+.improve-submit-btn:hover:not(:disabled) {
+  background-color: var(--color-primary-hover);
+}
+
+.improve-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.improve-submit-btn .spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.edit-btn:hover {
+  background-color: var(--color-primary-subtle, #dbeafe);
+  color: var(--color-primary);
 }
 </style>

@@ -1,6 +1,8 @@
 import { ref, nextTick } from 'vue'
 import { sendChatMessage } from '../../services/llm/index.js'
-import { analyzeGenerateAndExecute } from '../../services/llm/taskRouter.js'
+import { analyzeGenerateAndExecute, getProvider } from '../../services/llm/taskRouter.js'
+import { getProviderConfigById } from '../../services/llm/providers.js'
+import BuildCapability from '../../services/llm/capabilities/BuildCapability.js'
 import { truncateUrl, truncateFileName } from '../../utils/format.js'
 import {
   buildRawAttachments,
@@ -436,6 +438,53 @@ export function useStudioChat() {
     saveToStorage()
   }
 
+  /**
+   * Improve an existing tool using the Build capability directly
+   * @param {Object} options - Improvement options
+   * @param {Object} options.currentSpec - Current tool specification
+   * @param {string} options.prompt - Improvement request
+   * @param {Object} options.modelSelection - Model selection config
+   * @param {Function} options.onComplete - Callback with improved tool
+   */
+  async function improveTool(options) {
+    const { currentSpec, prompt, modelSelection, onComplete } = options
+
+    // Don't set isStreaming - let the caller manage their own loading state
+    const localAbortController = new AbortController()
+
+    try {
+      const buildCapability = new BuildCapability()
+
+      // Use executor model/provider for tool editing
+      const providerId = modelSelection.executorProviderId || modelSelection.routerProviderId || 'lmstudio'
+      const modelId = modelSelection.executorModel || modelSelection.selectedModel
+
+      const provider = getProvider(providerId)
+      const config = getProviderConfigById(providerId)
+
+      const improvedTool = await buildCapability.editTool(
+        currentSpec,
+        prompt,
+        modelId,
+        provider,
+        config,
+        localAbortController.signal
+      )
+
+      // Call the completion callback with the improved tool
+      if (onComplete) {
+        onComplete(improvedTool)
+      }
+
+      return improvedTool
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        console.error('Tool improvement failed:', error)
+        throw error
+      }
+    }
+  }
+
   return {
     // State
     messages,
@@ -449,6 +498,7 @@ export function useStudioChat() {
     getLastMessage,
     updateLastMessage,
     sendMessage,
+    improveTool,
     deleteMessagePair,
     stopStreaming,
     clearChat,

@@ -52,18 +52,11 @@
         @color-change="handleColorInput"
       />
     </div>
-
-    <!-- View Code -->
-    <details class="code-details">
-      <summary class="code-summary">View Specification</summary>
-      <CodeBlock language="json" :code="JSON.stringify(tool, null, 2)" />
-    </details>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
-import CodeBlock from './markdown/CodeBlock.vue'
 import ToolElement from './ToolElement.vue'
 import { useToolDataStore } from '../composables/studio/useToolDataStore.js'
 
@@ -75,20 +68,29 @@ const props = defineProps({
 })
 
 // Initialize per-tool data store
-const db = useToolDataStore(props.tool.name || 'unnamed-tool')
-
 const state = reactive({})
 const openAccordions = reactive({})
 const dismissedAlerts = reactive({})
 
+// Computed db store that updates when tool name changes
+const db = computed(() => useToolDataStore(props.tool.name || 'unnamed-tool'))
+
 // Initialize state from tool spec
-onMounted(() => {
+function initializeState() {
+  // Clear existing state
+  Object.keys(state).forEach(key => delete state[key])
+  // Set new state
   if (props.tool.state) {
     Object.keys(props.tool.state).forEach(key => {
       state[key] = props.tool.state[key]
     })
   }
-})
+}
+
+onMounted(initializeState)
+
+// Re-initialize when tool changes
+watch(() => props.tool, initializeState, { deep: true })
 
 function fixEscapeSequences(code) {
   // Fix common invalid escape sequences in regex patterns
@@ -109,12 +111,12 @@ function fixEscapeSequences(code) {
 function executeFormatter(formatter) {
   try {
     const fn = new Function('state', 'db', formatter)
-    return fn(state, db)
+    return fn(state, db.value)
   } catch (e) {
     if (e.message.includes('escape') || e.message.includes('Invalid')) {
       const fixed = fixEscapeSequences(formatter)
       const fn = new Function('state', 'db', fixed)
-      return fn(state, db)
+      return fn(state, db.value)
     }
     throw e
   }
@@ -163,14 +165,14 @@ function executeAction(actionName, value) {
 
   try {
     const fn = new Function('state', 'value', 'updateDisplay', 'db', actionCode)
-    fn(state, value, () => {}, db)
+    fn(state, value, () => {}, db.value)
   } catch (e) {
     // Try fixing escape sequences and retry
     if (e.message.includes('escape') || e.message.includes('Invalid')) {
       try {
         actionCode = fixEscapeSequences(actionCode)
         const fn = new Function('state', 'value', 'updateDisplay', 'db', actionCode)
-        fn(state, value, () => {}, db)
+        fn(state, value, () => {}, db.value)
       } catch (e2) {
         console.error('Action error after fix attempt:', e2)
       }
@@ -569,25 +571,6 @@ watch([() => state.r, () => state.g, () => state.b], ([r, g, b]) => {
   border-radius: 6px;
   background-color: var(--color-bg-input);
   color: var(--color-text-base);
-}
-
-/* Code Details */
-.code-details {
-  margin-top: auto;
-  border-top: 1px solid var(--color-border-subtle);
-  padding-top: 0.75rem;
-  flex-shrink: 0;
-}
-
-.code-summary {
-  cursor: pointer;
-  color: var(--color-text-muted);
-  font-size: 0.8rem;
-  padding: 0.25rem 0;
-}
-
-.code-summary:hover {
-  color: var(--color-text-secondary);
 }
 
 /* Tool Elements Container */

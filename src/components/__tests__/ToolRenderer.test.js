@@ -438,25 +438,6 @@ describe('ToolRenderer', () => {
     })
   })
 
-  describe('Code Details', () => {
-    it('should render code details section', () => {
-      wrapper = mount(ToolRenderer, {
-        props: { tool: createCalculatorTool() }
-      })
-
-      expect(wrapper.find('.code-details').exists()).toBe(true)
-      expect(wrapper.find('.code-summary').exists()).toBe(true)
-    })
-
-    it('should have View Specification summary text', () => {
-      wrapper = mount(ToolRenderer, {
-        props: { tool: createCalculatorTool() }
-      })
-
-      expect(wrapper.find('.code-summary').text()).toBe('View Specification')
-    })
-  })
-
   describe('Single Button Element', () => {
     it('should render single button', () => {
       const toolWithSingleButton = {

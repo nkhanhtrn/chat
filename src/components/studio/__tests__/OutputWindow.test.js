@@ -27,6 +27,14 @@ vi.mock('../../ToolRenderer.vue', () => ({
   }
 }))
 
+vi.mock('../CodeDisplay.vue', () => ({
+  default: {
+    name: 'CodeDisplay',
+    props: ['code', 'language'],
+    template: '<div class="mock-code-display">{{ code }}</div>'
+  }
+}))
+
 
 // Mock parseChartOption
 vi.mock('../../../utils/chart.js', () => ({
@@ -195,6 +203,7 @@ describe('OutputWindow', () => {
           window: { ...defaultWindow, type: 'tool', content: { name: 'test' } }
         }
       })
+      expect(wrapper.find('.tool-wrapper').exists()).toBe(true)
       expect(wrapper.find('.mock-tool-renderer').exists()).toBe(true)
     })
 
@@ -397,6 +406,195 @@ describe('OutputWindow', () => {
 
       expect(removeEventListenerSpy).toHaveBeenCalled()
       removeEventListenerSpy.mockRestore()
+    })
+  })
+
+  describe('Improve Tool Panel', () => {
+    const toolWindow = {
+      id: 'window-1',
+      type: 'tool',
+      content: { name: 'test-tool', state: {}, elements: [] },
+      position: { x: 100, y: 50 },
+      size: { width: 400, height: 300 },
+      zIndex: 100,
+      title: 'Test Tool'
+    }
+
+    const toolProps = {
+      window: toolWindow,
+      containerRect: { width: 1000, height: 800 }
+    }
+
+    it('should show edit button only for tool windows', () => {
+      wrapper = mount(OutputWindow, { props: toolProps })
+      expect(wrapper.find('.edit-btn').exists()).toBe(true)
+    })
+
+    it('should not show edit button for non-tool windows', () => {
+      wrapper = mount(OutputWindow, { props: defaultProps })
+      expect(wrapper.find('.edit-btn').exists()).toBe(false)
+    })
+
+    it('should not show improve panel by default', () => {
+      wrapper = mount(OutputWindow, { props: toolProps })
+      expect(wrapper.find('.improve-panel').exists()).toBe(false)
+    })
+
+    it('should toggle improve panel when edit button clicked', async () => {
+      wrapper = mount(OutputWindow, { props: toolProps })
+
+      await wrapper.find('.edit-btn').trigger('click')
+      expect(wrapper.find('.improve-panel').exists()).toBe(true)
+
+      await wrapper.find('.edit-btn').trigger('click')
+      expect(wrapper.find('.improve-panel').exists()).toBe(false)
+    })
+
+    it('should render improve input textarea', async () => {
+      wrapper = mount(OutputWindow, { props: toolProps })
+      await wrapper.find('.edit-btn').trigger('click')
+
+      expect(wrapper.find('.improve-input').exists()).toBe(true)
+      expect(wrapper.find('.improve-input').attributes('placeholder')).toBe('Describe improvements...')
+    })
+
+    it('should render submit button', async () => {
+      wrapper = mount(OutputWindow, { props: toolProps })
+      await wrapper.find('.edit-btn').trigger('click')
+
+      expect(wrapper.find('.improve-submit-btn').exists()).toBe(true)
+    })
+
+    it('should disable submit button when input is empty', async () => {
+      wrapper = mount(OutputWindow, { props: toolProps })
+      await wrapper.find('.edit-btn').trigger('click')
+
+      expect(wrapper.find('.improve-submit-btn').attributes('disabled')).toBeDefined()
+    })
+
+    it('should enable submit button when input has text', async () => {
+      wrapper = mount(OutputWindow, { props: toolProps })
+      await wrapper.find('.edit-btn').trigger('click')
+
+      await wrapper.find('.improve-input').setValue('Add a new button')
+      expect(wrapper.find('.improve-submit-btn').attributes('disabled')).toBeUndefined()
+    })
+
+    it('should render spec details section', async () => {
+      wrapper = mount(OutputWindow, { props: toolProps })
+      await wrapper.find('.edit-btn').trigger('click')
+
+      expect(wrapper.find('.spec-details').exists()).toBe(true)
+      expect(wrapper.find('.spec-details summary').text()).toBe('Current Specification')
+    })
+
+    it('should render CodeDisplay with current tool spec', async () => {
+      wrapper = mount(OutputWindow, { props: toolProps })
+      await wrapper.find('.edit-btn').trigger('click')
+
+      const codeDisplay = wrapper.find('.mock-code-display')
+      expect(codeDisplay.exists()).toBe(true)
+      expect(codeDisplay.text()).toContain('test-tool')
+    })
+
+    it('should emit improve-tool event when submit button clicked', async () => {
+      wrapper = mount(OutputWindow, { props: toolProps })
+      await wrapper.find('.edit-btn').trigger('click')
+
+      await wrapper.find('.improve-input').setValue('Add dark mode')
+      await wrapper.find('.improve-submit-btn').trigger('click')
+
+      expect(wrapper.emitted('improve-tool')).toBeTruthy()
+      const emitted = wrapper.emitted('improve-tool')[0][0]
+      expect(emitted.windowId).toBe('window-1')
+      expect(emitted.currentSpec).toEqual(toolWindow.content)
+      expect(emitted.prompt).toBe('Add dark mode')
+      expect(typeof emitted.onDone).toBe('function')
+    })
+
+    it('should show loading spinner when improving', async () => {
+      wrapper = mount(OutputWindow, { props: toolProps })
+      await wrapper.find('.edit-btn').trigger('click')
+
+      await wrapper.find('.improve-input').setValue('Improve this')
+      await wrapper.find('.improve-submit-btn').trigger('click')
+
+      // The spinning class indicates loading state
+      expect(wrapper.find('.improve-submit-btn svg.spinning').exists()).toBe(true)
+    })
+
+    it('should disable submit button while improving', async () => {
+      wrapper = mount(OutputWindow, { props: toolProps })
+      await wrapper.find('.edit-btn').trigger('click')
+
+      await wrapper.find('.improve-input').setValue('Improve this')
+      await wrapper.find('.improve-submit-btn').trigger('click')
+
+      expect(wrapper.find('.improve-submit-btn').attributes('disabled')).toBeDefined()
+    })
+
+    it('should reset state when onDone callback is called', async () => {
+      wrapper = mount(OutputWindow, { props: toolProps })
+      await wrapper.find('.edit-btn').trigger('click')
+
+      await wrapper.find('.improve-input').setValue('Improve this')
+      await wrapper.find('.improve-submit-btn').trigger('click')
+
+      // Get the onDone callback from emitted event
+      const emitted = wrapper.emitted('improve-tool')[0][0]
+      emitted.onDone()
+      await wrapper.vm.$nextTick()
+
+      // Panel should be closed and input cleared
+      expect(wrapper.find('.improve-panel').exists()).toBe(false)
+    })
+
+    it('should not emit when input is whitespace only', async () => {
+      wrapper = mount(OutputWindow, { props: toolProps })
+      await wrapper.find('.edit-btn').trigger('click')
+
+      await wrapper.find('.improve-input').setValue('   ')
+      await wrapper.find('.improve-submit-btn').trigger('click')
+
+      expect(wrapper.emitted('improve-tool')).toBeFalsy()
+    })
+
+    it('should show overlay on tool when improving', async () => {
+      wrapper = mount(OutputWindow, { props: toolProps })
+      await wrapper.find('.edit-btn').trigger('click')
+
+      await wrapper.find('.improve-input').setValue('Improve this')
+      await wrapper.find('.improve-submit-btn').trigger('click')
+
+      expect(wrapper.find('.tool-overlay').exists()).toBe(true)
+      expect(wrapper.find('.tool-overlay').text()).toContain('Improving...')
+    })
+
+    it('should add is-improving class to tool wrapper when improving', async () => {
+      wrapper = mount(OutputWindow, { props: toolProps })
+      await wrapper.find('.edit-btn').trigger('click')
+
+      await wrapper.find('.improve-input').setValue('Improve this')
+      await wrapper.find('.improve-submit-btn').trigger('click')
+
+      expect(wrapper.find('.tool-wrapper').classes()).toContain('is-improving')
+    })
+
+    it('should remove overlay when onDone is called', async () => {
+      wrapper = mount(OutputWindow, { props: toolProps })
+      await wrapper.find('.edit-btn').trigger('click')
+
+      await wrapper.find('.improve-input').setValue('Improve this')
+      await wrapper.find('.improve-submit-btn').trigger('click')
+
+      expect(wrapper.find('.tool-overlay').exists()).toBe(true)
+
+      // Call onDone
+      const emitted = wrapper.emitted('improve-tool')[0][0]
+      emitted.onDone()
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('.tool-overlay').exists()).toBe(false)
     })
   })
 })

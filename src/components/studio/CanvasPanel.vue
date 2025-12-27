@@ -24,6 +24,7 @@
       @update:size="(size) => $emit('update-size', window.id, size)"
       @update:title="(title) => $emit('update-title', window.id, title)"
       @bring-to-front="$emit('bring-to-front', window.id)"
+      @improve-tool="(data) => $emit('improve-tool', data)"
     />
 
     <!-- Minimized Windows Bar -->
@@ -45,7 +46,7 @@ defineProps({
   minimizedCategories: { type: Array, default: () => [] }
 })
 
-defineEmits(['close-window', 'minimize-window', 'restore-window', 'update-position', 'update-size', 'update-title', 'bring-to-front'])
+defineEmits(['close-window', 'minimize-window', 'restore-window', 'update-position', 'update-size', 'update-title', 'bring-to-front', 'improve-tool'])
 
 const canvasRef = ref(null)
 const containerRect = ref({ width: 0, height: 0 })
