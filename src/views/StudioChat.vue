@@ -39,16 +39,21 @@
             @trigger-upload="triggerFileUpload"
             @file-upload="attachments.handleFileUpload"
             @remove-file="attachments.removeFile"
+            @edit="handleEdit"
           />
         </template>
 
         <!-- Canvas Panel (Right) -->
         <template #canvas>
           <CanvasPanel
-            :windows="canvas.windows.value"
+            :visible-windows="canvas.visibleWindows.value"
+            :minimized-categories="canvas.minimizedWindowsByCategory.value"
             @close-window="canvas.removeWindow"
+            @minimize-window="canvas.minimizeWindow"
+            @restore-window="canvas.restoreWindow"
             @update-position="canvas.updateWindowPosition"
             @update-size="canvas.updateWindowSize"
+            @update-title="canvas.updateWindowTitle"
             @bring-to-front="canvas.bringToFront"
           />
         </template>
@@ -108,10 +113,17 @@ function triggerFileUpload() {
   chatPanelRef.value?.messageInputRef?.fileInputRef?.click()
 }
 
-// Handle clear chat - also clear canvas
+// Handle clear chat - keep canvas windows
 function handleClearChat() {
   chat.clearChat()
-  canvas.clearWindows()
+}
+
+// Handle edit/retry message
+async function handleEdit(messageIndex, newContent) {
+  if (chat.isStreaming.value) return
+  chat.deleteMessagePair(messageIndex)
+  inputText.value = newContent
+  await handleSend()
 }
 
 // Handle send message

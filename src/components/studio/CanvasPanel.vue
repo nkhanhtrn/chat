@@ -1,7 +1,7 @@
 <template>
   <div ref="canvasRef" class="canvas-container">
     <!-- Empty State -->
-    <div v-if="windows.length === 0" class="canvas-empty-state">
+    <div v-if="visibleWindows.length === 0 && minimizedCategories.length === 0" class="canvas-empty-state">
       <div class="empty-icon">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
@@ -14,14 +14,23 @@
 
     <!-- Output Windows -->
     <OutputWindow
-      v-for="window in windows"
+      v-for="window in visibleWindows"
       :key="window.id"
       :window="window"
       :container-rect="containerRect"
       @close="$emit('close-window', window.id)"
+      @minimize="$emit('minimize-window', window.id)"
       @update:position="(pos) => $emit('update-position', window.id, pos)"
       @update:size="(size) => $emit('update-size', window.id, size)"
+      @update:title="(title) => $emit('update-title', window.id, title)"
       @bring-to-front="$emit('bring-to-front', window.id)"
+    />
+
+    <!-- Minimized Windows Bar -->
+    <MinimizedWindowsBar
+      :categories="minimizedCategories"
+      @restore="$emit('restore-window', $event)"
+      @close="$emit('close-window', $event)"
     />
   </div>
 </template>
@@ -29,12 +38,14 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import OutputWindow from './OutputWindow.vue'
+import MinimizedWindowsBar from './MinimizedWindowsBar.vue'
 
 defineProps({
-  windows: { type: Array, default: () => [] }
+  visibleWindows: { type: Array, default: () => [] },
+  minimizedCategories: { type: Array, default: () => [] }
 })
 
-defineEmits(['close-window', 'update-position', 'update-size', 'bring-to-front'])
+defineEmits(['close-window', 'minimize-window', 'restore-window', 'update-position', 'update-size', 'update-title', 'bring-to-front'])
 
 const canvasRef = ref(null)
 const containerRect = ref({ width: 0, height: 0 })

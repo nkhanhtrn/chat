@@ -321,7 +321,7 @@ describe('OutputWindow', () => {
   describe('Resize Functionality', () => {
     it('should add is-resizing class when resize handle is dragged', async () => {
       wrapper = mount(OutputWindow, { props: defaultProps })
-      const resizeHandle = wrapper.find('.resize-handle')
+      const resizeHandle = wrapper.find('.resize-se')
 
       await resizeHandle.trigger('mousedown', { clientX: 500, clientY: 350 })
       expect(wrapper.find('.output-window').classes()).toContain('is-resizing')
@@ -329,7 +329,7 @@ describe('OutputWindow', () => {
 
     it('should emit bring-to-front when resize starts', async () => {
       wrapper = mount(OutputWindow, { props: defaultProps })
-      const resizeHandle = wrapper.find('.resize-handle')
+      const resizeHandle = wrapper.find('.resize-se')
 
       await resizeHandle.trigger('mousedown', { clientX: 500, clientY: 350 })
       expect(wrapper.emitted('bring-to-front')).toBeTruthy()
@@ -337,7 +337,7 @@ describe('OutputWindow', () => {
 
     it('should emit update:size on resize', async () => {
       wrapper = mount(OutputWindow, { props: defaultProps })
-      const resizeHandle = wrapper.find('.resize-handle')
+      const resizeHandle = wrapper.find('.resize-se')
 
       await resizeHandle.trigger('mousedown', { clientX: 500, clientY: 350 })
 
@@ -354,7 +354,7 @@ describe('OutputWindow', () => {
 
     it('should remove is-resizing class on mouseup', async () => {
       wrapper = mount(OutputWindow, { props: defaultProps })
-      const resizeHandle = wrapper.find('.resize-handle')
+      const resizeHandle = wrapper.find('.resize-se')
 
       await resizeHandle.trigger('mousedown', { clientX: 500, clientY: 350 })
       expect(wrapper.find('.output-window').classes()).toContain('is-resizing')
@@ -367,7 +367,7 @@ describe('OutputWindow', () => {
 
     it('should constrain resize to container bounds', async () => {
       wrapper = mount(OutputWindow, { props: defaultProps })
-      const resizeHandle = wrapper.find('.resize-handle')
+      const resizeHandle = wrapper.find('.resize-se')
 
       await resizeHandle.trigger('mousedown', { clientX: 500, clientY: 350 })
 

@@ -1,6 +1,19 @@
 <template>
   <div :class="['message', msg.role]">
-    <div class="message-role">{{ msg.role === 'user' ? 'You' : 'AI' }}</div>
+    <div class="message-role">
+      {{ msg.role === 'user' ? 'You' : 'AI' }}
+      <button
+        v-if="msg.role === 'user' && !isStreaming && isLastUserMessage"
+        class="retry-icon-btn"
+        @click="$emit('edit', msg.content)"
+        title="Retry this message"
+      >
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="1 4 1 10 7 10"></polyline>
+          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+        </svg>
+      </button>
+    </div>
 
     <!-- Capability Progress (unified progress display) -->
     <CapabilityProgress
@@ -37,8 +50,14 @@
       <!-- Empty assistant message while streaming -->
       <template v-else-if="msg.role === 'assistant'"></template>
 
-      <!-- User message -->
-      <template v-else>{{ msg.content }}</template>
+      <!-- User message (editable) -->
+      <InlineEdit
+        v-else
+        :modelValue="msg.content"
+        textClass="user-message-text"
+        inputClass="user-message-input"
+        @save="(newContent) => $emit('edit', newContent)"
+      />
 
       <!-- Streaming cursor -->
       <span v-if="showCursor" class="cursor">|</span>
@@ -51,6 +70,7 @@
         <span class="attachment-name">{{ att.name }}</span>
       </div>
     </div>
+
   </div>
 </template>
 
@@ -58,6 +78,7 @@
 import { computed } from 'vue'
 import MarkdownRenderer from '../MarkdownRenderer.vue'
 import CapabilityProgress from '../CapabilityProgress.vue'
+import InlineEdit from '../InlineEdit.vue'
 import {
   getCapabilityType,
   getMessageStatus,
@@ -66,12 +87,18 @@ import {
   getRawOutput
 } from '../../utils/messageAnalysis.js'
 
+defineEmits(['edit'])
+
 const props = defineProps({
   msg: {
     type: Object,
     required: true
   },
   isLastMessage: {
+    type: Boolean,
+    default: false
+  },
+  isLastUserMessage: {
     type: Boolean,
     default: false
   },
@@ -236,5 +263,47 @@ function getAttachmentIcon(att) {
 
 .canvas-output-indicator svg {
   opacity: 0.6;
+}
+
+/* Retry icon button (next to You label) */
+.retry-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.35rem;
+  padding: 2px;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.15s;
+}
+
+.message:hover .retry-icon-btn {
+  opacity: 0.6;
+}
+
+.retry-icon-btn:hover {
+  opacity: 1;
+  background-color: var(--color-bg-hover);
+  color: var(--color-text-base);
+}
+
+/* User message text (editable) */
+.message-content :deep(.user-message-text) {
+  display: block;
+}
+
+.message-content :deep(.user-message-input) {
+  font-family: 'Georgia', serif;
+  font-size: 0.95rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+}
+
+.message-content :deep(.inline-edit-wrapper) {
+  width: 100%;
 }
 </style>

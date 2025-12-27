@@ -131,20 +131,6 @@ describe('ToolRenderer', () => {
       expect(wrapper.find('.tool-container').exists()).toBe(true)
     })
 
-    it('should render tool name', () => {
-      wrapper = mount(ToolRenderer, {
-        props: { tool: createCalculatorTool() }
-      })
-      expect(wrapper.find('.tool-name').text()).toBe('Calculator')
-    })
-
-    it('should render tool description', () => {
-      wrapper = mount(ToolRenderer, {
-        props: { tool: createCalculatorTool() }
-      })
-      expect(wrapper.find('.tool-description').text()).toBe('A simple calculator')
-    })
-
     it('should apply layout class', () => {
       wrapper = mount(ToolRenderer, {
         props: { tool: createCalculatorTool() }

@@ -11,6 +11,15 @@ vi.mock('../OutputWindow.vue', () => ({
   }
 }))
 
+// Mock MinimizedWindowsBar component
+vi.mock('../MinimizedWindowsBar.vue', () => ({
+  default: {
+    name: 'MinimizedWindowsBar',
+    props: ['categories'],
+    template: '<div class="mock-minimized-bar" v-if="categories.length > 0"></div>'
+  }
+}))
+
 // Mock ResizeObserver
 class MockResizeObserver {
   constructor(callback) {
@@ -26,7 +35,8 @@ describe('CanvasPanel', () => {
   let wrapper
 
   const defaultProps = {
-    windows: []
+    visibleWindows: [],
+    minimizedCategories: []
   }
 
   afterEach(() => {
@@ -61,7 +71,7 @@ describe('CanvasPanel', () => {
     it('should hide empty state when windows exist', () => {
       wrapper = mount(CanvasPanel, {
         props: {
-          windows: [{
+          visibleWindows: [{
             id: 'window-1',
             type: 'chart',
             content: {},
@@ -69,7 +79,18 @@ describe('CanvasPanel', () => {
             size: { width: 400, height: 300 },
             zIndex: 100,
             title: 'Chart'
-          }]
+          }],
+          minimizedCategories: []
+        }
+      })
+      expect(wrapper.find('.canvas-empty-state').exists()).toBe(false)
+    })
+
+    it('should hide empty state when minimized windows exist', () => {
+      wrapper = mount(CanvasPanel, {
+        props: {
+          visibleWindows: [],
+          minimizedCategories: [{ type: 'chart', name: 'Charts', icon: '📊', windows: [{ id: 'w-1' }] }]
         }
       })
       expect(wrapper.find('.canvas-empty-state').exists()).toBe(false)
@@ -80,10 +101,11 @@ describe('CanvasPanel', () => {
     it('should render OutputWindow for each window', () => {
       wrapper = mount(CanvasPanel, {
         props: {
-          windows: [
+          visibleWindows: [
             { id: 'window-1', type: 'chart', content: {}, position: { x: 0, y: 0 }, size: { width: 400, height: 300 }, zIndex: 100, title: 'Chart 1' },
             { id: 'window-2', type: 'mermaid', content: {}, position: { x: 50, y: 50 }, size: { width: 500, height: 400 }, zIndex: 101, title: 'Diagram' }
-          ]
+          ],
+          minimizedCategories: []
         }
       })
       expect(wrapper.findAll('.mock-output-window')).toHaveLength(2)
@@ -100,7 +122,7 @@ describe('CanvasPanel', () => {
         title: 'Test Chart'
       }
       wrapper = mount(CanvasPanel, {
-        props: { windows: [window] }
+        props: { visibleWindows: [window], minimizedCategories: [] }
       })
 
       const outputWindow = wrapper.findComponent({ name: 'OutputWindow' })
@@ -112,7 +134,8 @@ describe('CanvasPanel', () => {
     it('should emit close-window event', async () => {
       wrapper = mount(CanvasPanel, {
         props: {
-          windows: [{ id: 'window-1', type: 'chart', content: {}, position: { x: 0, y: 0 }, size: { width: 400, height: 300 }, zIndex: 100, title: 'Chart' }]
+          visibleWindows: [{ id: 'window-1', type: 'chart', content: {}, position: { x: 0, y: 0 }, size: { width: 400, height: 300 }, zIndex: 100, title: 'Chart' }],
+          minimizedCategories: []
         }
       })
 
@@ -123,10 +146,26 @@ describe('CanvasPanel', () => {
       expect(wrapper.emitted('close-window')[0]).toEqual(['window-1'])
     })
 
+    it('should emit minimize-window event', async () => {
+      wrapper = mount(CanvasPanel, {
+        props: {
+          visibleWindows: [{ id: 'window-1', type: 'chart', content: {}, position: { x: 0, y: 0 }, size: { width: 400, height: 300 }, zIndex: 100, title: 'Chart' }],
+          minimizedCategories: []
+        }
+      })
+
+      const outputWindow = wrapper.findComponent({ name: 'OutputWindow' })
+      await outputWindow.vm.$emit('minimize')
+
+      expect(wrapper.emitted('minimize-window')).toBeTruthy()
+      expect(wrapper.emitted('minimize-window')[0]).toEqual(['window-1'])
+    })
+
     it('should emit update-position event', async () => {
       wrapper = mount(CanvasPanel, {
         props: {
-          windows: [{ id: 'window-1', type: 'chart', content: {}, position: { x: 0, y: 0 }, size: { width: 400, height: 300 }, zIndex: 100, title: 'Chart' }]
+          visibleWindows: [{ id: 'window-1', type: 'chart', content: {}, position: { x: 0, y: 0 }, size: { width: 400, height: 300 }, zIndex: 100, title: 'Chart' }],
+          minimizedCategories: []
         }
       })
 
@@ -140,7 +179,8 @@ describe('CanvasPanel', () => {
     it('should emit update-size event', async () => {
       wrapper = mount(CanvasPanel, {
         props: {
-          windows: [{ id: 'window-1', type: 'chart', content: {}, position: { x: 0, y: 0 }, size: { width: 400, height: 300 }, zIndex: 100, title: 'Chart' }]
+          visibleWindows: [{ id: 'window-1', type: 'chart', content: {}, position: { x: 0, y: 0 }, size: { width: 400, height: 300 }, zIndex: 100, title: 'Chart' }],
+          minimizedCategories: []
         }
       })
 
@@ -154,7 +194,8 @@ describe('CanvasPanel', () => {
     it('should emit bring-to-front event', async () => {
       wrapper = mount(CanvasPanel, {
         props: {
-          windows: [{ id: 'window-1', type: 'chart', content: {}, position: { x: 0, y: 0 }, size: { width: 400, height: 300 }, zIndex: 100, title: 'Chart' }]
+          visibleWindows: [{ id: 'window-1', type: 'chart', content: {}, position: { x: 0, y: 0 }, size: { width: 400, height: 300 }, zIndex: 100, title: 'Chart' }],
+          minimizedCategories: []
         }
       })
 
@@ -164,17 +205,33 @@ describe('CanvasPanel', () => {
       expect(wrapper.emitted('bring-to-front')).toBeTruthy()
       expect(wrapper.emitted('bring-to-front')[0]).toEqual(['window-1'])
     })
+
+    it('should emit restore-window event from minimized bar', async () => {
+      wrapper = mount(CanvasPanel, {
+        props: {
+          visibleWindows: [],
+          minimizedCategories: [{ type: 'chart', name: 'Charts', icon: '📊', windows: [{ id: 'w-1' }] }]
+        }
+      })
+
+      const minimizedBar = wrapper.findComponent({ name: 'MinimizedWindowsBar' })
+      await minimizedBar.vm.$emit('restore', 'w-1')
+
+      expect(wrapper.emitted('restore-window')).toBeTruthy()
+      expect(wrapper.emitted('restore-window')[0]).toEqual(['w-1'])
+    })
   })
 
   describe('Multiple Windows', () => {
     it('should handle multiple windows with different types', () => {
       wrapper = mount(CanvasPanel, {
         props: {
-          windows: [
+          visibleWindows: [
             { id: 'w-1', type: 'chart', content: {}, position: { x: 0, y: 0 }, size: { width: 400, height: 300 }, zIndex: 100, title: 'Chart' },
             { id: 'w-2', type: 'mermaid', content: {}, position: { x: 30, y: 30 }, size: { width: 500, height: 400 }, zIndex: 101, title: 'Diagram' },
             { id: 'w-3', type: 'tool', content: {}, position: { x: 60, y: 60 }, size: { width: 350, height: 400 }, zIndex: 102, title: 'Tool' }
-          ]
+          ],
+          minimizedCategories: []
         }
       })
 
@@ -190,14 +247,15 @@ describe('CanvasPanel', () => {
     it('should update when windows prop changes', async () => {
       wrapper = mount(CanvasPanel, {
         props: {
-          windows: [{ id: 'w-1', type: 'chart', content: {}, position: { x: 0, y: 0 }, size: { width: 400, height: 300 }, zIndex: 100, title: 'Chart' }]
+          visibleWindows: [{ id: 'w-1', type: 'chart', content: {}, position: { x: 0, y: 0 }, size: { width: 400, height: 300 }, zIndex: 100, title: 'Chart' }],
+          minimizedCategories: []
         }
       })
 
       expect(wrapper.findAll('.mock-output-window')).toHaveLength(1)
 
       await wrapper.setProps({
-        windows: [
+        visibleWindows: [
           { id: 'w-1', type: 'chart', content: {}, position: { x: 0, y: 0 }, size: { width: 400, height: 300 }, zIndex: 100, title: 'Chart' },
           { id: 'w-2', type: 'mermaid', content: {}, position: { x: 30, y: 30 }, size: { width: 500, height: 400 }, zIndex: 101, title: 'Diagram' }
         ]
@@ -209,15 +267,40 @@ describe('CanvasPanel', () => {
     it('should show empty state when all windows removed', async () => {
       wrapper = mount(CanvasPanel, {
         props: {
-          windows: [{ id: 'w-1', type: 'chart', content: {}, position: { x: 0, y: 0 }, size: { width: 400, height: 300 }, zIndex: 100, title: 'Chart' }]
+          visibleWindows: [{ id: 'w-1', type: 'chart', content: {}, position: { x: 0, y: 0 }, size: { width: 400, height: 300 }, zIndex: 100, title: 'Chart' }],
+          minimizedCategories: []
         }
       })
 
       expect(wrapper.find('.canvas-empty-state').exists()).toBe(false)
 
-      await wrapper.setProps({ windows: [] })
+      await wrapper.setProps({ visibleWindows: [], minimizedCategories: [] })
 
       expect(wrapper.find('.canvas-empty-state').exists()).toBe(true)
+    })
+  })
+
+  describe('Minimized Windows Bar', () => {
+    it('should render minimized bar when categories exist', () => {
+      wrapper = mount(CanvasPanel, {
+        props: {
+          visibleWindows: [],
+          minimizedCategories: [{ type: 'chart', name: 'Charts', icon: '📊', windows: [{ id: 'w-1' }] }]
+        }
+      })
+
+      expect(wrapper.find('.mock-minimized-bar').exists()).toBe(true)
+    })
+
+    it('should not render minimized bar when no categories', () => {
+      wrapper = mount(CanvasPanel, {
+        props: {
+          visibleWindows: [],
+          minimizedCategories: []
+        }
+      })
+
+      expect(wrapper.find('.mock-minimized-bar').exists()).toBe(false)
     })
   })
 })

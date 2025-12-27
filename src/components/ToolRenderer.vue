@@ -1,10 +1,5 @@
 <template>
   <div class="tool-container" :class="'layout-' + (tool.layout || 'custom')">
-    <div class="tool-header">
-      <h3 class="tool-name">{{ tool.name }}</h3>
-      <p class="tool-description">{{ tool.description }}</p>
-    </div>
-
     <!-- Display Area -->
     <div v-if="tool.display" class="tool-display" :class="'display-' + tool.display.type">
       <!-- Single line display (calculator style) -->
@@ -240,32 +235,12 @@ watch([() => state.r, () => state.g, () => state.b], ([r, g, b]) => {
 
 <style scoped>
 .tool-container {
-  border: 1px solid var(--color-border-base);
-  border-radius: 12px;
-  padding: 1.5rem;
-  background-color: var(--color-bg-elevated);
-  margin: 1rem 0;
-  width: fit-content;
-  min-width: 200px;
-  max-width: 100%;
-}
-
-.tool-header {
-  margin-bottom: 1rem;
-  text-align: center;
-}
-
-.tool-name {
-  margin: 0 0 0.25rem 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--color-text-strong);
-}
-
-.tool-description {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: 0.8rem;
+  padding: 0.5rem;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Display Styles */
@@ -273,6 +248,7 @@ watch([() => state.r, () => state.g, () => state.b], ([r, g, b]) => {
   margin-bottom: 1rem;
   border-radius: 8px;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .display-single {
@@ -592,9 +568,10 @@ watch([() => state.r, () => state.g, () => state.b], ([r, g, b]) => {
 
 /* Code Details */
 .code-details {
-  margin-top: 1rem;
+  margin-top: auto;
   border-top: 1px solid var(--color-border-subtle);
   padding-top: 0.75rem;
+  flex-shrink: 0;
 }
 
 .code-summary {
@@ -612,6 +589,9 @@ watch([() => state.r, () => state.g, () => state.b], ([r, g, b]) => {
 .tool-elements {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 /* Checkbox Styles */
@@ -708,7 +688,7 @@ watch([() => state.r, () => state.g, () => state.b], ([r, g, b]) => {
 .toggle-knob {
   width: 22px;
   height: 22px;
-  background-color: white;
+  background-color: var(--color-bg-surface, white);
   border-radius: 50%;
   transition: transform 0.2s;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
@@ -782,7 +762,7 @@ watch([() => state.r, () => state.g, () => state.b], ([r, g, b]) => {
 }
 
 .rating-star.filled {
-  color: #f59e0b;
+  color: var(--color-warning, #f59e0b);
 }
 
 /* Stepper */
@@ -952,27 +932,27 @@ watch([() => state.r, () => state.g, () => state.b], ([r, g, b]) => {
 }
 
 .alert-info {
-  background-color: #dbeafe;
-  color: #1e40af;
-  border: 1px solid #93c5fd;
+  background-color: var(--color-info-bg, #dbeafe);
+  color: var(--color-info-text, #1e40af);
+  border: 1px solid var(--color-info-border, #93c5fd);
 }
 
 .alert-success {
-  background-color: #dcfce7;
-  color: #166534;
-  border: 1px solid #86efac;
+  background-color: var(--color-success-bg, #dcfce7);
+  color: var(--color-success-text, #166534);
+  border: 1px solid var(--color-success-border, #86efac);
 }
 
 .alert-warning {
-  background-color: #fef3c7;
-  color: #92400e;
-  border: 1px solid #fcd34d;
+  background-color: var(--color-warning-bg, #fef3c7);
+  color: var(--color-warning-text, #92400e);
+  border: 1px solid var(--color-warning-border, #fcd34d);
 }
 
 .alert-error {
-  background-color: #fee2e2;
-  color: #991b1b;
-  border: 1px solid #fca5a5;
+  background-color: var(--color-error-bg, #fee2e2);
+  color: var(--color-error-text, #991b1b);
+  border: 1px solid var(--color-error-border, #fca5a5);
 }
 
 .alert-dismiss {
@@ -1007,18 +987,18 @@ watch([() => state.r, () => state.g, () => state.b], ([r, g, b]) => {
 }
 
 .badge-low {
-  background-color: #dcfce7;
-  color: #166534;
+  background-color: var(--color-success-bg, #dcfce7);
+  color: var(--color-success-text, #166534);
 }
 
 .badge-medium {
-  background-color: #fef3c7;
-  color: #92400e;
+  background-color: var(--color-warning-bg, #fef3c7);
+  color: var(--color-warning-text, #92400e);
 }
 
 .badge-high {
-  background-color: #fee2e2;
-  color: #991b1b;
+  background-color: var(--color-error-bg, #fee2e2);
+  color: var(--color-error-text, #991b1b);
 }
 
 /* Table */

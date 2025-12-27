@@ -45,8 +45,8 @@ vi.mock('../components/studio/CanvasPanel.vue', () => ({
   default: {
     name: 'CanvasPanel',
     template: '<div class="canvas-panel"></div>',
-    props: ['windows'],
-    emits: ['close-window', 'update-position', 'update-size', 'bring-to-front']
+    props: ['visibleWindows', 'minimizedCategories'],
+    emits: ['close-window', 'minimize-window', 'restore-window', 'update-position', 'update-size', 'bring-to-front']
   }
 }))
 
@@ -115,11 +115,15 @@ const mockChat = {
 
 const mockCanvas = {
   windows: ref([]),
+  visibleWindows: ref([]),
+  minimizedWindowsByCategory: ref([]),
   addWindow: vi.fn(),
   removeWindow: vi.fn(),
   updateWindowPosition: vi.fn(),
   updateWindowSize: vi.fn(),
   bringToFront: vi.fn(),
+  minimizeWindow: vi.fn(),
+  restoreWindow: vi.fn(),
   clearWindows: vi.fn()
 }
 
@@ -156,6 +160,8 @@ describe('StudioChat', () => {
     mockChat.messages.value = []
     mockChat.isStreaming.value = false
     mockCanvas.windows.value = []
+    mockCanvas.visibleWindows.value = []
+    mockCanvas.minimizedWindowsByCategory.value = []
   })
 
   describe('rendering', () => {
@@ -383,14 +389,14 @@ describe('StudioChat', () => {
       expect(mockChat.stopStreaming).toHaveBeenCalled()
     })
 
-    it('should call clearChat on clear event', async () => {
+    it('should call clearChat on clear event but keep canvas windows', async () => {
       const wrapper = mount(StudioChat)
       const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
 
       await chatPanel.vm.$emit('clear')
 
       expect(mockChat.clearChat).toHaveBeenCalled()
-      expect(mockCanvas.clearWindows).toHaveBeenCalled()
+      expect(mockCanvas.clearWindows).not.toHaveBeenCalled()
     })
 
     it('should call handleFileUpload on file-upload event', async () => {

@@ -13,9 +13,23 @@
     >
       <div class="window-title">
         <span class="window-type-icon">{{ typeIcon }}</span>
-        <span class="window-title-text">{{ window.title }}</span>
+        <InlineEdit
+          :modelValue="window.title"
+          textClass="window-title-text"
+          inputClass="window-title-input"
+          @save="(title) => emit('update:title', title)"
+        />
       </div>
       <div class="window-controls">
+        <button
+          class="window-control-btn minimize-btn"
+          @click.stop="$emit('minimize')"
+          title="Minimize"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+        </button>
         <button
           class="window-control-btn close-btn"
           @click.stop="$emit('close')"
@@ -69,11 +83,15 @@
       </div>
     </div>
 
-    <!-- Resize Handle -->
-    <div
-      class="resize-handle"
-      @mousedown.stop="startResize"
-    ></div>
+    <!-- Resize Handles -->
+    <div class="resize-handle resize-n" @mousedown.stop="(e) => startResize(e, 'n')"></div>
+    <div class="resize-handle resize-s" @mousedown.stop="(e) => startResize(e, 's')"></div>
+    <div class="resize-handle resize-e" @mousedown.stop="(e) => startResize(e, 'e')"></div>
+    <div class="resize-handle resize-w" @mousedown.stop="(e) => startResize(e, 'w')"></div>
+    <div class="resize-handle resize-ne" @mousedown.stop="(e) => startResize(e, 'ne')"></div>
+    <div class="resize-handle resize-nw" @mousedown.stop="(e) => startResize(e, 'nw')"></div>
+    <div class="resize-handle resize-se" @mousedown.stop="(e) => startResize(e, 'se')"></div>
+    <div class="resize-handle resize-sw" @mousedown.stop="(e) => startResize(e, 'sw')"></div>
   </div>
 </template>
 
@@ -82,6 +100,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import ChartRenderer from '../ChartRenderer.vue'
 import MermaidBlock from '../markdown/MermaidBlock.vue'
 import ToolRenderer from '../ToolRenderer.vue'
+import InlineEdit from '../InlineEdit.vue'
 import { parseChartOption } from '../../utils/chart.js'
 
 const props = defineProps({
@@ -89,13 +108,14 @@ const props = defineProps({
   containerRect: { type: Object, default: () => ({ width: 0, height: 0 }) }
 })
 
-const emit = defineEmits(['close', 'update:position', 'update:size', 'bring-to-front'])
+const emit = defineEmits(['close', 'minimize', 'update:position', 'update:size', 'update:title', 'bring-to-front'])
 
 const windowRef = ref(null)
 const isDragging = ref(false)
 const isResizing = ref(false)
+const resizeDirection = ref('')
 const dragStart = ref({ x: 0, y: 0 })
-const resizeStart = ref({ x: 0, y: 0, width: 0, height: 0 })
+const resizeStart = ref({ x: 0, y: 0, width: 0, height: 0, posX: 0, posY: 0 })
 
 // Computed styles
 const windowStyle = computed(() => ({
@@ -174,19 +194,33 @@ function stopDrag() {
 }
 
 // Resize functionality
-function startResize(event) {
+const cursorMap = {
+  n: 'ns-resize',
+  s: 'ns-resize',
+  e: 'ew-resize',
+  w: 'ew-resize',
+  ne: 'nesw-resize',
+  sw: 'nesw-resize',
+  nw: 'nwse-resize',
+  se: 'nwse-resize'
+}
+
+function startResize(event, direction) {
   isResizing.value = true
+  resizeDirection.value = direction
   resizeStart.value = {
     x: event.clientX,
     y: event.clientY,
     width: props.window.size.width,
-    height: props.window.size.height
+    height: props.window.size.height,
+    posX: props.window.position.x,
+    posY: props.window.position.y
   }
   emit('bring-to-front')
 
   document.addEventListener('mousemove', handleResize)
   document.addEventListener('mouseup', stopResize)
-  document.body.style.cursor = 'se-resize'
+  document.body.style.cursor = cursorMap[direction]
   document.body.style.userSelect = 'none'
 }
 
@@ -195,22 +229,56 @@ function handleResize(event) {
 
   const deltaX = event.clientX - resizeStart.value.x
   const deltaY = event.clientY - resizeStart.value.y
+  const dir = resizeDirection.value
 
-  let newWidth = resizeStart.value.width + deltaX
-  let newHeight = resizeStart.value.height + deltaY
+  let newWidth = resizeStart.value.width
+  let newHeight = resizeStart.value.height
+  let newX = resizeStart.value.posX
+  let newY = resizeStart.value.posY
+
+  // Handle horizontal resizing
+  if (dir.includes('e')) {
+    newWidth = resizeStart.value.width + deltaX
+  } else if (dir.includes('w')) {
+    newWidth = resizeStart.value.width - deltaX
+    newX = resizeStart.value.posX + deltaX
+  }
+
+  // Handle vertical resizing
+  if (dir.includes('s')) {
+    newHeight = resizeStart.value.height + deltaY
+  } else if (dir.includes('n')) {
+    newHeight = resizeStart.value.height - deltaY
+    newY = resizeStart.value.posY + deltaY
+  }
+
+  // Constrain position to not go negative
+  if (newX < 0) {
+    newWidth += newX
+    newX = 0
+  }
+  if (newY < 0) {
+    newHeight += newY
+    newY = 0
+  }
 
   // Constrain to container bounds
-  const maxWidth = props.containerRect.width - props.window.position.x
-  const maxHeight = props.containerRect.height - props.window.position.y
-
+  const maxWidth = props.containerRect.width - newX
+  const maxHeight = props.containerRect.height - newY
   newWidth = Math.min(newWidth, maxWidth)
   newHeight = Math.min(newHeight, maxHeight)
+
+  // Update position if resizing from top or left
+  if (dir.includes('w') || dir.includes('n')) {
+    emit('update:position', { x: newX, y: newY })
+  }
 
   emit('update:size', { width: newWidth, height: newHeight })
 }
 
 function stopResize() {
   isResizing.value = false
+  resizeDirection.value = ''
   document.removeEventListener('mousemove', handleResize)
   document.removeEventListener('mouseup', stopResize)
   document.body.style.cursor = ''
@@ -279,11 +347,19 @@ onUnmounted(() => {
   font-size: 0.9rem;
 }
 
-.window-title-text {
+.window-title :deep(.window-title-text) {
   max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.window-title :deep(.window-title-input) {
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 2px 4px;
+  width: 150px;
 }
 
 .window-controls {
@@ -345,31 +421,76 @@ onUnmounted(() => {
   max-height: 100%;
 }
 
-/* Resize Handle */
+/* Resize Handles */
 .resize-handle {
   position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 16px;
-  height: 16px;
-  cursor: se-resize;
-  background: linear-gradient(
-    135deg,
-    transparent 50%,
-    var(--color-border-base) 50%,
-    var(--color-border-base) 60%,
-    transparent 60%,
-    transparent 70%,
-    var(--color-border-base) 70%,
-    var(--color-border-base) 80%,
-    transparent 80%
-  );
-  opacity: 0.5;
-  transition: opacity 0.15s;
+  z-index: 10;
 }
 
-.output-window:hover .resize-handle {
-  opacity: 1;
+/* Edge handles */
+.resize-n {
+  top: 0;
+  left: 8px;
+  right: 8px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.resize-s {
+  bottom: 0;
+  left: 8px;
+  right: 8px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.resize-e {
+  right: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.resize-w {
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+/* Corner handles */
+.resize-ne {
+  top: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  cursor: nesw-resize;
+}
+
+.resize-nw {
+  top: 0;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  cursor: nwse-resize;
+}
+
+.resize-se {
+  bottom: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  cursor: nwse-resize;
+}
+
+.resize-sw {
+  bottom: 0;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  cursor: nesw-resize;
 }
 
 /* Code Result */

@@ -8,6 +8,7 @@
       :is-searching="isSearching"
       :search-query="searchQuery"
       :current-planning-step="currentPlanningStep"
+      @edit="(index, content) => $emit('edit', index, content)"
     />
 
     <!-- Input -->
@@ -65,7 +66,8 @@ const emit = defineEmits([
   'clear',
   'trigger-upload',
   'file-upload',
-  'remove-file'
+  'remove-file',
+  'edit'
 ])
 
 const messageListRef = ref(null)

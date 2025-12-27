@@ -9,19 +9,23 @@
       :key="index"
       :msg="msg"
       :is-last-message="index === messages.length - 1"
+      :is-last-user-message="index === lastUserMessageIndex"
       :is-streaming="isStreaming"
       :is-searching="isSearching"
       :search-query="searchQuery"
       :current-planning-step="currentPlanningStep"
+      @edit="(newContent) => $emit('edit', index, newContent)"
     />
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import StudioChatMessage from './StudioChatMessage.vue'
 
-defineProps({
+defineEmits(['edit'])
+
+const props = defineProps({
   messages: {
     type: Array,
     required: true
@@ -42,6 +46,16 @@ defineProps({
     type: Number,
     default: -1
   }
+})
+
+// Find the index of the last user message
+const lastUserMessageIndex = computed(() => {
+  for (let i = props.messages.length - 1; i >= 0; i--) {
+    if (props.messages[i].role === 'user') {
+      return i
+    }
+  }
+  return -1
 })
 
 const containerRef = ref(null)

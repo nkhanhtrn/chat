@@ -39,9 +39,17 @@ describe('useStudioCanvas', () => {
       expect(typeof canvas.updateWindowPosition).toBe('function')
       expect(typeof canvas.updateWindowSize).toBe('function')
       expect(typeof canvas.bringToFront).toBe('function')
+      expect(typeof canvas.minimizeWindow).toBe('function')
+      expect(typeof canvas.restoreWindow).toBe('function')
       expect(typeof canvas.clearWindows).toBe('function')
       expect(typeof canvas.getWindowByMessageId).toBe('function')
       expect(typeof canvas.getMinSize).toBe('function')
+    })
+
+    it('should return computed properties for visible and minimized windows', () => {
+      const canvas = useStudioCanvas()
+      expect(canvas.visibleWindows).toBeDefined()
+      expect(canvas.minimizedWindowsByCategory).toBeDefined()
     })
 
     it('should load from localStorage on init', () => {
@@ -140,8 +148,8 @@ describe('useStudioCanvas', () => {
       const svg = canvas.addWindow({ messageId: 'msg-3', type: 'svg', content: {} })
       expect(svg.title).toBe('SVG')
 
-      const tool = canvas.addWindow({ messageId: 'msg-4', type: 'tool', content: {} })
-      expect(tool.title).toBe('Tool')
+      const tool = canvas.addWindow({ messageId: 'msg-4', type: 'tool', content: { name: 'Calculator' } })
+      expect(tool.title).toBe('Calculator')
 
       const codeResult = canvas.addWindow({ messageId: 'msg-5', type: 'codeResult', content: {} })
       expect(codeResult.title).toBe('Code Result')
@@ -302,6 +310,120 @@ describe('useStudioCanvas', () => {
 
       const canvas2 = useStudioCanvas()
       expect(canvas2.windows.value).toHaveLength(1)
+    })
+  })
+
+  describe('minimizeWindow', () => {
+    it('should set minimized to true', () => {
+      const canvas = useStudioCanvas()
+      const window = canvas.addWindow({ messageId: 'msg-1', type: 'chart', content: {} })
+
+      expect(window.minimized).toBe(false)
+      canvas.minimizeWindow(window.id)
+      expect(canvas.windows.value[0].minimized).toBe(true)
+    })
+
+    it('should not error for non-existent window', () => {
+      const canvas = useStudioCanvas()
+      expect(() => canvas.minimizeWindow('non-existent')).not.toThrow()
+    })
+
+    it('should save to localStorage after minimizing', () => {
+      const canvas = useStudioCanvas()
+      const window = canvas.addWindow({ messageId: 'msg-1', type: 'chart', content: {} })
+      vi.clearAllMocks()
+
+      canvas.minimizeWindow(window.id)
+      expect(localStorageMock.setItem).toHaveBeenCalled()
+    })
+  })
+
+  describe('restoreWindow', () => {
+    it('should set minimized to false', () => {
+      const canvas = useStudioCanvas()
+      const window = canvas.addWindow({ messageId: 'msg-1', type: 'chart', content: {} })
+
+      canvas.minimizeWindow(window.id)
+      expect(canvas.windows.value[0].minimized).toBe(true)
+
+      canvas.restoreWindow(window.id)
+      expect(canvas.windows.value[0].minimized).toBe(false)
+    })
+
+    it('should bring window to front when restoring', () => {
+      const canvas = useStudioCanvas()
+      const w1 = canvas.addWindow({ messageId: 'msg-1', type: 'chart', content: {} })
+      const w2 = canvas.addWindow({ messageId: 'msg-2', type: 'chart', content: {} })
+
+      canvas.minimizeWindow(w1.id)
+      const w2ZIndex = w2.zIndex
+
+      canvas.restoreWindow(w1.id)
+      expect(canvas.windows.value[0].zIndex).toBeGreaterThan(w2ZIndex)
+    })
+  })
+
+  describe('visibleWindows', () => {
+    it('should return only non-minimized windows', () => {
+      const canvas = useStudioCanvas()
+      canvas.addWindow({ messageId: 'msg-1', type: 'chart', content: {} })
+      const w2 = canvas.addWindow({ messageId: 'msg-2', type: 'mermaid', content: {} })
+      canvas.addWindow({ messageId: 'msg-3', type: 'svg', content: {} })
+
+      canvas.minimizeWindow(w2.id)
+
+      expect(canvas.windows.value).toHaveLength(3)
+      expect(canvas.visibleWindows.value).toHaveLength(2)
+      expect(canvas.visibleWindows.value.every(w => !w.minimized)).toBe(true)
+    })
+  })
+
+  describe('minimizedWindowsByCategory', () => {
+    it('should group minimized windows by type', () => {
+      const canvas = useStudioCanvas()
+      const chart1 = canvas.addWindow({ messageId: 'msg-1', type: 'chart', content: {} })
+      const chart2 = canvas.addWindow({ messageId: 'msg-2', type: 'chart', content: {} })
+      const mermaid1 = canvas.addWindow({ messageId: 'msg-3', type: 'mermaid', content: {} })
+
+      canvas.minimizeWindow(chart1.id)
+      canvas.minimizeWindow(chart2.id)
+      canvas.minimizeWindow(mermaid1.id)
+
+      const categories = canvas.minimizedWindowsByCategory.value
+      expect(categories).toHaveLength(2)
+
+      const chartCategory = categories.find(c => c.type === 'chart')
+      expect(chartCategory).toBeDefined()
+      expect(chartCategory.windows).toHaveLength(2)
+      expect(chartCategory.name).toBe('Charts')
+
+      const mermaidCategory = categories.find(c => c.type === 'mermaid')
+      expect(mermaidCategory).toBeDefined()
+      expect(mermaidCategory.windows).toHaveLength(1)
+      expect(mermaidCategory.name).toBe('Diagrams')
+    })
+
+    it('should sort categories by order', () => {
+      const canvas = useStudioCanvas()
+      const tool = canvas.addWindow({ messageId: 'msg-1', type: 'tool', content: {} })
+      const chart = canvas.addWindow({ messageId: 'msg-2', type: 'chart', content: {} })
+      const code = canvas.addWindow({ messageId: 'msg-3', type: 'codeResult', content: {} })
+
+      canvas.minimizeWindow(tool.id)
+      canvas.minimizeWindow(chart.id)
+      canvas.minimizeWindow(code.id)
+
+      const categories = canvas.minimizedWindowsByCategory.value
+      expect(categories[0].type).toBe('chart') // order 1
+      expect(categories[1].type).toBe('tool')  // order 4
+      expect(categories[2].type).toBe('codeResult') // order 5
+    })
+
+    it('should return empty array when no windows are minimized', () => {
+      const canvas = useStudioCanvas()
+      canvas.addWindow({ messageId: 'msg-1', type: 'chart', content: {} })
+
+      expect(canvas.minimizedWindowsByCategory.value).toHaveLength(0)
     })
   })
 })

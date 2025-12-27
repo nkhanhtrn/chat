@@ -167,7 +167,8 @@ export function useStudioChat() {
       role: 'user',
       content: preparedMessage.displayContent,
       fullContent: preparedMessage.fullContent,
-      attachments: preparedMessage.attachmentsForDisplay
+      attachments: preparedMessage.attachmentsForDisplay,
+      rawAttachments: preparedMessage.rawAttachments
     })
     saveToStorage()
     scrollToBottom()
@@ -414,6 +415,19 @@ export function useStudioChat() {
   }
 
   /**
+   * Delete a user message and its assistant response
+   * @param {number} messageIndex - Index of the user message to delete
+   */
+  function deleteMessagePair(messageIndex) {
+    const userMsg = messages.value[messageIndex]
+    if (!userMsg || userMsg.role !== 'user') return
+
+    const removeCount = messages.value[messageIndex + 1]?.role === 'assistant' ? 2 : 1
+    messages.value.splice(messageIndex, removeCount)
+    saveToStorage()
+  }
+
+  /**
    * Clear all messages
    */
   function clearChat() {
@@ -435,6 +449,7 @@ export function useStudioChat() {
     getLastMessage,
     updateLastMessage,
     sendMessage,
+    deleteMessagePair,
     stopStreaming,
     clearChat,
     onOutput

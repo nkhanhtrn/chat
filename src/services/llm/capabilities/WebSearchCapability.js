@@ -129,16 +129,17 @@ export class WebSearchCapability extends BaseCapability {
       name: 'websearch',
       description: 'Searches the web for CURRENT information. Use when the user needs real-time or recent data that may not be in training data.',
       conditions: [
+        'User explicitly asks to search the internet/web',
         'Current/real-time information (prices, weather, news)',
         'Recent events or updates after knowledge cutoff',
         'Facts that need verification from web sources',
         'Research requiring multiple current sources'
       ],
       examples: [
+        { input: 'Search the internet for Python tutorials' },
         { input: 'What is the current Bitcoin price?' },
         { input: 'What\'s the weather in Tokyo?' },
-        { input: 'Latest news about AI' },
-        { input: 'Who won the game yesterday?' }
+        { input: 'Latest news about AI' }
       ]
     }
   }

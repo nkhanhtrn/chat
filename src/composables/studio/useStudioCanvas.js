@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 
 const STORAGE_KEY = 'studio-canvas-windows'
 
@@ -8,6 +8,15 @@ const nextWindowId = ref(1)
 const cascadeOffset = ref({ x: 0, y: 0 })
 const maxZIndex = ref(100)
 let watcherSetup = false
+
+// Window type categories for grouping minimized windows
+const TYPE_CATEGORIES = {
+  chart: { name: 'Charts', icon: '📊', order: 1 },
+  mermaid: { name: 'Diagrams', icon: '📐', order: 2 },
+  svg: { name: 'Graphics', icon: '🎨', order: 3 },
+  tool: { name: 'Tools', icon: '🔧', order: 4 },
+  codeResult: { name: 'Code', icon: '💻', order: 5 }
+}
 
 // Constants
 const CASCADE_STEP = 30
@@ -98,7 +107,7 @@ function generateTitle(type, content) {
     case 'svg':
       return 'SVG'
     case 'tool':
-      return content?.title || 'Tool'
+      return content?.name || 'Tool'
     case 'codeResult':
       return 'Code Result'
     default:
@@ -124,7 +133,8 @@ function addWindow({ messageId, type, content }) {
     position,
     size: { ...size },
     zIndex: maxZIndex.value,
-    title: generateTitle(type, content)
+    title: generateTitle(type, content),
+    minimized: false
   }
 
   windows.value.push(window)
@@ -182,6 +192,69 @@ function bringToFront(windowId) {
 }
 
 /**
+ * Update window title
+ */
+function updateWindowTitle(windowId, title) {
+  const window = windows.value.find(w => w.id === windowId)
+  if (window) {
+    window.title = title
+    saveToStorage()
+  }
+}
+
+/**
+ * Minimize a window
+ */
+function minimizeWindow(windowId) {
+  const window = windows.value.find(w => w.id === windowId)
+  if (window) {
+    window.minimized = true
+    saveToStorage()
+  }
+}
+
+/**
+ * Restore a minimized window
+ */
+function restoreWindow(windowId) {
+  const window = windows.value.find(w => w.id === windowId)
+  if (window) {
+    window.minimized = false
+    bringToFront(windowId)
+  }
+}
+
+/**
+ * Computed: visible windows (not minimized)
+ */
+const visibleWindows = computed(() =>
+  windows.value.filter(w => !w.minimized)
+)
+
+/**
+ * Computed: minimized windows grouped by category
+ */
+const minimizedWindowsByCategory = computed(() => {
+  const minimized = windows.value.filter(w => w.minimized)
+  const grouped = {}
+
+  for (const win of minimized) {
+    const category = TYPE_CATEGORIES[win.type] || { name: 'Other', icon: '📋', order: 99 }
+    if (!grouped[win.type]) {
+      grouped[win.type] = {
+        type: win.type,
+        ...category,
+        windows: []
+      }
+    }
+    grouped[win.type].windows.push(win)
+  }
+
+  // Sort by category order
+  return Object.values(grouped).sort((a, b) => a.order - b.order)
+})
+
+/**
  * Get window by message ID
  */
 function getWindowByMessageId(messageId) {
@@ -230,13 +303,18 @@ export function useStudioCanvas() {
   return {
     // State
     windows,
+    visibleWindows,
+    minimizedWindowsByCategory,
 
     // Actions
     addWindow,
     removeWindow,
     updateWindowPosition,
     updateWindowSize,
+    updateWindowTitle,
     bringToFront,
+    minimizeWindow,
+    restoreWindow,
     getWindowByMessageId,
     clearWindows,
     getMinSize,

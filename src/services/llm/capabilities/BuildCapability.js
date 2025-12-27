@@ -661,17 +661,18 @@ export class BuildCapability extends BaseCapability {
       name: 'build',
       description: 'Creates INTERACTIVE UI tools with buttons, forms, and controls. Use when the user wants something they can USE repeatedly, not just get an answer.',
       conditions: [
+        'User says "add a tool" or "build a tool"',
         'User wants an interactive tool (buttons, inputs, controls)',
         'User describes an app, widget, or utility to use',
         'Request involves managing or tracking data over time',
         'User wants a persistent interface, not a one-time result'
       ],
       examples: [
+        { input: 'Add a tool to calculate tips' },
         { input: 'Build me a calculator' },
         { input: 'Create a todo list' },
         { input: 'Make a timer with start/stop buttons' },
-        { input: 'I need something to track my expenses' },
-        { input: 'Create a unit converter' }
+        { input: 'I need something to track my expenses' }
       ]
     }
   }
