@@ -45,6 +45,14 @@ vi.mock('../components/studio/MessageInput.vue', () => ({
   }
 }))
 
+vi.mock('../components/MobileFooter.vue', () => ({
+  default: {
+    name: 'MobileFooter',
+    template: '<div class="mobile-footer"></div>',
+    props: ['activePage', 'showHome', 'showNewNotebook', 'mobileOnly']
+  }
+}))
+
 // Mock composables
 const mockModelSelection = {
   twoModelMode: ref(false),

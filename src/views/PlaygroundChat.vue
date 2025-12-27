@@ -1,7 +1,7 @@
 <template>
-  <div class="studio-page">
-    <!-- Header -->
-    <StudioHeader
+  <div class="playground">
+    <!-- Minimal Header -->
+    <PlaygroundHeader
       v-model:two-model-mode="modelSelection.twoModelMode.value"
       v-model:selected-provider="modelSelection.selectedProvider.value"
       v-model:selected-model="modelSelection.selectedModel.value"
@@ -11,55 +11,48 @@
       :models="modelSelection.models.value"
       :all-models="modelSelection.allModels.value"
       @update:selected-provider="modelSelection.onProviderChange"
+      @clear="chat.clearChat"
     />
 
-    <SlideTransition appear direction="vertical">
-      <div class="studio-content">
-        <!-- Messages -->
-        <MessageList
-          ref="messageListRef"
-          :messages="chat.messages.value"
-          :is-streaming="chat.isStreaming.value"
-          :is-searching="webSearch.isSearching.value"
-          :search-query="webSearch.searchQuery.value"
-          :current-planning-step="planning.currentPlanningStep.value"
-        />
+    <!-- Messages Area -->
+    <PlaygroundMessages
+      ref="messagesRef"
+      :messages="chat.messages.value"
+      :is-streaming="chat.isStreaming.value"
+      :is-searching="webSearch.isSearching.value"
+      :search-query="webSearch.searchQuery.value"
+      :current-planning-step="planning.currentPlanningStep.value"
+    />
 
-        <!-- Input -->
-        <MessageInput
-          ref="messageInputRef"
-          v-model="inputText"
-          :is-streaming="chat.isStreaming.value"
-          :is-searching="webSearch.isSearching.value"
-          :is-routing="chat.isRouting.value"
-          :current-verify-attempt="chat.currentVerifyAttempt.value"
-          :search-status="webSearch.searchStatus.value"
-          :has-loading-urls="attachments.hasLoadingUrls.value"
-          :has-loading-files="attachments.hasLoadingFiles.value"
-          :is-model-ready="modelSelection.isModelReady.value"
-          :messages-empty="chat.messages.value.length === 0"
-          :detected-urls="attachments.detectedUrls.value"
-          :uploaded-files="attachments.uploadedFiles.value"
-          @send="handleSend"
-          @stop="chat.stopStreaming"
-          @clear="chat.clearChat"
-          @trigger-upload="triggerFileUpload"
-          @file-upload="attachments.handleFileUpload"
-          @remove-file="attachments.removeFile"
-        />
-      </div>
-    </SlideTransition>
+    <!-- Input Area -->
+    <PlaygroundInput
+      ref="inputRef"
+      v-model="inputText"
+      :is-streaming="chat.isStreaming.value"
+      :is-searching="webSearch.isSearching.value"
+      :is-routing="chat.isRouting.value"
+      :current-verify-attempt="chat.currentVerifyAttempt.value"
+      :search-status="webSearch.searchStatus.value"
+      :has-loading-urls="attachments.hasLoadingUrls.value"
+      :has-loading-files="attachments.hasLoadingFiles.value"
+      :is-model-ready="modelSelection.isModelReady.value"
+      :detected-urls="attachments.detectedUrls.value"
+      :uploaded-files="attachments.uploadedFiles.value"
+      @send="handleSend"
+      @stop="chat.stopStreaming"
+      @file-upload="attachments.handleFileUpload"
+      @remove-file="attachments.removeFile"
+    />
 
-    <MobileFooter active-page="studio" show-home />
+    <MobileFooter active-page="playground" show-home />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch, nextTick } from 'vue'
-import SlideTransition from '../components/SlideTransition.vue'
-import StudioHeader from '../components/studio/StudioHeader.vue'
-import MessageList from '../components/studio/MessageList.vue'
-import MessageInput from '../components/studio/MessageInput.vue'
+import { ref, watch, onMounted } from 'vue'
+import PlaygroundHeader from '../components/playground/PlaygroundHeader.vue'
+import PlaygroundMessages from '../components/playground/PlaygroundMessages.vue'
+import PlaygroundInput from '../components/playground/PlaygroundInput.vue'
 import MobileFooter from '../components/MobileFooter.vue'
 import { useModelSelection } from '../composables/useModelSelection.js'
 import { useAttachments } from '../composables/useAttachments.js'
@@ -67,7 +60,7 @@ import { useWebSearch } from '../composables/studio/useWebSearch.js'
 import { usePlanning } from '../composables/studio/usePlanning.js'
 import { useStudioChat } from '../composables/studio/useStudioChat.js'
 
-// Initialize composables
+// Reuse all composables from Studio
 const modelSelection = useModelSelection()
 const attachments = useAttachments()
 const webSearch = useWebSearch()
@@ -76,14 +69,14 @@ const chat = useStudioChat()
 
 // Local state
 const inputText = ref('')
-const messageListRef = ref(null)
-const messageInputRef = ref(null)
+const messagesRef = ref(null)
+const inputRef = ref(null)
 
 // Watch input for URL detection
 attachments.watchInputForUrls(inputText)
 
 // Connect message container ref
-watch(messageListRef, (newRef) => {
+watch(messagesRef, (newRef) => {
   if (newRef?.containerRef) {
     chat.messagesContainer.value = newRef.containerRef
   }
@@ -94,12 +87,7 @@ onMounted(async () => {
   await modelSelection.initialize()
 })
 
-// Trigger file upload
-function triggerFileUpload() {
-  messageInputRef.value?.fileInputRef?.click()
-}
-
-// Handle send message
+// Handle send message - same logic as Studio
 async function handleSend() {
   if (!inputText.value.trim() || !modelSelection.isModelReady.value || chat.isStreaming.value) {
     return
@@ -118,7 +106,7 @@ async function handleSend() {
   attachments.clearAll()
 
   // Reset textarea height
-  messageInputRef.value?.resetHeight()
+  inputRef.value?.resetHeight()
 
   // Create callbacks for web search
   const searchCallbacks = webSearch.createSearchCallbacks({
@@ -156,17 +144,10 @@ async function handleSend() {
 </script>
 
 <style scoped>
-.studio-page {
+.playground {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background-color: var(--color-bg-page);
-}
-
-.studio-content {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
+  background: var(--color-bg-page);
 }
 </style>

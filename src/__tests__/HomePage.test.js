@@ -1357,7 +1357,7 @@ describe('HomePage', () => {
       expect(studioLink.exists()).toBe(true)
     })
 
-    it('should display "Studio" text', () => {
+    it('should display "Playground" and "Studio" links', () => {
       wrapper = mount(HomePage, {
         global: {
           plugins: [pinia],
@@ -1370,11 +1370,13 @@ describe('HomePage', () => {
         }
       })
 
-      const studioLink = wrapper.find('.studio-link')
-      expect(studioLink.text()).toBe('Studio')
+      const links = wrapper.findAll('.studio-link')
+      expect(links.length).toBe(2)
+      expect(links[0].text()).toBe('Playground')
+      expect(links[1].text()).toBe('Studio')
     })
 
-    it('should link to /studio path', () => {
+    it('should link to /playground and /studio paths', () => {
       wrapper = mount(HomePage, {
         global: {
           plugins: [pinia],
@@ -1387,8 +1389,9 @@ describe('HomePage', () => {
         }
       })
 
-      const studioLink = wrapper.find('.studio-link')
-      expect(studioLink.attributes('href')).toBe('/studio')
+      const links = wrapper.findAll('.studio-link')
+      expect(links[0].attributes('href')).toBe('/playground')
+      expect(links[1].attributes('href')).toBe('/studio')
     })
   })
 })

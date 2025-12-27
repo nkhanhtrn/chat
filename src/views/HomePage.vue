@@ -12,6 +12,9 @@
         <button v-else class="sign-in-btn" @click="showLoginModal = true">
           Sign In
         </button>
+        <router-link to="/playground" class="studio-link">
+          Playground
+        </router-link>
         <router-link to="/studio" class="studio-link">
           Studio
         </router-link>

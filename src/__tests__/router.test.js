@@ -33,9 +33,15 @@ describe('Router Configuration', () => {
       expect(studioRoute.path).toBe('/studio')
     })
 
+    it('should have playground route', () => {
+      const playgroundRoute = router.getRoutes().find(r => r.name === 'playground')
+      expect(playgroundRoute).toBeDefined()
+      expect(playgroundRoute.path).toBe('/playground')
+    })
+
     it('should have correct number of routes', () => {
       const routes = router.getRoutes()
-      expect(routes.length).toBe(5)
+      expect(routes.length).toBe(6)
     })
   })
 
