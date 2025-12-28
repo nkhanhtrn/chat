@@ -26,6 +26,17 @@
       </div>
       <div class="window-controls">
         <button
+          v-if="window.type === 'tool'"
+          class="window-control-btn clone-btn"
+          @click.stop="$emit('clone')"
+          title="Clone"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+        </button>
+        <button
           class="window-control-btn edit-btn"
           @click.stop="showEditPanel = !showEditPanel"
           title="Edit"
@@ -157,7 +168,7 @@ const props = defineProps({
   containerRect: { type: Object, default: () => ({ width: 0, height: 0 }) }
 })
 
-const emit = defineEmits(['close', 'minimize', 'update:position', 'update:size', 'update:title', 'bring-to-front', 'edit-window'])
+const emit = defineEmits(['close', 'minimize', 'clone', 'update:position', 'update:size', 'update:title', 'bring-to-front', 'edit-window'])
 
 const windowRef = ref(null)
 const isDragging = ref(false)
@@ -889,5 +900,10 @@ onUnmounted(() => {
 .edit-btn:hover {
   background-color: var(--color-primary-subtle, #dbeafe);
   color: var(--color-primary);
+}
+
+.clone-btn:hover {
+  background-color: var(--color-success-subtle, #dcfce7);
+  color: var(--color-success, #22c55e);
 }
 </style>

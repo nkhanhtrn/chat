@@ -3,6 +3,7 @@
  */
 
 import { BaseCapability, createPipeData } from './BaseCapability.js'
+import { saveTool, syncToolsFromCloud } from '../../indexedDB.js'
 
 const SYSTEM_PROMPT = `Build interactive Vue 3 components using Options API (data, methods, computed). Style to fill container.
 
@@ -49,7 +50,10 @@ export class BuildCapability extends BaseCapability {
     const { fullContext, models, config, provider, signal, callbacks = {} } = context
     const { onToolGenerated } = callbacks
 
-    // Build the tool directly
+    // Sync tools from cloud first (non-blocking, best effort)
+    await syncToolsFromCloud().catch(() => {})
+
+    // Build new tool
     const code = await this._buildTool(fullContext, models.executorId, provider, config, signal, pipedData)
 
     let parsedTool
@@ -58,6 +62,9 @@ export class BuildCapability extends BaseCapability {
     } catch (e) {
       return { success: false, result: null, error: e.message }
     }
+
+    // Auto-save tool to library
+    saveTool({ ...parsedTool, sourcePrompt: fullContext }).catch(console.error)
 
     if (onToolGenerated) onToolGenerated(parsedTool)
 

@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
+// Mock saveTool from indexedDB
+vi.mock('../../../services/indexedDB.js', () => ({
+  saveTool: vi.fn(() => Promise.resolve())
+}))
+
+import { saveTool as mockSaveTool } from '../../../services/indexedDB.js'
+
 // Mock localStorage
 const localStorageMock = (() => {
   let store = {}
@@ -19,6 +26,7 @@ describe('useStudioCanvas', () => {
   beforeEach(() => {
     localStorageMock.clear()
     vi.clearAllMocks()
+    mockSaveTool.mockClear()
 
     // Reset the singleton state before each test
     const canvas = useStudioCanvas()
@@ -473,6 +481,100 @@ describe('useStudioCanvas', () => {
       canvas.addWindow({ messageId: 'msg-1', type: 'chart', content: {} })
 
       expect(canvas.minimizedWindowsByCategory.value).toHaveLength(0)
+    })
+  })
+
+  describe('cloneWindow', () => {
+    it('should create a new window with cloned content', () => {
+      const canvas = useStudioCanvas()
+      const original = canvas.addWindow({
+        messageId: 'msg-1',
+        type: 'tool',
+        content: { name: 'Calculator', code: '<template>...</template>', type: 'vue-sfc' }
+      })
+
+      const cloned = canvas.cloneWindow(original)
+
+      expect(canvas.windows.value).toHaveLength(2)
+      expect(cloned.id).not.toBe(original.id)
+      expect(cloned.type).toBe('tool')
+    })
+
+    it('should generate unique name with (Copy) suffix', () => {
+      const canvas = useStudioCanvas()
+      const original = canvas.addWindow({
+        messageId: 'msg-1',
+        type: 'tool',
+        content: { name: 'Calculator', code: '<template>...</template>', type: 'vue-sfc' }
+      })
+
+      const cloned = canvas.cloneWindow(original)
+
+      expect(cloned.content.name).toBe('Calculator (Copy)')
+    })
+
+    it('should increment copy number if (Copy) already exists', () => {
+      const canvas = useStudioCanvas()
+      const original = canvas.addWindow({
+        messageId: 'msg-1',
+        type: 'tool',
+        content: { name: 'Calculator', code: '<template>...</template>', type: 'vue-sfc' }
+      })
+
+      canvas.cloneWindow(original)
+      const secondClone = canvas.cloneWindow(original)
+
+      expect(secondClone.content.name).toBe('Calculator (Copy 2)')
+    })
+
+    it('should use cascade position for cloned window', () => {
+      const canvas = useStudioCanvas()
+      const original = canvas.addWindow({
+        messageId: 'msg-1',
+        type: 'tool',
+        content: { name: 'Calculator', code: '<template>...</template>' }
+      })
+
+      const cloned = canvas.cloneWindow(original)
+
+      // Cascade should advance from original's position
+      expect(cloned.position).toEqual({ x: 30, y: 30 })
+    })
+
+    it('should save cloned tool to IndexedDB', () => {
+      const canvas = useStudioCanvas()
+      const original = canvas.addWindow({
+        messageId: 'msg-1',
+        type: 'tool',
+        content: {
+          name: 'Calculator',
+          emoji: '🧮',
+          type: 'vue-sfc',
+          code: '<template>...</template>'
+        }
+      })
+
+      canvas.cloneWindow(original)
+
+      expect(mockSaveTool).toHaveBeenCalledWith({
+        name: 'Calculator (Copy)',
+        emoji: '🧮',
+        type: 'vue-sfc',
+        code: '<template>...</template>'
+      })
+    })
+
+    it('should not save non-tool windows to IndexedDB', () => {
+      const canvas = useStudioCanvas()
+      const original = canvas.addWindow({
+        messageId: 'msg-1',
+        type: 'chart',
+        content: { title: 'Sales' }
+      })
+
+      canvas.cloneWindow(original)
+
+      expect(mockSaveTool).not.toHaveBeenCalled()
     })
   })
 })

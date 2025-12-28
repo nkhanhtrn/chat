@@ -33,12 +33,22 @@
     >
       Remove Last Tool ({{ canvasWindowCount }})
     </Button>
+    <Button
+      @click="handleSaveAllTools"
+      class="dev-button"
+      :disabled="toolWindowCount === 0"
+      title="Save all tool windows to library"
+      variant="secondary"
+    >
+      Save Tools ({{ toolWindowCount }})
+    </Button>
   </div>
 </template>
 
 <script setup>
 import { ref, inject, computed } from 'vue'
 import { clearAllStorage } from '../services/storage.js'
+import { saveTool } from '../services/indexedDB.js'
 import { useChatStore } from '../stores/chat.js'
 import { useStudioCanvas } from '../composables/studio/useStudioCanvas.js'
 import Button from './Button.vue'
@@ -50,6 +60,8 @@ const staleDataTriggered = ref(false)
 // Studio canvas
 const { windows, removeLastWindow } = useStudioCanvas()
 const canvasWindowCount = computed(() => windows.value.length)
+const toolWindows = computed(() => windows.value.filter(w => w.type === 'tool'))
+const toolWindowCount = computed(() => toolWindows.value.length)
 
 const chatStore = useChatStore()
 
@@ -142,6 +154,28 @@ const handleRemoveLastTool = () => {
   if (removed) {
     console.log(`Removed tool: ${removed.title}`)
   }
+}
+
+const handleSaveAllTools = async () => {
+  const tools = toolWindows.value
+  if (tools.length === 0) return
+
+  let saved = 0
+  for (const window of tools) {
+    const content = window.content
+    if (content?.code) {
+      await saveTool({
+        name: content.name || window.title || 'Tool',
+        emoji: content.emoji || null,
+        type: content.type || 'vue-sfc',
+        code: content.code,
+        position: window.position,
+        size: window.size
+      })
+      saved++
+    }
+  }
+  console.log(`Saved ${saved} tools to library`)
 }
 
 </script>

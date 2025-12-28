@@ -471,6 +471,31 @@ export function useStudioChat(options = {}) {
   }
 
   /**
+   * Load state from external source (for session switching)
+   * @param {Object} state - { messages, nextMessageId }
+   */
+  function loadState(state) {
+    if (state) {
+      messages.value = state.messages || []
+      nextMessageId = state.nextMessageId || 1
+    } else {
+      messages.value = []
+      nextMessageId = 1
+    }
+  }
+
+  /**
+   * Get current state (for saving to session)
+   * @returns {Object} { messages, nextMessageId }
+   */
+  function getState() {
+    return {
+      messages: messages.value,
+      nextMessageId
+    }
+  }
+
+  /**
    * Edit an existing window content using the appropriate capability
    * @param {Object} options - Edit options
    * @param {string} options.windowType - Type of window (tool, chart, mermaid, svg, codeResult)
@@ -587,6 +612,8 @@ export function useStudioChat(options = {}) {
     deleteMessagePair,
     stopStreaming,
     clearChat,
+    loadState,
+    getState,
     onOutput
   }
 }

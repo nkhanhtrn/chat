@@ -29,7 +29,7 @@
                 class="window-item"
                 @click="handleRestore(win.id)"
               >
-                <span class="window-icon">{{ category.icon }}</span>
+                <span class="window-icon">{{ win.content?.emoji || category.icon }}</span>
                 <span class="window-title">{{ win.title }}</span>
                 <button
                   class="window-close"
@@ -51,15 +51,28 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
-defineProps({
+const props = defineProps({
   categories: { type: Array, default: () => [] }
 })
 
 const emit = defineEmits(['restore', 'close'])
 
-const expandedCategory = ref(null)
+const _expandedCategory = ref(null)
+
+// Auto-clears if category no longer exists
+const expandedCategory = computed({
+  get() {
+    const val = _expandedCategory.value
+    if (!val) return null
+    const exists = props.categories.some(c => c.type === val)
+    return exists ? val : null
+  },
+  set(val) {
+    _expandedCategory.value = val
+  }
+})
 
 function toggleCategory(type) {
   expandedCategory.value = expandedCategory.value === type ? null : type

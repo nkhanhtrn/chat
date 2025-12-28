@@ -20,6 +20,14 @@ vi.mock('../MinimizedWindowsBar.vue', () => ({
   }
 }))
 
+// Mock ToolLibrary component
+vi.mock('../ToolLibrary.vue', () => ({
+  default: {
+    name: 'ToolLibrary',
+    template: '<div class="mock-tool-library"></div>'
+  }
+}))
+
 // Mock ResizeObserver
 class MockResizeObserver {
   constructor(callback) {

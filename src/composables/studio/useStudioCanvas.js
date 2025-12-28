@@ -1,4 +1,5 @@
 import { ref, watch, computed } from 'vue'
+import { saveTool } from '../../services/indexedDB.js'
 
 const STORAGE_KEY = 'studio-canvas-windows'
 
@@ -192,32 +193,58 @@ function bringToFront(windowId) {
 }
 
 /**
- * Update window title
+ * Update window title (also updates tool name and saves to IndexedDB)
  */
 function updateWindowTitle(windowId, title) {
   const window = windows.value.find(w => w.id === windowId)
   if (window) {
     window.title = title
+    // Also update content.name for tools and save to IndexedDB
+    if (window.type === 'tool' && window.content) {
+      window.content = { ...window.content, name: title }
+      if (window.content.code) {
+        saveTool({
+          id: window.content.id, // Use id to support renaming
+          name: title,
+          emoji: window.content.emoji,
+          type: window.content.type,
+          code: window.content.code
+        }).catch(console.error)
+      }
+    }
     saveToStorage()
   }
 }
 
 /**
- * Update window content (preserves existing name/emoji on edit)
+ * Update window content (preserves existing name/emoji/id on edit, saves tools to IndexedDB)
  */
 function updateWindowContent(windowId, content) {
   const index = windows.value.findIndex(w => w.id === windowId)
   if (index !== -1) {
-    const existingContent = windows.value[index].content
-    // Preserve existing name and emoji when editing (don't regenerate)
+    const window = windows.value[index]
+    const existingContent = window.content
+    // Preserve existing id, name and emoji when editing (don't regenerate)
     const mergedContent = {
       ...content,
+      id: existingContent?.id || content?.id,
       name: existingContent?.name || content?.name,
       emoji: existingContent?.emoji || content?.emoji
     }
     // Replace the window object to ensure reactivity
-    windows.value[index] = { ...windows.value[index], content: mergedContent }
+    windows.value[index] = { ...window, content: mergedContent }
     saveToStorage()
+
+    // Save tool to IndexedDB
+    if (window.type === 'tool' && mergedContent.name && mergedContent.code) {
+      saveTool({
+        id: mergedContent.id,
+        name: mergedContent.name,
+        emoji: mergedContent.emoji,
+        type: mergedContent.type,
+        code: mergedContent.code
+      }).catch(console.error)
+    }
   }
 }
 
@@ -281,6 +308,46 @@ function getWindowByMessageId(messageId) {
 }
 
 /**
+ * Clone a window (creates a new window with same content, cascade position)
+ */
+function cloneWindow(window) {
+  const clonedContent = JSON.parse(JSON.stringify(window.content))
+
+  // Generate unique name for cloned tool
+  if (clonedContent.name) {
+    const baseName = clonedContent.name.replace(/ \(Copy( \d+)?\)$/, '')
+    const existingNames = windows.value
+      .filter(w => w.type === 'tool' && w.content?.name)
+      .map(w => w.content.name)
+
+    let copyNum = 1
+    let newName = `${baseName} (Copy)`
+    while (existingNames.includes(newName)) {
+      copyNum++
+      newName = `${baseName} (Copy ${copyNum})`
+    }
+    clonedContent.name = newName
+  }
+
+  const newWindow = addWindow({
+    type: window.type,
+    content: clonedContent
+  })
+
+  // Save cloned tool to IndexedDB
+  if (window.type === 'tool' && clonedContent.name) {
+    saveTool({
+      name: clonedContent.name,
+      emoji: clonedContent.emoji,
+      type: clonedContent.type,
+      code: clonedContent.code
+    }).catch(console.error)
+  }
+
+  return newWindow
+}
+
+/**
  * Clear all windows
  */
 function clearWindows() {
@@ -317,7 +384,38 @@ function resetState() {
   maxZIndex.value = 100
 }
 
-// Initialize from storage on module load
+/**
+ * Load state from external source (for session switching)
+ * @param {Object} state - { canvasWindows, nextWindowId, cascadeOffset, maxZIndex }
+ */
+function loadState(state) {
+  if (state) {
+    windows.value = state.canvasWindows || []
+    nextWindowId.value = state.nextWindowId || 1
+    cascadeOffset.value = state.cascadeOffset || { x: 0, y: 0 }
+    maxZIndex.value = state.maxZIndex || 100
+  } else {
+    windows.value = []
+    nextWindowId.value = 1
+    cascadeOffset.value = { x: 0, y: 0 }
+    maxZIndex.value = 100
+  }
+}
+
+/**
+ * Get current state (for saving to session)
+ * @returns {Object} { canvasWindows, nextWindowId, cascadeOffset, maxZIndex }
+ */
+function getState() {
+  return {
+    canvasWindows: windows.value,
+    nextWindowId: nextWindowId.value,
+    cascadeOffset: cascadeOffset.value,
+    maxZIndex: maxZIndex.value
+  }
+}
+
+// Initialize from storage on module load (legacy, will be overridden by sessions)
 loadFromStorage()
 
 /**
@@ -340,6 +438,7 @@ export function useStudioCanvas() {
     addWindow,
     removeWindow,
     removeLastWindow,
+    cloneWindow,
     updateWindowPosition,
     updateWindowSize,
     updateWindowTitle,
@@ -354,6 +453,8 @@ export function useStudioCanvas() {
     // Storage
     saveToStorage,
     loadFromStorage,
+    loadState,
+    getState,
 
     // Testing
     resetState

@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { BuildCapability } from '../BuildCapability.js'
 
+vi.mock('../../../indexedDB.js', () => ({
+  saveTool: vi.fn().mockResolvedValue({}),
+  syncToolsFromCloud: vi.fn().mockResolvedValue(0)
+}))
+
 describe('BuildCapability', () => {
   let capability
   let mockProvider
@@ -245,6 +250,7 @@ export default {
       const userMessage = callArgs[1].find(m => m.role === 'user')
       expect(userMessage.content).toContain('items')
     })
+
   })
 
   describe('editTool', () => {

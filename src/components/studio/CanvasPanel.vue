@@ -1,5 +1,8 @@
 <template>
   <div ref="canvasRef" class="canvas-container">
+    <!-- Tool Library -->
+    <ToolLibrary ref="toolLibraryRef" @open-tool="$emit('open-tool', $event)" />
+
     <!-- Empty State -->
     <div v-if="visibleWindows.length === 0 && minimizedCategories.length === 0" class="canvas-empty-state">
       <div class="empty-icon">
@@ -21,6 +24,7 @@
         :container-rect="containerRect"
         @close="$emit('close-window', window.id)"
         @minimize="$emit('minimize-window', window.id)"
+        @clone="$emit('clone-window', window)"
         @update:position="(pos) => $emit('update-position', window.id, pos)"
         @update:size="(size) => $emit('update-size', window.id, size)"
         @update:title="(title) => $emit('update-title', window.id, title)"
@@ -39,20 +43,27 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import OutputWindow from './OutputWindow.vue'
 import MinimizedWindowsBar from './MinimizedWindowsBar.vue'
+import ToolLibrary from './ToolLibrary.vue'
 
 defineProps({
   visibleWindows: { type: Array, default: () => [] },
   minimizedCategories: { type: Array, default: () => [] }
 })
 
-defineEmits(['close-window', 'minimize-window', 'restore-window', 'update-position', 'update-size', 'update-title', 'bring-to-front', 'edit-window'])
+defineEmits(['close-window', 'minimize-window', 'clone-window', 'restore-window', 'update-position', 'update-size', 'update-title', 'bring-to-front', 'edit-window', 'open-tool'])
 
 const canvasRef = ref(null)
+const toolLibraryRef = ref(null)
 const containerRect = ref({ width: 0, height: 0 })
 let resizeObserver = null
+
+// Expose methods for parent components
+defineExpose({
+  reloadToolLibrary: () => toolLibraryRef.value?.loadTools()
+})
 
 function updateContainerRect() {
   if (canvasRef.value) {

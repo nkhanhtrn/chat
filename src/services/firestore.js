@@ -611,3 +611,238 @@ export const migrateSettingsToFirestore = async () => {
     console.error('Failed to migrate settings to Firestore:', error)
   }
 }
+
+// ============================================
+// Tool Storage (Cloud Sync)
+// ============================================
+
+/**
+ * Save a tool to Firestore
+ * @param {Object} tool - The tool to save
+ * @returns {Promise<void>}
+ */
+export const saveToolToFirestore = async (tool) => {
+  try {
+    const auth = getFirebaseAuth()
+    const user = auth.currentUser
+
+    if (!user) {
+      console.warn('No authenticated user, skipping tool cloud sync')
+      return
+    }
+
+    const db = getFirebaseDb()
+    const toolDocRef = doc(db, 'users', user.uid, 'tools', tool.id)
+
+    await setDoc(toolDocRef, {
+      ...tool,
+      lastUpdated: serverTimestamp()
+    })
+
+    console.log(`Tool "${tool.name}" synced to cloud`)
+  } catch (error) {
+    console.error('Failed to save tool to Firestore:', error)
+  }
+}
+
+/**
+ * Load all tools from Firestore
+ * @returns {Promise<Array>} Array of tools
+ */
+export const loadToolsFromFirestore = async () => {
+  try {
+    const user = await waitForAuth()
+
+    if (!user) {
+      console.warn('No authenticated user, cannot load tools from cloud')
+      return []
+    }
+
+    const db = getFirebaseDb()
+    const toolsRef = collection(db, 'users', user.uid, 'tools')
+    const snapshot = await getDocs(toolsRef)
+
+    const tools = []
+    snapshot.forEach(doc => {
+      const data = doc.data()
+      delete data.lastUpdated
+      tools.push(data)
+    })
+
+    console.log(`Loaded ${tools.length} tools from cloud`)
+    return tools
+  } catch (error) {
+    console.error('Failed to load tools from Firestore:', error)
+    return []
+  }
+}
+
+/**
+ * Delete a tool from Firestore (soft delete - sets deletedAt)
+ * @param {string} toolId - The tool ID to delete
+ * @returns {Promise<void>}
+ */
+export const deleteToolFromFirestore = async (toolId) => {
+  try {
+    const auth = getFirebaseAuth()
+    const user = auth.currentUser
+
+    if (!user) return
+
+    const db = getFirebaseDb()
+    const toolDocRef = doc(db, 'users', user.uid, 'tools', toolId)
+
+    await setDoc(toolDocRef, {
+      deletedAt: Date.now(),
+      lastUpdated: serverTimestamp()
+    }, { merge: true })
+
+    console.log(`Tool ${toolId} marked as deleted in cloud`)
+  } catch (error) {
+    console.error('Failed to delete tool from Firestore:', error)
+  }
+}
+
+/**
+ * Permanently delete a tool from Firestore
+ * @param {string} toolId - The tool ID to delete
+ * @returns {Promise<void>}
+ */
+export const permanentlyDeleteToolFromFirestore = async (toolId) => {
+  try {
+    const auth = getFirebaseAuth()
+    const user = auth.currentUser
+
+    if (!user) return
+
+    const db = getFirebaseDb()
+    const toolDocRef = doc(db, 'users', user.uid, 'tools', toolId)
+
+    await deleteDoc(toolDocRef)
+    console.log(`Tool ${toolId} permanently deleted from cloud`)
+  } catch (error) {
+    console.error('Failed to permanently delete tool from Firestore:', error)
+  }
+}
+
+// ============================================
+// Studio Sessions (Cloud Sync)
+// ============================================
+
+/**
+ * Save studio sessions to Firestore
+ * Structure: users/{uid}/studioSessions/{sessionId}
+ * @param {Array} sessions - Array of session objects
+ * @param {string} activeSessionId - Currently active session ID
+ * @returns {Promise<void>}
+ */
+export const saveStudioSessionsToFirestore = async (sessions, activeSessionId) => {
+  try {
+    const auth = getFirebaseAuth()
+    const user = auth.currentUser
+
+    if (!user) {
+      console.warn('No authenticated user, skipping studio sessions cloud sync')
+      return
+    }
+
+    const db = getFirebaseDb()
+
+    // Use batch to write all sessions
+    const batch = writeBatch(db)
+
+    // Add each session to batch
+    for (const session of sessions) {
+      const sessionRef = doc(db, 'users', user.uid, 'studioSessions', session.id)
+      batch.set(sessionRef, {
+        ...session,
+        lastUpdated: serverTimestamp()
+      })
+    }
+
+    // Also save metadata (active session ID, next session number)
+    // Extract nextSessionNumber from sessions (it's stored in the closure in the composable)
+    const metadataRef = doc(db, 'users', user.uid, 'studioSessions', 'metadata')
+    batch.set(metadataRef, {
+      activeSessionId,
+      lastUpdated: serverTimestamp()
+    }, { merge: true })
+
+    await batch.commit()
+    console.log(`Synced ${sessions.length} studio sessions to cloud`)
+  } catch (error) {
+    console.error('Failed to save studio sessions to Firestore:', error)
+    throw error
+  }
+}
+
+/**
+ * Load studio sessions from Firestore
+ * @returns {Promise<Object|null>} Object with { sessions, activeSessionId } or null
+ */
+export const loadStudioSessionsFromFirestore = async () => {
+  try {
+    const user = await waitForAuth()
+
+    if (!user) {
+      console.warn('No authenticated user, cannot load studio sessions from cloud')
+      return null
+    }
+
+    const db = getFirebaseDb()
+
+    // Load metadata to get active session ID
+    const metadataRef = doc(db, 'users', user.uid, 'studioSessions', 'metadata')
+    const metadataSnap = await getDoc(metadataRef)
+
+    // Load all sessions
+    const sessionsRef = collection(db, 'users', user.uid, 'studioSessions')
+    const sessionsSnap = await getDocs(sessionsRef)
+
+    const sessions = []
+    let activeSessionId = null
+
+    sessionsSnap.forEach(doc => {
+      if (doc.id === 'metadata') {
+        // Skip metadata document
+        return
+      }
+      const data = doc.data()
+      delete data.lastUpdated
+      delete data._computed
+      sessions.push({ id: doc.id, ...data })
+    })
+
+    if (metadataSnap.exists()) {
+      activeSessionId = metadataSnap.data().activeSessionId
+    }
+
+    console.log(`Loaded ${sessions.length} studio sessions from cloud`)
+    return { sessions, activeSessionId }
+  } catch (error) {
+    console.error('Failed to load studio sessions from Firestore:', error)
+    return null
+  }
+}
+
+/**
+ * Delete a studio session from Firestore
+ * @param {string} sessionId - Session ID to delete
+ * @returns {Promise<void>}
+ */
+export const deleteStudioSessionFromFirestore = async (sessionId) => {
+  try {
+    const auth = getFirebaseAuth()
+    const user = auth.currentUser
+
+    if (!user) return
+
+    const db = getFirebaseDb()
+    const sessionRef = doc(db, 'users', user.uid, 'studioSessions', sessionId)
+
+    await deleteDoc(sessionRef)
+    console.log(`Studio session ${sessionId} deleted from cloud`)
+  } catch (error) {
+    console.error('Failed to delete studio session from Firestore:', error)
+  }
+}
