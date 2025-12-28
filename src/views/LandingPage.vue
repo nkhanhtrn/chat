@@ -6,6 +6,15 @@
         <h1>Study Assistant</h1>
         <p class="tagline">Your personal learning companion</p>
 
+        <!-- Login prompt when not signed in -->
+        <div v-if="!currentUser" class="login-prompt">
+          <span class="login-text">Sign in to sync your data</span>
+          <button class="login-btn" @click="showLoginModal = true">Sign In</button>
+        </div>
+        <div v-else class="user-info">
+          <span class="user-email">{{ currentUser.email }}</span>
+        </div>
+
         <div class="quick-actions">
           <router-link to="/notebooks" class="action-card">
             <div class="action-icon">📓</div>
@@ -42,12 +51,38 @@
       </div>
       </div>
     </SlideTransition>
+
+    <!-- Login Modal -->
+    <LoginModal
+      :visible="showLoginModal"
+      @close="showLoginModal = false"
+      @success="showLoginModal = false"
+    />
   </AppLayout>
 </template>
 
 <script setup>
+import { ref, onMounted, onUnmounted } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 import SlideTransition from '../components/SlideTransition.vue'
+import LoginModal from '../components/Modal/LoginModal.vue'
+import { onAuthChange } from '../services/auth.js'
+
+const showLoginModal = ref(false)
+const currentUser = ref(null)
+let unsubscribeAuth = null
+
+onMounted(() => {
+  unsubscribeAuth = onAuthChange((user) => {
+    currentUser.value = user
+  })
+})
+
+onUnmounted(() => {
+  if (unsubscribeAuth) {
+    unsubscribeAuth()
+  }
+})
 </script>
 
 <style scoped>
@@ -76,8 +111,46 @@ h1 {
 .tagline {
   font-size: 1.25rem;
   color: var(--color-text-muted);
-  margin: 0 0 3rem;
+  margin: 0 0 1.5rem;
   font-style: italic;
+}
+
+.login-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.login-text {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.login-btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  background: var(--color-primary);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.login-btn:hover {
+  opacity: 0.9;
+}
+
+.user-info {
+  margin-bottom: 2rem;
+}
+
+.user-email {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
 }
 
 .quick-actions {

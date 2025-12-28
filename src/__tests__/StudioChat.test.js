@@ -301,11 +301,12 @@ describe('StudioChat', () => {
           detectedUrls: [],
           fetchedContents: {}
         },
-        twoModelMode: false,
+        twoModelMode: true,
         modelSelection: expect.objectContaining({
           routerModel: 'router-model',
           executorModel: 'executor-model',
-          selectedModel: 'model-1'
+          routerProviderId: expect.any(String),
+          executorProviderId: expect.any(String)
         }),
         searchCallbacks: expect.any(Object),
         planningCallbacks: expect.any(Object)
