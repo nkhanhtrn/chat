@@ -13,19 +13,21 @@
     </div>
 
     <!-- Output Windows -->
-    <OutputWindow
-      v-for="window in visibleWindows"
-      :key="window.id"
-      :window="window"
-      :container-rect="containerRect"
-      @close="$emit('close-window', window.id)"
-      @minimize="$emit('minimize-window', window.id)"
-      @update:position="(pos) => $emit('update-position', window.id, pos)"
-      @update:size="(size) => $emit('update-size', window.id, size)"
-      @update:title="(title) => $emit('update-title', window.id, title)"
-      @bring-to-front="$emit('bring-to-front', window.id)"
-      @improve-tool="(data) => $emit('improve-tool', data)"
-    />
+    <TransitionGroup name="window-pop">
+      <OutputWindow
+        v-for="window in visibleWindows"
+        :key="window.id"
+        :window="window"
+        :container-rect="containerRect"
+        @close="$emit('close-window', window.id)"
+        @minimize="$emit('minimize-window', window.id)"
+        @update:position="(pos) => $emit('update-position', window.id, pos)"
+        @update:size="(size) => $emit('update-size', window.id, size)"
+        @update:title="(title) => $emit('update-title', window.id, title)"
+        @bring-to-front="$emit('bring-to-front', window.id)"
+        @edit-window="(data) => $emit('edit-window', data)"
+      />
+    </TransitionGroup>
 
     <!-- Minimized Windows Bar -->
     <MinimizedWindowsBar
@@ -46,7 +48,7 @@ defineProps({
   minimizedCategories: { type: Array, default: () => [] }
 })
 
-defineEmits(['close-window', 'minimize-window', 'restore-window', 'update-position', 'update-size', 'update-title', 'bring-to-front', 'improve-tool'])
+defineEmits(['close-window', 'minimize-window', 'restore-window', 'update-position', 'update-size', 'update-title', 'bring-to-front', 'edit-window'])
 
 const canvasRef = ref(null)
 const containerRect = ref({ width: 0, height: 0 })
@@ -120,5 +122,39 @@ onUnmounted(() => {
   font-size: 0.875rem;
   margin: 0;
   opacity: 0.7;
+}
+
+/* Window pop animation */
+.window-pop-enter-active {
+  animation: window-pop-in 0.25s ease-out;
+}
+
+.window-pop-leave-active {
+  animation: window-pop-out 0.2s ease-in;
+}
+
+@keyframes window-pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes window-pop-out {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
 }
 </style>

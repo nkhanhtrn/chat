@@ -5,7 +5,16 @@
 import { BaseCapability, createPipeData } from './BaseCapability.js'
 
 const SYSTEM_PROMPT = `Build interactive Vue 3 components using Options API (data, methods, computed). Style to fill container.
-Use CSS variables for theming: --color-primary, --color-bg-base, --color-bg-elevated, --color-text-base, --color-text-muted, --color-border-base.
+
+CRITICAL: Use these pre-defined CSS variables (do NOT redefine them, they are already set by the host app):
+- Backgrounds: var(--color-bg-base), var(--color-bg-elevated), var(--color-bg-hover), var(--color-bg-button)
+- Text: var(--color-text-base), var(--color-text-muted), var(--color-text-strong)
+- Borders: var(--color-border-base), var(--color-border-subtle), var(--color-border-input)
+- Inputs: var(--color-bg-input), var(--color-border-input)
+- Primary accent: var(--color-primary), var(--color-primary-hover)
+Never include :root or define CSS variables. Just use var(--color-*).
+
+Start with: <!-- @tool: Name Emoji --> (e.g. <!-- @tool: Calculator 🧮 -->)
 Output only the code.`
 
 export class BuildCapability extends BaseCapability {
@@ -75,6 +84,7 @@ export class BuildCapability extends BaseCapability {
 - Remove comments and unused code
 - Simplify verbose patterns
 - Keep functionality identical
+- Use CSS variables for colors: --color-bg-base, --color-bg-elevated, --color-text-base, --color-text-muted, --color-border-base, --color-primary, --color-bg-input, --color-border-input, --color-bg-button
 Output only the complete, consolidated code.`
 
     const userPrompt = `Component:\n${currentCode}\n\nRequest: ${request}`
@@ -99,6 +109,22 @@ Output only the complete, consolidated code.`
       code = code.replace(/^```\w*\n?/, '').replace(/\n?```$/, '')
     }
 
+    // Extract name and emoji from @tool comment before processing
+    let name = null
+    let emoji = null
+    const toolMatch = code.match(/<!--\s*@tool:\s*(.+?)\s*-->/)
+    if (toolMatch) {
+      const toolInfo = toolMatch[1].trim()
+      // Split into name and emoji - emoji is typically at the end
+      const emojiMatch = toolInfo.match(/(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)$/u)
+      if (emojiMatch) {
+        emoji = emojiMatch[0]
+        name = toolInfo.slice(0, -emoji.length).trim()
+      } else {
+        name = toolInfo
+      }
+    }
+
     // Extract Vue SFC
     const start = code.indexOf('<template>')
     const endStyle = code.lastIndexOf('</style>')
@@ -113,10 +139,15 @@ Output only the complete, consolidated code.`
       throw new Error('Invalid Vue component')
     }
 
-    // Extract name from component
-    const name = this._extractComponentName(code)
+    // Strip any :root CSS variable definitions to prevent theme override
+    code = code.replace(/:root\s*\{[^}]*\}/g, '')
 
-    return { code, type: 'vue-sfc', name }
+    // Fallback: extract name from component if not found in @tool comment
+    if (!name) {
+      name = this._extractComponentName(code)
+    }
+
+    return { code, type: 'vue-sfc', name, emoji }
   }
 
   _extractComponentName(code) {

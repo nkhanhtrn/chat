@@ -1,5 +1,5 @@
 <template>
-  <div class="vue-tool-renderer themed-tool">
+  <div class="vue-tool-renderer themed-tool" :data-tool-scope="scopeId">
     <div v-if="error" class="error-message">
       <strong>Error:</strong> {{ error }}
     </div>
@@ -17,6 +17,49 @@ const props = defineProps({
 const compiledComponent = shallowRef(null)
 const error = ref(null)
 const styleEl = ref(null)
+
+// Generate unique scope ID for this instance
+const scopeId = `tool-${Math.random().toString(36).slice(2, 9)}`
+
+// Scope CSS selectors to prevent style leakage
+function scopeStyles(css) {
+  const scopeAttr = `[data-tool-scope="${scopeId}"]`
+
+  // Split by rules while preserving @-rules
+  return css.replace(
+    /([^{}@]+)(\{[^{}]*\})/g,
+    (match, selectors, block) => {
+      // Don't scope @keyframes content or @font-face
+      if (selectors.trim().startsWith('@')) {
+        return match
+      }
+
+      // Scope each selector
+      const scopedSelectors = selectors
+        .split(',')
+        .map(sel => {
+          sel = sel.trim()
+          if (!sel) return sel
+
+          // Handle :root, html, body - scope them to our container
+          if (sel === ':root' || sel === 'html' || sel === 'body') {
+            return scopeAttr
+          }
+
+          // Handle * selector
+          if (sel === '*') {
+            return `${scopeAttr} *`
+          }
+
+          // Prefix other selectors
+          return `${scopeAttr} ${sel}`
+        })
+        .join(', ')
+
+      return scopedSelectors + block
+    }
+  )
+}
 
 onErrorCaptured((err) => {
   error.value = err.message
@@ -38,10 +81,10 @@ function compile(code) {
 
     if (!template) throw new Error('No template found')
 
-    // Inject styles
+    // Inject scoped styles
     if (style) {
       styleEl.value = document.createElement('style')
-      styleEl.value.textContent = style
+      styleEl.value.textContent = scopeStyles(style)
       document.head.appendChild(styleEl.value)
     }
 

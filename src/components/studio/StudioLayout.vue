@@ -15,6 +15,7 @@
       class="divider"
       :class="{ 'is-dragging': isDraggingDivider }"
       @mousedown="startDividerDrag"
+      @touchstart.prevent="startDividerDrag"
     >
       <div class="divider-handle"></div>
     </div>
@@ -42,13 +43,23 @@ const startWidth = ref(0)
 const MIN_CHAT_WIDTH = 400
 const MAX_CHAT_WIDTH = 800
 
+// Get clientX from mouse or touch event
+function getClientX(event) {
+  if (event.touches && event.touches.length > 0) {
+    return event.touches[0].clientX
+  }
+  return event.clientX
+}
+
 function startDividerDrag(event) {
   isDraggingDivider.value = true
-  startX.value = event.clientX
+  startX.value = getClientX(event)
   startWidth.value = chatPanelWidth.value
 
   document.addEventListener('mousemove', handleDividerDrag)
   document.addEventListener('mouseup', stopDividerDrag)
+  document.addEventListener('touchmove', handleDividerDrag, { passive: false })
+  document.addEventListener('touchend', stopDividerDrag)
   document.body.style.cursor = 'col-resize'
   document.body.style.userSelect = 'none'
 }
@@ -56,7 +67,8 @@ function startDividerDrag(event) {
 function handleDividerDrag(event) {
   if (!isDraggingDivider.value) return
 
-  const delta = event.clientX - startX.value
+  if (event.cancelable) event.preventDefault()
+  const delta = getClientX(event) - startX.value
   const newWidth = startWidth.value + delta
 
   chatPanelWidth.value = Math.min(MAX_CHAT_WIDTH, Math.max(MIN_CHAT_WIDTH, newWidth))
@@ -66,6 +78,8 @@ function stopDividerDrag() {
   isDraggingDivider.value = false
   document.removeEventListener('mousemove', handleDividerDrag)
   document.removeEventListener('mouseup', stopDividerDrag)
+  document.removeEventListener('touchmove', handleDividerDrag)
+  document.removeEventListener('touchend', stopDividerDrag)
   document.body.style.cursor = ''
   document.body.style.userSelect = ''
 }
@@ -73,6 +87,8 @@ function stopDividerDrag() {
 onUnmounted(() => {
   document.removeEventListener('mousemove', handleDividerDrag)
   document.removeEventListener('mouseup', stopDividerDrag)
+  document.removeEventListener('touchmove', handleDividerDrag)
+  document.removeEventListener('touchend', stopDividerDrag)
 })
 
 defineExpose({ sidebarRef })
@@ -96,6 +112,7 @@ defineExpose({ sidebarRef })
   align-items: center;
   justify-content: center;
   transition: background-color 0.15s;
+  touch-action: none;
 }
 
 .divider:hover,

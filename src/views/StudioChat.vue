@@ -43,7 +43,7 @@
       @update-size="canvas.updateWindowSize"
       @update-title="canvas.updateWindowTitle"
       @bring-to-front="canvas.bringToFront"
-      @improve-tool="handleImproveTool"
+      @edit-window="handleEditWindow"
       />
     </SlideTransition>
   </AppLayout>
@@ -113,16 +113,17 @@ async function handleEdit(messageIndex, newContent) {
   await handleSend()
 }
 
-// Handle tool improvement request
-async function handleImproveTool({ windowId, currentSpec, prompt, onDone }) {
+// Handle window edit request
+async function handleEditWindow({ windowId, windowType, currentContent, prompt, onDone }) {
   if (!modelSelection.isModelReady.value || chat.isStreaming.value) {
     onDone?.()
     return
   }
 
   try {
-    await chat.improveTool({
-      currentSpec,
+    await chat.editWindow({
+      windowType,
+      currentContent,
       prompt,
       modelSelection: {
         executorModel: modelSelection.executorModel.value,
@@ -130,13 +131,12 @@ async function handleImproveTool({ windowId, currentSpec, prompt, onDone }) {
         routerProviderId: modelSelection.routerModelData.value?.providerId || 'lmstudio',
         selectedModel: modelSelection.selectedModel.value
       },
-      onComplete: (improvedTool) => {
-        // Update the window with the improved tool
-        canvas.updateWindowContent(windowId, improvedTool)
+      onComplete: (updatedContent) => {
+        canvas.updateWindowContent(windowId, updatedContent)
       }
     })
   } catch (error) {
-    console.error('Failed to improve tool:', error)
+    console.error('Failed to edit window:', error)
   } finally {
     onDone?.()
   }

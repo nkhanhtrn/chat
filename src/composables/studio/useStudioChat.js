@@ -3,6 +3,8 @@ import { sendChatMessage } from '../../services/llm/index.js'
 import { analyzeGenerateAndExecute, getProvider } from '../../services/llm/taskRouter.js'
 import { getProviderConfigById } from '../../services/llm/providers.js'
 import BuildCapability from '../../services/llm/capabilities/BuildCapability.js'
+import { VisualizationCapability } from '../../services/llm/capabilities/VisualizationCapability.js'
+import { CodeCapability } from '../../services/llm/capabilities/CodeCapability.js'
 import { truncateUrl, truncateFileName } from '../../utils/format.js'
 import {
   buildRawAttachments,
@@ -468,50 +470,100 @@ export function useStudioChat(options = {}) {
   }
 
   /**
-   * Improve an existing tool using the Build capability directly
-   * @param {Object} options - Improvement options
-   * @param {Object} options.currentSpec - Current tool specification
-   * @param {string} options.prompt - Improvement request
+   * Edit an existing window content using the appropriate capability
+   * @param {Object} options - Edit options
+   * @param {string} options.windowType - Type of window (tool, chart, mermaid, svg, codeResult)
+   * @param {Object|string} options.currentContent - Current window content
+   * @param {string} options.prompt - Edit request
    * @param {Object} options.modelSelection - Model selection config
-   * @param {Function} options.onComplete - Callback with improved tool
+   * @param {Function} options.onComplete - Callback with updated content
    */
-  async function improveTool(options) {
-    const { currentSpec, prompt, modelSelection, onComplete } = options
+  async function editWindow(options) {
+    const { windowType, currentContent, prompt, modelSelection, onComplete } = options
 
-    // Don't set isStreaming - let the caller manage their own loading state
     const localAbortController = new AbortController()
 
     try {
-      const buildCapability = new BuildCapability()
-
-      // Use executor model/provider for tool editing
       const providerId = modelSelection.executorProviderId || modelSelection.routerProviderId || 'lmstudio'
       const modelId = modelSelection.executorModel || modelSelection.selectedModel
-
       const provider = getProvider(providerId)
       const config = getProviderConfigById(providerId)
 
-      // For Vue SFC tools, pass the code; for legacy JSON, pass the spec
-      const codeOrSpec = currentSpec.type === 'vue-sfc' ? currentSpec.code : currentSpec
+      let result
 
-      const improvedTool = await buildCapability.editTool(
-        codeOrSpec,
-        prompt,
-        modelId,
-        provider,
-        config,
-        localAbortController.signal
-      )
+      switch (windowType) {
+        case 'tool': {
+          const buildCapability = new BuildCapability()
+          const codeOrSpec = currentContent.type === 'vue-sfc' ? currentContent.code : currentContent
+          result = await buildCapability.editTool(
+            codeOrSpec,
+            prompt,
+            modelId,
+            provider,
+            config,
+            localAbortController.signal
+          )
+          break
+        }
 
-      // Call the completion callback with the improved tool
-      if (onComplete) {
-        onComplete(improvedTool)
+        case 'chart':
+        case 'mermaid':
+        case 'svg': {
+          const vizCapability = new VisualizationCapability()
+          const contentStr = typeof currentContent === 'string'
+            ? currentContent
+            : JSON.stringify(currentContent, null, 2)
+          const vizResult = await vizCapability.editVisualization(
+            contentStr,
+            windowType,
+            prompt,
+            modelId,
+            provider,
+            config,
+            localAbortController.signal
+          )
+          // For chart, parse back to JSON if it was originally an object
+          if (windowType === 'chart' && typeof currentContent !== 'string') {
+            try {
+              result = JSON.parse(vizResult.content)
+            } catch {
+              result = vizResult.content
+            }
+          } else {
+            result = vizResult.content
+          }
+          break
+        }
+
+        case 'codeResult': {
+          const codeCapability = new CodeCapability()
+          const codeResult = await codeCapability.editCode(
+            currentContent.code || '',
+            prompt,
+            modelId,
+            provider,
+            config,
+            localAbortController.signal
+          )
+          result = {
+            code: codeResult.code,
+            result: codeResult.result
+          }
+          break
+        }
+
+        default:
+          throw new Error(`Unknown window type: ${windowType}`)
       }
 
-      return improvedTool
+      if (onComplete) {
+        onComplete(result)
+      }
+
+      return result
     } catch (error) {
       if (error.name !== 'AbortError') {
-        console.error('Tool improvement failed:', error)
+        console.error('Window edit failed:', error)
         throw error
       }
     }
@@ -530,7 +582,7 @@ export function useStudioChat(options = {}) {
     getLastMessage,
     updateLastMessage,
     sendMessage,
-    improveTool,
+    editWindow,
     deleteMessagePair,
     stopStreaming,
     clearChat,

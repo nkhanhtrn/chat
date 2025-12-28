@@ -83,7 +83,8 @@ function handleRestore(windowId) {
 
 .bar-content {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
   gap: 0.25rem;
   pointer-events: auto;
 }

@@ -203,18 +203,20 @@ function updateWindowTitle(windowId, title) {
 }
 
 /**
- * Update window content
+ * Update window content (preserves existing name/emoji on edit)
  */
 function updateWindowContent(windowId, content) {
   const index = windows.value.findIndex(w => w.id === windowId)
   if (index !== -1) {
-    const updates = { content }
-    // Auto-update title if content has a name (e.g., for tools)
-    if (content?.name) {
-      updates.title = content.name
+    const existingContent = windows.value[index].content
+    // Preserve existing name and emoji when editing (don't regenerate)
+    const mergedContent = {
+      ...content,
+      name: existingContent?.name || content?.name,
+      emoji: existingContent?.emoji || content?.emoji
     }
     // Replace the window object to ensure reactivity
-    windows.value[index] = { ...windows.value[index], ...updates }
+    windows.value[index] = { ...windows.value[index], content: mergedContent }
     saveToStorage()
   }
 }

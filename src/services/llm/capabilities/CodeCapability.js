@@ -401,6 +401,55 @@ Fix the code to work correctly. Write only the corrected JavaScript code:`
 
     return cleaned.trim()
   }
+
+  /**
+   * Edit existing code based on user request
+   * @param {string} currentCode - Current JavaScript code
+   * @param {string} request - Edit request from user
+   * @param {string} modelId - Model ID to use
+   * @param {Object} provider - LLM provider
+   * @param {Object} config - Provider config
+   * @param {AbortSignal} signal - Abort signal
+   * @returns {Object} { code, result, success, error }
+   */
+  async editCode(currentCode, request, modelId, provider, config, signal) {
+    const systemPrompt = `You are editing existing JavaScript code per the user's request.
+
+CRITICAL RULES:
+1. Write ONLY pure JavaScript code - no markdown, no explanations, no code blocks
+2. The code must be immediately executable in a browser environment
+3. Keep the overall structure but apply the requested changes
+4. The last expression should be the result to display
+5. Do NOT use console.log - just return/evaluate to the result
+
+OUTPUT FORMAT:
+- Just the raw JavaScript code, nothing else
+- No \`\`\`javascript blocks
+- End with the expression that produces the final result`
+
+    const userPrompt = `Current code:
+${currentCode}
+
+Request: ${request}`
+
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ]
+
+    const response = await provider.sendMessage(modelId, messages, null, signal, config)
+    const cleanedCode = this.cleanOutput(response)
+
+    // Execute the updated code
+    const execution = this._executeCode(cleanedCode)
+
+    return {
+      code: cleanedCode,
+      result: execution.result,
+      success: execution.success,
+      error: execution.error
+    }
+  }
 }
 
 export default CodeCapability

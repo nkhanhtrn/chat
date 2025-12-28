@@ -10,6 +10,7 @@
     <div
       class="window-header"
       @mousedown.stop="startDrag"
+      @touchstart.stop="startDrag"
     >
       <div class="window-title">
         <span class="window-type-icon">{{ typeIcon }}</span>
@@ -25,10 +26,9 @@
       </div>
       <div class="window-controls">
         <button
-          v-if="window.type === 'tool'"
           class="window-control-btn edit-btn"
-          @click.stop="showImprovePanel = !showImprovePanel"
-          title="Improve Tool"
+          @click.stop="showEditPanel = !showEditPanel"
+          title="Edit"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -80,15 +80,9 @@
       ></div>
 
       <!-- Tool -->
-      <div v-else-if="window.type === 'tool'" class="tool-wrapper" :class="{ 'is-improving': isImproving }">
+      <div v-else-if="window.type === 'tool'" class="tool-wrapper">
         <VueToolRenderer v-if="isVueSfcTool" :code="window.content.code" />
         <ToolRenderer v-else :tool="window.content" />
-        <div v-if="isImproving" class="tool-overlay">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinning">
-            <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="12"></circle>
-          </svg>
-          <span>Improving...</span>
-        </div>
       </div>
 
       <!-- Code Result -->
@@ -103,22 +97,22 @@
       </div>
     </div>
 
-    <!-- Improve Tool Panel -->
-    <div v-if="showImprovePanel && window.type === 'tool'" class="improve-panel">
-      <div class="improve-input-row">
+    <!-- Edit Panel -->
+    <div v-if="showEditPanel" class="edit-panel">
+      <div class="edit-input-row">
         <input
-          v-model="improvePrompt"
-          class="improve-input"
-          placeholder="Describe improvements..."
-          @keydown.enter="submitImprove"
+          v-model="editPrompt"
+          class="edit-input"
+          placeholder="Describe changes..."
+          @keydown.enter="submitEdit"
         />
         <button
-          class="improve-submit-btn"
-          @click="submitImprove"
-          :disabled="!improvePrompt.trim() || isImproving"
+          class="edit-submit-btn"
+          @click="submitEdit"
+          :disabled="!editPrompt.trim() || isEditing"
           title="Send (Enter)"
         >
-          <svg v-if="!isImproving" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg v-if="!isEditing" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="22" y1="2" x2="11" y2="13"></line>
             <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
           </svg>
@@ -128,23 +122,23 @@
         </button>
       </div>
       <details class="spec-details">
-        <summary>Current {{ isVueSfcTool ? 'Component' : 'Specification' }}</summary>
+        <summary>Current {{ contentLabel }}</summary>
         <CodeDisplay
-          :language="isVueSfcTool ? 'vue' : 'json'"
-          :code="isVueSfcTool ? window.content.code : JSON.stringify(window.content, null, 2)"
+          :language="contentLanguage"
+          :code="contentForDisplay"
         />
       </details>
     </div>
 
     <!-- Resize Handles -->
-    <div class="resize-handle resize-n" @mousedown.stop="(e) => startResize(e, 'n')"></div>
-    <div class="resize-handle resize-s" @mousedown.stop="(e) => startResize(e, 's')"></div>
-    <div class="resize-handle resize-e" @mousedown.stop="(e) => startResize(e, 'e')"></div>
-    <div class="resize-handle resize-w" @mousedown.stop="(e) => startResize(e, 'w')"></div>
-    <div class="resize-handle resize-ne" @mousedown.stop="(e) => startResize(e, 'ne')"></div>
-    <div class="resize-handle resize-nw" @mousedown.stop="(e) => startResize(e, 'nw')"></div>
-    <div class="resize-handle resize-se" @mousedown.stop="(e) => startResize(e, 'se')"></div>
-    <div class="resize-handle resize-sw" @mousedown.stop="(e) => startResize(e, 'sw')"></div>
+    <div class="resize-handle resize-n" @mousedown.stop="(e) => startResize(e, 'n')" @touchstart.stop.prevent="(e) => startResize(e, 'n')"></div>
+    <div class="resize-handle resize-s" @mousedown.stop="(e) => startResize(e, 's')" @touchstart.stop.prevent="(e) => startResize(e, 's')"></div>
+    <div class="resize-handle resize-e" @mousedown.stop="(e) => startResize(e, 'e')" @touchstart.stop.prevent="(e) => startResize(e, 'e')"></div>
+    <div class="resize-handle resize-w" @mousedown.stop="(e) => startResize(e, 'w')" @touchstart.stop.prevent="(e) => startResize(e, 'w')"></div>
+    <div class="resize-handle resize-ne" @mousedown.stop="(e) => startResize(e, 'ne')" @touchstart.stop.prevent="(e) => startResize(e, 'ne')"></div>
+    <div class="resize-handle resize-nw" @mousedown.stop="(e) => startResize(e, 'nw')" @touchstart.stop.prevent="(e) => startResize(e, 'nw')"></div>
+    <div class="resize-handle resize-se" @mousedown.stop="(e) => startResize(e, 'se')" @touchstart.stop.prevent="(e) => startResize(e, 'se')"></div>
+    <div class="resize-handle resize-sw" @mousedown.stop="(e) => startResize(e, 'sw')" @touchstart.stop.prevent="(e) => startResize(e, 'sw')"></div>
   </div>
 </template>
 
@@ -163,7 +157,7 @@ const props = defineProps({
   containerRect: { type: Object, default: () => ({ width: 0, height: 0 }) }
 })
 
-const emit = defineEmits(['close', 'minimize', 'update:position', 'update:size', 'update:title', 'bring-to-front', 'improve-tool'])
+const emit = defineEmits(['close', 'minimize', 'update:position', 'update:size', 'update:title', 'bring-to-front', 'edit-window'])
 
 const windowRef = ref(null)
 const isDragging = ref(false)
@@ -172,26 +166,67 @@ const resizeDirection = ref('')
 const dragStart = ref({ x: 0, y: 0 })
 const resizeStart = ref({ x: 0, y: 0, width: 0, height: 0, posX: 0, posY: 0 })
 
-// Improve tool panel state
-const showImprovePanel = ref(false)
-const improvePrompt = ref('')
-const isImproving = ref(false)
+// Edit panel state
+const showEditPanel = ref(false)
+const editPrompt = ref('')
+const isEditing = ref(false)
 
-function submitImprove() {
-  if (!improvePrompt.value.trim() || isImproving.value) return
+function submitEdit() {
+  if (!editPrompt.value.trim() || isEditing.value) return
 
-  isImproving.value = true
-  emit('improve-tool', {
+  isEditing.value = true
+  emit('edit-window', {
     windowId: props.window.id,
-    currentSpec: props.window.content,
-    prompt: improvePrompt.value.trim(),
+    windowType: props.window.type,
+    currentContent: props.window.content,
+    prompt: editPrompt.value.trim(),
     onDone: () => {
-      improvePrompt.value = ''
-      showImprovePanel.value = false
-      isImproving.value = false
+      editPrompt.value = ''
+      showEditPanel.value = false
+      isEditing.value = false
     }
   })
 }
+
+// Computed properties for edit panel content display
+const contentLabel = computed(() => {
+  switch (props.window.type) {
+    case 'tool': return isVueSfcTool.value ? 'Component' : 'Specification'
+    case 'chart': return 'Chart Config'
+    case 'mermaid': return 'Diagram'
+    case 'svg': return 'SVG'
+    case 'codeResult': return 'Code'
+    default: return 'Content'
+  }
+})
+
+const contentLanguage = computed(() => {
+  switch (props.window.type) {
+    case 'tool': return isVueSfcTool.value ? 'vue' : 'json'
+    case 'chart': return 'json'
+    case 'mermaid': return 'mermaid'
+    case 'svg': return 'xml'
+    case 'codeResult': return 'javascript'
+    default: return 'text'
+  }
+})
+
+const contentForDisplay = computed(() => {
+  const content = props.window.content
+  switch (props.window.type) {
+    case 'tool':
+      return isVueSfcTool.value ? content.code : JSON.stringify(content, null, 2)
+    case 'chart':
+      return typeof content === 'string' ? content : JSON.stringify(content, null, 2)
+    case 'mermaid':
+    case 'svg':
+      return content
+    case 'codeResult':
+      return content.code || ''
+    default:
+      return typeof content === 'string' ? content : JSON.stringify(content, null, 2)
+  }
+})
 
 // Computed styles
 const windowStyle = computed(() => ({
@@ -204,6 +239,10 @@ const windowStyle = computed(() => ({
 
 // Type icons
 const typeIcon = computed(() => {
+  // Use custom emoji from tool content if available
+  if (props.window.type === 'tool' && props.window.content?.emoji) {
+    return props.window.content.emoji
+  }
   switch (props.window.type) {
     case 'chart': return '📊'
     case 'mermaid': return '📐'
@@ -269,17 +308,37 @@ function handleWindowClick() {
   emit('bring-to-front')
 }
 
+// Helper to get clientX/clientY from mouse or touch event
+function getEventCoords(event) {
+  if (event.touches && event.touches.length > 0) {
+    return { x: event.touches[0].clientX, y: event.touches[0].clientY }
+  }
+  return { x: event.clientX, y: event.clientY }
+}
+
 // Drag functionality
 function startDrag(event) {
+  // Don't start drag if clicking on buttons or controls
+  const target = event.target
+  if (target.closest('button') || target.closest('.window-controls')) {
+    return
+  }
+
+  // Prevent default for touch to avoid scrolling while dragging
+  if (event.cancelable) event.preventDefault()
+
   isDragging.value = true
+  const coords = getEventCoords(event)
   dragStart.value = {
-    x: event.clientX - props.window.position.x,
-    y: event.clientY - props.window.position.y
+    x: coords.x - props.window.position.x,
+    y: coords.y - props.window.position.y
   }
   emit('bring-to-front')
 
   document.addEventListener('mousemove', handleDrag)
   document.addEventListener('mouseup', stopDrag)
+  document.addEventListener('touchmove', handleDrag, { passive: false })
+  document.addEventListener('touchend', stopDrag)
   document.body.style.cursor = 'grabbing'
   document.body.style.userSelect = 'none'
 }
@@ -287,8 +346,10 @@ function startDrag(event) {
 function handleDrag(event) {
   if (!isDragging.value) return
 
-  let newX = event.clientX - dragStart.value.x
-  let newY = event.clientY - dragStart.value.y
+  if (event.cancelable) event.preventDefault()
+  const coords = getEventCoords(event)
+  let newX = coords.x - dragStart.value.x
+  let newY = coords.y - dragStart.value.y
 
   // Constrain to container bounds
   const maxX = props.containerRect.width - props.window.size.width
@@ -304,6 +365,8 @@ function stopDrag() {
   isDragging.value = false
   document.removeEventListener('mousemove', handleDrag)
   document.removeEventListener('mouseup', stopDrag)
+  document.removeEventListener('touchmove', handleDrag)
+  document.removeEventListener('touchend', stopDrag)
   document.body.style.cursor = ''
   document.body.style.userSelect = ''
 }
@@ -323,9 +386,10 @@ const cursorMap = {
 function startResize(event, direction) {
   isResizing.value = true
   resizeDirection.value = direction
+  const coords = getEventCoords(event)
   resizeStart.value = {
-    x: event.clientX,
-    y: event.clientY,
+    x: coords.x,
+    y: coords.y,
     width: props.window.size.width,
     height: props.window.size.height,
     posX: props.window.position.x,
@@ -335,6 +399,8 @@ function startResize(event, direction) {
 
   document.addEventListener('mousemove', handleResize)
   document.addEventListener('mouseup', stopResize)
+  document.addEventListener('touchmove', handleResize, { passive: false })
+  document.addEventListener('touchend', stopResize)
   document.body.style.cursor = cursorMap[direction]
   document.body.style.userSelect = 'none'
 }
@@ -342,8 +408,10 @@ function startResize(event, direction) {
 function handleResize(event) {
   if (!isResizing.value) return
 
-  const deltaX = event.clientX - resizeStart.value.x
-  const deltaY = event.clientY - resizeStart.value.y
+  if (event.cancelable) event.preventDefault()
+  const coords = getEventCoords(event)
+  const deltaX = coords.x - resizeStart.value.x
+  const deltaY = coords.y - resizeStart.value.y
   const dir = resizeDirection.value
 
   let newWidth = resizeStart.value.width
@@ -396,6 +464,8 @@ function stopResize() {
   resizeDirection.value = ''
   document.removeEventListener('mousemove', handleResize)
   document.removeEventListener('mouseup', stopResize)
+  document.removeEventListener('touchmove', handleResize)
+  document.removeEventListener('touchend', stopResize)
   document.body.style.cursor = ''
   document.body.style.userSelect = ''
 }
@@ -404,8 +474,12 @@ function stopResize() {
 onUnmounted(() => {
   document.removeEventListener('mousemove', handleDrag)
   document.removeEventListener('mouseup', stopDrag)
+  document.removeEventListener('touchmove', handleDrag)
+  document.removeEventListener('touchend', stopDrag)
   document.removeEventListener('mousemove', handleResize)
   document.removeEventListener('mouseup', stopResize)
+  document.removeEventListener('touchmove', handleResize)
+  document.removeEventListener('touchend', stopResize)
 })
 </script>
 
@@ -442,6 +516,7 @@ onUnmounted(() => {
   border-bottom: 1px solid var(--color-border-subtle);
   cursor: grab;
   flex-shrink: 0;
+  touch-action: none;
 }
 
 .window-header:active {
@@ -558,34 +633,12 @@ onUnmounted(() => {
   background: var(--color-bg-base);
 }
 
-.tool-wrapper.is-improving > :first-child {
-  opacity: 0.4;
-  pointer-events: none;
-  filter: blur(1px);
-}
-
-.tool-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  background-color: rgba(0, 0, 0, 0.3);
-  color: var(--color-text-base);
-  font-size: 0.85rem;
-  z-index: 5;
-}
-
-.tool-overlay .spinning {
-  animation: spin 1s linear infinite;
-}
 
 /* Resize Handles */
 .resize-handle {
   position: absolute;
   z-index: 10;
+  touch-action: none;
 }
 
 /* Edge handles */
@@ -715,8 +768,8 @@ onUnmounted(() => {
   font-family: inherit;
 }
 
-/* Improve Tool Panel */
-.improve-panel {
+/* Edit Panel */
+.edit-panel {
   position: absolute;
   bottom: 0;
   left: 0;
@@ -772,13 +825,13 @@ onUnmounted(() => {
   min-height: 0;
 }
 
-.improve-input-row {
+.edit-input-row {
   display: flex;
   gap: 0.5rem;
   align-items: flex-end;
 }
 
-.improve-input {
+.edit-input {
   flex: 1;
   padding: 0.5rem 0.75rem;
   font-size: 0.85rem;
@@ -790,16 +843,16 @@ onUnmounted(() => {
   height: 36px;
 }
 
-.improve-input:focus {
+.edit-input:focus {
   outline: none;
   border-color: var(--color-primary);
 }
 
-.improve-input::placeholder {
+.edit-input::placeholder {
   color: var(--color-text-muted);
 }
 
-.improve-submit-btn {
+.edit-submit-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -815,16 +868,16 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.improve-submit-btn:hover:not(:disabled) {
+.edit-submit-btn:hover:not(:disabled) {
   background-color: var(--color-primary-hover);
 }
 
-.improve-submit-btn:disabled {
+.edit-submit-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.improve-submit-btn .spinning {
+.edit-submit-btn .spinning {
   animation: spin 1s linear infinite;
 }
 

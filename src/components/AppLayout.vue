@@ -41,19 +41,24 @@
     </nav>
 
     <!-- Side Panel (optional, collapsible) -->
-    <aside v-if="hasSidePanel && sideExpanded" class="side-panel" :style="{ width: sideWidth + 'px' }">
-      <slot name="side"></slot>
-    </aside>
+    <Transition name="slide-side">
+      <aside v-if="hasSidePanel && sideExpanded" class="side-panel" :style="{ width: sideWidth + 'px' }">
+        <slot name="side"></slot>
+      </aside>
+    </Transition>
 
     <!-- Resizable Divider -->
-    <div
-      v-if="hasSidePanel && sideExpanded"
-      class="divider"
-      :class="{ 'is-dragging': isDragging }"
-      @mousedown="startDrag"
-    >
-      <div class="divider-handle"></div>
-    </div>
+    <Transition name="fade">
+      <div
+        v-if="hasSidePanel && sideExpanded"
+        class="divider"
+        :class="{ 'is-dragging': isDragging }"
+        @mousedown="startDrag"
+        @touchstart.prevent="startDrag"
+      >
+        <div class="divider-handle"></div>
+      </div>
+    </Transition>
 
     <!-- Main Content Panel -->
     <main class="main-panel">
@@ -134,6 +139,12 @@ function toggleSide() {
 }
 
 function goTo(page) {
+  // If clicking on the current page's button, toggle the side panel
+  if (page === activePage.value && hasSidePanel.value) {
+    toggleSide()
+    return
+  }
+
   if (page === 'home') {
     router.push({ name: 'home' })
   } else if (page === 'notebooks') {
@@ -153,21 +164,32 @@ function goTo(page) {
   }
 }
 
+// Get clientX from mouse or touch event
+function getClientX(event) {
+  if (event.touches && event.touches.length > 0) {
+    return event.touches[0].clientX
+  }
+  return event.clientX
+}
+
 // Divider drag handling
 function startDrag(event) {
   isDragging.value = true
-  startX.value = event.clientX
+  startX.value = getClientX(event)
   startWidth.value = sideWidth.value
 
   document.addEventListener('mousemove', handleDrag)
   document.addEventListener('mouseup', stopDrag)
+  document.addEventListener('touchmove', handleDrag, { passive: false })
+  document.addEventListener('touchend', stopDrag)
   document.body.style.cursor = 'col-resize'
   document.body.style.userSelect = 'none'
 }
 
 function handleDrag(event) {
   if (!isDragging.value) return
-  const delta = event.clientX - startX.value
+  if (event.cancelable) event.preventDefault()
+  const delta = getClientX(event) - startX.value
   const newWidth = startWidth.value + delta
   sideWidth.value = Math.min(props.maxSideWidth, Math.max(props.minSideWidth, newWidth))
 }
@@ -176,6 +198,8 @@ function stopDrag() {
   isDragging.value = false
   document.removeEventListener('mousemove', handleDrag)
   document.removeEventListener('mouseup', stopDrag)
+  document.removeEventListener('touchmove', handleDrag)
+  document.removeEventListener('touchend', stopDrag)
   document.body.style.cursor = ''
   document.body.style.userSelect = ''
   localStorage.setItem(`${props.storageKey}-width`, sideWidth.value.toString())
@@ -184,6 +208,8 @@ function stopDrag() {
 onUnmounted(() => {
   document.removeEventListener('mousemove', handleDrag)
   document.removeEventListener('mouseup', stopDrag)
+  document.removeEventListener('touchmove', handleDrag)
+  document.removeEventListener('touchend', stopDrag)
 })
 
 defineExpose({ sideExpanded, toggleSide })
@@ -309,6 +335,7 @@ defineExpose({ sideExpanded, toggleSide })
   align-items: center;
   justify-content: center;
   transition: background-color 0.15s;
+  touch-action: none;
 }
 
 .divider:hover,
@@ -336,6 +363,30 @@ defineExpose({ sideExpanded, toggleSide })
   flex-direction: column;
   overflow: hidden;
   background: var(--color-bg-page);
+}
+
+/* Side panel slide animation */
+.slide-side-enter-active,
+.slide-side-leave-active {
+  transition: width 0.25s ease, opacity 0.25s ease;
+  overflow: hidden;
+}
+
+.slide-side-enter-from,
+.slide-side-leave-to {
+  width: 0 !important;
+  opacity: 0;
+}
+
+/* Divider fade animation */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
 /* Mobile responsive */

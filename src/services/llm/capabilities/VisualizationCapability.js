@@ -351,6 +351,47 @@ Generate the visualization now:`
     // Generic cleanup - handlers have specific cleanup
     return rawOutput.trim()
   }
+
+  /**
+   * Edit an existing visualization
+   * @param {string} currentContent - Current visualization content (JSON string for chart, code for mermaid/svg)
+   * @param {string} type - Visualization type: 'chart', 'mermaid', or 'svg'
+   * @param {string} request - Edit request from user
+   * @param {string} modelId - Model ID to use
+   * @param {Object} provider - LLM provider
+   * @param {Object} config - Provider config
+   * @param {AbortSignal} signal - Abort signal
+   * @returns {Object} Updated visualization { type, content }
+   */
+  async editVisualization(currentContent, type, request, modelId, provider, config, signal) {
+    const handler = this._getHandler(type)
+
+    const systemPrompt = `You are editing an existing ${type === 'chart' ? 'ECharts configuration' : type === 'mermaid' ? 'Mermaid diagram' : 'SVG illustration'}.
+
+Modify the content per the user's request. Keep the core structure but apply the requested changes.
+
+${handler.getSystemPrompt()}
+
+Output ONLY the updated ${type === 'chart' ? 'JSON' : 'code'}, nothing else.`
+
+    const userPrompt = `Current ${type}:
+${currentContent}
+
+Request: ${request}`
+
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ]
+
+    const response = await provider.sendMessage(modelId, messages, null, signal, config)
+    const cleanedContent = handler.cleanOutput(response)
+
+    return {
+      type,
+      content: cleanedContent
+    }
+  }
 }
 
 // Export handlers for potential external use
