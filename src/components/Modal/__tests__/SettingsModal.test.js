@@ -828,7 +828,7 @@ describe('SettingsModal', () => {
   })
 
   describe('Tab Navigation', () => {
-    it('should render Theme and LLM tabs', () => {
+    it('should render Theme, LLM, and Account tabs', () => {
       wrapper = mount(SettingsModal, {
         props: {
           modelValue: true
@@ -836,9 +836,10 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const tabs = findAllInBody('.tab-button')
-      expect(tabs).toHaveLength(2)
+      expect(tabs).toHaveLength(3)
       expect(tabs[0].textContent).toContain('Theme')
       expect(tabs[1].textContent).toContain('LLM')
+      expect(tabs[2].textContent).toContain('Account')
     })
 
     it('should show Theme tab as active by default', () => {
@@ -851,6 +852,7 @@ describe('SettingsModal', () => {
       const tabs = findAllInBody('.tab-button')
       expect(tabs[0].classList.contains('active')).toBe(true)
       expect(tabs[1].classList.contains('active')).toBe(false)
+      expect(tabs[2].classList.contains('active')).toBe(false)
     })
 
     it('should switch to LLM tab when clicked', async () => {
@@ -866,6 +868,7 @@ describe('SettingsModal', () => {
 
       expect(tabs[0].classList.contains('active')).toBe(false)
       expect(tabs[1].classList.contains('active')).toBe(true)
+      expect(tabs[2].classList.contains('active')).toBe(false)
     })
 
     it('should show theme content when Theme tab is active', () => {
@@ -1699,7 +1702,7 @@ describe('SettingsModal', () => {
       mockChatStore._persistState.mockClear()
     })
 
-    it('should render backup section in LLM tab', async () => {
+    it('should render backup section in Account tab', async () => {
       wrapper = mount(SettingsModal, {
         props: {
           modelValue: true
@@ -1707,7 +1710,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const tabs = findAllInBody('.tab-button')
-      tabs[1].click()
+      tabs[2].click()
       await wrapper.vm.$nextTick()
 
       const backupSection = findInBody('.backup-section')
@@ -1722,7 +1725,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const tabs = findAllInBody('.tab-button')
-      tabs[1].click()
+      tabs[2].click()
       await wrapper.vm.$nextTick()
 
       const labels = findAllInBody('.setting-label')
@@ -1738,7 +1741,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const tabs = findAllInBody('.tab-button')
-      tabs[1].click()
+      tabs[2].click()
       await wrapper.vm.$nextTick()
 
       const buttons = findAllInBody('.backup-btn')
@@ -1754,7 +1757,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const tabs = findAllInBody('.tab-button')
-      tabs[1].click()
+      tabs[2].click()
       await wrapper.vm.$nextTick()
 
       const buttons = findAllInBody('.backup-btn')
@@ -1770,7 +1773,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const tabs = findAllInBody('.tab-button')
-      tabs[1].click()
+      tabs[2].click()
       await wrapper.vm.$nextTick()
 
       const fileInput = findInBody('.file-input')
@@ -1808,7 +1811,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const tabs = findAllInBody('.tab-button')
-      tabs[1].click()
+      tabs[2].click()
       await wrapper.vm.$nextTick()
 
       const buttons = findAllInBody('.backup-btn')
@@ -1851,7 +1854,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const tabs = findAllInBody('.tab-button')
-      tabs[1].click()
+      tabs[2].click()
       await wrapper.vm.$nextTick()
 
       const buttons = findAllInBody('.backup-btn')
@@ -1879,7 +1882,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const tabs = findAllInBody('.tab-button')
-      tabs[1].click()
+      tabs[2].click()
       await wrapper.vm.$nextTick()
 
       const importData = {
@@ -1922,7 +1925,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const tabs = findAllInBody('.tab-button')
-      tabs[1].click()
+      tabs[2].click()
       await wrapper.vm.$nextTick()
 
       const importData = {
@@ -1956,7 +1959,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const tabs = findAllInBody('.tab-button')
-      tabs[1].click()
+      tabs[2].click()
       await wrapper.vm.$nextTick()
 
       const file = new File(['not valid json'], 'backup.json', { type: 'application/json' })
@@ -1983,7 +1986,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const tabs = findAllInBody('.tab-button')
-      tabs[1].click()
+      tabs[2].click()
       await wrapper.vm.$nextTick()
 
       const invalidData = { messagesById: {} } // Missing chats
@@ -2012,7 +2015,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const tabs = findAllInBody('.tab-button')
-      tabs[1].click()
+      tabs[2].click()
       await wrapper.vm.$nextTick()
 
       const invalidData = { chats: [] } // Missing messagesById
@@ -2041,7 +2044,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const tabs = findAllInBody('.tab-button')
-      tabs[1].click()
+      tabs[2].click()
       await wrapper.vm.$nextTick()
 
       // Try to import a chat with existing ID
@@ -2082,7 +2085,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const tabs = findAllInBody('.tab-button')
-      tabs[1].click()
+      tabs[2].click()
       await wrapper.vm.$nextTick()
 
       const backupButtons = findInBody('.backup-buttons')
@@ -2114,7 +2117,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const tabs = findAllInBody('.tab-button')
-      tabs[1].click()
+      tabs[2].click()
       await wrapper.vm.$nextTick()
 
       const buttons = findAllInBody('.backup-btn')
@@ -2140,7 +2143,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const tabs = findAllInBody('.tab-button')
-      tabs[1].click()
+      tabs[2].click()
       await wrapper.vm.$nextTick()
 
       const importData = {
@@ -2180,7 +2183,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const tabs = findAllInBody('.tab-button')
-      tabs[1].click()
+      tabs[2].click()
       await wrapper.vm.$nextTick()
 
       const importData = {
@@ -2220,7 +2223,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const tabs = findAllInBody('.tab-button')
-      tabs[1].click()
+      tabs[2].click()
       await wrapper.vm.$nextTick()
 
       const importData = {
@@ -2258,7 +2261,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const tabs = findAllInBody('.tab-button')
-      tabs[1].click()
+      tabs[2].click()
       await wrapper.vm.$nextTick()
 
       const importData = {
@@ -2296,7 +2299,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const tabs = findAllInBody('.tab-button')
-      tabs[1].click()
+      tabs[2].click()
       await wrapper.vm.$nextTick()
 
       // Legacy backup file without srData/vocabData
@@ -2350,7 +2353,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const tabs = findAllInBody('.tab-button')
-      tabs[1].click()
+      tabs[2].click()
       await wrapper.vm.$nextTick()
 
       const buttons = findAllInBody('.backup-btn')
@@ -2378,7 +2381,7 @@ describe('SettingsModal', () => {
         attachTo: document.body
       })
       const tabs = findAllInBody('.tab-button')
-      tabs[1].click()
+      tabs[2].click()
       await wrapper.vm.$nextTick()
 
       const importData = {

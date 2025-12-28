@@ -1,74 +1,60 @@
 <template>
-  <div class="studio-page">
-    <!-- Header -->
-    <StudioHeader />
+  <AppLayout ref="appLayoutRef" storage-key="studio-layout">
+    <!-- Side Panel: Chat -->
+    <template #side>
+      <ChatPanel
+        ref="chatPanelRef"
+        v-model="inputText"
+        v-model:router-model="modelSelection.routerModel.value"
+        v-model:executor-model="modelSelection.executorModel.value"
+        :messages="chat.messages.value"
+        :is-streaming="chat.isStreaming.value"
+        :is-searching="webSearch.isSearching.value"
+        :search-query="webSearch.searchQuery.value"
+        :current-planning-step="planning.currentPlanningStep.value"
+        :is-routing="chat.isRouting.value"
+        :current-verify-attempt="chat.currentVerifyAttempt.value"
+        :search-status="webSearch.searchStatus.value"
+        :has-loading-urls="attachments.hasLoadingUrls.value"
+        :has-loading-files="attachments.hasLoadingFiles.value"
+        :is-model-ready="modelSelection.isModelReady.value"
+        :detected-urls="attachments.detectedUrls.value"
+        :uploaded-files="attachments.uploadedFiles.value"
+        :all-models="modelSelection.allModels.value"
+        @send="handleSend"
+        @stop="chat.stopStreaming"
+        @clear="handleClearChat"
+        @trigger-upload="triggerFileUpload"
+        @file-upload="attachments.handleFileUpload"
+        @remove-file="attachments.removeFile"
+        @edit="handleEdit"
+      />
+    </template>
 
+    <!-- Main Panel: Canvas -->
     <SlideTransition appear direction="vertical">
-      <StudioLayout class="studio-content">
-        <!-- Chat Panel (Left) -->
-        <template #chat>
-          <ChatPanel
-            ref="chatPanelRef"
-            v-model="inputText"
-            v-model:two-model-mode="modelSelection.twoModelMode.value"
-            v-model:router-model="modelSelection.routerModel.value"
-            v-model:executor-model="modelSelection.executorModel.value"
-            v-model:selected-provider="modelSelection.selectedProvider.value"
-            v-model:selected-model="modelSelection.selectedModel.value"
-            :messages="chat.messages.value"
-            :is-streaming="chat.isStreaming.value"
-            :is-searching="webSearch.isSearching.value"
-            :search-query="webSearch.searchQuery.value"
-            :current-planning-step="planning.currentPlanningStep.value"
-            :is-routing="chat.isRouting.value"
-            :current-verify-attempt="chat.currentVerifyAttempt.value"
-            :search-status="webSearch.searchStatus.value"
-            :has-loading-urls="attachments.hasLoadingUrls.value"
-            :has-loading-files="attachments.hasLoadingFiles.value"
-            :is-model-ready="modelSelection.isModelReady.value"
-            :detected-urls="attachments.detectedUrls.value"
-            :uploaded-files="attachments.uploadedFiles.value"
-            :all-models="modelSelection.allModels.value"
-            :providers="modelSelection.providers.value"
-            :models="modelSelection.models.value"
-            @update:selected-provider="modelSelection.onProviderChange"
-            @send="handleSend"
-            @stop="chat.stopStreaming"
-            @clear="handleClearChat"
-            @trigger-upload="triggerFileUpload"
-            @file-upload="attachments.handleFileUpload"
-            @remove-file="attachments.removeFile"
-            @edit="handleEdit"
-          />
-        </template>
-
-        <!-- Canvas Panel (Right) -->
-        <template #canvas>
-          <CanvasPanel
-            :visible-windows="canvas.visibleWindows.value"
-            :minimized-categories="canvas.minimizedWindowsByCategory.value"
-            @close-window="canvas.removeWindow"
-            @minimize-window="canvas.minimizeWindow"
-            @restore-window="canvas.restoreWindow"
-            @update-position="canvas.updateWindowPosition"
-            @update-size="canvas.updateWindowSize"
-            @update-title="canvas.updateWindowTitle"
-            @bring-to-front="canvas.bringToFront"
-            @improve-tool="handleImproveTool"
-          />
-        </template>
-      </StudioLayout>
+      <CanvasPanel
+      :visible-windows="canvas.visibleWindows.value"
+      :minimized-categories="canvas.minimizedWindowsByCategory.value"
+      @close-window="canvas.removeWindow"
+      @minimize-window="canvas.minimizeWindow"
+      @restore-window="canvas.restoreWindow"
+      @update-position="canvas.updateWindowPosition"
+      @update-size="canvas.updateWindowSize"
+      @update-title="canvas.updateWindowTitle"
+      @bring-to-front="canvas.bringToFront"
+      @improve-tool="handleImproveTool"
+      />
     </SlideTransition>
-  </div>
+  </AppLayout>
 </template>
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
-import SlideTransition from '../components/SlideTransition.vue'
-import StudioHeader from '../components/studio/StudioHeader.vue'
-import StudioLayout from '../components/studio/StudioLayout.vue'
+import AppLayout from '../components/AppLayout.vue'
 import ChatPanel from '../components/studio/ChatPanel.vue'
 import CanvasPanel from '../components/studio/CanvasPanel.vue'
+import SlideTransition from '../components/SlideTransition.vue'
 import { useModelSelection } from '../composables/useModelSelection.js'
 import { useAttachments } from '../composables/useAttachments.js'
 import { useWebSearch } from '../composables/studio/useWebSearch.js'
@@ -87,6 +73,7 @@ const canvas = useStudioCanvas()
 // Local state
 const inputText = ref('')
 const chatPanelRef = ref(null)
+const appLayoutRef = ref(null)
 
 // Watch input for URL detection
 attachments.watchInputForUrls(inputText)
@@ -189,17 +176,16 @@ async function handleSend() {
     scrollToBottom: () => chat.scrollToBottom()
   })
 
-  // Send message
+  // Send message (always uses 2-model mode)
   await chat.sendMessage({
     inputText: currentInputText,
     attachmentSnapshot,
-    twoModelMode: modelSelection.twoModelMode.value,
+    twoModelMode: true,
     modelSelection: {
       routerModel: modelSelection.routerModel.value,
       routerProviderId: modelSelection.routerModelData.value?.providerId || 'lmstudio',
       executorModel: modelSelection.executorModel.value,
-      executorProviderId: modelSelection.executorModelData.value?.providerId || 'lmstudio',
-      selectedModel: modelSelection.selectedModel.value
+      executorProviderId: modelSelection.executorModelData.value?.providerId || 'lmstudio'
     },
     searchCallbacks,
     planningCallbacks

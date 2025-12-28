@@ -20,6 +20,7 @@ vi.mock('vue-router', () => ({
     replace: mockReplace
   }),
   useRoute: () => ({
+    name: 'notebook',
     params: mockRouteParams
   })
 }))
@@ -86,6 +87,15 @@ vi.mock('../services/extraPrompt.js', () => ({
     { role: 'system', content: 'Summarize' },
     { role: 'user', content: response }
   ])
+}))
+
+// Mock AppLayout to avoid route dependency issues
+vi.mock('../components/AppLayout.vue', () => ({
+  default: {
+    name: 'AppLayout',
+    template: '<div class="app-container"><slot name="side" /><slot /></div>',
+    props: ['storageKey']
+  }
 }))
 
 describe('ChatView', () => {
@@ -206,14 +216,6 @@ describe('ChatView', () => {
       expect(mockPush).toHaveBeenCalledWith({ name: 'home' })
     })
 
-    it('should navigate home when back-home event is emitted from sidebar', async () => {
-      wrapper = mountComponent()
-      const sidebar = wrapper.findComponent(ChatSidebar)
-
-      await sidebar.vm.$emit('back-home')
-
-      expect(mockPush).toHaveBeenCalledWith({ name: 'home' })
-    })
   })
 
   describe('Question Navigation', () => {

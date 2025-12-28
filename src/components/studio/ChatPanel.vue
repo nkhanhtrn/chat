@@ -1,13 +1,11 @@
 <template>
   <div class="chat-panel-content">
+    <!-- Header -->
+    <StudioHeader />
+
     <!-- Model Bar -->
-    <div class="model-bar">
-      <label class="two-model-toggle">
-        <input type="checkbox" :checked="twoModelMode" @change="$emit('update:twoModelMode', $event.target.checked)" />
-        <span class="toggle-switch"></span>
-        <span class="toggle-label">2-Model</span>
-      </label>
-      <template v-if="twoModelMode">
+    <div class="model-bar-wrapper">
+      <div class="model-bar" v-if="showModelSelection">
         <div class="model-selector">
           <span class="model-label">Router</span>
           <select :value="routerModel" @change="$emit('update:routerModel', $event.target.value)" class="model-select" :disabled="allModels.length === 0">
@@ -22,22 +20,12 @@
             <option v-for="m in allModels" :key="m.id" :value="m.id">{{ m.name }}</option>
           </select>
         </div>
-      </template>
-      <template v-else>
-        <div class="model-selector">
-          <span class="model-label">Service</span>
-          <select :value="selectedProvider" @change="$emit('update:selectedProvider', $event.target.value)" class="model-select">
-            <option v-for="p in providers" :key="p.id" :value="p.id">{{ p.name }}</option>
-          </select>
-        </div>
-        <div class="model-selector">
-          <span class="model-label">Model</span>
-          <select :value="selectedModel" @change="$emit('update:selectedModel', $event.target.value)" class="model-select" :disabled="models.length === 0">
-            <option v-if="models.length === 0" value="">Loading...</option>
-            <option v-for="m in models" :key="m.id" :value="m.id">{{ m.name }}</option>
-          </select>
-        </div>
-      </template>
+      </div>
+      <button class="toggle-models-btn" @click="toggleModelSelection" :title="showModelSelection ? 'Hide' : 'Show'">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline :points="showModelSelection ? '18 15 12 9 6 15' : '6 9 12 15 18 9'"></polyline>
+        </svg>
+      </button>
     </div>
 
     <!-- Messages -->
@@ -78,9 +66,26 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import StudioHeader from './StudioHeader.vue'
 import MessageList from './MessageList.vue'
 import MessageInput from './MessageInput.vue'
+
+const STORAGE_KEY = 'studio-show-model-selection'
+
+const showModelSelection = ref(true)
+
+onMounted(() => {
+  const stored = localStorage.getItem(STORAGE_KEY)
+  if (stored !== null) {
+    showModelSelection.value = stored === 'true'
+  }
+})
+
+function toggleModelSelection() {
+  showModelSelection.value = !showModelSelection.value
+  localStorage.setItem(STORAGE_KEY, showModelSelection.value.toString())
+}
 
 defineProps({
   messages: { type: Array, default: () => [] },
@@ -97,25 +102,16 @@ defineProps({
   isModelReady: { type: Boolean, default: false },
   detectedUrls: { type: Array, default: () => [] },
   uploadedFiles: { type: Array, default: () => [] },
-  // Model selection
-  twoModelMode: { type: Boolean, default: false },
+  // Model selection (always 2-model mode)
   allModels: { type: Array, default: () => [] },
   routerModel: { type: String, default: '' },
-  executorModel: { type: String, default: '' },
-  // Single model mode
-  providers: { type: Array, default: () => [] },
-  selectedProvider: { type: String, default: '' },
-  models: { type: Array, default: () => [] },
-  selectedModel: { type: String, default: '' }
+  executorModel: { type: String, default: '' }
 })
 
 const emit = defineEmits([
   'update:modelValue',
-  'update:twoModelMode',
   'update:routerModel',
   'update:executorModel',
-  'update:selectedProvider',
-  'update:selectedModel',
   'send',
   'stop',
   'clear',
@@ -142,13 +138,20 @@ defineExpose({
   min-height: 0;
 }
 
+.model-bar-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--color-bg-surface);
+}
+
 .model-bar {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+  width: 100%;
   padding: 0.5rem 1rem;
   border-bottom: 1px solid var(--color-border-base);
-  background: var(--color-bg-surface);
 }
 
 .model-selector {
@@ -184,54 +187,25 @@ defineExpose({
   border-color: var(--color-border-strong);
 }
 
-.two-model-toggle {
+.toggle-models-btn {
+  align-self: center;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  user-select: none;
-}
-
-.two-model-toggle input {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.toggle-switch {
-  position: relative;
-  width: 32px;
-  height: 18px;
-  background: var(--color-border-base);
-  border-radius: 9px;
-  transition: background 0.2s;
-}
-
-.toggle-switch::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 14px;
-  height: 14px;
-  background: white;
-  border-radius: 50%;
-  transition: transform 0.2s;
-}
-
-.two-model-toggle input:checked + .toggle-switch {
-  background: var(--color-primary);
-}
-
-.two-model-toggle input:checked + .toggle-switch::after {
-  transform: translateX(14px);
-}
-
-.toggle-label {
-  font-size: 0.7rem;
+  justify-content: center;
+  width: 36px;
+  height: 12px;
+  padding: 0;
+  border: 1px solid var(--color-border-base);
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  background: var(--color-bg-surface);
   color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.toggle-models-btn:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-base);
 }
 </style>

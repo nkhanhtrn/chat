@@ -19,6 +19,9 @@
           inputClass="window-title-input"
           @save="(title) => emit('update:title', title)"
         />
+        <span v-if="tokenCount > 0" class="token-count" :title="`~${tokenCount.toLocaleString()} tokens`">
+          {{ formatTokenCount(tokenCount) }}
+        </span>
       </div>
       <div class="window-controls">
         <button
@@ -217,6 +220,38 @@ const isVueSfcTool = computed(() => {
          props.window.content?.type === 'vue-sfc' &&
          props.window.content?.code
 })
+
+// Estimate token count from window content
+const tokenCount = computed(() => {
+  const content = props.window.content
+  if (!content) return 0
+
+  let text = ''
+  if (typeof content === 'string') {
+    text = content
+  } else if (content.code) {
+    // Tool or code result with code
+    text = content.code
+  } else {
+    // Serialize object content (chart options, etc.)
+    try {
+      text = JSON.stringify(content)
+    } catch {
+      return 0
+    }
+  }
+
+  // Rough token estimation: ~4 characters per token
+  return Math.ceil(text.length / 4)
+})
+
+// Format token count for display
+function formatTokenCount(count) {
+  if (count >= 1000) {
+    return `${(count / 1000).toFixed(1)}k`
+  }
+  return count.toString()
+}
 
 // Format result to ensure it's a string
 function formatResult(result) {
@@ -440,6 +475,17 @@ onUnmounted(() => {
   font-weight: 500;
   padding: 2px 4px;
   width: 150px;
+}
+
+.token-count {
+  font-size: 0.65rem;
+  font-weight: 400;
+  color: var(--color-text-muted);
+  background-color: var(--color-bg-hover);
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-left: 4px;
+  flex-shrink: 0;
 }
 
 .window-controls {

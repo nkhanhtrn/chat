@@ -1,92 +1,88 @@
 <template>
-  <div class="calendar-page">
-    <div class="calendar-header">
-      <button class="nav-btn" @click="goHome" title="Back to Home">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
-          <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
-        </svg>
-      </button>
-      <h1>Activity Calendar</h1>
-    </div>
-
-    <SlideTransition appear direction="vertical">
-      <div :key="monthYearLabel" class="calendar-content">
-        <div class="month-navigation">
-          <button class="month-nav-btn" @click="previousMonth">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
-              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
-            </svg>
-          </button>
-          <h2 class="month-title" @click="toggleDatePicker">
-            {{ monthYearLabel }}
-            <svg class="dropdown-icon" :class="{ open: showDatePicker }" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-              <path d="M7 10l5 5 5-5z"/>
-            </svg>
-          </h2>
-          <button class="month-nav-btn" @click="nextMonth">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
-              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
-            </svg>
-          </button>
-        </div>
-
-        <div v-if="showDatePicker" class="date-picker-dropdown">
-          <button class="today-btn" @click="goToCurrentMonth" title="Go to current month">
-            Today
-          </button>
-          <div class="date-picker-selects">
-            <select v-model="selectedMonth" class="date-select">
-              <option v-for="(name, index) in monthNames" :key="index" :value="index">
-                {{ name }}
-              </option>
-            </select>
-            <select v-model="selectedYear" class="date-select">
-              <option v-for="year in availableYears" :key="year" :value="year">
-                {{ year }}
-              </option>
-            </select>
-          </div>
-          <button class="date-picker-apply" @click="applyDateSelection">Go</button>
-        </div>
-
-        <div class="calendar-grid">
-          <div class="weekday-header" v-for="day in weekDays" :key="day">{{ day }}</div>
-          <div
-            v-for="(day, index) in calendarDays"
-            :key="index"
-            class="calendar-day"
-            :class="{
-              'empty': !day.date,
-              'today': day.isToday,
-              'has-questions': day.questionCount > 0
-            }"
-            @click="day.date && day.questionCount > 0 && openDayModal(day)"
-          >
-            <span v-if="day.date" class="day-number">{{ day.dayOfMonth }}</span>
-            <span v-if="day.questionCount > 0" class="question-count">{{ day.questionCount }}</span>
-          </div>
-        </div>
+  <AppLayout storage-key="calendar-layout">
+    <div class="calendar-page">
+      <div class="calendar-header">
+        <h1>Activity Calendar</h1>
       </div>
-    </SlideTransition>
 
-    <CalendarDayModal
-      :visible="showDayModal"
-      :date="selectedDate"
-      :questions="selectedDayQuestions"
-      @close="showDayModal = false"
-      @open-question="handleOpenQuestion"
-    />
+      <SlideTransition appear direction="vertical">
+        <div :key="monthYearLabel" class="calendar-content">
+          <div class="month-navigation">
+            <button class="month-nav-btn" @click="previousMonth">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+                <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+              </svg>
+            </button>
+            <h2 class="month-title" @click="toggleDatePicker">
+              {{ monthYearLabel }}
+              <svg class="dropdown-icon" :class="{ open: showDatePicker }" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M7 10l5 5 5-5z"/>
+              </svg>
+            </h2>
+            <button class="month-nav-btn" @click="nextMonth">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+                <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+              </svg>
+            </button>
+          </div>
 
-    <MobileFooter active-page="calendar" show-home />
-  </div>
+          <div v-if="showDatePicker" class="date-picker-dropdown">
+            <button class="today-btn" @click="goToCurrentMonth" title="Go to current month">
+              Today
+            </button>
+            <div class="date-picker-selects">
+              <select v-model="selectedMonth" class="date-select">
+                <option v-for="(name, index) in monthNames" :key="index" :value="index">
+                  {{ name }}
+                </option>
+              </select>
+              <select v-model="selectedYear" class="date-select">
+                <option v-for="year in availableYears" :key="year" :value="year">
+                  {{ year }}
+                </option>
+              </select>
+            </div>
+            <button class="date-picker-apply" @click="applyDateSelection">Go</button>
+          </div>
+
+          <div class="calendar-grid">
+            <div class="weekday-header" v-for="day in weekDays" :key="day">{{ day }}</div>
+            <div
+              v-for="(day, index) in calendarDays"
+              :key="index"
+              class="calendar-day"
+              :class="{
+                'empty': !day.date,
+                'today': day.isToday,
+                'has-questions': day.questionCount > 0
+              }"
+              @click="day.date && day.questionCount > 0 && openDayModal(day)"
+            >
+              <span v-if="day.date" class="day-number">{{ day.dayOfMonth }}</span>
+              <span v-if="day.questionCount > 0" class="question-count">{{ day.questionCount }}</span>
+            </div>
+          </div>
+        </div>
+      </SlideTransition>
+
+      <CalendarDayModal
+        :visible="showDayModal"
+        :date="selectedDate"
+        :questions="selectedDayQuestions"
+        @close="showDayModal = false"
+        @open-question="handleOpenQuestion"
+      />
+
+    </div>
+  </AppLayout>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useChatStore } from '../stores/chat.js'
+import AppLayout from '../components/AppLayout.vue'
 import CalendarDayModal from '../components/Modal/CalendarDayModal.vue'
-import MobileFooter from '../components/MobileFooter.vue'
 import SlideTransition from '../components/SlideTransition.vue'
 
 const router = useRouter()
@@ -266,15 +262,12 @@ function handleOpenQuestion({ chatId, questionId }) {
   showDayModal.value = false
   router.push({ name: 'question', params: { id: chatId, questionId } })
 }
-
-function goHome() {
-  router.push({ name: 'home' })
-}
 </script>
 
 <style scoped>
 .calendar-page {
-  min-height: 100vh;
+  height: 100%;
+  overflow-y: auto;
   background-color: var(--color-bg-base);
   padding: 2rem;
 }
@@ -295,27 +288,6 @@ function goHome() {
   font-weight: 400;
   color: var(--color-text-message);
   margin: 0;
-}
-
-.nav-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  padding: 0;
-  background: var(--color-bg-page);
-  border: 1px solid var(--color-border-base);
-  border-radius: 6px;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.nav-btn:hover {
-  background: var(--color-bg-hover);
-  color: var(--color-text-base);
-  border-color: var(--color-border-accent);
 }
 
 .month-navigation {

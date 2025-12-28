@@ -1,71 +1,75 @@
 <template>
-  <div class="playground">
-    <!-- Minimal Header -->
-    <PlaygroundHeader
-      v-model:two-model-mode="modelSelection.twoModelMode.value"
-      v-model:selected-provider="modelSelection.selectedProvider.value"
-      v-model:selected-model="modelSelection.selectedModel.value"
-      v-model:router-model="modelSelection.routerModel.value"
-      v-model:executor-model="modelSelection.executorModel.value"
-      :providers="modelSelection.providers.value"
-      :models="modelSelection.models.value"
-      :all-models="modelSelection.allModels.value"
-      @update:selected-provider="modelSelection.onProviderChange"
-      @clear="chat.clearChat"
-    />
+  <AppLayout storage-key="playground-layout">
+    <SlideTransition appear direction="vertical">
+      <div class="playground">
+        <!-- Minimal Header -->
+        <PlaygroundHeader
+        v-model:two-model-mode="modelSelection.twoModelMode.value"
+        v-model:selected-provider="modelSelection.selectedProvider.value"
+        v-model:selected-model="modelSelection.selectedModel.value"
+        v-model:router-model="modelSelection.routerModel.value"
+        v-model:executor-model="modelSelection.executorModel.value"
+        :providers="modelSelection.providers.value"
+        :models="modelSelection.models.value"
+        :all-models="modelSelection.allModels.value"
+        @update:selected-provider="modelSelection.onProviderChange"
+        @clear="chat.clearChat"
+      />
 
-    <!-- Messages Area -->
-    <PlaygroundMessages
-      ref="messagesRef"
-      :messages="chat.messages.value"
-      :is-streaming="chat.isStreaming.value"
-      :is-searching="webSearch.isSearching.value"
-      :search-query="webSearch.searchQuery.value"
-      :current-planning-step="planning.currentPlanningStep.value"
-    />
+      <!-- Messages Area -->
+      <PlaygroundMessages
+        ref="messagesRef"
+        :messages="chat.messages.value"
+        :is-streaming="chat.isStreaming.value"
+        :is-searching="webSearch.isSearching.value"
+        :search-query="webSearch.searchQuery.value"
+        :current-planning-step="planning.currentPlanningStep.value"
+      />
 
-    <!-- Input Area -->
-    <PlaygroundInput
-      ref="inputRef"
-      v-model="inputText"
-      :is-streaming="chat.isStreaming.value"
-      :is-searching="webSearch.isSearching.value"
-      :is-routing="chat.isRouting.value"
-      :current-verify-attempt="chat.currentVerifyAttempt.value"
-      :search-status="webSearch.searchStatus.value"
-      :has-loading-urls="attachments.hasLoadingUrls.value"
-      :has-loading-files="attachments.hasLoadingFiles.value"
-      :is-model-ready="modelSelection.isModelReady.value"
-      :detected-urls="attachments.detectedUrls.value"
-      :uploaded-files="attachments.uploadedFiles.value"
-      @send="handleSend"
-      @stop="chat.stopStreaming"
-      @file-upload="attachments.handleFileUpload"
-      @remove-file="attachments.removeFile"
-    />
+      <!-- Input Area -->
+      <PlaygroundInput
+        ref="inputRef"
+        v-model="inputText"
+        :is-streaming="chat.isStreaming.value"
+        :is-searching="webSearch.isSearching.value"
+        :is-routing="chat.isRouting.value"
+        :current-verify-attempt="chat.currentVerifyAttempt.value"
+        :search-status="webSearch.searchStatus.value"
+        :has-loading-urls="attachments.hasLoadingUrls.value"
+        :has-loading-files="attachments.hasLoadingFiles.value"
+        :is-model-ready="modelSelection.isModelReady.value"
+        :detected-urls="attachments.detectedUrls.value"
+        :uploaded-files="attachments.uploadedFiles.value"
+        @send="handleSend"
+        @stop="chat.stopStreaming"
+        @file-upload="attachments.handleFileUpload"
+        @remove-file="attachments.removeFile"
+      />
 
-    <MobileFooter active-page="playground" show-home />
-  </div>
+      </div>
+    </SlideTransition>
+  </AppLayout>
 </template>
 
 <script setup>
 import { ref, watch, onMounted } from 'vue'
+import AppLayout from '../components/AppLayout.vue'
 import PlaygroundHeader from '../components/playground/PlaygroundHeader.vue'
 import PlaygroundMessages from '../components/playground/PlaygroundMessages.vue'
 import PlaygroundInput from '../components/playground/PlaygroundInput.vue'
-import MobileFooter from '../components/MobileFooter.vue'
+import SlideTransition from '../components/SlideTransition.vue'
 import { useModelSelection } from '../composables/useModelSelection.js'
 import { useAttachments } from '../composables/useAttachments.js'
 import { useWebSearch } from '../composables/studio/useWebSearch.js'
 import { usePlanning } from '../composables/studio/usePlanning.js'
 import { useStudioChat } from '../composables/studio/useStudioChat.js'
 
-// Reuse all composables from Studio
+// Reuse all composables from Studio (with separate storage for playground)
 const modelSelection = useModelSelection()
 const attachments = useAttachments()
 const webSearch = useWebSearch()
 const planning = usePlanning()
-const chat = useStudioChat()
+const chat = useStudioChat({ storageKey: 'playground-chat-history' })
 
 // Local state
 const inputText = ref('')
@@ -147,7 +151,7 @@ async function handleSend() {
 .playground {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   background: var(--color-bg-page);
 }
 </style>

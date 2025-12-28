@@ -59,14 +59,6 @@ describe('PlaygroundHeader', () => {
       expect(wrapper.find('.title').text()).toBe('Playground')
     })
 
-    it('should render back button', () => {
-      wrapper = mount(PlaygroundHeader, {
-        props: defaultProps,
-        global: { plugins: [router] }
-      })
-      expect(wrapper.find('.back-btn').exists()).toBe(true)
-    })
-
     it('should render two-model toggle', () => {
       wrapper = mount(PlaygroundHeader, {
         props: defaultProps,

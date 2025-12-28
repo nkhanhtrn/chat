@@ -11,27 +11,26 @@ import { findRouterAndExecutorModels } from '../services/llm/taskRouter.js'
 
 /**
  * Composable for managing model selection state
- * Handles both single-model and two-model modes
+ * Always uses 2-model mode (router + executor)
  */
 export function useModelSelection() {
-  // Providers and models
-  const providers = ref([])
-  const selectedProvider = ref('')
-  const models = ref([])
+  // All available models
   const allModels = ref([])
-  const selectedModel = ref('')
 
-  // Two-model mode state
-  const twoModelMode = ref(true)
+  // Router and executor model selection
   const routerModel = ref('')
   const executorModel = ref('')
 
+  // Legacy compatibility (kept for PlaygroundChat)
+  const providers = ref([])
+  const selectedProvider = ref('')
+  const models = ref([])
+  const selectedModel = ref('')
+  const twoModelMode = ref(true) // Always true, kept for compatibility
+
   // Computed: check if model selection is ready
   const isModelReady = computed(() => {
-    if (twoModelMode.value) {
-      return routerModel.value && executorModel.value && allModels.value.length > 0
-    }
-    return !!selectedModel.value
+    return routerModel.value && executorModel.value && allModels.value.length > 0
   })
 
   // Get model data for selected models
@@ -110,14 +109,16 @@ export function useModelSelection() {
 
   return {
     // State
+    allModels,
+    routerModel,
+    executorModel,
+
+    // Legacy compatibility (for PlaygroundChat)
     providers,
     selectedProvider,
     models,
-    allModels,
     selectedModel,
     twoModelMode,
-    routerModel,
-    executorModel,
 
     // Computed
     isModelReady,

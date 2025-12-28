@@ -50,6 +50,14 @@ vi.mock('../components/studio/CanvasPanel.vue', () => ({
   }
 }))
 
+vi.mock('../components/AppLayout.vue', () => ({
+  default: {
+    name: 'AppLayout',
+    template: '<div class="studio-page"><div class="studio-layout"><slot name="side" /><slot /></div></div>',
+    props: ['storageKey']
+  }
+}))
+
 // Mock composables
 const mockModelSelection = {
   twoModelMode: ref(false),
@@ -175,7 +183,7 @@ describe('StudioChat', () => {
     it('should render child components', () => {
       const wrapper = mount(StudioChat)
 
-      expect(wrapper.findComponent({ name: 'StudioHeader' }).exists()).toBe(true)
+      // StudioHeader is now nested inside ChatPanel
       expect(wrapper.findComponent({ name: 'ChatPanel' }).exists()).toBe(true)
       expect(wrapper.findComponent({ name: 'CanvasPanel' }).exists()).toBe(true)
     })

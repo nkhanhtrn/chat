@@ -1,16 +1,17 @@
 <template>
-  <div class="app-container">
-    <ChatSidebar
-      :chats="chatStore.chatList"
-      :current-chat-id="chatStore.currentChatId"
-      :current-message-id="isAddingNewQuestion ? null : chatStore.currentMessageId"
-      :is-adding-new-question="isAddingNewQuestion"
-      @back-home="goToHome"
-      @select-question="handleSelectQuestion"
-      @delete-question="handleDeleteQuestion"
-      @rename-question="handleRenameQuestion"
-      @new-question="handleNewQuestion"
-    />
+  <AppLayout storage-key="notebook-layout">
+    <template #side>
+      <ChatSidebar
+        :chats="chatStore.chatList"
+        :current-chat-id="chatStore.currentChatId"
+        :current-message-id="isAddingNewQuestion ? null : chatStore.currentMessageId"
+        :is-adding-new-question="isAddingNewQuestion"
+        @select-question="handleSelectQuestion"
+        @delete-question="handleDeleteQuestion"
+        @rename-question="handleRenameQuestion"
+        @new-question="handleNewQuestion"
+      />
+    </template>
 
     <div class="chat-container">
       <DevToolbar v-if="isDev" @reset="prepopulatedQuestions = $event" />
@@ -83,18 +84,17 @@
       @stop-streaming="handleStopStreaming"
     />
 
-    <MobileFooter show-home mobile-only />
-  </div>
+  </AppLayout>
 </template>
 
 <script setup>
 import { ref, nextTick, onMounted, provide, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import AppLayout from '../components/AppLayout.vue'
 import ChatMessage from '../components/ChatMessage.vue'
 import ChatInput from '../components/ChatInput.vue'
 import ChatSidebar from '../components/ChatSidebar.vue'
 import MessageNavigation from '../components/MessageNavigation.vue'
-import MobileFooter from '../components/MobileFooter.vue'
 import NotebookOverview from '../components/NotebookOverview.vue'
 import Scratchpad from '../components/Scratchpad.vue'
 import SlideTransition from '../components/SlideTransition.vue'
@@ -330,10 +330,6 @@ const handleExampleClick = (question) => {
   handleSendMessage(question)
 }
 
-const goToHome = () => {
-  router.push({ name: 'home' })
-}
-
 const handleSelectQuestion = (question) => {
   isAddingNewQuestion.value = false
   showingOverview.value = false
@@ -383,30 +379,13 @@ const handleScratchpadUpdate = (content) => {
 </script>
 
 <style scoped>
-.app-container {
-  display: flex;
-  height: 100vh;
-  background-color: var(--color-bg-base);
-  background-image:
-    linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px),
-    linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px);
-  background-size: 20px 20px;
-}
-
 .chat-container {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  height: 100%;
   min-width: 0;
   background-color: transparent;
   font-family: 'Georgia', 'Palatino Linotype', 'Book Antiqua', 'Times New Roman', serif;
-}
-
-/* Desktop: ensure reasonable minimum width for content */
-@media (min-width: 769px) {
-  .app-container {
-    min-width: 700px;
-  }
 }
 
 .messages-container {

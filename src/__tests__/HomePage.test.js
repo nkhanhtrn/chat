@@ -1,9 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import HomePage from '../views/HomePage.vue'
+import HomePage from '../views/NotebooksPage.vue'
 import Button from '../components/Button.vue'
-import SettingsModal from '../components/Modal/SettingsModal.vue'
 import { useChatStore } from '../stores/chat.js'
 
 // Mock vue-router
@@ -11,6 +10,10 @@ const mockPush = vi.fn()
 vi.mock('vue-router', () => ({
   useRouter: () => ({
     push: mockPush
+  }),
+  useRoute: () => ({
+    name: 'notebooks',
+    params: {}
   })
 }))
 
@@ -48,6 +51,15 @@ vi.mock('../services/firestore.js', () => ({
   subscribeToChatState: vi.fn(() => () => {}),
   deleteChatStateFromFirestore: vi.fn(() => Promise.resolve()),
   subscribeToUserSettings: vi.fn(() => () => {})
+}))
+
+// Mock AppLayout to avoid route dependency issues
+vi.mock('../components/AppLayout.vue', () => ({
+  default: {
+    name: 'AppLayout',
+    template: '<div class="homepage"><slot /></div>',
+    props: ['storageKey']
+  }
 }))
 
 describe('HomePage', () => {
@@ -1315,83 +1327,4 @@ describe('HomePage', () => {
     })
   })
 
-  describe('MobileFooter', () => {
-    it('should include MobileFooter component', () => {
-      wrapper = mount(HomePage, {
-        global: {
-          plugins: [pinia]
-        }
-      })
-
-      const mobileFooter = wrapper.find('.mobile-footer')
-      expect(mobileFooter.exists()).toBe(true)
-    })
-
-    it('should include SettingsModal component via MobileFooter', () => {
-      wrapper = mount(HomePage, {
-        global: {
-          plugins: [pinia]
-        }
-      })
-
-      const settingsModal = wrapper.findComponent(SettingsModal)
-      expect(settingsModal.exists()).toBe(true)
-    })
-  })
-
-  describe('Studio Link', () => {
-    it('should render studio link in header', () => {
-      wrapper = mount(HomePage, {
-        global: {
-          plugins: [pinia],
-          stubs: {
-            RouterLink: {
-              template: '<a class="studio-link" :href="to"><slot /></a>',
-              props: ['to']
-            }
-          }
-        }
-      })
-
-      const studioLink = wrapper.find('.studio-link')
-      expect(studioLink.exists()).toBe(true)
-    })
-
-    it('should display "Playground" and "Studio" links', () => {
-      wrapper = mount(HomePage, {
-        global: {
-          plugins: [pinia],
-          stubs: {
-            RouterLink: {
-              template: '<a class="studio-link" :href="to"><slot /></a>',
-              props: ['to']
-            }
-          }
-        }
-      })
-
-      const links = wrapper.findAll('.studio-link')
-      expect(links.length).toBe(2)
-      expect(links[0].text()).toBe('Playground')
-      expect(links[1].text()).toBe('Studio')
-    })
-
-    it('should link to /playground and /studio paths', () => {
-      wrapper = mount(HomePage, {
-        global: {
-          plugins: [pinia],
-          stubs: {
-            RouterLink: {
-              template: '<a class="studio-link" :href="to"><slot /></a>',
-              props: ['to']
-            }
-          }
-        }
-      })
-
-      const links = wrapper.findAll('.studio-link')
-      expect(links[0].attributes('href')).toBe('/playground')
-      expect(links[1].attributes('href')).toBe('/studio')
-    })
-  })
 })

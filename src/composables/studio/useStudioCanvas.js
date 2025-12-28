@@ -208,8 +208,13 @@ function updateWindowTitle(windowId, title) {
 function updateWindowContent(windowId, content) {
   const index = windows.value.findIndex(w => w.id === windowId)
   if (index !== -1) {
+    const updates = { content }
+    // Auto-update title if content has a name (e.g., for tools)
+    if (content?.name) {
+      updates.title = content.name
+    }
     // Replace the window object to ensure reactivity
-    windows.value[index] = { ...windows.value[index], content }
+    windows.value[index] = { ...windows.value[index], ...updates }
     saveToStorage()
   }
 }

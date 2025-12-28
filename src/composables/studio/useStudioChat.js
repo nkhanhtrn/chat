@@ -11,12 +11,14 @@ import {
   buildAttachmentsForDisplay
 } from './studioAttachments.js'
 
-const STORAGE_KEY = 'studio-chat-history'
-
 /**
  * Composable for managing chat messages and streaming in StudioChat
+ * @param {Object} options - Configuration options
+ * @param {string} options.storageKey - localStorage key for persistence (default: 'studio-chat-history')
  */
-export function useStudioChat() {
+export function useStudioChat(options = {}) {
+  const storageKey = options.storageKey || 'studio-chat-history'
+
   // Messages state
   const messages = ref([])
   const isStreaming = ref(false)
@@ -44,7 +46,7 @@ export function useStudioChat() {
         messages: messages.value,
         nextMessageId
       }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+      localStorage.setItem(storageKey, JSON.stringify(state))
     } catch (e) {
       console.warn('Failed to save chat history:', e)
     }
@@ -55,7 +57,7 @@ export function useStudioChat() {
    */
   function loadFromStorage() {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY)
+      const stored = localStorage.getItem(storageKey)
       if (stored) {
         const state = JSON.parse(stored)
         messages.value = state.messages || []

@@ -113,7 +113,33 @@ Output only the complete, consolidated code.`
       throw new Error('Invalid Vue component')
     }
 
-    return { code, type: 'vue-sfc', name: 'Tool' }
+    // Extract name from component
+    const name = this._extractComponentName(code)
+
+    return { code, type: 'vue-sfc', name }
+  }
+
+  _extractComponentName(code) {
+    // Try to find name property in script: name: 'ComponentName' or name: "ComponentName"
+    const nameMatch = code.match(/name\s*:\s*['"]([^'"]+)['"]/)
+    if (nameMatch) {
+      return nameMatch[1]
+    }
+
+    // Try to find a main heading in template
+    const h1Match = code.match(/<h1[^>]*>([^<]+)<\/h1>/i)
+    if (h1Match) {
+      return h1Match[1].trim().substring(0, 30)
+    }
+
+    // Try to find title in template (common pattern)
+    const titleMatch = code.match(/class="[^"]*title[^"]*"[^>]*>([^<]+)</i) ||
+                       code.match(/<[^>]+title[^>]*>([^<]+)</i)
+    if (titleMatch) {
+      return titleMatch[1].trim().substring(0, 30)
+    }
+
+    return 'Tool'
   }
 
   // Base class interface

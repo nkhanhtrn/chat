@@ -13,9 +13,22 @@ vi.mock('vue-router', async (importOriginal) => {
     ...actual,
     useRouter: () => ({
       push: mockPush
+    }),
+    useRoute: () => ({
+      name: 'calendar',
+      params: {}
     })
   }
 })
+
+// Mock AppLayout to avoid route dependency issues
+vi.mock('../components/AppLayout.vue', () => ({
+  default: {
+    name: 'AppLayout',
+    template: '<div class="calendar-page"><slot /></div>',
+    props: ['storageKey']
+  }
+}))
 
 describe('CalendarPage', () => {
   beforeEach(() => {
@@ -239,16 +252,6 @@ describe('CalendarPage', () => {
       await dayWithQuestions.trigger('click')
 
       expect(wrapper.find('.modal-stub').exists()).toBe(true)
-    })
-  })
-
-  describe('back navigation', () => {
-    it('navigates to home when clicking back button', async () => {
-      const wrapper = mountCalendarPage()
-
-      await wrapper.find('.nav-btn').trigger('click')
-
-      expect(mockPush).toHaveBeenCalledWith({ name: 'home' })
     })
   })
 

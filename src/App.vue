@@ -85,19 +85,4 @@ const handleConflictResolve = async (choice) => {
   height: 41px; /* Match dev toolbar height */
 }
 
-/* Router transition */
-.slide-horizontal-enter-active,
-.slide-horizontal-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.slide-horizontal-enter-from {
-  opacity: 0;
-  transform: translateX(20px);
-}
-
-.slide-horizontal-leave-to {
-  opacity: 0;
-  transform: translateX(-20px);
-}
 </style>

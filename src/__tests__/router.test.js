@@ -39,9 +39,15 @@ describe('Router Configuration', () => {
       expect(playgroundRoute.path).toBe('/playground')
     })
 
+    it('should have notebooks route', () => {
+      const notebooksRoute = router.getRoutes().find(r => r.name === 'notebooks')
+      expect(notebooksRoute).toBeDefined()
+      expect(notebooksRoute.path).toBe('/notebooks')
+    })
+
     it('should have correct number of routes', () => {
       const routes = router.getRoutes()
-      expect(routes.length).toBe(6)
+      expect(routes.length).toBe(7)
     })
   })
 

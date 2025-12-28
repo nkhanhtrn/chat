@@ -1,12 +1,17 @@
 <template>
   <div class="studio-layout">
-    <!-- Chat Panel (Left) -->
-    <div class="chat-panel" :style="{ width: chatPanelWidth + 'px' }">
+    <!-- Collapsible Chat Panel (Left) -->
+    <CollapsibleSidebar
+      ref="sidebarRef"
+      storage-key="studio-show-chat"
+      :width="chatPanelWidth"
+    >
       <slot name="chat"></slot>
-    </div>
+    </CollapsibleSidebar>
 
     <!-- Resizable Divider -->
     <div
+      v-if="sidebarRef?.isVisible"
       class="divider"
       :class="{ 'is-dragging': isDraggingDivider }"
       @mousedown="startDividerDrag"
@@ -22,7 +27,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onUnmounted } from 'vue'
+import CollapsibleSidebar from '../CollapsibleSidebar.vue'
+
+const sidebarRef = ref(null)
 
 // Divider drag state
 const chatPanelWidth = ref(500)
@@ -66,6 +74,8 @@ onUnmounted(() => {
   document.removeEventListener('mousemove', handleDividerDrag)
   document.removeEventListener('mouseup', stopDividerDrag)
 })
+
+defineExpose({ sidebarRef })
 </script>
 
 <style scoped>
@@ -74,15 +84,6 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-}
-
-.chat-panel {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  min-width: 400px;
-  max-width: 800px;
-  border-right: 1px solid var(--color-border-subtle);
 }
 
 .divider {
@@ -129,15 +130,6 @@ onUnmounted(() => {
     flex-direction: column;
   }
 
-  .chat-panel {
-    width: 100% !important;
-    max-width: none;
-    min-width: 0;
-    height: 50%;
-    border-right: none;
-    border-bottom: 1px solid var(--color-border-subtle);
-  }
-
   .divider {
     width: 100%;
     height: 6px;
@@ -160,12 +152,6 @@ onUnmounted(() => {
   .divider,
   .canvas-panel {
     display: none;
-  }
-
-  .chat-panel {
-    width: 100% !important;
-    height: 100%;
-    border: none;
   }
 }
 </style>

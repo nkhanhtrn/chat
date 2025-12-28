@@ -1,11 +1,6 @@
 <template>
   <header class="playground-header">
     <div class="header-left">
-      <router-link to="/" class="back-btn" title="Back to Home">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="15 18 9 12 15 6"></polyline>
-        </svg>
-      </router-link>
       <span class="title">Playground</span>
     </div>
 
@@ -147,23 +142,6 @@ defineEmits([
   display: flex;
   align-items: center;
   gap: 0.75rem;
-}
-
-.back-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  color: var(--color-text-muted);
-  background: transparent;
-  transition: all 0.15s;
-}
-
-.back-btn:hover {
-  background: var(--color-bg-hover);
-  color: var(--color-text-base);
 }
 
 .title {

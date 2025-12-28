@@ -1,149 +1,116 @@
 <template>
-  <div class="homepage">
-    <div class="homepage-header">
-      <h1>My Notebooks</h1>
-      <div class="header-actions">
-        <div v-if="currentUser" class="user-info">
-          <span class="user-email">{{ currentUser.email }}</span>
-          <button class="sign-out-btn" @click="handleSignOut" title="Sign out">
-            Sign Out
-          </button>
+  <AppLayout storage-key="home-layout">
+    <div class="homepage">
+      <div class="homepage-header">
+        <h1>My Notebooks</h1>
+        <div class="header-actions">
+          <Button variant="primary" @click="createNewNotebook">
+            + New Notebook
+          </Button>
         </div>
-        <button v-else class="sign-in-btn" @click="showLoginModal = true">
-          Sign In
-        </button>
-        <router-link to="/playground" class="studio-link">
-          Playground
-        </router-link>
-        <router-link to="/studio" class="studio-link">
-          Studio
-        </router-link>
-        <Button variant="primary" @click="createNewNotebook">
-          + New Notebook
-        </Button>
       </div>
-    </div>
 
-    <div class="search-container">
-      <input
-        v-model="searchQuery"
-        type="text"
-        class="search-input"
-        placeholder="Search questions..."
-      />
-    </div>
+      <div class="search-container">
+        <input
+          v-model="searchQuery"
+          type="text"
+          class="search-input"
+          placeholder="Search questions..."
+        />
+      </div>
 
-    <SlideTransition appear direction="vertical">
-      <!-- Search Results -->
-      <div v-if="searchQuery.trim()" class="search-results">
-        <h2 class="search-results-title">
-          Search Results
-          <span class="result-count">({{ searchResults.length }})</span>
-        </h2>
-        <div v-if="searchResults.length > 0" class="results-list">
-          <div
-            v-for="result in searchResults"
-            :key="result.type + '-' + result.id"
-            class="result-item"
-            :class="{ 'result-notebook-item': result.type === 'notebook' }"
-            @click="result.type === 'notebook' ? openNotebook(result.chatId) : openQuestion(result)"
-          >
-            <div class="result-type-icon">{{ result.type === 'notebook' ? '📓' : '💬' }}</div>
-            <div class="result-content">
-              <div class="result-question">{{ result.text }}</div>
-              <div v-if="result.type === 'question'" class="result-notebook">{{ result.notebookTitle }}</div>
-              <div v-else class="result-notebook">Notebook</div>
+      <SlideTransition appear direction="vertical">
+        <!-- Search Results -->
+        <div v-if="searchQuery.trim()" class="search-results">
+          <h2 class="search-results-title">
+            Search Results
+            <span class="result-count">({{ searchResults.length }})</span>
+          </h2>
+          <div v-if="searchResults.length > 0" class="results-list">
+            <div
+              v-for="result in searchResults"
+              :key="result.type + '-' + result.id"
+              class="result-item"
+              :class="{ 'result-notebook-item': result.type === 'notebook' }"
+              @click="result.type === 'notebook' ? openNotebook(result.chatId) : openQuestion(result)"
+            >
+              <div class="result-type-icon">{{ result.type === 'notebook' ? '📓' : '💬' }}</div>
+              <div class="result-content">
+                <div class="result-question">{{ result.text }}</div>
+                <div v-if="result.type === 'question'" class="result-notebook">{{ result.notebookTitle }}</div>
+                <div v-else class="result-notebook">Notebook</div>
+              </div>
             </div>
           </div>
-        </div>
-        <div v-else class="no-results">
-          No questions found matching "{{ searchQuery }}"
-        </div>
-      </div>
-
-      <div v-else class="notebooks-grid">
-        <div
-          v-for="(chat, index) in chatStore.chatList"
-          :key="chat.id"
-          class="notebook-card"
-          :class="{
-            'dragging': draggedId === chat.id,
-            'drop-target': dropTargetId === chat.id
-          }"
-          draggable="true"
-          @click="openNotebook(chat.id)"
-          @dragstart="handleDragStart($event, chat.id)"
-          @dragend="handleDragEnd"
-          @dragover="handleDragOver($event, chat.id, index)"
-          @dragleave="handleDragLeave"
-          @drop="handleDrop($event, index)"
-        >
-          <div class="notebook-icon">📓</div>
-          <div class="notebook-info">
-            <h3 class="notebook-title">{{ chat.title || 'Untitled Notebook' }}</h3>
-            <p class="notebook-meta">
-              {{ chat.messageCount }} {{ chat.messageCount === 1 ? 'question' : 'questions' }}
-            </p>
+          <div v-else class="no-results">
+            No questions found matching "{{ searchQuery }}"
           </div>
-          <button
-            class="delete-btn"
-            @click.stop="deleteNotebook(chat.id)"
-            title="Delete notebook"
+        </div>
+
+        <div v-else class="notebooks-grid">
+          <div
+            v-for="(chat, index) in chatStore.chatList"
+            :key="chat.id"
+            class="notebook-card"
+            :class="{
+              'dragging': draggedId === chat.id,
+              'drop-target': dropTargetId === chat.id
+            }"
+            draggable="true"
+            @click="openNotebook(chat.id)"
+            @dragstart="handleDragStart($event, chat.id)"
+            @dragend="handleDragEnd"
+            @dragover="handleDragOver($event, chat.id, index)"
+            @dragleave="handleDragLeave"
+            @drop="handleDrop($event, index)"
           >
-            ×
-          </button>
+            <div class="notebook-icon">📓</div>
+            <div class="notebook-info">
+              <h3 class="notebook-title">{{ chat.title || 'Untitled Notebook' }}</h3>
+              <p class="notebook-meta">
+                {{ chat.messageCount }} {{ chat.messageCount === 1 ? 'question' : 'questions' }}
+              </p>
+            </div>
+            <button
+              class="delete-btn"
+              @click.stop="deleteNotebook(chat.id)"
+              title="Delete notebook"
+            >
+              ×
+            </button>
+          </div>
+
+          <div
+            v-if="chatStore.chatList.length === 0"
+            class="empty-state"
+          >
+            <div class="empty-icon">📚</div>
+            <p>No notebooks yet</p>
+            <p class="empty-hint">Create your first notebook to get started</p>
+          </div>
         </div>
+      </SlideTransition>
 
-        <div
-          v-if="chatStore.chatList.length === 0"
-          class="empty-state"
-        >
-          <div class="empty-icon">📚</div>
-          <p>No notebooks yet</p>
-          <p class="empty-hint">Create your first notebook to get started</p>
-        </div>
-      </div>
-    </SlideTransition>
-
-    <MobileFooter
-      active-page="home"
-      show-new-notebook
-      @new-notebook="createNewNotebook"
-    />
-
-    <!-- Login Modal -->
-    <LoginModal
-      :visible="showLoginModal"
-      @close="showLoginModal = false"
-      @success="handleLoginSuccess"
-    />
-  </div>
+    </div>
+  </AppLayout>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useChatStore } from '../stores/chat.js'
+import AppLayout from '../components/AppLayout.vue'
 import Button from '../components/Button.vue'
-import LoginModal from '../components/Modal/LoginModal.vue'
-import MobileFooter from '../components/MobileFooter.vue'
 import SlideTransition from '../components/SlideTransition.vue'
-import { onAuthChange, signOutUser } from '../services/auth.js'
 import { useGlobalSearch } from '../composables/useGlobalSearch.js'
 
 const router = useRouter()
 const chatStore = useChatStore()
 
-const showLoginModal = ref(false)
-const currentUser = ref(null)
-
 // Drag and drop state
 const draggedId = ref(null)
 const dropTargetId = ref(null)
 const dropTargetIndex = ref(null)
-
-// Auth state listener
-let unsubscribeAuth = null
 
 // Use global search with notebook title matching
 const { query: searchQuery, results: searchResults } = useGlobalSearch({ includeNotebooks: true })
@@ -152,23 +119,6 @@ onMounted(() => {
   console.log('HomePage mounted')
   console.log('chatStore.chats:', chatStore.chats)
   console.log('chatStore.chatList:', chatStore.chatList)
-
-  // Listen for auth state changes
-  unsubscribeAuth = onAuthChange((user) => {
-    currentUser.value = user
-    if (user) {
-      console.log('User signed in:', user.email)
-    } else {
-      console.log('User signed out')
-    }
-  })
-})
-
-onUnmounted(() => {
-  // Clean up auth listener
-  if (unsubscribeAuth) {
-    unsubscribeAuth()
-  }
 })
 
 const createNewNotebook = () => {
@@ -194,22 +144,6 @@ const deleteNotebook = (id) => {
   if (confirm('Are you sure you want to delete this notebook?')) {
     chatStore.deleteChat(id)
   }
-}
-
-const handleSignOut = async () => {
-  try {
-    await signOutUser()
-    console.log('Successfully signed out')
-  } catch (error) {
-    console.error('Sign out error:', error)
-    alert('Failed to sign out. Please try again.')
-  }
-}
-
-const handleLoginSuccess = (user) => {
-  console.log('Login successful:', user.email)
-  // The auth state listener will update currentUser automatically
-  // You could add a success message or notification here
 }
 
 // Drag and drop handlers for notebook reordering
@@ -262,7 +196,8 @@ const handleDrop = (event, targetIndex) => {
 
 <style scoped>
 .homepage {
-  min-height: 100vh;
+  height: 100%;
+  overflow-y: auto;
   background-color: var(--color-bg-base);
   padding: 2rem;
 }
@@ -289,75 +224,6 @@ const handleDrop = (event, targetIndex) => {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: var(--color-bg-page);
-  border: 1px solid var(--color-border-base);
-  border-radius: 6px;
-}
-
-.user-email {
-  font-size: 0.875rem;
-  color: var(--color-text-base);
-}
-
-.sign-out-btn {
-  padding: 0.375rem 0.75rem;
-  font-size: 0.875rem;
-  background: transparent;
-  border: 1px solid var(--color-border-base);
-  border-radius: 4px;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.sign-out-btn:hover {
-  background: var(--color-bg-hover);
-  color: var(--color-text-base);
-  border-color: var(--color-border-accent);
-}
-
-.sign-in-btn {
-  padding: 0.5rem 1rem;
-  font-size: 0.9375rem;
-  background: var(--color-bg-page);
-  border: 1px solid var(--color-border-base);
-  border-radius: 6px;
-  color: var(--color-text-base);
-  cursor: pointer;
-  transition: all 0.2s;
-  font-weight: 500;
-}
-
-.sign-in-btn:hover {
-  background: var(--color-accent);
-  color: white;
-  border-color: var(--color-accent);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px var(--shadow-primary);
-}
-
-.studio-link {
-  padding: 0.5rem 1rem;
-  font-size: 0.9375rem;
-  background: var(--color-bg-page);
-  border: 1px solid var(--color-border-base);
-  border-radius: 6px;
-  color: var(--color-text-base);
-  text-decoration: none;
-  transition: all 0.2s;
-  font-weight: 500;
-}
-
-.studio-link:hover {
-  background: var(--color-bg-hover);
-  border-color: var(--color-border-accent);
 }
 
 .search-container {

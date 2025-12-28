@@ -15,6 +15,12 @@
         >
           LLM
         </button>
+        <button
+          :class="['tab-button', { active: activeTab === 'account' }]"
+          @click="activeTab = 'account'"
+        >
+          Account
+        </button>
       </div>
 
       <!-- Tab Content with Transitions -->
@@ -163,6 +169,41 @@
           </div>
         </div>
 
+        <!-- Custom Fetch URL Section -->
+        <div class="setting-item setting-item-vertical fetch-section">
+          <label class="setting-label">Website Fetch Service</label>
+          <div class="api-key-section">
+            <input
+              type="text"
+              v-model="customFetchUrl"
+              placeholder="https://your-fetch-service.com/api/fetch"
+              class="api-key-input"
+              @input="onCustomFetchUrlChange"
+            />
+            <div class="api-key-hint">Custom fetch service URL (leave empty to use default fallback chain)</div>
+          </div>
+        </div>
+          </div>
+
+          <!-- Account Tab Content -->
+          <div v-else-if="activeTab === 'account'" key="account" class="settings-body">
+        <!-- Account Section -->
+        <div class="setting-item setting-item-vertical">
+          <label class="setting-label">Account</label>
+          <div v-if="currentUser" class="account-info">
+            <span class="user-email">{{ currentUser.email }}</span>
+            <button class="sign-out-btn" @click="handleSignOut">
+              Sign Out
+            </button>
+          </div>
+          <div v-else class="account-info">
+            <span class="user-email">Not signed in</span>
+            <button class="sign-in-btn" @click="showLoginModal = true">
+              Sign In
+            </button>
+          </div>
+        </div>
+
         <!-- Backup & Restore Section -->
         <div class="setting-item setting-item-vertical backup-section">
           <label class="setting-label">Backup & Restore</label>
@@ -185,21 +226,6 @@
           </div>
         </div>
 
-        <!-- Custom Fetch URL Section -->
-        <div class="setting-item setting-item-vertical fetch-section">
-          <label class="setting-label">Website Fetch Service</label>
-          <div class="api-key-section">
-            <input
-              type="text"
-              v-model="customFetchUrl"
-              placeholder="https://your-fetch-service.com/api/fetch"
-              class="api-key-input"
-              @input="onCustomFetchUrlChange"
-            />
-            <div class="api-key-hint">Custom fetch service URL (leave empty to use default fallback chain)</div>
-          </div>
-        </div>
-
         <!-- Dev Toolbar Toggle -->
         <div class="setting-item dev-toolbar-section">
           <label class="setting-label">Dev Toolbar</label>
@@ -214,14 +240,23 @@
         </Transition>
       </div>
     </div>
+
+    <!-- Login Modal -->
+    <LoginModal
+      :visible="showLoginModal"
+      @close="showLoginModal = false"
+      @success="handleLoginSuccess"
+    />
   </Modal>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, inject } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, inject } from 'vue'
 import Modal from './Modal.vue'
+import LoginModal from './LoginModal.vue'
 import Button from '../Button.vue'
 import ApiKeyInput from '../ApiKeyInput.vue'
+import { onAuthChange, signOutUser } from '../../services/auth.js'
 import {
   listProviders,
   getCurrentProviderId,
@@ -251,6 +286,11 @@ const toggleDevToolbar = inject('toggleDevToolbar', () => {})
 const handleToggleDevToolbar = () => {
   toggleDevToolbar(!showDevToolbar.value)
 }
+
+// Auth state
+const showLoginModal = ref(false)
+const currentUser = ref(null)
+let unsubscribeAuth = null
 
 // LLM Provider state
 const providers = ref([])
@@ -539,6 +579,11 @@ const testProviderConnection = async () => {
 }
 
 onMounted(async () => {
+  // Listen for auth state changes
+  unsubscribeAuth = onAuthChange((user) => {
+    currentUser.value = user
+  })
+
   // Load settings from cache (no Firestore read - already loaded in main.js)
   const settings = await loadUserSettings()
 
@@ -582,6 +627,25 @@ onMounted(async () => {
   await initProvider()
   loadProviderSettings()
 })
+
+onUnmounted(() => {
+  if (unsubscribeAuth) {
+    unsubscribeAuth()
+  }
+})
+
+const handleSignOut = async () => {
+  try {
+    await signOutUser()
+  } catch (error) {
+    console.error('Sign out error:', error)
+    alert('Failed to sign out. Please try again.')
+  }
+}
+
+const handleLoginSuccess = () => {
+  showLoginModal.value = false
+}
 
 const setTheme = (theme) => {
   currentTheme.value = theme
@@ -765,6 +829,7 @@ const restoreNotebooks = async (event) => {
   position: relative;
   height: 420px;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* Tab transition animations */
@@ -1107,5 +1172,57 @@ const restoreNotebooks = async (event) => {
 .dev-toolbar-section .toggle-button {
   border: 1px solid var(--color-border-base);
   border-radius: 4px;
+}
+
+.account-section {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.account-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem;
+  background: var(--color-bg-page);
+  border: 1px solid var(--color-border-base);
+  border-radius: 6px;
+}
+
+.user-email {
+  font-size: 0.9rem;
+  color: var(--color-text-base);
+}
+
+.sign-out-btn,
+.sign-in-btn {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  background: transparent;
+  border: 1px solid var(--color-border-base);
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sign-out-btn:hover,
+.sign-in-btn:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-base);
+  border-color: var(--color-border-accent);
+}
+
+.sign-in-btn {
+  background: var(--color-accent);
+  color: white;
+  border-color: var(--color-accent);
+}
+
+.sign-in-btn:hover {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
 }
 </style>
