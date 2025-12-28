@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import HomePage from '../views/NotebooksPage.vue'
-import Button from '../components/Button.vue'
-import { useChatStore } from '../stores/chat.js'
+import NotebooksPage from '../NotebooksPage.vue'
+import Button from '../../components/Button.vue'
+import { useChatStore } from '../../stores/chat.js'
 
 // Mock vue-router
 const mockPush = vi.fn()
@@ -18,7 +18,7 @@ vi.mock('vue-router', () => ({
 }))
 
 // Mock the LLM API module to prevent real network calls
-vi.mock('../services/api.js', () => ({
+vi.mock('../../services/api.js', () => ({
   listProviders: vi.fn(() => [
     { id: 'lmstudio', name: 'LM Studio', requiresApiKey: false }
   ]),
@@ -43,7 +43,7 @@ vi.mock('../services/api.js', () => ({
 }))
 
 // Mock firestore to prevent real network calls
-vi.mock('../services/firestore.js', () => ({
+vi.mock('../../services/firestore.js', () => ({
   loadUserSettings: vi.fn(() => Promise.resolve(null)),
   saveUserSettings: vi.fn(() => Promise.resolve()),
   syncChatStateToFirestore: vi.fn(() => Promise.resolve()),
@@ -54,7 +54,7 @@ vi.mock('../services/firestore.js', () => ({
 }))
 
 // Mock AppLayout to avoid route dependency issues
-vi.mock('../components/AppLayout.vue', () => ({
+vi.mock('../../components/AppLayout.vue', () => ({
   default: {
     name: 'AppLayout',
     template: '<div class="homepage"><slot /></div>',
@@ -62,7 +62,7 @@ vi.mock('../components/AppLayout.vue', () => ({
   }
 }))
 
-describe('HomePage', () => {
+describe('NotebooksPage', () => {
   let wrapper
   let pinia
   let chatStore
@@ -91,7 +91,7 @@ describe('HomePage', () => {
 
   describe('Initial Rendering', () => {
     it('should render the homepage container', () => {
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -101,7 +101,7 @@ describe('HomePage', () => {
     })
 
     it('should render the header with title', () => {
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -112,7 +112,7 @@ describe('HomePage', () => {
     })
 
     it('should render the New Notebook button using Button component', () => {
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -124,20 +124,31 @@ describe('HomePage', () => {
       expect(button.text()).toContain('New Notebook')
     })
 
-    it('should render notebooks grid', () => {
-      wrapper = mount(HomePage, {
+    it('should render notebooks container with grid mode by default', () => {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
       })
 
+      expect(wrapper.find('.notebooks-container').exists()).toBe(true)
       expect(wrapper.find('.notebooks-grid').exists()).toBe(true)
+    })
+
+    it('should render view toggle button', () => {
+      wrapper = mount(NotebooksPage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      expect(wrapper.find('.view-toggle').exists()).toBe(true)
     })
   })
 
   describe('Empty State', () => {
     it('should show empty state when no notebooks exist', () => {
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -148,7 +159,7 @@ describe('HomePage', () => {
     })
 
     it('should show empty hint message', () => {
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -161,7 +172,7 @@ describe('HomePage', () => {
 
   describe('Creating New Notebook', () => {
     it('should create new notebook and navigate when button is clicked', async () => {
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -178,7 +189,7 @@ describe('HomePage', () => {
     })
 
     it('should add notebook to store when created', async () => {
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -199,7 +210,7 @@ describe('HomePage', () => {
       chatStore.createNewChat()
       chatStore.createNewChat()
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -212,7 +223,7 @@ describe('HomePage', () => {
     it('should hide empty state when notebooks exist', async () => {
       chatStore.createNewChat()
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -232,7 +243,7 @@ describe('HomePage', () => {
       }
       chatStore.chats.find(c => c.id === newChat.id).rootMessageIds = ['msg1']
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -247,7 +258,7 @@ describe('HomePage', () => {
     it('should display question count for each notebook', async () => {
       chatStore.createNewChat()
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -263,7 +274,7 @@ describe('HomePage', () => {
     it('should navigate to notebook when card is clicked', async () => {
       const newChat = chatStore.createNewChat()
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -282,7 +293,7 @@ describe('HomePage', () => {
       const chat1 = chatStore.createNewChat()
       chatStore.createNewChat() // chat2
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -301,7 +312,7 @@ describe('HomePage', () => {
     it('should show delete button on notebook card', async () => {
       chatStore.createNewChat()
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -321,7 +332,7 @@ describe('HomePage', () => {
       // Mock window.confirm (happy-dom doesn't have it by default)
       window.confirm = vi.fn(() => true)
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -343,7 +354,7 @@ describe('HomePage', () => {
       // Mock confirm to return false
       vi.stubGlobal('confirm', vi.fn(() => false))
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -360,7 +371,7 @@ describe('HomePage', () => {
 
       vi.stubGlobal('confirm', vi.fn(() => true))
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -380,7 +391,7 @@ describe('HomePage', () => {
     it('should display notebook icon', async () => {
       chatStore.createNewChat()
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -392,7 +403,7 @@ describe('HomePage', () => {
     it('should show default title for notebooks without questions', async () => {
       chatStore.createNewChat()
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -406,7 +417,7 @@ describe('HomePage', () => {
 
   describe('Search Functionality', () => {
     it('should render search input', () => {
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -419,7 +430,7 @@ describe('HomePage', () => {
     it('should show notebooks grid when search is empty', () => {
       chatStore.createNewChat()
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -440,7 +451,7 @@ describe('HomePage', () => {
       }
       chatStore.chats.find(c => c.id === newChat.id).rootMessageIds = ['msg1']
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -464,7 +475,7 @@ describe('HomePage', () => {
       }
       chatStore.chats.find(c => c.id === newChat.id).rootMessageIds = ['msg1']
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -488,7 +499,7 @@ describe('HomePage', () => {
       }
       chatStore.chats.find(c => c.id === newChat.id).rootMessageIds = ['msg1']
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -518,7 +529,7 @@ describe('HomePage', () => {
       }
       chatStore.chats.find(c => c.id === newChat.id).rootMessageIds = ['msg1', 'msg2']
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -542,7 +553,7 @@ describe('HomePage', () => {
       chat.rootMessageIds = ['msg1']
       chat.name = 'My Test Notebook'
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -576,7 +587,7 @@ describe('HomePage', () => {
       }
       chatStore.chats.find(c => c.id === newChat.id).rootMessageIds = ['msg1']
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -616,7 +627,7 @@ describe('HomePage', () => {
       }
       chatStore.chats.find(c => c.id === newChat.id).rootMessageIds = ['msg1']
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -650,7 +661,7 @@ describe('HomePage', () => {
       chatStore.chats.find(c => c.id === chat1.id).rootMessageIds = ['msg1']
       chatStore.chats.find(c => c.id === chat2.id).rootMessageIds = ['msg2']
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -673,7 +684,7 @@ describe('HomePage', () => {
       }
       chatStore.chats.find(c => c.id === newChat.id).rootMessageIds = ['msg1']
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -718,7 +729,7 @@ describe('HomePage', () => {
       // Switch back to chat1
       chatStore.switchToChat(chat1.id)
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -747,7 +758,7 @@ describe('HomePage', () => {
       }
       chatStore.chats.find(c => c.id === newChat.id).rootMessageIds = ['msg1']
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -766,7 +777,7 @@ describe('HomePage', () => {
     it('should not show search results for whitespace-only queries', async () => {
       chatStore.createNewChat()
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -783,7 +794,7 @@ describe('HomePage', () => {
       const chat = chatStore.chats.find(c => c.id === newChat.id)
       chat.name = 'My JavaScript Notes'
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -801,7 +812,7 @@ describe('HomePage', () => {
       const chat = chatStore.chats.find(c => c.id === newChat.id)
       chat.name = 'Test Notebook'
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -824,7 +835,7 @@ describe('HomePage', () => {
       }
       chatStore.chats.find(c => c.id === newChat.id).rootMessageIds = ['msg1']
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -841,7 +852,7 @@ describe('HomePage', () => {
       const chat = chatStore.chats.find(c => c.id === newChat.id)
       chat.name = 'Clickable Notebook'
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -873,7 +884,7 @@ describe('HomePage', () => {
       }
       chatStore.chats.find(c => c.id === chat2.id).rootMessageIds = ['msg1']
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -895,7 +906,7 @@ describe('HomePage', () => {
       const chat = chatStore.chats.find(c => c.id === newChat.id)
       chat.name = 'My Notes'
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -911,7 +922,7 @@ describe('HomePage', () => {
       const chat = chatStore.chats.find(c => c.id === newChat.id)
       chat.name = 'UPPERCASE NOTEBOOK'
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -941,7 +952,7 @@ describe('HomePage', () => {
       }
       chatStore.chats.find(c => c.id === newChat.id).rootMessageIds = ['msg1', 'msg2']
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -966,7 +977,7 @@ describe('HomePage', () => {
       }
       chatStore.chats.find(c => c.id === newChat.id).rootMessageIds = ['msg1']
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -991,7 +1002,7 @@ describe('HomePage', () => {
       }
       chatStore.chats.find(c => c.id === newChat.id).rootMessageIds = ['msg1']
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -1015,7 +1026,7 @@ describe('HomePage', () => {
       }
       chatStore.chats.find(c => c.id === newChat.id).rootMessageIds = ['msg1']
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -1038,7 +1049,7 @@ describe('HomePage', () => {
       }
       chatStore.chats.find(c => c.id === newChat.id).rootMessageIds = ['msg1']
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -1062,7 +1073,7 @@ describe('HomePage', () => {
       }
       chatStore.chats.find(c => c.id === newChat.id).rootMessageIds = ['msg1']
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -1076,12 +1087,79 @@ describe('HomePage', () => {
     })
   })
 
+  describe('View Mode Toggle', () => {
+    it('should toggle from grid to list view when toggle button is clicked', async () => {
+      chatStore.createNewChat()
+
+      wrapper = mount(NotebooksPage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      expect(wrapper.find('.notebooks-grid').exists()).toBe(true)
+      expect(wrapper.find('.notebooks-list').exists()).toBe(false)
+
+      const toggleBtn = wrapper.find('.view-toggle')
+      await toggleBtn.trigger('click')
+
+      expect(wrapper.find('.notebooks-grid').exists()).toBe(false)
+      expect(wrapper.find('.notebooks-list').exists()).toBe(true)
+    })
+
+    it('should toggle back to grid view on second click', async () => {
+      chatStore.createNewChat()
+
+      wrapper = mount(NotebooksPage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      const toggleBtn = wrapper.find('.view-toggle')
+      await toggleBtn.trigger('click') // to list
+      await toggleBtn.trigger('click') // back to grid
+
+      expect(wrapper.find('.notebooks-grid').exists()).toBe(true)
+      expect(wrapper.find('.notebooks-list').exists()).toBe(false)
+    })
+
+    it('should persist view mode preference to localStorage', async () => {
+      chatStore.createNewChat()
+
+      wrapper = mount(NotebooksPage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      const toggleBtn = wrapper.find('.view-toggle')
+      await toggleBtn.trigger('click')
+
+      expect(localStorage.getItem('notebooks-view-mode')).toBe('list')
+    })
+
+    it('should restore view mode from localStorage on mount', async () => {
+      localStorage.setItem('notebooks-view-mode', 'list')
+      chatStore.createNewChat()
+
+      wrapper = mount(NotebooksPage, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      expect(wrapper.find('.notebooks-list').exists()).toBe(true)
+      expect(wrapper.find('.notebooks-grid').exists()).toBe(false)
+    })
+  })
+
   describe('Notebook Reordering (Drag and Drop)', () => {
     it('should have draggable attribute on notebook cards', async () => {
       chatStore.createNewChat()
       chatStore.createNewChat()
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -1097,7 +1175,7 @@ describe('HomePage', () => {
     it('should add dragging class when drag starts', async () => {
       chatStore.createNewChat()
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -1117,7 +1195,7 @@ describe('HomePage', () => {
     it('should remove dragging class when drag ends', async () => {
       chatStore.createNewChat()
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -1140,7 +1218,7 @@ describe('HomePage', () => {
       chatStore.createNewChat()
       chatStore.createNewChat()
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -1168,7 +1246,7 @@ describe('HomePage', () => {
       chatStore.createNewChat()
       chatStore.createNewChat()
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -1199,7 +1277,7 @@ describe('HomePage', () => {
       const chat2 = chatStore.createNewChat()
       const chat3 = chatStore.createNewChat()
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -1234,7 +1312,7 @@ describe('HomePage', () => {
       const chat1 = chatStore.createNewChat()
       const chat2 = chatStore.createNewChat()
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -1263,7 +1341,7 @@ describe('HomePage', () => {
     it('should not show drop-target on the card being dragged', async () => {
       chatStore.createNewChat()
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }
@@ -1292,7 +1370,7 @@ describe('HomePage', () => {
       chatStore.createNewChat()
       chatStore.createNewChat()
 
-      wrapper = mount(HomePage, {
+      wrapper = mount(NotebooksPage, {
         global: {
           plugins: [pinia]
         }

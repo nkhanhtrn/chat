@@ -4,6 +4,23 @@
       <div class="homepage-header">
         <h1>My Notebooks</h1>
         <div class="header-actions">
+          <button
+            class="view-toggle"
+            @click="toggleViewMode"
+            :title="viewMode === 'grid' ? 'Switch to list view' : 'Switch to grid view'"
+          >
+            <svg v-if="viewMode === 'grid'" class="view-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+            <svg v-else class="view-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+          </button>
           <Button variant="primary" @click="createNewNotebook">
             + New Notebook
           </Button>
@@ -47,7 +64,7 @@
           </div>
         </div>
 
-        <div v-else class="notebooks-grid">
+        <div v-else class="notebooks-container" :class="viewMode === 'list' ? 'notebooks-list' : 'notebooks-grid'">
           <div
             v-for="(chat, index) in chatStore.chatList"
             :key="chat.id"
@@ -106,6 +123,14 @@ import { useGlobalSearch } from '../composables/useGlobalSearch.js'
 
 const router = useRouter()
 const chatStore = useChatStore()
+
+// View mode state (grid or list)
+const viewMode = ref(localStorage.getItem('notebooks-view-mode') || 'grid')
+
+const toggleViewMode = () => {
+  viewMode.value = viewMode.value === 'grid' ? 'list' : 'grid'
+  localStorage.setItem('notebooks-view-mode', viewMode.value)
+}
 
 // Drag and drop state
 const draggedId = ref(null)
@@ -226,6 +251,31 @@ const handleDrop = (event, targetIndex) => {
   gap: 0.75rem;
 }
 
+.view-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: 1px solid var(--color-border-base);
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.view-toggle:hover {
+  background-color: var(--color-bg-page);
+  border-color: var(--color-border-accent);
+  color: var(--color-text-message);
+}
+
+.view-icon {
+  width: 18px;
+  height: 18px;
+}
+
 .search-container {
   max-width: 1200px;
   margin: 0 auto 1.5rem;
@@ -327,12 +377,37 @@ const handleDrop = (event, targetIndex) => {
   font-style: italic;
 }
 
+.notebooks-container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
 .notebooks-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1.5rem;
-  max-width: 1200px;
-  margin: 0 auto;
+}
+
+.notebooks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.notebooks-list .notebook-card {
+  padding: 1rem 1.25rem;
+}
+
+.notebooks-list .notebook-icon {
+  font-size: 1.5rem;
+}
+
+.notebooks-list .notebook-title {
+  font-size: 1rem;
+}
+
+.notebooks-list .notebook-card:hover {
+  transform: none;
 }
 
 .notebook-card {
