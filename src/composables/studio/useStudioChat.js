@@ -366,7 +366,8 @@ export function useStudioChat(options = {}) {
       ...(result.webSearchResults?.length > 0 && { webSearchResults: result.webSearchResults }),
       ...(result.visualization && { visualization: result.visualization }),
       ...(result.tool && { tool: result.tool }),
-      ...(result.planning && { planning: result.planning, planningComplete: true })
+      ...(result.planning && { planning: result.planning, planningComplete: true }),
+      ...(result.usage && { usage: result.usage })
     })
 
     return result

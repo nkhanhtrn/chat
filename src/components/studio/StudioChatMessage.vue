@@ -2,6 +2,13 @@
   <div :class="['message', msg.role]">
     <div class="message-role">
       {{ msg.role === 'user' ? 'You' : 'AI' }}
+      <span v-if="msg.role === 'assistant' && usageDisplay" class="token-usage">
+        <span v-if="usageDisplay.router" class="token-router" title="Router tokens">R:{{ usageDisplay.router }}</span>
+        <span v-if="usageDisplay.router && usageDisplay.prompt" class="token-sep">|</span>
+        <span v-if="usageDisplay.prompt" class="token-in" title="Input tokens">{{ usageDisplay.prompt }}</span>
+        <span v-if="usageDisplay.prompt" class="token-sep">/</span>
+        <span v-if="usageDisplay.completion" class="token-out" title="Output tokens">{{ usageDisplay.completion }}</span>
+      </span>
       <button
         v-if="msg.role === 'user' && !isStreaming && isLastUserMessage"
         class="retry-icon-btn"
@@ -87,6 +94,7 @@ import {
   getPlanSteps,
   getRawOutput
 } from '../../utils/messageAnalysis.js'
+import { formatTokenCount } from '../../utils/tokenUsage.js'
 
 defineEmits(['edit'])
 
@@ -141,6 +149,29 @@ const showCursor = computed(() =>
   props.isStreaming && props.isLastMessage && props.msg.role === 'assistant'
 )
 
+// Token usage display
+const usageDisplay = computed(() => {
+  const usage = props.msg.usage
+  if (!usage) return null
+
+  const result = {}
+
+  // Router usage (total tokens for routing)
+  if (usage.router) {
+    result.router = formatTokenCount(usage.router.totalTokens)
+  }
+
+  // Executor usage (in/out breakdown)
+  if (usage.executor) {
+    result.prompt = formatTokenCount(usage.executor.promptTokens)
+    result.completion = formatTokenCount(usage.executor.completionTokens)
+  }
+
+  // Return null if no data
+  if (!result.router && !result.prompt) return null
+  return result
+})
+
 // Check if message has output that goes to canvas
 const hasCanvasOutput = computed(() => {
   const msg = props.msg
@@ -187,6 +218,37 @@ function getAttachmentIcon(att) {
 
 .message.user .message-role {
   color: var(--color-primary, #6366f1);
+}
+
+.token-usage {
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.35rem;
+  background-color: var(--color-bg-hover);
+  font-size: 0.6rem;
+  font-weight: 500;
+  border-radius: 3px;
+}
+
+.token-router {
+  color: var(--color-text-muted);
+  opacity: 0.7;
+  cursor: help;
+}
+
+.token-in {
+  color: var(--color-text-muted);
+  cursor: help;
+}
+
+.token-sep {
+  color: var(--color-text-muted);
+  opacity: 0.4;
+  margin: 0 0.2rem;
+}
+
+.token-out {
+  color: var(--color-primary, #6366f1);
+  cursor: help;
 }
 
 .message-content {

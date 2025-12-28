@@ -69,6 +69,15 @@
     >
       Highlights → Vocab ({{ highlightsWithoutVocabCount }})
     </Button>
+    <Button
+      @click="handleRemoveLastTool"
+      class="dev-button"
+      :disabled="canvasWindowCount === 0"
+      title="Remove last tool added to Studio canvas"
+      variant="secondary"
+    >
+      Remove Last Tool ({{ canvasWindowCount }})
+    </Button>
   </div>
 </template>
 
@@ -77,11 +86,16 @@ import { ref, inject, computed } from 'vue'
 import { clearAllStorage } from '../services/storage.js'
 import { useChatStore } from '../stores/chat.js'
 import { useSpacedRepetition } from '../composables/useSpacedRepetition.js'
+import { useStudioCanvas } from '../composables/studio/useStudioCanvas.js'
 import Button from './Button.vue'
 
 // Inject the trigger function from App.vue
 const triggerStaleDataBanner = inject('triggerStaleDataBanner', null)
 const staleDataTriggered = ref(false)
+
+// Studio canvas
+const { windows, removeLastWindow } = useStudioCanvas()
+const canvasWindowCount = computed(() => windows.value.length)
 
 // Spaced repetition
 const chatStore = useChatStore()
@@ -401,6 +415,14 @@ const handleAddHighlightsToVocab = () => {
   }
 
   console.log(`Added ${added} highlights with notes to vocabulary`)
+}
+
+const handleRemoveLastTool = () => {
+  if (canvasWindowCount.value === 0) return
+  const removed = removeLastWindow()
+  if (removed) {
+    console.log(`Removed tool: ${removed.title}`)
+  }
 }
 
 </script>

@@ -17,6 +17,7 @@ import { fetchAvailableModels, findRouterAndExecutorModels } from './modelFinder
 import { parseAnalysisResponse } from './responseParser.js'
 import { readAttachments, formatAttachmentsForPrompt } from '../attachmentReader.js'
 import { registry } from './capabilities/index.js'
+import { createEmptyUsage, mergeUsage } from '../../utils/tokenUsage.js'
 
 // ============================================================================
 // Public API
@@ -32,10 +33,20 @@ export { fetchAvailableModels, findRouterAndExecutorModels } from './modelFinder
  * @param {string} routerModelId - The model ID to use
  * @param {string} routerProviderId - The provider ID (lmstudio, google, cerebras)
  * @param {Object} config - Provider config (optional, will be fetched if not provided)
+ * @returns {Promise<Object>} Analysis result with optional usage data
  */
 export const analyzeRequest = async (userMessage, routerModelId, routerProviderId = 'lmstudio', config = null) => {
   const provider = getProvider(routerProviderId)
-  const providerConfig = config || getProviderConfigById(routerProviderId)
+  const baseConfig = config || getProviderConfigById(routerProviderId)
+
+  // Track usage if onUsage callback provided
+  let routerUsage = null
+  const providerConfig = {
+    ...baseConfig,
+    onUsage: (usage) => {
+      routerUsage = usage
+    }
+  }
 
   const messages = [
     { role: 'system', content: registry.buildRouterPrompt() },
@@ -50,7 +61,10 @@ export const analyzeRequest = async (userMessage, routerModelId, routerProviderI
     providerConfig
   )
 
-  return parseAnalysisResponse(response)
+  const analysis = parseAnalysisResponse(response)
+  // Attach router usage to analysis for aggregation
+  analysis._routerUsage = routerUsage
+  return analysis
 }
 
 /**
@@ -175,6 +189,10 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
     throw new Error('No user message to process')
   }
 
+  // Track token usage separately for router and executor
+  let routerUsage = null
+  let executorUsage = createEmptyUsage()
+
   // Step 1: Parse attachments
   let parsedAttachments = []
   let attachmentContent = ''
@@ -196,6 +214,11 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
   // Step 2: Analyze with router model (uses dynamic prompt from registry)
   const routerProviderId = models.routerProviderId || 'lmstudio'
   const analysis = await analyzeRequest(messageForAnalysis, models.routerId, routerProviderId)
+
+  // Capture router usage
+  if (analysis._routerUsage) {
+    routerUsage = analysis._routerUsage
+  }
 
   if (onAnalysis) {
     onAnalysis(analysis)
@@ -221,7 +244,15 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
   // Get the executor provider
   const executorProviderId = models.executorProviderId || 'lmstudio'
   const executorProvider = getProvider(executorProviderId)
-  const executorConfig = getProviderConfigById(executorProviderId)
+  const baseExecutorConfig = getProviderConfigById(executorProviderId)
+
+  // Add usage tracking callback to executor config
+  const executorConfig = {
+    ...baseExecutorConfig,
+    onUsage: (usage) => {
+      executorUsage = mergeUsage(executorUsage, usage)
+    }
+  }
 
   // Track web search results across chain
   let webSearchResults = []
@@ -297,7 +328,11 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
     parsedAttachments,
     webSearchResults: executionContext.webSearchResults,
     attempts: result.metadata?.attempts || 0,
-    pipe: result.pipe
+    pipe: result.pipe,
+    usage: executorUsage.totalTokens > 0 || routerUsage ? {
+      router: routerUsage,
+      executor: executorUsage.totalTokens > 0 ? executorUsage : null
+    } : null
   }
 
   // Map result based on final capability type

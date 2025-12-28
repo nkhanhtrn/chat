@@ -3,16 +3,19 @@
  * OpenAI-compatible local LLM server
  */
 import axios from 'axios'
+import { parseOpenAIUsage } from '../../../utils/tokenUsage.js'
 
 const DEFAULT_BASE_URL = 'http://localhost:1234'
 
 /**
  * Process SSE stream from OpenAI-compatible API
+ * @returns {{ content: string, usage: Object|null }}
  */
 const processSSEStream = async (reader, onChunk, signal = null) => {
   const decoder = new TextDecoder()
   let buffer = ''
   let fullContent = ''
+  let usage = null
 
   try {
     while (true) {
@@ -35,12 +38,26 @@ const processSSEStream = async (reader, onChunk, signal = null) => {
           try {
             const jsonStr = trimmedLine.slice(6)
             const data = JSON.parse(jsonStr)
+
+            // Check for error response in stream
+            if (data.error) {
+              throw new Error(data.error.message || `API Error: ${data.error.code || 'Unknown'}`)
+            }
+
             if (data.choices && data.choices[0].delta && data.choices[0].delta.content) {
               const chunk = data.choices[0].delta.content
               fullContent += chunk
               onChunk(chunk)
             }
+            // Capture usage from final chunk (some providers include it)
+            if (data.usage) {
+              usage = parseOpenAIUsage(data)
+            }
           } catch (e) {
+            // Re-throw API errors, skip parse errors
+            if (e.message?.includes('API Error') || e.message?.includes('Rate') || e.message?.includes('limit') || e.message?.includes('quota')) {
+              throw e
+            }
             console.warn('Failed to parse SSE data:', trimmedLine, e)
           }
         }
@@ -54,7 +71,7 @@ const processSSEStream = async (reader, onChunk, signal = null) => {
     }
   }
 
-  return fullContent
+  return { content: fullContent, usage }
 }
 
 /**
@@ -92,6 +109,7 @@ export const lmstudioProvider = {
 
   async sendMessage(model, messages, onChunk = null, signal = null, config = {}) {
     const baseUrl = config.baseUrl || DEFAULT_BASE_URL
+    const { onUsage } = config
 
     try {
       if (!onChunk) {
@@ -107,6 +125,13 @@ export const lmstudioProvider = {
           max_tokens: -1,
           stream: false
         })
+
+        // Extract usage data
+        const usage = parseOpenAIUsage(response.data)
+        if (usage && onUsage) {
+          onUsage(usage)
+        }
+
         if (response.data.choices && response.data.choices.length > 0) {
           return response.data.choices[0].message.content
         }
@@ -132,7 +157,14 @@ export const lmstudioProvider = {
       }
 
       const reader = response.body.getReader()
-      return await processSSEStream(reader, onChunk, signal)
+      const result = await processSSEStream(reader, onChunk, signal)
+
+      // Report usage if available
+      if (result.usage && onUsage) {
+        onUsage(result.usage)
+      }
+
+      return result.content
     } catch (error) {
       if (error.name === 'AbortError') {
         return null

@@ -64,6 +64,13 @@ vi.mock('../../../utils/messageAnalysis.js', () => ({
   getRawOutput: vi.fn(() => null)
 }))
 
+vi.mock('../../../utils/tokenUsage.js', () => ({
+  formatTokenCount: vi.fn((count) => {
+    if (count >= 1000) return `${(count / 1000).toFixed(1)}k`
+    return String(count)
+  })
+}))
+
 
 describe('StudioChatMessage', () => {
   let wrapper
@@ -524,6 +531,175 @@ describe('StudioChatMessage', () => {
         }
       })
       expect(wrapper.find('.attachments-indicator').exists()).toBe(false)
+    })
+  })
+
+  describe('Token Usage Display', () => {
+    it('should not show token usage for user messages', () => {
+      wrapper = mount(StudioChatMessage, {
+        props: {
+          ...defaultProps,
+          msg: {
+            role: 'user',
+            content: 'Hello',
+            usage: { router: { totalTokens: 100 }, executor: { promptTokens: 50, completionTokens: 100 } }
+          }
+        }
+      })
+      expect(wrapper.find('.token-usage').exists()).toBe(false)
+    })
+
+    it('should not show token usage for assistant messages without usage data', () => {
+      wrapper = mount(StudioChatMessage, {
+        props: {
+          ...defaultProps,
+          msg: { role: 'assistant', content: 'Response' }
+        }
+      })
+      expect(wrapper.find('.token-usage').exists()).toBe(false)
+    })
+
+    it('should show token usage for assistant messages with usage data', () => {
+      wrapper = mount(StudioChatMessage, {
+        props: {
+          ...defaultProps,
+          msg: {
+            role: 'assistant',
+            content: 'Response',
+            usage: {
+              router: { totalTokens: 500 },
+              executor: { promptTokens: 100, completionTokens: 200 }
+            }
+          }
+        }
+      })
+      expect(wrapper.find('.token-usage').exists()).toBe(true)
+    })
+
+    it('should display router tokens with R: prefix', () => {
+      wrapper = mount(StudioChatMessage, {
+        props: {
+          ...defaultProps,
+          msg: {
+            role: 'assistant',
+            content: 'Response',
+            usage: {
+              router: { totalTokens: 1500 },
+              executor: { promptTokens: 100, completionTokens: 200 }
+            }
+          }
+        }
+      })
+      expect(wrapper.find('.token-router').text()).toBe('R:1.5k')
+    })
+
+    it('should display executor input tokens', () => {
+      wrapper = mount(StudioChatMessage, {
+        props: {
+          ...defaultProps,
+          msg: {
+            role: 'assistant',
+            content: 'Response',
+            usage: {
+              router: { totalTokens: 500 },
+              executor: { promptTokens: 100, completionTokens: 200 }
+            }
+          }
+        }
+      })
+      expect(wrapper.find('.token-in').text()).toBe('100')
+    })
+
+    it('should display executor output tokens', () => {
+      wrapper = mount(StudioChatMessage, {
+        props: {
+          ...defaultProps,
+          msg: {
+            role: 'assistant',
+            content: 'Response',
+            usage: {
+              router: { totalTokens: 500 },
+              executor: { promptTokens: 100, completionTokens: 2000 }
+            }
+          }
+        }
+      })
+      expect(wrapper.find('.token-out').text()).toBe('2.0k')
+    })
+
+    it('should show separator between router and executor usage', () => {
+      wrapper = mount(StudioChatMessage, {
+        props: {
+          ...defaultProps,
+          msg: {
+            role: 'assistant',
+            content: 'Response',
+            usage: {
+              router: { totalTokens: 500 },
+              executor: { promptTokens: 100, completionTokens: 200 }
+            }
+          }
+        }
+      })
+      const separators = wrapper.findAll('.token-sep')
+      expect(separators.length).toBe(2) // One between router|in, one between in/out
+    })
+
+    it('should handle usage with only router data', () => {
+      wrapper = mount(StudioChatMessage, {
+        props: {
+          ...defaultProps,
+          msg: {
+            role: 'assistant',
+            content: 'Response',
+            usage: {
+              router: { totalTokens: 500 },
+              executor: null
+            }
+          }
+        }
+      })
+      expect(wrapper.find('.token-router').exists()).toBe(true)
+      expect(wrapper.find('.token-in').exists()).toBe(false)
+      expect(wrapper.find('.token-out').exists()).toBe(false)
+    })
+
+    it('should handle usage with only executor data', () => {
+      wrapper = mount(StudioChatMessage, {
+        props: {
+          ...defaultProps,
+          msg: {
+            role: 'assistant',
+            content: 'Response',
+            usage: {
+              router: null,
+              executor: { promptTokens: 100, completionTokens: 200 }
+            }
+          }
+        }
+      })
+      expect(wrapper.find('.token-router').exists()).toBe(false)
+      expect(wrapper.find('.token-in').exists()).toBe(true)
+      expect(wrapper.find('.token-out').exists()).toBe(true)
+    })
+
+    it('should have correct title attributes for tooltips', () => {
+      wrapper = mount(StudioChatMessage, {
+        props: {
+          ...defaultProps,
+          msg: {
+            role: 'assistant',
+            content: 'Response',
+            usage: {
+              router: { totalTokens: 500 },
+              executor: { promptTokens: 100, completionTokens: 200 }
+            }
+          }
+        }
+      })
+      expect(wrapper.find('.token-router').attributes('title')).toBe('Router tokens')
+      expect(wrapper.find('.token-in').attributes('title')).toBe('Input tokens')
+      expect(wrapper.find('.token-out').attributes('title')).toBe('Output tokens')
     })
   })
 })

@@ -290,6 +290,17 @@ function clearWindows() {
 }
 
 /**
+ * Remove the last window added
+ * @returns {Object|null} The removed window or null if no windows
+ */
+function removeLastWindow() {
+  if (windows.value.length === 0) return null
+  const removed = windows.value.pop()
+  saveToStorage()
+  return removed
+}
+
+/**
  * Get minimum size for a window type
  */
 function getMinSize(type) {
@@ -328,6 +339,7 @@ export function useStudioCanvas() {
     // Actions
     addWindow,
     removeWindow,
+    removeLastWindow,
     updateWindowPosition,
     updateWindowSize,
     updateWindowTitle,

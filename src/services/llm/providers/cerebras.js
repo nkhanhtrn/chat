@@ -4,6 +4,8 @@
  * Supports multiple API keys with round-robin load balancing
  */
 
+import { parseOpenAIUsage } from '../../../utils/tokenUsage.js'
+
 const DEFAULT_BASE_URL = 'https://api.cerebras.ai/v1'
 
 // Round-robin state for multiple API keys
@@ -34,11 +36,13 @@ const getNextApiKey = (apiKeyOrKeys) => {
 
 /**
  * Process SSE stream from OpenAI-compatible API
+ * @returns {{ content: string, usage: Object|null }}
  */
 const processSSEStream = async (reader, onChunk, signal = null) => {
   const decoder = new TextDecoder()
   let buffer = ''
   let fullContent = ''
+  let usage = null
 
   try {
     while (true) {
@@ -58,13 +62,26 @@ const processSSEStream = async (reader, onChunk, signal = null) => {
         if (trimmedLine.startsWith('data: ')) {
           try {
             const data = JSON.parse(trimmedLine.slice(6))
+
+            // Check for error response in stream
+            if (data.error) {
+              throw new Error(data.error.message || `API Error: ${data.error.code || 'Unknown'}`)
+            }
+
             const content = data.choices?.[0]?.delta?.content
             if (content) {
               fullContent += content
               onChunk(content)
             }
+            // Capture usage from final chunk
+            if (data.usage) {
+              usage = parseOpenAIUsage(data)
+            }
           } catch (e) {
-            // Skip parse errors
+            // Re-throw API errors, skip parse errors
+            if (e.message?.includes('API Error') || e.message?.includes('Rate') || e.message?.includes('limit') || e.message?.includes('quota')) {
+              throw e
+            }
           }
         }
       }
@@ -77,7 +94,7 @@ const processSSEStream = async (reader, onChunk, signal = null) => {
     }
   }
 
-  return fullContent
+  return { content: fullContent, usage }
 }
 
 /**
@@ -106,7 +123,7 @@ export const cerebrasProvider = {
   },
 
   async sendMessage(model, messages, onChunk = null, signal = null, config = {}) {
-    const { apiKey, apiKeys, baseUrl = DEFAULT_BASE_URL } = config
+    const { apiKey, apiKeys, baseUrl = DEFAULT_BASE_URL, onUsage } = config
     const keyToUse = getNextApiKey(apiKeys || apiKey)
 
     if (!keyToUse) {
@@ -138,6 +155,13 @@ export const cerebrasProvider = {
         }
 
         const data = await response.json()
+
+        // Extract usage data
+        const usage = parseOpenAIUsage(data)
+        if (usage && onUsage) {
+          onUsage(usage)
+        }
+
         const content = data.choices?.[0]?.message?.content
         if (!content) {
           throw new Error('No response from model')
@@ -164,7 +188,14 @@ export const cerebrasProvider = {
       }
 
       const reader = response.body.getReader()
-      return await processSSEStream(reader, onChunk, signal)
+      const result = await processSSEStream(reader, onChunk, signal)
+
+      // Report usage if available
+      if (result.usage && onUsage) {
+        onUsage(result.usage)
+      }
+
+      return result.content
     } catch (error) {
       if (error.name === 'AbortError') {
         return null

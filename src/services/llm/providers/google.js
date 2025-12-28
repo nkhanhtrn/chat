@@ -3,6 +3,8 @@
  * Supports multiple API keys with round-robin load balancing
  */
 
+import { parseGeminiUsage } from '../../../utils/tokenUsage.js'
+
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'
 
 // Round-robin state for multiple API keys
@@ -52,11 +54,13 @@ const convertMessages = (messages) => {
 
 /**
  * Process Gemini SSE stream
+ * @returns {{ content: string, usage: Object|null }}
  */
 const processGeminiSSEStream = async (reader, onChunk, signal = null) => {
   const decoder = new TextDecoder()
   let buffer = ''
   let fullContent = ''
+  let usage = null
 
   try {
     while (true) {
@@ -76,13 +80,26 @@ const processGeminiSSEStream = async (reader, onChunk, signal = null) => {
         if (trimmedLine.startsWith('data: ')) {
           try {
             const data = JSON.parse(trimmedLine.slice(6))
+
+            // Check for error response in stream
+            if (data.error) {
+              throw new Error(data.error.message || `API Error: ${data.error.code || 'Unknown'}`)
+            }
+
             const text = data.candidates?.[0]?.content?.parts?.[0]?.text
             if (text) {
               fullContent += text
               onChunk(text)
             }
+            // Capture usage metadata from chunks (Gemini includes it in streaming)
+            if (data.usageMetadata) {
+              usage = parseGeminiUsage(data)
+            }
           } catch (e) {
-            // Skip parse errors
+            // Re-throw API errors, skip parse errors
+            if (e.message?.includes('API Error') || e.message?.includes('Rate') || e.message?.includes('limit') || e.message?.includes('quota')) {
+              throw e
+            }
           }
         }
       }
@@ -95,7 +112,7 @@ const processGeminiSSEStream = async (reader, onChunk, signal = null) => {
     }
   }
 
-  return fullContent
+  return { content: fullContent, usage }
 }
 
 /**
@@ -149,7 +166,7 @@ export const googleProvider = {
   },
 
   async sendMessage(model, messages, onChunk = null, signal = null, config = {}) {
-    const { apiKey, apiKeys, baseUrl = DEFAULT_BASE_URL } = config
+    const { apiKey, apiKeys, baseUrl = DEFAULT_BASE_URL, onUsage } = config
     const keyToUse = getNextApiKey(apiKeys || apiKey)
 
     if (!keyToUse) {
@@ -183,6 +200,13 @@ export const googleProvider = {
         }
 
         const data = await response.json()
+
+        // Extract usage data
+        const usage = parseGeminiUsage(data)
+        if (usage && onUsage) {
+          onUsage(usage)
+        }
+
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text
         if (!text) {
           throw new Error('No response from model')
@@ -213,7 +237,14 @@ export const googleProvider = {
       }
 
       const reader = response.body.getReader()
-      return await processGeminiSSEStream(reader, onChunk, signal)
+      const result = await processGeminiSSEStream(reader, onChunk, signal)
+
+      // Report usage if available
+      if (result.usage && onUsage) {
+        onUsage(result.usage)
+      }
+
+      return result.content
     } catch (error) {
       if (error.name === 'AbortError') {
         return null
