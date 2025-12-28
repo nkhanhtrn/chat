@@ -706,7 +706,6 @@ const downloadNotebooks = () => {
     exportedAt: new Date().toISOString(),
     chats: chatStore.chats,
     messagesById: chatStore.messagesById,
-    srData: chatStore.srData,
     vocabData: chatStore.vocabData
   }
 
@@ -750,15 +749,6 @@ const restoreNotebooks = async (event) => {
       const existingChat = chatStore.chats.find(c => c.id === chat.id)
       if (!existingChat) {
         chatStore.chats.push(chat)
-      }
-    }
-
-    // Restore spaced repetition data (don't overwrite existing)
-    if (data.srData && typeof data.srData === 'object') {
-      for (const [id, srCard] of Object.entries(data.srData)) {
-        if (!chatStore.srData[id]) {
-          chatStore.srData[id] = srCard
-        }
       }
     }
 

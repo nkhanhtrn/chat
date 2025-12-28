@@ -144,15 +144,6 @@ describe('MobileFooter', () => {
 
       expect(wrapper.findComponent({ name: 'SettingsModal' }).exists()).toBe(true)
     })
-
-    it('should open review modal when review button is clicked', async () => {
-      wrapper = mount(MobileFooter)
-      const reviewBtn = wrapper.find('[title="Review cards"]')
-      await reviewBtn.trigger('click')
-
-      const reviewModal = wrapper.findComponent({ name: 'ReviewModal' })
-      expect(reviewModal.props('visible')).toBe(true)
-    })
   })
 
   describe('Events', () => {

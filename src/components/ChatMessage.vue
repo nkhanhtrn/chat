@@ -25,16 +25,6 @@
                 @note-click="handleNoteClick"
               />
               <span v-if="isStreaming" class="cursor">▊</span>
-              <!-- Add to SR button -->
-              <div v-if="showAddToSRButton" class="add-to-sr-container">
-                <button
-                  class="add-to-sr-btn"
-                  :disabled="isAddingToSR || hasExistingSRCard"
-                  @click="handleAddToSR"
-                >
-                  {{ isAddingToSR ? 'Adding to SR...' : hasExistingSRCard ? 'Added to SR' : 'Add to SR' }}
-                </button>
-              </div>
             </div>
             <div v-if="error" class="error-message">{{ error }}</div>
           </div>
@@ -110,7 +100,6 @@ import Message from '../stores/Message.js'
 import { getSelectedTextAndPosition as getSelectionWithOffsets } from '../services/DOMSelectionHelper.js'
 import { usePopupState } from '../composables/usePopupState.js'
 import { useHighlights } from '../composables/useHighlights.js'
-import { useSpacedRepetition } from '../composables/useSpacedRepetition.js'
 import { useVocabulary } from '../composables/useVocabulary.js'
 import { buildConversationChain, createTempHighlight, isMessageInTree } from '../utils/highlightUtils.js'
 
@@ -169,7 +158,6 @@ const isDictionaryStreaming = ref(false)
 // Use composables
 const popup = usePopupState()
 const highlights = useHighlights(chatStore, () => currentMessage.value)
-const { initializeCardWithSummary, getCardData } = useSpacedRepetition()
 const { addVocabCard, appendToDefinition, findByWord } = useVocabulary()
 
 // Computed property to always get the root/original message (from props)
@@ -197,36 +185,6 @@ const effectiveCustomContent = highlights.createEffectiveCustomContent(() => tem
 const isStreaming = computed(() => {
   return props.isAppStreaming || isChildStreaming.value
 })
-
-// Check if current message has an SR card
-const hasExistingSRCard = computed(() => {
-  return !!getCardData(currentMessage.value?.id)
-})
-
-// Show "Add to SR" button when response is complete
-const showAddToSRButton = computed(() => {
-  return !isStreaming.value && currentResponse.value
-})
-
-// State for SR card addition
-const isAddingToSR = ref(false)
-
-async function handleAddToSR() {
-  if (isAddingToSR.value || !currentMessage.value?.id || !currentResponse.value) return
-
-  isAddingToSR.value = true
-  try {
-    await initializeCardWithSummary(
-      currentMessage.value.id,
-      currentResponse.value,
-      chatStore.currentModel
-    )
-  } catch (err) {
-    console.error('Failed to add to SR:', err)
-  } finally {
-    isAddingToSR.value = false
-  }
-}
 
 function showContextMenu() {
   const getSel = props.getSelectedTextAndPosition || getSelectionWithOffsets
@@ -865,34 +823,4 @@ onUnmounted(() => {
   color: var(--color-text-message);
 }
 
-/* Add to SR button */
-.add-to-sr-container {
-  display: flex;
-  justify-content: center;
-  margin-top: 1.5rem;
-  padding-top: 1rem;
-}
-
-.add-to-sr-btn {
-  padding: 0.6rem 1.5rem;
-  font-size: 1rem;
-  font-family: inherit;
-  background-color: var(--color-bg-secondary, #f5f5f5);
-  color: var(--color-text-secondary, #666);
-  border: 1px solid var(--color-border, #ddd);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.add-to-sr-btn:hover:not(:disabled) {
-  background-color: var(--color-bg-hover, #e8e8e8);
-  color: var(--color-text-strong, #333);
-  border-color: var(--color-border-hover, #ccc);
-}
-
-.add-to-sr-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 </style>

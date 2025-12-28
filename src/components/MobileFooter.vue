@@ -51,10 +51,6 @@
     >
       <svg class="footer-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>
     </button>
-    <button class="footer-btn" @click="showReviewModal = true" title="Review cards">
-      <svg class="footer-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-      <span v-if="dueCount > 0" class="review-badge">{{ dueCount }}</span>
-    </button>
     <button class="footer-btn" @click="showVocabReviewModal = true" title="Review vocabulary">
       <span class="footer-letter dict-letter">Dd</span>
       <span v-if="vocabDueCount > 0" class="review-badge">{{ vocabDueCount }}</span>
@@ -69,10 +65,6 @@
     <SettingsModal
       v-model="showSettingsModal"
     />
-    <ReviewModal
-      :visible="showReviewModal"
-      @close="showReviewModal = false"
-    />
     <VocabReviewModal
       :visible="showVocabReviewModal"
       @close="showVocabReviewModal = false"
@@ -86,7 +78,6 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useChatStore } from '../stores/chat.js'
 import SettingsModal from './Modal/SettingsModal.vue'
-import ReviewModal from './Modal/ReviewModal.vue'
 import VocabReviewModal from './Modal/VocabReviewModal.vue'
 
 defineProps({
@@ -114,10 +105,8 @@ const router = useRouter()
 const chatStore = useChatStore()
 
 const showSettingsModal = ref(false)
-const showReviewModal = ref(false)
 const showVocabReviewModal = ref(false)
 
-const dueCount = computed(() => chatStore.cardsDueCount)
 const vocabDueCount = computed(() => chatStore.vocabCardsDueCount)
 const hasCurrentQuestion = computed(() => Boolean(chatStore.currentChatId))
 

@@ -31,7 +31,8 @@
       "Bash(timeout 3 node:*)",
       "Bash(git stash:*)",
       "Bash(xargs -I {} sh -c 'echo \"\"=== {} ===\"\" && grep -E \"\"name =|routerDescription\"\" {} | head -3')",
-      "Bash(xargs:*)"
+      "Bash(xargs:*)",
+      "Bash(git grep:*)"
     ],
     "deny": [],
     "ask": []

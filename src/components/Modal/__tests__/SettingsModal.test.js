@@ -62,9 +62,6 @@ const mockChatStore = {
     'msg-1': { id: 'msg-1', question: 'Hello', response: 'Hi there', createdAt: 1700000000000 },
     'msg-2': { id: 'msg-2', question: 'Test', response: 'Response', createdAt: 1700000001000 }
   },
-  srData: {
-    'msg-1': { easiness: 2.5, interval: 1, repetitions: 0, nextReviewDate: null }
-  },
   vocabData: {
     'vocab-1': { word: 'test', definition: 'a test word', easiness: 2.5, createdAt: 1700000002000 }
   },
@@ -1693,9 +1690,6 @@ describe('SettingsModal', () => {
         'msg-1': { id: 'msg-1', question: 'Hello', response: 'Hi there', createdAt: 1700000000000 },
         'msg-2': { id: 'msg-2', question: 'Test', response: 'Response', createdAt: 1700000001000 }
       }
-      mockChatStore.srData = {
-        'msg-1': { easiness: 2.5, interval: 1, repetitions: 0, nextReviewDate: null }
-      }
       mockChatStore.vocabData = {
         'vocab-1': { word: 'test', definition: 'a test word', easiness: 2.5, createdAt: 1700000002000 }
       }
@@ -2094,7 +2088,7 @@ describe('SettingsModal', () => {
       expect(backupButtons.classList.contains('backup-buttons')).toBe(true)
     })
 
-    it('should include srData and vocabData in downloaded data', async () => {
+    it('should include vocabData in downloaded data', async () => {
       let capturedBlob = null
       const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
         capturedBlob = blob
@@ -2129,50 +2123,9 @@ describe('SettingsModal', () => {
       const text = await capturedBlob.text()
       const data = JSON.parse(text)
 
-      expect(data.srData).toEqual(mockChatStore.srData)
       expect(data.vocabData).toEqual(mockChatStore.vocabData)
 
       vi.restoreAllMocks()
-    })
-
-    it('should restore srData from backup file', async () => {
-      wrapper = mount(SettingsModal, {
-        props: {
-          modelValue: true
-        },
-        attachTo: document.body
-      })
-      const tabs = findAllInBody('.tab-button')
-      tabs[2].click()
-      await wrapper.vm.$nextTick()
-
-      const importData = {
-        version: 1,
-        exportedAt: new Date().toISOString(),
-        chats: [],
-        messagesById: {},
-        srData: {
-          'msg-new': { easiness: 3.0, interval: 5, repetitions: 2, nextReviewDate: '2024-01-01' }
-        },
-        vocabData: {}
-      }
-
-      const file = new File([JSON.stringify(importData)], 'backup.json', { type: 'application/json' })
-      const fileInput = findInBody('.file-input')
-
-      Object.defineProperty(fileInput, 'files', {
-        value: [file],
-        writable: true
-      })
-
-      fileInput.dispatchEvent(new Event('change'))
-      await wrapper.vm.$nextTick()
-      await new Promise(r => setTimeout(r, 10))
-
-      expect(mockChatStore.srData['msg-new']).toEqual({
-        easiness: 3.0, interval: 5, repetitions: 2, nextReviewDate: '2024-01-01'
-      })
-      expect(mockChatStore._persistState).toHaveBeenCalled()
     })
 
     it('should restore vocabData from backup file', async () => {
@@ -2191,7 +2144,6 @@ describe('SettingsModal', () => {
         exportedAt: new Date().toISOString(),
         chats: [],
         messagesById: {},
-        srData: {},
         vocabData: {
           'vocab-new': { word: 'imported', definition: 'an imported word', easiness: 2.8 }
         }
@@ -2215,44 +2167,6 @@ describe('SettingsModal', () => {
       expect(mockChatStore._persistState).toHaveBeenCalled()
     })
 
-    it('should not overwrite existing srData entries', async () => {
-      wrapper = mount(SettingsModal, {
-        props: {
-          modelValue: true
-        },
-        attachTo: document.body
-      })
-      const tabs = findAllInBody('.tab-button')
-      tabs[2].click()
-      await wrapper.vm.$nextTick()
-
-      const importData = {
-        version: 1,
-        chats: [],
-        messagesById: {},
-        srData: {
-          'msg-1': { easiness: 9.9, interval: 99, repetitions: 99, nextReviewDate: 'overwritten' }
-        },
-        vocabData: {}
-      }
-
-      const file = new File([JSON.stringify(importData)], 'backup.json', { type: 'application/json' })
-      const fileInput = findInBody('.file-input')
-
-      Object.defineProperty(fileInput, 'files', {
-        value: [file],
-        writable: true
-      })
-
-      fileInput.dispatchEvent(new Event('change'))
-      await wrapper.vm.$nextTick()
-      await new Promise(r => setTimeout(r, 10))
-
-      // Original srData should not be overwritten
-      expect(mockChatStore.srData['msg-1'].easiness).toBe(2.5)
-      expect(mockChatStore.srData['msg-1'].interval).toBe(1)
-    })
-
     it('should not overwrite existing vocabData entries', async () => {
       wrapper = mount(SettingsModal, {
         props: {
@@ -2268,7 +2182,6 @@ describe('SettingsModal', () => {
         version: 1,
         chats: [],
         messagesById: {},
-        srData: {},
         vocabData: {
           'vocab-1': { word: 'overwritten', definition: 'should not appear', easiness: 9.9 }
         }
@@ -2291,7 +2204,7 @@ describe('SettingsModal', () => {
       expect(mockChatStore.vocabData['vocab-1'].definition).toBe('a test word')
     })
 
-    it('should handle backup file without srData or vocabData gracefully', async () => {
+    it('should handle backup file without vocabData gracefully', async () => {
       wrapper = mount(SettingsModal, {
         props: {
           modelValue: true
@@ -2302,12 +2215,12 @@ describe('SettingsModal', () => {
       tabs[2].click()
       await wrapper.vm.$nextTick()
 
-      // Legacy backup file without srData/vocabData
+      // Legacy backup file without vocabData
       const importData = {
         version: 1,
         chats: [{ id: 'legacy-chat', name: 'Legacy', rootMessageIds: [] }],
         messagesById: {}
-        // No srData or vocabData
+        // No vocabData
       }
 
       const file = new File([JSON.stringify(importData)], 'backup.json', { type: 'application/json' })
@@ -2325,8 +2238,7 @@ describe('SettingsModal', () => {
       // Should succeed without errors
       const successStatus = findInBody('.connection-status.success')
       expect(successStatus).toBeTruthy()
-      // Existing srData and vocabData should remain intact
-      expect(mockChatStore.srData['msg-1']).toBeTruthy()
+      // Existing vocabData should remain intact
       expect(mockChatStore.vocabData['vocab-1']).toBeTruthy()
     })
 
@@ -2390,7 +2302,6 @@ describe('SettingsModal', () => {
         messagesById: {
           'new-msg': { id: 'new-msg', question: 'New Q', response: 'New R', createdAt: 1600000000000 }
         },
-        srData: {},
         vocabData: {
           'new-vocab': { word: 'new', definition: 'a new word', easiness: 2.5, createdAt: 1600000001000 }
         }

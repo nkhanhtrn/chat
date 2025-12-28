@@ -1,5 +1,4 @@
 // Vocabulary Card class using SM-2 algorithm for spaced repetition
-// Similar to SRCard but stores word, definition, and context
 export default class VocabCard {
   static DAY_IN_MS = 24 * 60 * 60 * 1000
 

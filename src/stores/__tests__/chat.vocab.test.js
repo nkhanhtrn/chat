@@ -331,7 +331,6 @@ describe('Chat Store - Vocabulary', () => {
           }
         },
         messagesById: {},
-        srData: {},
         chats: [],
         currentChatId: null,
         currentModel: null
@@ -351,7 +350,6 @@ describe('Chat Store - Vocabulary', () => {
       const savedState = {
         vocabData: {},
         messagesById: {},
-        srData: {},
         chats: [],
         currentChatId: null,
         currentModel: null
@@ -365,7 +363,6 @@ describe('Chat Store - Vocabulary', () => {
     it('handles missing vocabData in saved state', () => {
       const savedState = {
         messagesById: {},
-        srData: {},
         chats: [],
         currentChatId: null,
         currentModel: null

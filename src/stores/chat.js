@@ -1,5 +1,4 @@
 import Message from './Message.js'
-import SRCard from './SRCard.js'
 import VocabCard from './VocabCard.js'
 import { defineStore } from 'pinia'
 import { saveChatState, loadChatState, resolveConflict as resolveStorageConflict } from '../services/storage.js'
@@ -34,9 +33,6 @@ export const useChatStore = defineStore('chat', {
 
       // Initialization state
       isInitialized: false,
-
-      // Spaced repetition data: { [messageId]: { easiness, interval, repetitions, nextReviewDate, lastReviewDate, responseSummary } }
-      srData: {},
 
       // Vocabulary cards for spaced repetition: { [vocabId]: VocabCard }
       vocabData: {},
@@ -176,77 +172,6 @@ export const useChatStore = defineStore('chat', {
       return chat?.scratchpad || ''
     },
 
-    // Get all cards due for review (spaced repetition)
-    cardsDueForReview: (state) => {
-      const now = Date.now()
-      const dueCards = []
-
-      // Build a map of messageId -> chatId for quick lookup
-      const messageToChatId = {}
-      for (const chat of state.chats) {
-        const collectMessageIds = (messageId) => {
-          messageToChatId[messageId] = chat.id
-          const msg = state.messagesById[messageId]
-          if (msg?.childIds) {
-            for (const childId of msg.childIds) {
-              collectMessageIds(childId)
-            }
-          }
-        }
-        for (const rootId of chat.rootMessageIds) {
-          collectMessageIds(rootId)
-        }
-      }
-
-      for (const [messageId, srInfo] of Object.entries(state.srData)) {
-        // Skip if message no longer exists
-        if (!state.messagesById[messageId]) continue
-
-        // Card is due if nextReviewDate is in the past or not set (new card)
-        if (!srInfo.nextReviewDate || srInfo.nextReviewDate <= now) {
-          const message = state.messagesById[messageId]
-          dueCards.push({
-            messageId,
-            chatId: messageToChatId[messageId] || null,
-            question: message.question,
-            questionSummarized: message.questionSummarized,
-            responseSummary: message.responseSummary || '',
-            response: message.response,
-            ...srInfo
-          })
-        }
-      }
-
-      // Sort by nextReviewDate (oldest first, then new cards)
-      // Use messageId as secondary sort key for stable ordering
-      return dueCards.sort((a, b) => {
-        if (!a.nextReviewDate && !b.nextReviewDate) {
-          return a.messageId.localeCompare(b.messageId)
-        }
-        if (!a.nextReviewDate) return -1
-        if (!b.nextReviewDate) return 1
-        if (a.nextReviewDate !== b.nextReviewDate) {
-          return a.nextReviewDate - b.nextReviewDate
-        }
-        return a.messageId.localeCompare(b.messageId)
-      })
-    },
-
-    // Get count of cards due for review
-    cardsDueCount: (state) => {
-      const now = Date.now()
-      let count = 0
-
-      for (const [messageId, srInfo] of Object.entries(state.srData)) {
-        if (!state.messagesById[messageId]) continue
-        if (!srInfo.nextReviewDate || srInfo.nextReviewDate <= now) {
-          count++
-        }
-      }
-
-      return count
-    },
-
     // Get all vocabulary cards due for review
     vocabCardsDueForReview: (state) => {
       const now = Date.now()
@@ -339,12 +264,6 @@ export const useChatStore = defineStore('chat', {
         messagesById[id] = new Message(msgData)
       }
 
-      // Reconstruct SRCard objects from plain objects
-      const srData = {}
-      for (const [id, cardData] of Object.entries(savedState.srData || {})) {
-        srData[id] = new SRCard(cardData)
-      }
-
       // Reconstruct VocabCard objects from plain objects
       const vocabData = {}
       for (const [id, cardData] of Object.entries(savedState.vocabData || {})) {
@@ -353,7 +272,6 @@ export const useChatStore = defineStore('chat', {
 
       // Restore state
       this.messagesById = messagesById
-      this.srData = srData
       this.vocabData = vocabData
       this.currentModel = savedState.currentModel || null
       this.chats = savedState.chats || []
@@ -701,11 +619,6 @@ export const useChatStore = defineStore('chat', {
         })
       }
 
-      // Remove SR card if exists
-      if (this.srData[messageId]) {
-        delete this.srData[messageId]
-      }
-
       // Remove the message itself
       delete this.messagesById[messageId]
     },
@@ -929,7 +842,6 @@ export const useChatStore = defineStore('chat', {
         chats: this.chats,
         currentChatId: this.currentChatId,
         isStreaming: this.isStreaming,
-        srData: this.srData,
         vocabData: this.vocabData,
       }
       saveChatState(state)
@@ -1235,50 +1147,14 @@ export const useChatStore = defineStore('chat', {
       this._persistState()
     },
 
-    // ============================================
-    // Spaced Repetition Actions
-    // ============================================
-
-    // Initialize SR card for a message (called when response is complete)
-    // Note: responseSummary is stored on the Message object, not the SR card
-    initializeSRCard(messageId) {
-      if (!this.messagesById[messageId]) return
-
-      // Only initialize if not already in SR system
-      if (!this.srData[messageId]) {
-        const card = new SRCard({ messageId })
-        this.srData[messageId] = card
-        this._persistState()
-      }
-    },
-
     // Update response summary on message object
-    updateSRResponseSummary(messageId, responseSummary) {
+    updateResponseSummary(messageId, responseSummary) {
       const message = this.messagesById[messageId]
       if (message) {
         message.responseSummary = responseSummary
         this._persistState()
       }
     },
-
-    // Record a review result
-    // quality: 0 = Again, 2 = Hard, 4 = Good, 5 = Easy
-    recordSRReview(messageId, quality) {
-      const card = this.srData[messageId]
-      if (!card) return
-
-      card.recordReview(quality)
-      this._persistState()
-    },
-
-    // Remove a message from SR system
-    removeSRCard(messageId) {
-      if (this.srData[messageId]) {
-        delete this.srData[messageId]
-        this._persistState()
-      }
-    },
-
 
     // ============================================
     // Vocabulary Card Actions
