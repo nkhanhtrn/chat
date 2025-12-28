@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import {
   listProviders,
   getCurrentProviderId,
@@ -8,6 +8,7 @@ import {
   fetchAllModels
 } from '../services/llm/index.js'
 import { findRouterAndExecutorModels } from '../services/llm/taskRouter.js'
+import { saveUserSettings, loadUserSettings } from '../services/firestore.js'
 
 /**
  * Composable for managing model selection state
@@ -59,20 +60,43 @@ export function useModelSelection() {
       const modelList = await fetchAllModels()
       allModels.value = modelList
 
-      // Auto-select router and executor models
-      if (modelList.length > 0) {
-        const { router, executor } = findRouterAndExecutorModels(modelList)
-        if (router) {
-          routerModel.value = router.id
-        } else {
-          routerModel.value = modelList[0].id
-        }
-        if (executor) {
-          executorModel.value = executor.id
-        } else {
-          executorModel.value = modelList.length > 1 ? modelList[1].id : modelList[0].id
-        }
+      // Try to load saved models from cloud first
+      const savedSettings = await loadUserSettings()
+      const savedRouter = savedSettings?.routerModel
+      const savedExecutor = savedSettings?.executorModel
+
+      // Check if saved models exist in the available model list
+      const savedRouterExists = savedRouter && modelList.some(m => m.id === savedRouter)
+      const savedExecutorExists = savedExecutor && modelList.some(m => m.id === savedExecutor)
+
+      if (savedRouterExists) {
+        routerModel.value = savedRouter
+      } else if (modelList.length > 0) {
+        // Auto-select router model
+        const { router } = findRouterAndExecutorModels(modelList)
+        routerModel.value = router ? router.id : modelList[0].id
       }
+
+      if (savedExecutorExists) {
+        executorModel.value = savedExecutor
+      } else if (modelList.length > 0) {
+        // Auto-select executor model
+        const { executor } = findRouterAndExecutorModels(modelList)
+        executorModel.value = executor ? executor.id : (modelList.length > 1 ? modelList[1].id : modelList[0].id)
+      }
+
+      // Watch for model changes and save to cloud
+      watch(routerModel, (newValue) => {
+        if (newValue) {
+          saveUserSettings({ routerModel: newValue })
+        }
+      })
+
+      watch(executorModel, (newValue) => {
+        if (newValue) {
+          saveUserSettings({ executorModel: newValue })
+        }
+      })
     } catch (error) {
       console.error('Failed to load all models:', error)
     }

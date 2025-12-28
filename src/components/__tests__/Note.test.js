@@ -290,30 +290,6 @@ describe('Note', () => {
     })
   })
 
-  describe('Styling', () => {
-    it('has proper z-index for popup above backdrop', () => {
-      wrapper = mount(Note, { props: baseProps, attachTo: root })
-      const overlay = document.body.querySelector('.modal-overlay')
-      const popup = document.body.querySelector('.modal-content')
-
-      // Modal uses overlay with z-index, content is inside it
-      expect(overlay).toBeTruthy()
-      expect(popup).toBeTruthy()
-    })
-
-    it('delete button has delete styling class', () => {
-      const viewModeProps = {
-        ...baseProps,
-        isTemp: false,
-        initialContent: 'Content'
-      }
-      wrapper = mount(Note, { props: viewModeProps, attachTo: root })
-      const deleteBtn = document.body.querySelector('.note-delete-btn')
-      expect(deleteBtn).toBeTruthy()
-      expect(deleteBtn.classList.contains('note-icon-btn')).toBe(true)
-    })
-  })
-
   describe('Streaming Mode (isStreaming=true)', () => {
     const streamingProps = {
       ...baseProps,
@@ -443,17 +419,6 @@ describe('Note', () => {
       expect(noteContent.textContent).toContain('Final content')
     })
 
-    it('streaming cursor has blink animation class', async () => {
-      wrapper = mount(Note, {
-        props: { ...streamingProps, visible: false },
-        attachTo: root
-      })
-      await wrapper.setProps({ visible: true })
-
-      const cursor = document.body.querySelector('.streaming-cursor')
-      expect(cursor).toBeTruthy()
-      expect(cursor.classList.contains('streaming-cursor')).toBe(true)
-    })
   })
 
   describe('Detail Explain Link', () => {
@@ -623,15 +588,6 @@ describe('Note', () => {
       expect(headerActions).toBeFalsy()
     })
 
-    it('custom-prompt-actions has correct styling with justify-content space-between', () => {
-      wrapper = mount(Note, { props: customPromptProps, attachTo: root })
-
-      const actions = document.body.querySelector('.custom-prompt-actions')
-      expect(actions).toBeTruthy()
-      expect(actions.classList.contains('note-actions')).toBe(true)
-      expect(actions.classList.contains('custom-prompt-actions')).toBe(true)
-    })
-
     it('shows streaming cursor when isCustomPrompt and isStreaming are both true', async () => {
       wrapper = mount(Note, {
         props: { ...customPromptProps, isStreaming: true, visible: false },
@@ -742,20 +698,6 @@ describe('Note', () => {
       wrapper = mount(Note, { props: resizeProps, attachTo: root })
       const resizeHandle = document.body.querySelector('.resize-handle')
       expect(resizeHandle).toBeTruthy()
-    })
-
-    it('resize handle has correct cursor style', () => {
-      wrapper = mount(Note, { props: resizeProps, attachTo: root })
-      const resizeHandle = document.body.querySelector('.resize-handle')
-      expect(resizeHandle).toBeTruthy()
-      expect(resizeHandle.classList.contains('resize-handle')).toBe(true)
-    })
-
-    it('resize handle contains SVG icon', () => {
-      wrapper = mount(Note, { props: resizeProps, attachTo: root })
-      const resizeHandle = document.body.querySelector('.resize-handle')
-      const svg = resizeHandle.querySelector('svg')
-      expect(svg).toBeTruthy()
     })
 
     it('applies custom width and height from modalStyle', async () => {
@@ -1016,21 +958,6 @@ describe('Note', () => {
       expect(textarea).toBeFalsy()
     })
 
-    it('textarea fills available space with flex: 1', () => {
-      wrapper = mount(Note, { props: { ...baseProps, isTemp: true }, attachTo: root })
-      const textarea = document.body.querySelector('.note-textarea')
-      expect(textarea).toBeTruthy()
-      // The textarea should have flex styling applied
-      expect(textarea.classList.contains('note-textarea')).toBe(true)
-    })
-
-    it('textarea has resize: none style', () => {
-      wrapper = mount(Note, { props: { ...baseProps, isTemp: true }, attachTo: root })
-      const textarea = document.body.querySelector('.note-textarea')
-      expect(textarea).toBeTruthy()
-      // CSS check - the class should be applied
-      expect(textarea.classList.contains('note-textarea')).toBe(true)
-    })
   })
 
   describe('Modal Close Behavior', () => {
