@@ -32,7 +32,10 @@
       "Bash(git stash:*)",
       "Bash(xargs -I {} sh -c 'echo \"\"=== {} ===\"\" && grep -E \"\"name =|routerDescription\"\" {} | head -3')",
       "Bash(xargs:*)",
-      "Bash(git grep:*)"
+      "Bash(git grep:*)",
+      "Bash(timeout 10 npx vitest run:*)",
+      "Bash(echo:*)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []

@@ -1,4 +1,4 @@
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, watch } from 'vue'
 import { sendChatMessage } from '../../services/llm/index.js'
 import { analyzeGenerateAndExecute, getProvider } from '../../services/llm/taskRouter.js'
 import { getProviderConfigById } from '../../services/llm/providers.js'
@@ -13,14 +13,13 @@ import {
   buildAttachmentsForDisplay
 } from './studioAttachments.js'
 
+const STORAGE_KEY = 'studio-chat'
+let sessionManager = null
+
 /**
  * Composable for managing chat messages and streaming in StudioChat
- * @param {Object} options - Configuration options
- * @param {string} options.storageKey - localStorage key for persistence (default: 'studio-chat-history')
  */
-export function useStudioChat(options = {}) {
-  const storageKey = options.storageKey || 'studio-chat-history'
-
+export function useStudioChat() {
   // Messages state
   const messages = ref([])
   const isStreaming = ref(false)
@@ -39,41 +38,71 @@ export function useStudioChat(options = {}) {
   // Output event callbacks
   let onOutputCallback = null
 
+  // Watch for changes and save to session
+  watch(messages, () => {
+    saveToStorage()
+  }, { deep: true })
+
   /**
-   * Save messages to localStorage
+   * Set the session manager (called by parent component)
+   */
+  function setSessionManager(manager) {
+    sessionManager = manager
+  }
+
+  /**
+   * Load state from session data (for session switching)
+   */
+  function loadState(chatState) {
+    if (chatState) {
+      messages.value = chatState.messages || []
+      nextMessageId = chatState.nextMessageId || 1
+    } else {
+      messages.value = []
+      nextMessageId = 1
+    }
+  }
+
+  /**
+   * Get current state (for session switching)
+   */
+  function getState() {
+    return {
+      messages: messages.value,
+      nextMessageId
+    }
+  }
+
+  /**
+   * Save messages to session (via session manager or localStorage)
    */
   function saveToStorage() {
+    const state = {
+      messages: messages.value,
+      nextMessageId
+    }
+
+    // If session manager is available, use it
+    if (sessionManager) {
+      sessionManager.updateChatState(state)
+      return
+    }
+
+    // Fall back to localStorage for backwards compatibility
     try {
-      const state = {
-        messages: messages.value,
-        nextMessageId
-      }
-      localStorage.setItem(storageKey, JSON.stringify(state))
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
     } catch (e) {
-      console.warn('Failed to save chat history:', e)
+      console.warn('Failed to save chat messages:', e)
     }
   }
 
   /**
-   * Load messages from localStorage
+   * Load messages from storage (no longer used, kept for compatibility)
    */
   function loadFromStorage() {
-    try {
-      const stored = localStorage.getItem(storageKey)
-      if (stored) {
-        const state = JSON.parse(stored)
-        messages.value = state.messages || []
-        nextMessageId = state.nextMessageId || 1
-        return true
-      }
-    } catch (e) {
-      console.warn('Failed to load chat history:', e)
-    }
+    // State is now loaded via loadState() when sessions are initialized
     return false
   }
-
-  // Load from storage on init
-  loadFromStorage()
 
   /**
    * Generate unique message ID
@@ -471,31 +500,6 @@ export function useStudioChat(options = {}) {
   }
 
   /**
-   * Load state from external source (for session switching)
-   * @param {Object} state - { messages, nextMessageId }
-   */
-  function loadState(state) {
-    if (state) {
-      messages.value = state.messages || []
-      nextMessageId = state.nextMessageId || 1
-    } else {
-      messages.value = []
-      nextMessageId = 1
-    }
-  }
-
-  /**
-   * Get current state (for saving to session)
-   * @returns {Object} { messages, nextMessageId }
-   */
-  function getState() {
-    return {
-      messages: messages.value,
-      nextMessageId
-    }
-  }
-
-  /**
    * Edit an existing window content using the appropriate capability
    * @param {Object} options - Edit options
    * @param {string} options.windowType - Type of window (tool, chart, mermaid, svg, codeResult)
@@ -612,8 +616,11 @@ export function useStudioChat(options = {}) {
     deleteMessagePair,
     stopStreaming,
     clearChat,
+    onOutput,
+
+    // Session support
+    setSessionManager,
     loadState,
-    getState,
-    onOutput
+    getState
   }
 }

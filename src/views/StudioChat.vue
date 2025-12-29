@@ -1,16 +1,32 @@
 <template>
   <AppLayout ref="appLayoutRef" storage-key="studio-layout">
-    <!-- Side Panel: Chat -->
+    <!-- Side Panel: Chat or Session Browser -->
     <template #side>
       <SessionTabs
         :sessions="sessions.sortedSessions.value"
         :active-session-id="sessions.activeSessionId.value"
         @select="handleSelectSession"
-        @close="handleCloseSession"
+        @close="handleCloseTab"
         @new="handleNewSession"
         @rename="handleRenameSession"
+        @browse="isBrowsingSessions = true"
       />
+
+      <!-- Session Browser -->
+      <SessionBrowser
+        v-if="isBrowsingSessions"
+        :sessions="sessions.allSessions.value"
+        :active-session-id="sessions.activeSessionId.value"
+        @close="isBrowsingSessions = false"
+        @select="handleBrowserSelectSession"
+        @delete="handleDeleteSession"
+        @new="handleBrowserNewSession"
+        @rename="handleRenameSession"
+      />
+
+      <!-- Chat Panel -->
       <ChatPanel
+        v-else
         ref="chatPanelRef"
         v-model="inputText"
         v-model:router-model="modelSelection.routerModel.value"
@@ -66,6 +82,7 @@ import AppLayout from '../components/AppLayout.vue'
 import ChatPanel from '../components/studio/ChatPanel.vue'
 import CanvasPanel from '../components/studio/CanvasPanel.vue'
 import SessionTabs from '../components/studio/SessionTabs.vue'
+import SessionBrowser from '../components/studio/SessionBrowser.vue'
 import SlideTransition from '../components/SlideTransition.vue'
 import { useModelSelection } from '../composables/useModelSelection.js'
 import { useAttachments } from '../composables/useAttachments.js'
@@ -75,6 +92,9 @@ import { useStudioChat } from '../composables/studio/useStudioChat.js'
 import { useStudioCanvas } from '../composables/studio/useStudioCanvas.js'
 import { useStudioSessions } from '../composables/studio/useStudioSessions.js'
 
+// Initialize sessions (simplified - single session mode)
+const sessions = useStudioSessions()
+
 // Initialize composables
 const modelSelection = useModelSelection()
 const attachments = useAttachments()
@@ -82,127 +102,107 @@ const webSearch = useWebSearch()
 const planning = usePlanning()
 const chat = useStudioChat()
 const canvas = useStudioCanvas()
-const sessions = useStudioSessions()
 
 // Local state
 const inputText = ref('')
 const chatPanelRef = ref(null)
 const appLayoutRef = ref(null)
 const canvasPanelRef = ref(null)
+const isBrowsingSessions = ref(false)
 
-// Track if session state has been loaded
-const isSessionLoaded = ref(false)
+// Set up session manager integration
+chat.setSessionManager(sessions)
+canvas.setSessionManager(sessions)
 
 // Session handlers
 function handleSelectSession(sessionId) {
-  if (sessionId === sessions.activeSessionId.value) return
+  if (sessionId === sessions.activeSessionId.value) {
+    // Close browser if clicking the active session
+    isBrowsingSessions.value = false
+    return
+  }
 
-  // Save current session state
+  // Show the session in tabs (in case it was hidden)
+  sessions.showSession(sessionId)
+
+  // Explicitly save current chat and canvas state before switching
   sessions.updateChatState(chat.getState())
   sessions.updateCanvasState(canvas.getState())
 
-  // Switch to new session and load its data
+  // Switch to the selected session
   const sessionData = sessions.switchToSession(sessionId)
   if (sessionData) {
-    loadSessionData(sessionData)
+    // Load the new session's data into chat and canvas
+    chat.loadState(sessionData.chat)
+    canvas.loadState(sessionData.canvas)
+    isBrowsingSessions.value = false
   }
 }
 
 function handleNewSession() {
-  // Save current session state first
-  if (isSessionLoaded.value) {
-    sessions.updateChatState(chat.getState())
-    sessions.updateCanvasState(canvas.getState())
-  }
-
-  // Create new session
   sessions.createNewSession()
-
-  // Clear chat and canvas for new session
+  // New session starts with empty state
   chat.loadState({ messages: [], nextMessageId: 1 })
-  canvas.loadState({ canvasWindows: [], nextWindowId: 1, cascadeOffset: { x: 0, y: 0 }, maxZIndex: 100 })
-  isSessionLoaded.value = true
+  canvas.loadState({
+    windows: [],
+    nextWindowId: 1,
+    cascadeOffset: { x: 0, y: 0 },
+    maxZIndex: 100
+  })
+  isBrowsingSessions.value = false
 }
 
-function handleCloseSession(sessionId) {
-  // Don't allow closing the last session
-  if (sessions.sessions.value.length <= 1) return
+function handleCloseTab(sessionId) {
+  // If closing the active session, first switch to another visible session
+  if (sessionId === sessions.activeSessionId.value) {
+    const visibleSessions = sessions.sortedSessions.value
+    if (visibleSessions.length > 0) {
+      // Explicitly save current state before switching
+      sessions.updateChatState(chat.getState())
+      sessions.updateCanvasState(canvas.getState())
 
-  const switchToId = sessions.deleteSession(sessionId)
-  if (switchToId !== null) {
-    // Load the session we switched to
-    const sessionData = sessions.switchToSession(switchToId)
-    if (sessionData) {
-      loadSessionData(sessionData)
+      // Switch to the first visible session (usually the previous one)
+      const targetSessionId = visibleSessions[0].id
+      sessions.showSession(targetSessionId)
+      const sessionData = sessions.switchToSession(targetSessionId)
+      if (sessionData) {
+        chat.loadState(sessionData.chat)
+        canvas.loadState(sessionData.canvas)
+      }
     }
   }
+
+  // Then hide the session (remove from tabs)
+  sessions.hideSession(sessionId)
+}
+
+function handleDeleteSession(sessionId) {
+  sessions.deleteSession(sessionId)
 }
 
 function handleRenameSession(sessionId, newName) {
   sessions.renameSession(sessionId, newName)
 }
 
-// Load session data into chat and canvas
-function loadSessionData(sessionData) {
-  chat.loadState(sessionData.chat)
-  canvas.loadState(sessionData.canvas)
-
-  // Load model selections if available
-  if (sessionData.models.routerModel && modelSelection.allModels.value.find(m => m.id === sessionData.models.routerModel)) {
-    modelSelection.routerModel.value = sessionData.models.routerModel
-  }
-  if (sessionData.models.executorModel && modelSelection.allModels.value.find(m => m.id === sessionData.models.executorModel)) {
-    modelSelection.executorModel.value = sessionData.models.executorModel
-  }
-
-  isSessionLoaded.value = true
+// Session Browser handlers
+function handleBrowserSelectSession(sessionId) {
+  handleSelectSession(sessionId)
 }
 
-// Watch for model selection changes and save to session
-watch([modelSelection.routerModel, modelSelection.executorModel], ([router, executor]) => {
-  if (isSessionLoaded.value && sessions.activeSessionId.value) {
-    sessions.updateModelSelections(router, executor)
-  }
-})
-
-// Watch for chat state changes and save to session
-watch(() => chat.getState(), (chatState) => {
-  if (isSessionLoaded.value && sessions.activeSessionId.value) {
-    sessions.updateChatState(chatState)
-  }
-}, { deep: true })
-
-// Watch for canvas state changes and save to session
-watch(() => canvas.getState(), (canvasState) => {
-  if (isSessionLoaded.value && sessions.activeSessionId.value) {
-    sessions.updateCanvasState(canvasState)
-  }
-}, { deep: true })
+function handleBrowserNewSession() {
+  handleNewSession()
+}
 
 // Initialize on mount
 onMounted(async () => {
-  // Initialize sessions from localStorage
-  const sessionId = sessions.initializeSessions()
-
+  await sessions.initializeSessions()
   await modelSelection.initialize()
 
-  // Load the active session's data
-  const chatState = sessions.loadChatState(sessionId)
-  const canvasState = sessions.loadCanvasState(sessionId)
-  const modelsState = sessions.getModelSelections(sessionId)
-
-  chat.loadState(chatState)
-  canvas.loadState(canvasState)
-
-  // Load model selections if models exist and are still available
-  if (modelsState.routerModel && modelSelection.allModels.value.find(m => m.id === modelsState.routerModel)) {
-    modelSelection.routerModel.value = modelsState.routerModel
-  }
-  if (modelsState.executorModel && modelSelection.allModels.value.find(m => m.id === modelsState.executorModel)) {
-    modelSelection.executorModel.value = modelsState.executorModel
-  }
-
-  isSessionLoaded.value = true
+  // Load the initial session's data into chat and canvas
+  const initialChatState = sessions.activeChatState.value
+  const initialCanvasState = sessions.activeCanvasState.value
+  chat.loadState(initialChatState)
+  canvas.loadState(initialCanvasState)
 })
 
 // Watch input for URL detection
@@ -218,11 +218,6 @@ watch(() => chatPanelRef.value?.messageListRef?.containerRef, (newRef) => {
 // Listen for output events and add windows to canvas
 chat.onOutput((output) => {
   canvas.addWindow(output)
-})
-
-// Initialize on mount
-onMounted(async () => {
-  await modelSelection.initialize()
 })
 
 // Trigger file upload
@@ -263,7 +258,6 @@ async function handleEditWindow({ windowId, windowType, currentContent, prompt, 
       },
       onComplete: (updatedContent) => {
         canvas.updateWindowContent(windowId, updatedContent)
-        // Refresh tool library after content edit
         setTimeout(() => {
           canvasPanelRef.value?.reloadToolLibrary()
         }, 100)
@@ -276,19 +270,17 @@ async function handleEditWindow({ windowId, windowType, currentContent, prompt, 
   }
 }
 
-// Handle clone window - clones and refreshes tool library
+// Handle clone window
 function handleCloneWindow(window) {
   canvas.cloneWindow(window)
-  // Refresh tool library after clone
   setTimeout(() => {
     canvasPanelRef.value?.reloadToolLibrary()
   }, 100)
 }
 
-// Handle title update - updates and refreshes tool library
+// Handle title update
 function handleUpdateTitle(windowId, title) {
   canvas.updateWindowTitle(windowId, title)
-  // Refresh tool library after title change (for tools)
   setTimeout(() => {
     canvasPanelRef.value?.reloadToolLibrary()
   }, 100)
@@ -304,31 +296,23 @@ async function handleSend() {
   }
 
   const currentInputText = inputText.value
-
-  // Get attachment snapshot before clearing
   const attachmentSnapshot = attachments.getSnapshot()
 
-  // Clear input and attachments
   inputText.value = ''
   attachments.clearAll()
-
-  // Reset textarea height
   chatPanelRef.value?.messageInputRef?.resetHeight()
 
-  // Create callbacks for web search
   const searchCallbacks = webSearch.createSearchCallbacks({
     updateMessage: (updates) => chat.updateLastMessage(updates),
     scrollToBottom: () => chat.scrollToBottom()
   })
 
-  // Create callbacks for planning
   const planningCallbacks = planning.createPlanningCallbacks({
     updateMessage: (updates) => chat.updateLastMessage(updates),
     getMessage: () => chat.getLastMessage(),
     scrollToBottom: () => chat.scrollToBottom()
   })
 
-  // Send message (always uses 2-model mode)
   await chat.sendMessage({
     inputText: currentInputText,
     attachmentSnapshot,
@@ -343,7 +327,6 @@ async function handleSend() {
     planningCallbacks
   })
 
-  // Reset search and planning state
   webSearch.reset()
   planning.reset()
 }

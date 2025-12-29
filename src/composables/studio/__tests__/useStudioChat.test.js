@@ -400,6 +400,9 @@ describe('useStudioChat', () => {
       localStorageMock.getItem.mockReturnValue(JSON.stringify(savedState))
 
       const chat = useStudioChat()
+      // Manually load state (simulating what session manager would do)
+      const loadedState = JSON.parse(localStorageMock.getItem('studio-chat'))
+      chat.loadState(loadedState)
 
       expect(chat.messages.value).toHaveLength(2)
       expect(chat.messages.value[0].content).toBe('Test message')

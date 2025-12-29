@@ -70,7 +70,9 @@ describe('useStudioCanvas', () => {
       localStorageMock.getItem.mockReturnValue(JSON.stringify(savedState))
 
       const canvas = useStudioCanvas()
-      canvas.loadFromStorage()
+      // Manually load state (simulating what session manager would do)
+      const loadedState = JSON.parse(localStorageMock.getItem('studio-canvas-windows'))
+      canvas.loadState(loadedState)
 
       expect(canvas.windows.value).toHaveLength(1)
       expect(canvas.windows.value[0].id).toBe('window-1')

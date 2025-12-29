@@ -1,5 +1,17 @@
 <template>
   <div class="session-tabs">
+    <button
+      class="browse-btn"
+      @click="$emit('browse')"
+      title="Browse all sessions"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
+      </svg>
+    </button>
     <div class="tabs-container">
       <div
         v-for="session in sessions"
@@ -47,7 +59,7 @@ const props = defineProps({
   activeSessionId: { type: String, default: null }
 })
 
-const emit = defineEmits(['select', 'close', 'new', 'rename'])
+const emit = defineEmits(['select', 'close', 'new', 'rename', 'browse'])
 
 // Renaming state
 const renamingSessionId = ref(null)
@@ -84,16 +96,43 @@ function cancelRenaming() {
 .session-tabs {
   display: flex;
   align-items: center;
-  padding: 0.25rem 0.5rem 0;
+  padding: 0.5rem 0 0 0.5rem;
   background: var(--color-bg-surface);
   border-bottom: 1px solid var(--color-border-base);
-  min-height: 32px;
+  min-height: 42px;
+}
+
+.browse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--color-border-base);
+  background: var(--color-bg-base);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  border-radius: 6px 0 0 6px;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.browse-btn:hover {
+  background: var(--color-bg-hover);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-base);
+}
+
+.browse-btn svg {
+  width: 15px;
+  height: 15px;
 }
 
 .tabs-container {
   display: flex;
   flex: 1;
-  gap: 2px;
+  gap: 3px;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -105,16 +144,16 @@ function cancelRenaming() {
 .tab {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.35rem 0.6rem;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
   background: var(--color-bg-base);
   border: 1px solid var(--color-border-base);
   border-bottom: none;
-  border-radius: 4px 4px 0 0;
+  border-radius: 6px 6px 0 0;
   cursor: pointer;
   user-select: none;
-  min-width: 80px;
-  max-width: 150px;
+  min-width: 90px;
+  max-width: 160px;
   transition: all 0.15s;
   position: relative;
   top: 1px;
@@ -131,7 +170,7 @@ function cancelRenaming() {
 
 .tab-name {
   font-family: 'Georgia', 'Palatino Linotype', serif;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: var(--color-text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -146,12 +185,12 @@ function cancelRenaming() {
 
 .rename-input {
   font-family: 'Georgia', 'Palatino Linotype', serif;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   background: var(--color-bg-input);
   border: 1px solid var(--color-border-input);
-  border-radius: 2px;
+  border-radius: 3px;
   color: var(--color-text-base);
-  padding: 0.1rem 0.3rem;
+  padding: 0.15rem 0.4rem;
   width: 100%;
   flex: 1;
 }
@@ -165,8 +204,8 @@ function cancelRenaming() {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   padding: 0;
   border: none;
   background: transparent;
@@ -174,7 +213,7 @@ function cancelRenaming() {
   font-size: 1rem;
   line-height: 1;
   cursor: pointer;
-  border-radius: 2px;
+  border-radius: 3px;
   flex-shrink: 0;
   opacity: 0.6;
 }
@@ -188,8 +227,8 @@ function cancelRenaming() {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border: 1px solid var(--color-border-base);
   background: var(--color-bg-base);
@@ -197,7 +236,7 @@ function cancelRenaming() {
   font-size: 1rem;
   line-height: 1;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 0 6px 6px 0;
   flex-shrink: 0;
   transition: all 0.15s;
 }

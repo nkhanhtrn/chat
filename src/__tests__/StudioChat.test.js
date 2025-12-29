@@ -58,6 +58,24 @@ vi.mock('../components/AppLayout.vue', () => ({
   }
 }))
 
+vi.mock('../components/studio/SessionTabs.vue', () => ({
+  default: {
+    name: 'SessionTabs',
+    template: '<div class="session-tabs"></div>',
+    props: ['sessions', 'activeSessionId'],
+    emits: ['select', 'close', 'new', 'rename', 'browse']
+  }
+}))
+
+vi.mock('../components/studio/SessionBrowser.vue', () => ({
+  default: {
+    name: 'SessionBrowser',
+    template: '<div class="session-browser"></div>',
+    props: ['sessions', 'activeSessionId'],
+    emits: ['close', 'select', 'delete', 'new', 'rename']
+  }
+}))
+
 // Mock composables
 const mockModelSelection = {
   twoModelMode: ref(false),
@@ -118,7 +136,12 @@ const mockChat = {
   updateLastMessage: vi.fn(),
   getLastMessage: vi.fn(),
   scrollToBottom: vi.fn(),
-  onOutput: vi.fn()
+  onOutput: vi.fn(),
+  setSessionManager: vi.fn(),
+  loadState: vi.fn(),
+  getState: vi.fn(() => ({ messages: [], nextMessageId: 1 })),
+  deleteMessagePair: vi.fn(),
+  editWindow: vi.fn()
 }
 
 const mockCanvas = {
@@ -132,7 +155,13 @@ const mockCanvas = {
   bringToFront: vi.fn(),
   minimizeWindow: vi.fn(),
   restoreWindow: vi.fn(),
-  clearWindows: vi.fn()
+  clearWindows: vi.fn(),
+  setSessionManager: vi.fn(),
+  loadState: vi.fn(),
+  getState: vi.fn(() => ({ windows: [], nextWindowId: 1, cascadeOffset: { x: 0, y: 0 }, maxZIndex: 100 })),
+  updateWindowContent: vi.fn(),
+  updateWindowTitle: vi.fn(),
+  cloneWindow: vi.fn()
 }
 
 vi.mock('../composables/useModelSelection.js', () => ({
@@ -159,6 +188,33 @@ vi.mock('../composables/studio/useStudioCanvas.js', () => ({
   useStudioCanvas: () => mockCanvas
 }))
 
+const mockSessions = {
+  sessions: ref([]),
+  activeSessionId: ref(null),
+  activeSession: ref(null),
+  sortedSessions: ref([]),
+  allSessions: ref([]),
+  activeChatState: ref({ messages: [], nextMessageId: 1 }),
+  activeCanvasState: ref({ windows: [], nextWindowId: 1, cascadeOffset: { x: 0, y: 0 }, maxZIndex: 100 }),
+  initializeSessions: vi.fn(() => Promise.resolve()),
+  createNewSession: vi.fn(),
+  switchToSession: vi.fn(),
+  renameSession: vi.fn(),
+  hideSession: vi.fn(),
+  showSession: vi.fn(),
+  deleteSession: vi.fn(),
+  updateChatState: vi.fn(),
+  updateCanvasState: vi.fn(),
+  forceSyncToCloud: vi.fn(() => Promise.resolve()),
+  resetStateForTesting: vi.fn(),
+  enableSkipWatch: vi.fn(),
+  disableSkipWatch: vi.fn()
+}
+
+vi.mock('../composables/studio/useStudioSessions.js', () => ({
+  useStudioSessions: () => mockSessions
+}))
+
 describe('StudioChat', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -170,6 +226,9 @@ describe('StudioChat', () => {
     mockCanvas.windows.value = []
     mockCanvas.visibleWindows.value = []
     mockCanvas.minimizedWindowsByCategory.value = []
+    mockSessions.sessions.value = []
+    mockSessions.sortedSessions.value = []
+    mockSessions.allSessions.value = []
   })
 
   describe('rendering', () => {

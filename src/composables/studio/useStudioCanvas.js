@@ -2,6 +2,7 @@ import { ref, watch, computed } from 'vue'
 import { saveTool } from '../../services/indexedDB.js'
 
 const STORAGE_KEY = 'studio-canvas-windows'
+let sessionManager = null
 
 // Shared state (singleton pattern)
 const windows = ref([])
@@ -42,16 +43,60 @@ const MIN_SIZES = {
 }
 
 /**
- * Save state to localStorage
+ * Set the session manager (called by parent component)
+ */
+function setSessionManager(manager) {
+  sessionManager = manager
+}
+
+/**
+ * Load state from session data (for session switching)
+ */
+function loadState(canvasState) {
+  if (canvasState) {
+    windows.value = canvasState.windows || []
+    nextWindowId.value = canvasState.nextWindowId || 1
+    cascadeOffset.value = canvasState.cascadeOffset || { x: 0, y: 0 }
+    maxZIndex.value = canvasState.maxZIndex || 100
+  } else {
+    windows.value = []
+    nextWindowId.value = 1
+    cascadeOffset.value = { x: 0, y: 0 }
+    maxZIndex.value = 100
+  }
+}
+
+/**
+ * Get current state (for session switching)
+ */
+function getState() {
+  return {
+    windows: windows.value,
+    nextWindowId: nextWindowId.value,
+    cascadeOffset: cascadeOffset.value,
+    maxZIndex: maxZIndex.value
+  }
+}
+
+/**
+ * Save state to session (via session manager or localStorage)
  */
 function saveToStorage() {
+  const state = {
+    windows: windows.value,
+    nextWindowId: nextWindowId.value,
+    cascadeOffset: cascadeOffset.value,
+    maxZIndex: maxZIndex.value
+  }
+
+  // If session manager is available, use it
+  if (sessionManager) {
+    sessionManager.updateCanvasState(state)
+    return
+  }
+
+  // Fall back to localStorage for backwards compatibility
   try {
-    const state = {
-      windows: windows.value,
-      nextWindowId: nextWindowId.value,
-      cascadeOffset: cascadeOffset.value,
-      maxZIndex: maxZIndex.value
-    }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
   } catch (e) {
     console.warn('Failed to save canvas state:', e)
@@ -59,24 +104,14 @@ function saveToStorage() {
 }
 
 /**
- * Load state from localStorage
+ * Load state from storage (no longer used, kept for compatibility)
  */
 function loadFromStorage() {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) {
-      const state = JSON.parse(stored)
-      windows.value = state.windows || []
-      nextWindowId.value = state.nextWindowId || 1
-      cascadeOffset.value = state.cascadeOffset || { x: 0, y: 0 }
-      maxZIndex.value = state.maxZIndex || 100
-      return true
-    }
-  } catch (e) {
-    console.warn('Failed to load canvas state:', e)
-  }
+  // State is now loaded via loadState() when sessions are initialized
   return false
 }
+
+// Don't auto-load from storage on module load - sessions will handle this
 
 /**
  * Get next cascade position
@@ -385,40 +420,6 @@ function resetState() {
 }
 
 /**
- * Load state from external source (for session switching)
- * @param {Object} state - { canvasWindows, nextWindowId, cascadeOffset, maxZIndex }
- */
-function loadState(state) {
-  if (state) {
-    windows.value = state.canvasWindows || []
-    nextWindowId.value = state.nextWindowId || 1
-    cascadeOffset.value = state.cascadeOffset || { x: 0, y: 0 }
-    maxZIndex.value = state.maxZIndex || 100
-  } else {
-    windows.value = []
-    nextWindowId.value = 1
-    cascadeOffset.value = { x: 0, y: 0 }
-    maxZIndex.value = 100
-  }
-}
-
-/**
- * Get current state (for saving to session)
- * @returns {Object} { canvasWindows, nextWindowId, cascadeOffset, maxZIndex }
- */
-function getState() {
-  return {
-    canvasWindows: windows.value,
-    nextWindowId: nextWindowId.value,
-    cascadeOffset: cascadeOffset.value,
-    maxZIndex: maxZIndex.value
-  }
-}
-
-// Initialize from storage on module load (legacy, will be overridden by sessions)
-loadFromStorage()
-
-/**
  * Composable for managing output windows in the Studio canvas
  */
 export function useStudioCanvas() {
@@ -453,6 +454,9 @@ export function useStudioCanvas() {
     // Storage
     saveToStorage,
     loadFromStorage,
+
+    // Session support
+    setSessionManager,
     loadState,
     getState,
 
