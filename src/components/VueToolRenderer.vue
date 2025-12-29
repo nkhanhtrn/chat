@@ -8,10 +8,14 @@
 </template>
 
 <script setup>
-import { ref, watch, shallowRef, defineComponent, onErrorCaptured, onUnmounted } from 'vue'
+import { ref, watch, shallowRef, defineComponent, onErrorCaptured, onUnmounted, provide, nextTick, watch as vueWatch } from 'vue'
+import { useToolInstanceStore } from '../composables/studio/useToolInstanceStore.js'
 
 const props = defineProps({
-  code: { type: String, required: true }
+  code: { type: String, required: true },
+  toolId: { type: String, default: () => `inst-${Date.now()}-${Math.random().toString(36).slice(2, 9)}` },  // Falls back to random ID for tests
+  sessionId: { type: String, default: 'default' },  // Session ID for isolation
+  toolName: { type: String, default: 'unknown' }
 })
 
 const compiledComponent = shallowRef(null)
@@ -114,7 +118,51 @@ function buildComponent(template, script) {
   if (match) {
     try {
       const options = new Function(`return ${match[1]}`)()
-      return defineComponent({ ...options, template })
+
+      // Wrap the data() function to merge saved data before initial render
+      const originalData = options.data
+      const wrappedData = originalData
+        ? function () {
+            const initialData = typeof originalData === 'function' ? originalData.call(this) : originalData
+            // Merge saved data into initial data
+            const persist = useToolInstanceStore(props.toolName, props.toolId, props.sessionId)
+            const savedData = persist.getState()
+            console.log('[VueToolRenderer] Restoring data for', props.toolName, props.toolId, { initialData, savedData })
+            return { ...initialData, ...savedData }
+          }
+        : () => ({})
+
+      // Create wrapper component that injects persist API and auto-saves data
+      return defineComponent({
+        ...options,
+        data: wrappedData,
+        template,
+        setup() {
+          // Create persist store for this instance
+          const persist = useToolInstanceStore(props.toolName, props.toolId, props.sessionId)
+
+          console.log('[VueToolRenderer] Options API setup - toolName:', props.toolName, 'toolId:', props.toolId, 'persist:', persist)
+
+          // Run original setup if present
+          const originalResult = options.setup ? options.setup() : {}
+
+          // Inject persist API and instance ID into the component (use non-reserved names)
+          return {
+            ...originalResult,
+            persistApi: persist,
+            toolInstanceId: props.toolId
+          }
+        },
+        mounted() {
+          console.log('[VueToolRenderer] Options API mounted - persistApi:', this.persistApi, 'toolInstanceId:', this.toolInstanceId)
+          // Set up auto-save watchers for all data properties
+          setupAutoSaveWatchers(this, this.persistApi)
+          // Call original mounted if present
+          if (options.mounted) {
+            return options.mounted.call(this)
+          }
+        }
+      })
     } catch (e) {
       console.error('Options parse error:', e)
     }
@@ -143,7 +191,49 @@ function buildSetupComponent(template, script) {
     const Vue = { ref, reactive, computed, watch, watchEffect: () => {}, onMounted: () => {}, onUnmounted: () => {} }
 
     return defineComponent({
-      setup: () => setupFn(Vue),
+      setup() {
+        // Create persist store for this instance
+        const persist = useToolInstanceStore(props.toolName, props.toolId, props.sessionId)
+
+        // Get saved data BEFORE running setup
+        const savedData = persist.getState()
+
+        console.log('[VueToolRenderer] Composition API - saved data:', savedData)
+
+        // Run the original setup function
+        const originalResult = setupFn(Vue)
+
+        // Restore saved data into refs/reactive objects BEFORE setting up watchers
+        Object.keys(savedData).forEach(key => {
+          if (key === 'persistApi' || key === 'toolInstanceId') return
+          const value = originalResult[key]
+          if (value && typeof value === 'object') {
+            if ('value' in value) {
+              // It's a ref - restore its value
+              console.log('[VueToolRenderer] Restoring ref', key, '=', savedData[key])
+              value.value = savedData[key]
+            } else {
+              // It's a reactive object - merge saved data
+              console.log('[VueToolRenderer] Restoring reactive object', key, savedData[key])
+              Object.assign(value, savedData[key])
+            }
+          }
+        })
+
+        // Inject persist API and instance ID into the component (use non-reserved names)
+        const result = {
+          ...originalResult,
+          persistApi: persist,
+          toolInstanceId: props.toolId
+        }
+
+        // Set up auto-save watchers AFTER restoration (to avoid race condition)
+        nextTick(() => {
+          setupAutoSaveForReactive(originalResult, persist)
+        })
+
+        return result
+      },
       template
     })
   } catch (e) {
@@ -154,6 +244,75 @@ function buildSetupComponent(template, script) {
 
 // Need to import these for the setup fallback
 import { reactive, computed, watchEffect } from 'vue'
+
+/**
+ * Set up auto-save watchers for Options API component data properties
+ */
+function setupAutoSaveWatchers(componentInstance, persist) {
+  if (!componentInstance?.$data || !persist) {
+    console.log('[VueToolRenderer] setupAutoSaveWatchers skipped - no data or persist', { hasData: !!componentInstance?.$data, hasPersist: !!persist })
+    return
+  }
+
+  console.log('[VueToolRenderer] Setting up auto-save watchers for', Object.keys(componentInstance.$data).filter(k => !k.startsWith('$') && !k.startsWith('_')))
+
+  // Watch all data properties and auto-save changes
+  Object.keys(componentInstance.$data).forEach(key => {
+    // Skip internal properties
+    if (key.startsWith('$') || key.startsWith('_')) return
+
+    vueWatch(
+      () => componentInstance.$data[key],
+      (newValue) => {
+        console.log('[VueToolRenderer] Auto-saving', key, '=', newValue)
+        persist?.set?.(key, newValue)
+      },
+      { deep: true }
+    )
+  })
+}
+
+/**
+ * Set up auto-save for Composition API reactive state
+ */
+function setupAutoSaveForReactive(setupResult, persist) {
+  if (!setupResult || typeof setupResult !== 'object') return
+
+  console.log('[VueToolRenderer] Setting up Composition API watchers for', Object.keys(setupResult).filter(k => k !== 'persistApi' && k !== 'toolInstanceId'))
+
+  // Watch all reactive values from setup
+  Object.keys(setupResult).forEach(key => {
+    const value = setupResult[key]
+
+    // Skip persistApi and toolInstanceId
+    if (key === 'persistApi' || key === 'toolInstanceId') return
+
+    // Check if it's a ref or reactive object
+    if (value && typeof value === 'object') {
+      if ('value' in value) {
+        // It's a ref - watch it
+        vueWatch(
+          () => value.value,
+          (newValue) => {
+            console.log('[VueToolRenderer] Composition API auto-saving', key, '=', newValue)
+            persist.set(key, newValue)
+          },
+          { deep: true }
+        )
+      } else {
+        // It's a reactive object - watch it deeply
+        vueWatch(
+          () => ({ ...value }),
+          (newValue) => {
+            console.log('[VueToolRenderer] Composition API auto-saving object', key, newValue)
+            persist.set(key, newValue)
+          },
+          { deep: true }
+        )
+      }
+    }
+  })
+}
 
 watch(() => props.code, compile, { immediate: true })
 

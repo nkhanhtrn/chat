@@ -153,8 +153,22 @@ function generateTitle(type, content) {
 
 /**
  * Add a new window to the canvas
+ * For tool type: closes any existing tool windows first (one tool at a time)
+ * @param {Object} options - Window options
+ * @param {string} options.messageId - Message ID
+ * @param {string} options.type - Window type
+ * @param {Object} options.content - Window content
+ * @param {boolean} options.preserveExisting - If true, don't close existing tool windows (for cloning)
  */
-function addWindow({ messageId, type, content }) {
+function addWindow({ messageId, type, content, preserveExisting }) {
+  // If adding a tool window (and not preserving existing), close any existing tool windows first
+  if (type === 'tool' && !preserveExisting) {
+    const existingToolWindows = windows.value.filter(w => w.type === 'tool')
+    for (const existingWindow of existingToolWindows) {
+      removeWindow(existingWindow.id)
+    }
+  }
+
   const id = `window-${nextWindowId.value++}`
   const position = getNextCascadePosition()
   const size = DEFAULT_SIZES[type] || { width: 400, height: 300 }
@@ -366,7 +380,8 @@ function cloneWindow(window) {
 
   const newWindow = addWindow({
     type: window.type,
-    content: clonedContent
+    content: clonedContent,
+    preserveExisting: true  // Keep the original window when cloning
   })
 
   // Save cloned tool to IndexedDB

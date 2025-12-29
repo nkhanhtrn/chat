@@ -92,7 +92,13 @@
 
       <!-- Tool -->
       <div v-else-if="window.type === 'tool'" class="tool-wrapper">
-        <VueToolRenderer v-if="isVueSfcTool" :code="window.content.code" />
+        <VueToolRenderer
+          v-if="isVueSfcTool"
+          :code="window.content.code"
+          :toolId="window.content.id"
+          :sessionId="sessionId"
+          :toolName="window.content.name || 'unnamed-tool'"
+        />
         <ToolRenderer v-else :tool="window.content" />
       </div>
 
@@ -165,7 +171,8 @@ import { parseChartOption } from '../../utils/chart.js'
 
 const props = defineProps({
   window: { type: Object, required: true },
-  containerRect: { type: Object, default: () => ({ width: 0, height: 0 }) }
+  containerRect: { type: Object, default: () => ({ width: 0, height: 0 }) },
+  sessionId: { type: String, default: 'default' }
 })
 
 const emit = defineEmits(['close', 'minimize', 'clone', 'update:position', 'update:size', 'update:title', 'bring-to-front', 'edit-window'])

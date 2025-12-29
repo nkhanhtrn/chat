@@ -1,4 +1,10 @@
 import { ref, computed, watch, nextTick } from 'vue'
+import {
+  saveStudioSessionsToFirestore,
+  loadStudioSessionsFromFirestore,
+  deleteStudioSessionFromFirestore,
+  mergeCloudLocal
+} from '../../services/firestore.js'
 
 const STORAGE_KEY = 'studio-sessions'
 const CHAT_STORAGE_KEY = 'studio-chat'
@@ -19,7 +25,7 @@ function generateSessionId() {
 /**
  * Save sessions to localStorage
  */
-function saveToStorage() {
+async function saveToStorage() {
   try {
     const state = {
       sessions: sessions.value.map(s => ({
@@ -33,6 +39,9 @@ function saveToStorage() {
       nextSessionNumber: nextSessionNumber.value
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+
+    // Also sync to Firestore
+    await saveStudioSessionsToFirestore(sessions.value, activeSessionId.value)
   } catch (e) {
     console.warn('Failed to save sessions:', e)
   }
@@ -143,17 +152,54 @@ function migrateLegacyData() {
 }
 
 /**
- * Initialize sessions from localStorage
+ * Initialize sessions from Firestore with bidirectional merge (same as tools/notebooks)
+ * Uses generic mergeCloudLocal utility
  */
 async function initializeSessions() {
   skipWatch = true
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) {
-      const state = JSON.parse(stored)
-      sessions.value = state.sessions || []
-      activeSessionId.value = state.activeSessionId || null
-      nextSessionNumber.value = state.nextSessionNumber || 1
+    // Load both cloud and local sessions
+    const cloudData = await loadStudioSessionsFromFirestore()
+    const localStored = localStorage.getItem(STORAGE_KEY)
+    const localState = localStored ? JSON.parse(localStored) : { sessions: [], activeSessionId: null, nextSessionNumber: 1 }
+
+    const cloudSessions = cloudData?.sessions || []
+    const localSessions = localState.sessions || []
+
+    // Use generic merge utility
+    const { merged: mergedSessions, toUpload: sessionsToUpload, fromCloud, toCloud } =
+      mergeCloudLocal(cloudSessions, localSessions)
+
+    // Sort by createdAt to maintain order
+    mergedSessions.sort((a, b) => a.createdAt - b.createdAt)
+
+    sessions.value = mergedSessions
+
+    // Calculate nextSessionNumber from all sessions
+    nextSessionNumber.value = Math.max(...mergedSessions.map(s => {
+      const match = s.name.match(/Session (\d+)/)
+      return match ? parseInt(match[1]) + 1 : 1
+    }), localState.nextSessionNumber || 1)
+
+    // Active session: prefer cloud's active, fall back to local's, then first session
+    activeSessionId.value = cloudData?.activeSessionId || localState.activeSessionId || sessions.value[0]?.id || null
+
+    // Upload local-only and newer sessions to cloud
+    if (sessionsToUpload.length > 0) {
+      saveStudioSessionsToFirestore(sessionsToUpload, activeSessionId.value).catch(err =>
+        console.error('Failed to upload merged sessions to cloud:', err)
+      )
+    }
+
+    // Save merged state to localStorage
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      sessions: sessions.value,
+      activeSessionId: activeSessionId.value,
+      nextSessionNumber: nextSessionNumber.value
+    }))
+
+    if (fromCloud > 0 || toCloud > 0) {
+      console.log(`Sessions merge: ${fromCloud} from cloud, ${toCloud} to cloud`)
     }
 
     // If no sessions exist, migrate legacy data or create default session
@@ -286,12 +332,29 @@ async function deleteSession(sessionId) {
   try {
     localStorage.removeItem(`${CHAT_STORAGE_KEY}-${sessionId}`)
     localStorage.removeItem(`${CANVAS_STORAGE_KEY}-${sessionId}`)
+
+    // Clean up tool instance data for this session
+    // Tool instance keys are stored as: tool-instance-${sessionId}-${toolId}
+    const toolPrefix = `tool-instance-${sessionId}-`
+    const keysToRemove = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && key.startsWith(toolPrefix)) {
+        keysToRemove.push(key)
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key))
+
+    console.log(`Deleted ${keysToRemove.length} tool instance data entries for session ${sessionId}`)
   } catch (e) {
     console.warn('Failed to clean up session storage:', e)
   }
 
   sessions.value.splice(sessionIndex, 1)
   saveToStorage()
+
+  // Also delete from Firestore
+  await deleteStudioSessionFromFirestore(sessionId)
 
   return session
 }
@@ -339,10 +402,10 @@ function updateCanvasState(canvasState) {
 }
 
 /**
- * Force sync to cloud - no-op for now (could be added later)
+ * Force sync to cloud - immediately sync all sessions to Firestore
  */
 async function forceSyncToCloud() {
-  // No cloud sync for sessions currently
+  await saveStudioSessionsToFirestore(sessions.value, activeSessionId.value)
 }
 
 /**

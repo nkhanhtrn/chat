@@ -181,6 +181,53 @@ describe('useStudioCanvas', () => {
 
       expect(localStorageMock.setItem).toHaveBeenCalled()
     })
+
+    it('should close existing tool windows when adding a new tool window', () => {
+      const canvas = useStudioCanvas()
+
+      // Add first tool window
+      const tool1 = canvas.addWindow({ messageId: 'msg-1', type: 'tool', content: { name: 'Tool 1' } })
+      expect(canvas.windows.value).toHaveLength(1)
+
+      // Add second tool window - should replace the first
+      const tool2 = canvas.addWindow({ messageId: 'msg-2', type: 'tool', content: { name: 'Tool 2' } })
+      expect(canvas.windows.value).toHaveLength(1)
+      expect(canvas.windows.value[0].id).toBe(tool2.id)
+      expect(canvas.windows.value[0].content.name).toBe('Tool 2')
+    })
+
+    it('should not close non-tool windows when adding a tool window', () => {
+      const canvas = useStudioCanvas()
+
+      // Add a chart first
+      canvas.addWindow({ messageId: 'msg-1', type: 'chart', content: {} })
+      expect(canvas.windows.value).toHaveLength(1)
+
+      // Add a tool - should only replace existing tools, not charts
+      const tool = canvas.addWindow({ messageId: 'msg-2', type: 'tool', content: { name: 'Tool' } })
+      expect(canvas.windows.value).toHaveLength(2)
+      expect(canvas.windows.value[0].type).toBe('chart')
+      expect(canvas.windows.value[1].type).toBe('tool')
+    })
+
+    it('should preserve existing windows when using preserveExisting flag', () => {
+      const canvas = useStudioCanvas()
+
+      // Add first tool window
+      const tool1 = canvas.addWindow({ messageId: 'msg-1', type: 'tool', content: { name: 'Tool 1' } })
+
+      // Add second tool with preserveExisting flag (for cloning)
+      const tool2 = canvas.addWindow({
+        messageId: 'msg-2',
+        type: 'tool',
+        content: { name: 'Tool 2' },
+        preserveExisting: true
+      })
+
+      expect(canvas.windows.value).toHaveLength(2)
+      expect(canvas.windows.value[0].id).toBe(tool1.id)
+      expect(canvas.windows.value[1].id).toBe(tool2.id)
+    })
   })
 
   describe('removeWindow', () => {

@@ -22,6 +22,7 @@
         :key="window.id"
         :window="window"
         :container-rect="containerRect"
+        :sessionId="sessionId"
         @close="$emit('close-window', window.id)"
         @minimize="$emit('minimize-window', window.id)"
         @clone="$emit('clone-window', window)"
@@ -50,7 +51,8 @@ import ToolLibrary from './ToolLibrary.vue'
 
 defineProps({
   visibleWindows: { type: Array, default: () => [] },
-  minimizedCategories: { type: Array, default: () => [] }
+  minimizedCategories: { type: Array, default: () => [] },
+  sessionId: { type: String, default: 'default' }
 })
 
 defineEmits(['close-window', 'minimize-window', 'clone-window', 'restore-window', 'update-position', 'update-size', 'update-title', 'bring-to-front', 'edit-window', 'open-tool'])

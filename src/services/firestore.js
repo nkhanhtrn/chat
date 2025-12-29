@@ -726,6 +726,63 @@ export const permanentlyDeleteToolFromFirestore = async (toolId) => {
 }
 
 // ============================================
+// Generic Merge Utility (for tools, sessions, notebooks)
+// ============================================
+
+/**
+ * Generic bidirectional merge between cloud and local data
+ * Strategy:
+ * - Cloud has item local doesn't → add to local
+ * - Local has item cloud doesn't → upload to cloud
+ * - Both have same item → use newer version (by updatedAt), sync to both
+ *
+ * @param {Array} cloudItems - Items from cloud
+ * @param {Array} localItems - Items from local storage
+ * @returns {Object} { merged: Array, toUpload: Array, fromCloud: number, toCloud: number }
+ */
+export const mergeCloudLocal = (cloudItems, localItems) => {
+  const cloudMap = new Map(cloudItems.map(item => [item.id, item]))
+  const localMap = new Map(localItems.map(item => [item.id, item]))
+
+  const merged = []
+  const toUpload = []
+  let fromCloud = 0
+  let toCloud = 0
+
+  // Get all unique IDs
+  const allIds = new Set([...cloudItems.map(i => i.id), ...localItems.map(i => i.id)])
+
+  for (const id of allIds) {
+    const cloudItem = cloudMap.get(id)
+    const localItem = localMap.get(id)
+
+    if (!cloudItem) {
+      // Local-only → use local, upload to cloud
+      merged.push(localItem)
+      toUpload.push(localItem)
+      toCloud++
+    } else if (!localItem) {
+      // Cloud-only → use cloud
+      merged.push(cloudItem)
+      fromCloud++
+    } else if (cloudItem.updatedAt > localItem.updatedAt) {
+      // Cloud is newer → use cloud
+      merged.push(cloudItem)
+      fromCloud++
+    } else {
+      // Local is newer or same → use local
+      merged.push(localItem)
+      if (localItem.updatedAt > cloudItem.updatedAt) {
+        toUpload.push(localItem)
+        toCloud++
+      }
+    }
+  }
+
+  return { merged, toUpload, fromCloud, toCloud }
+}
+
+// ============================================
 // Studio Sessions (Cloud Sync)
 // ============================================
 
@@ -751,17 +808,20 @@ export const saveStudioSessionsToFirestore = async (sessions, activeSessionId) =
     // Use batch to write all sessions
     const batch = writeBatch(db)
 
-    // Add each session to batch
+    // Add each session to batch (including tool instance data)
     for (const session of sessions) {
+      // Collect tool instance data for this session from localStorage
+      const toolInstanceData = collectToolInstanceData(session.id)
+
       const sessionRef = doc(db, 'users', user.uid, 'studioSessions', session.id)
       batch.set(sessionRef, {
         ...session,
+        toolInstanceData, // Include tool instance data in session document
         lastUpdated: serverTimestamp()
-      })
+      }, { merge: true })
     }
 
     // Also save metadata (active session ID, next session number)
-    // Extract nextSessionNumber from sessions (it's stored in the closure in the composable)
     const metadataRef = doc(db, 'users', user.uid, 'studioSessions', 'metadata')
     batch.set(metadataRef, {
       activeSessionId,
@@ -773,6 +833,70 @@ export const saveStudioSessionsToFirestore = async (sessions, activeSessionId) =
   } catch (error) {
     console.error('Failed to save studio sessions to Firestore:', error)
     throw error
+  }
+}
+
+/**
+ * Save tool instance data to Firestore (immediate sync when tool data changes)
+ * Uses dot notation to update only the specific tool's nested field
+ * @param {string} sessionId - The session ID
+ * @param {string} toolId - The tool ID
+ * @param {Object} data - The tool instance data
+ * @returns {Promise<void>}
+ */
+export const saveToolInstanceDataImmediate = async (sessionId, toolId, data) => {
+  try {
+    const auth = getFirebaseAuth()
+    const user = auth.currentUser
+
+    if (!user) {
+      console.warn('No authenticated user, skipping tool instance data cloud sync')
+      return
+    }
+
+    const db = getFirebaseDb()
+    const sessionRef = doc(db, 'users', user.uid, 'studioSessions', sessionId)
+
+    // Use dot notation to update only the specific tool's data
+    // This prevents overwriting other tools' data
+    await setDoc(sessionRef, {
+      [`toolInstanceData.${toolId}`]: data,
+      lastUpdated: serverTimestamp()
+    }, { merge: true })
+
+    console.log(`Tool instance data synced to cloud: ${sessionId}/${toolId}`)
+  } catch (error) {
+    console.error('Failed to save tool instance data to Firestore:', error)
+  }
+}
+
+/**
+ * Collect tool instance data for a session from localStorage
+ * @param {string} sessionId - The session ID
+ * @returns {Object} Map of toolId -> instance data
+ */
+function collectToolInstanceData(sessionId) {
+  try {
+    const toolPrefix = `tool-instance-${sessionId}-`
+    const result = {}
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && key.startsWith(toolPrefix)) {
+        const toolId = key.slice(toolPrefix.length)
+        try {
+          const data = JSON.parse(localStorage.getItem(key))
+          result[toolId] = data
+        } catch (e) {
+          console.warn(`Failed to parse tool instance data for ${key}:`, e)
+        }
+      }
+    }
+
+    return result
+  } catch (error) {
+    console.error('Failed to collect tool instance data:', error)
+    return {}
   }
 }
 
@@ -808,6 +932,16 @@ export const loadStudioSessionsFromFirestore = async () => {
         return
       }
       const data = doc.data()
+
+      // Extract and restore tool instance data
+      const toolInstanceData = data.toolInstanceData
+      delete data.toolInstanceData
+
+      // Restore tool instance data to localStorage
+      if (toolInstanceData) {
+        restoreToolInstanceData(doc.id, toolInstanceData)
+      }
+
       delete data.lastUpdated
       delete data._computed
       sessions.push({ id: doc.id, ...data })
@@ -822,6 +956,23 @@ export const loadStudioSessionsFromFirestore = async () => {
   } catch (error) {
     console.error('Failed to load studio sessions from Firestore:', error)
     return null
+  }
+}
+
+/**
+ * Restore tool instance data for a session to localStorage
+ * @param {string} sessionId - The session ID
+ * @param {Object} toolInstanceData - Map of toolId -> instance data
+ */
+function restoreToolInstanceData(sessionId, toolInstanceData) {
+  try {
+    for (const [toolId, data] of Object.entries(toolInstanceData)) {
+      const key = `tool-instance-${sessionId}-${toolId}`
+      localStorage.setItem(key, JSON.stringify(data))
+    }
+    console.log(`Restored ${Object.keys(toolInstanceData).length} tool instances for session ${sessionId}`)
+  } catch (error) {
+    console.error('Failed to restore tool instance data:', error)
   }
 }
 

@@ -1147,4 +1147,137 @@ describe('firestore.js', () => {
       expect(mockBatch.commit).toHaveBeenCalledTimes(2)
     })
   })
+
+  describe('Tool Instance Data Sync', () => {
+    beforeEach(() => {
+      mockAuth.currentUser = mockUser
+      vi.mocked(firebase.getFirebaseDb).mockReturnValue(mockDb)
+    })
+
+    it('should save tool instance data immediately using dot notation', async () => {
+      const { saveToolInstanceDataImmediate } = await import('../firestore.js')
+
+      await saveToolInstanceDataImmediate('session-123', 'tool-abc', { count: 5, items: [] })
+
+      // Verify dot notation is used for nested field update
+      expect(doc).toHaveBeenCalledWith(mockDb, 'users', mockUser.uid, 'studioSessions', 'session-123')
+      expect(setDoc).toHaveBeenCalledWith(
+        mockDocRef,
+        expect.objectContaining({
+          'toolInstanceData.tool-abc': { count: 5, items: [] }
+        }),
+        { merge: true }
+      )
+    })
+
+    it('should not sync when no authenticated user', async () => {
+      const { saveToolInstanceDataImmediate } = await import('../firestore.js')
+
+      mockAuth.currentUser = null
+
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+      await saveToolInstanceDataImmediate('session-123', 'tool-abc', { count: 5 })
+
+      expect(consoleSpy).toHaveBeenCalledWith('No authenticated user, skipping tool instance data cloud sync')
+      expect(setDoc).not.toHaveBeenCalled()
+
+      consoleSpy.mockRestore()
+    })
+
+    it('should handle Firestore errors gracefully', async () => {
+      const { saveToolInstanceDataImmediate } = await import('../firestore.js')
+
+      vi.mocked(setDoc).mockRejectedValue(new Error('Network error'))
+
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      // Should not throw, should log error
+      await expect(saveToolInstanceDataImmediate('session-123', 'tool-abc', { count: 5 }))
+        .resolves.toBeUndefined()
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'Failed to save tool instance data to Firestore:',
+        expect.any(Error)
+      )
+
+      consoleSpy.mockRestore()
+    })
+
+    it('should restore tool instance data when loading sessions', async () => {
+      const { loadStudioSessionsFromFirestore } = await import('../firestore.js')
+
+      const mockSessionData = {
+        toolInstanceData: {
+          'tool-1': { count: 10 },
+          'tool-2': { items: ['a', 'b', 'c'] }
+        }
+      }
+
+      vi.mocked(getDoc).mockResolvedValue({
+        exists: () => false
+      })
+
+      const mockQuerySnapshot = {
+        forEach: (callback) => {
+          // Simulate one session document
+          callback({
+            id: 'session-123',
+            data: () => mockSessionData
+          })
+        }
+      }
+
+      vi.mocked(getDocs).mockResolvedValue(mockQuerySnapshot)
+
+      const localStorageSpy = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {})
+
+      await loadStudioSessionsFromFirestore()
+
+      // Verify tool instance data was restored to localStorage
+      expect(localStorageSpy).toHaveBeenCalledWith(
+        'tool-instance-session-123-tool-1',
+        JSON.stringify({ count: 10 })
+      )
+      expect(localStorageSpy).toHaveBeenCalledWith(
+        'tool-instance-session-123-tool-2',
+        JSON.stringify({ items: ['a', 'b', 'c'] })
+      )
+
+      localStorageSpy.mockRestore()
+    })
+
+    it('should handle missing tool instance data gracefully when loading', async () => {
+      const { loadStudioSessionsFromFirestore } = await import('../firestore.js')
+
+      const mockSessionData = {
+        name: 'Session without tools'
+      }
+
+      vi.mocked(getDoc).mockResolvedValue({
+        exists: () => false
+      })
+
+      const mockQuerySnapshot = {
+        forEach: (callback) => {
+          callback({
+            id: 'session-456',
+            data: () => mockSessionData
+          })
+        }
+      }
+
+      vi.mocked(getDocs).mockResolvedValue(mockQuerySnapshot)
+
+      const localStorageSpy = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {})
+
+      // Should not throw when toolInstanceData is missing
+      await expect(loadStudioSessionsFromFirestore()).resolves.not.toThrow()
+
+      // Should not try to restore undefined tool data
+      expect(localStorageSpy).not.toHaveBeenCalledWith('tool-instance-session-456')
+
+      localStorageSpy.mockRestore()
+    })
+  })
 })

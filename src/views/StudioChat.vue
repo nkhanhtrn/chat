@@ -61,6 +61,7 @@
       ref="canvasPanelRef"
       :visible-windows="canvas.visibleWindows.value"
       :minimized-categories="canvas.minimizedWindowsByCategory.value"
+      :sessionId="sessions.activeSessionId.value || 'default'"
       @close-window="canvas.removeWindow"
       @minimize-window="canvas.minimizeWindow"
       @restore-window="canvas.restoreWindow"

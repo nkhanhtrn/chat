@@ -4,7 +4,8 @@ import {
   saveToolToFirestore,
   loadToolsFromFirestore,
   deleteToolFromFirestore,
-  permanentlyDeleteToolFromFirestore
+  permanentlyDeleteToolFromFirestore,
+  mergeCloudLocal
 } from './firestore.js'
 
 const DB_NAME = 'chat-clone-db'
@@ -339,10 +340,7 @@ export const getToolsByScope = async (scope, sessionId = null) => {
 
 /**
  * Sync tools between cloud and local IndexedDB (bidirectional merge)
- * Strategy (same as notebook sync):
- * - Cloud has tool local doesn't → add to local
- * - Local has tool cloud doesn't → upload to cloud
- * - Both have same tool → use newer version, sync to both
+ * Uses generic mergeCloudLocal utility
  * @returns {Promise<{fromCloud: number, toCloud: number}>} Sync counts
  */
 export const syncToolsFromCloud = async () => {
@@ -351,41 +349,18 @@ export const syncToolsFromCloud = async () => {
     const localTools = await getAllTools()
 
     const db = await getDB()
-    let fromCloud = 0
-    let toCloud = 0
 
-    // Build maps for efficient lookup
-    const cloudMap = new Map(cloudTools.map(t => [t.id, t]))
-    const localMap = new Map(localTools.map(t => [t.id, t]))
+    // Use generic merge utility
+    const { merged, toUpload, fromCloud, toCloud } = mergeCloudLocal(cloudTools, localTools)
 
-    // Sync cloud → local (tools in cloud but not local, or cloud is newer)
-    for (const cloudTool of cloudTools) {
-      const localTool = localMap.get(cloudTool.id)
-
-      if (!localTool) {
-        // Cloud has tool local doesn't → add to local
-        await db.put(TOOLS_STORE, cloudTool)
-        fromCloud++
-      } else if (cloudTool.updatedAt > localTool.updatedAt) {
-        // Cloud version is newer → update local
-        await db.put(TOOLS_STORE, cloudTool)
-        fromCloud++
-      }
+    // Write merged tools to IndexedDB
+    for (const tool of merged) {
+      await db.put(TOOLS_STORE, tool)
     }
 
-    // Sync local → cloud (tools in local but not cloud, or local is newer)
-    for (const localTool of localTools) {
-      const cloudTool = cloudMap.get(localTool.id)
-
-      if (!cloudTool) {
-        // Local has tool cloud doesn't → upload to cloud
-        saveToolToFirestore(localTool).catch(err => console.error('Cloud sync failed:', err))
-        toCloud++
-      } else if (localTool.updatedAt > cloudTool.updatedAt) {
-        // Local version is newer → update cloud
-        saveToolToFirestore(localTool).catch(err => console.error('Cloud sync failed:', err))
-        toCloud++
-      }
+    // Upload local-only and newer tools to cloud
+    for (const tool of toUpload) {
+      saveToolToFirestore(tool).catch(err => console.error('Cloud sync failed:', err))
     }
 
     console.log(`Tools sync: ${fromCloud} from cloud, ${toCloud} to cloud`)
