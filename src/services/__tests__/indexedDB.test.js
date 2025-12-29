@@ -9,7 +9,9 @@ import {
   getToolByName,
   getAllTools,
   deleteTool,
-  searchToolByQuery
+  searchToolByQuery,
+  updateToolScope,
+  getToolsByScope
 } from '../indexedDB.js'
 
 // Mock the idb library
@@ -425,6 +427,188 @@ describe('indexedDB.js', () => {
         const result = await searchToolByQuery('build a completely different tool')
 
         expect(result).toBeNull()
+      })
+    })
+
+    describe('Tool Scope (session vs global)', () => {
+      beforeEach(() => {
+        // Setup test tools with different scopes
+        mockToolsStore['global-1'] = {
+          id: 'global-1',
+          name: 'Global Calculator',
+          emoji: '🧮',
+          type: 'vue-sfc',
+          code: 'global code',
+          scope: 'global',
+          sessionId: null,
+          createdAt: 1000,
+          updatedAt: 1000
+        }
+        mockToolsStore['session-1'] = {
+          id: 'session-1',
+          name: 'Session Timer',
+          emoji: '⏱️',
+          type: 'vue-sfc',
+          code: 'session code',
+          scope: 'session',
+          sessionId: 'session-abc',
+          createdAt: 2000,
+          updatedAt: 2000
+        }
+        mockToolsStore['session-2'] = {
+          id: 'session-2',
+          name: 'Another Session Tool',
+          emoji: '📝',
+          type: 'vue-sfc',
+          code: 'another session code',
+          scope: 'session',
+          sessionId: 'session-xyz',
+          createdAt: 3000,
+          updatedAt: 3000
+        }
+        mockToolsStore['no-scope'] = {
+          id: 'no-scope',
+          name: 'Old Tool',
+          emoji: '🔧',
+          type: 'vue-sfc',
+          code: 'old code',
+          // no scope field - should be treated as global
+          createdAt: 500,
+          updatedAt: 500
+        }
+      })
+
+      describe('saveTool with scope', () => {
+        it('saves tool with session scope', async () => {
+          const tool = {
+            name: 'Session Tool',
+            emoji: '📊',
+            type: 'vue-sfc',
+            code: 'session tool code',
+            scope: 'session',
+            sessionId: 'session-123'
+          }
+
+          const result = await saveTool(tool)
+
+          expect(result.scope).toBe('session')
+          expect(result.sessionId).toBe('session-123')
+        })
+
+        it('saves tool with global scope', async () => {
+          const tool = {
+            name: 'Global Tool',
+            emoji: '🌍',
+            type: 'vue-sfc',
+            code: 'global tool code',
+            scope: 'global'
+          }
+
+          const result = await saveTool(tool)
+
+          expect(result.scope).toBe('global')
+          expect(result.sessionId).toBeNull()
+        })
+
+        it('defaults to global scope when not specified', async () => {
+          const tool = {
+            name: 'Default Tool',
+            emoji: '🔧',
+            type: 'vue-sfc',
+            code: 'default code'
+          }
+
+          const result = await saveTool(tool)
+
+          expect(result.scope).toBe('global')
+          expect(result.sessionId).toBeNull()
+        })
+
+        it('preserves existing scope when updating', async () => {
+          const existingTool = mockToolsStore['session-1']
+          mockDB.get.mockResolvedValueOnce(existingTool)
+
+          const result = await saveTool({
+            name: 'Session Timer', // same name
+            code: 'updated code'
+          })
+
+          expect(result.scope).toBe('session')
+          expect(result.sessionId).toBe('session-abc')
+        })
+      })
+
+      describe('updateToolScope', () => {
+        it('promotes session tool to global', async () => {
+          const result = await updateToolScope('session-1', 'global')
+
+          expect(result.scope).toBe('global')
+          expect(result.sessionId).toBeNull()
+          expect(mockDB.put).toHaveBeenCalled()
+        })
+
+        it('demotes global tool to session', async () => {
+          const result = await updateToolScope('global-1', 'session', 'session-new')
+
+          expect(result.scope).toBe('session')
+          expect(result.sessionId).toBe('session-new')
+          expect(mockDB.put).toHaveBeenCalled()
+        })
+
+        it('updates updatedAt timestamp', async () => {
+          const originalUpdatedAt = mockToolsStore['global-1'].updatedAt
+
+          const result = await updateToolScope('global-1', 'session', 'session-new')
+
+          expect(result.updatedAt).toBeGreaterThanOrEqual(originalUpdatedAt)
+        })
+
+        it('returns null for non-existent tool', async () => {
+          mockDB.get.mockResolvedValueOnce(null)
+
+          const result = await updateToolScope('non-existent', 'global')
+
+          expect(result).toBeNull()
+        })
+      })
+
+      describe('getToolsByScope', () => {
+        it('returns global tools (including tools without scope)', async () => {
+          const result = await getToolsByScope('global')
+
+          expect(result).toHaveLength(2)
+          expect(result.map(t => t.id)).toContain('global-1')
+          expect(result.map(t => t.id)).toContain('no-scope')
+          expect(result.map(t => t.id)).not.toContain('session-1')
+        })
+
+        it('returns session tools for specific sessionId', async () => {
+          const result = await getToolsByScope('session', 'session-abc')
+
+          expect(result).toHaveLength(1)
+          expect(result[0].id).toBe('session-1')
+        })
+
+        it('returns empty array for non-existent session', async () => {
+          const result = await getToolsByScope('session', 'non-existent')
+
+          expect(result).toEqual([])
+        })
+
+        it('excludes deleted tools', async () => {
+          mockToolsStore['deleted-session'] = {
+            id: 'deleted-session',
+            name: 'Deleted Session Tool',
+            scope: 'session',
+            sessionId: 'session-abc',
+            deletedAt: 9999
+          }
+
+          const result = await getToolsByScope('session', 'session-abc')
+
+          expect(result).toHaveLength(1)
+          expect(result.map(t => t.id)).not.toContain('deleted-session')
+        })
       })
     })
   })

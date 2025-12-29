@@ -26,6 +26,18 @@
           <button class="close-btn" @click="isOpen = false">×</button>
         </div>
 
+        <!-- Scope filter (only show when not in recycle bin) -->
+        <div v-if="!showRecycleBin" class="scope-filter">
+          <button
+            :class="['scope-tab', { active: scopeFilter === 'global' }]"
+            @click="scopeFilter = 'global'"
+          >🌍 Global</button>
+          <button
+            :class="['scope-tab', { active: scopeFilter === 'session' }]"
+            @click="scopeFilter = 'session'"
+          >🔒 Session</button>
+        </div>
+
         <div v-if="(showRecycleBin ? deletedTools : tools).length > 0" class="search-box">
           <input
             ref="searchInputRef"
@@ -53,23 +65,63 @@
 
         <!-- Tool list -->
         <div v-else class="tool-list">
+          <!-- Flat view: filtered list or recycle bin -->
           <div
             v-for="tool in filteredTools"
             :key="tool.id"
-            class="tool-item"
-            @click="!showRecycleBin && openTool(tool)"
+            :class="['tool-item', { 'other-session': !showRecycleBin && isToolFromOtherSession(tool) }]"
+            @click="!showRecycleBin && !isToolFromOtherSession(tool) && openTool(tool)"
           >
             <span class="tool-emoji">{{ tool.emoji || '🔧' }}</span>
             <div class="tool-info">
               <span class="tool-name">{{ tool.name }}</span>
-              <span class="tool-date">{{ formatDate(showRecycleBin ? tool.deletedAt : tool.updatedAt) }}</span>
+              <span class="tool-meta">
+                <span v-if="!showRecycleBin" :class="['scope-badge', getScopeBadge(tool).class]">
+                  {{ getScopeBadge(tool).icon }} {{ getScopeBadge(tool).label }}
+                </span>
+                <span class="tool-date">{{ formatDate(showRecycleBin ? tool.deletedAt : tool.updatedAt) }}</span>
+              </span>
             </div>
-            <!-- Normal tools: delete button -->
-            <button v-if="!showRecycleBin" class="action-btn delete-btn" @click.stop="deleteTool(tool.id)" title="Move to recycle bin">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-              </svg>
-            </button>
+            <!-- Normal tools: delete and scope toggle buttons -->
+            <template v-if="!showRecycleBin">
+              <!-- Other session tools: clone only -->
+              <template v-if="isToolFromOtherSession(tool)">
+                <button class="action-btn clone-btn" @click.stop="cloneTool(tool)" title="Clone to current session">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                </button>
+              </template>
+              <!-- Current session/global tools: promote/demote/delete -->
+              <template v-else>
+                <button
+                  v-if="tool.scope === 'session' && tool.sessionId === activeSessionId"
+                  class="action-btn promote-btn"
+                  @click.stop="promoteToGlobal(tool.id)"
+                  title="Promote to global"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 19V5M5 12l7-7 7 7"/>
+                  </svg>
+                </button>
+                <button
+                  v-if="tool.scope === 'global' || !tool.scope"
+                  class="action-btn demote-btn"
+                  @click.stop="demoteToSession(tool.id)"
+                  title="Make session-only"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 5v14M19 12l-7 7-7-7"/>
+                  </svg>
+                </button>
+                <button class="action-btn delete-btn" @click.stop="deleteTool(tool.id)" title="Move to recycle bin">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                  </svg>
+                </button>
+              </template>
+            </template>
             <!-- Recycle bin: restore and permanent delete -->
             <template v-else>
               <button class="action-btn restore-btn" @click.stop="restoreTool(tool.id)" title="Restore">
@@ -106,10 +158,14 @@ import {
   restoreTool as restoreToolFromDB,
   permanentlyDeleteTool,
   emptyRecycleBin,
-  syncToolsFromCloud
+  syncToolsFromCloud,
+  updateToolScope
 } from '../../services/indexedDB.js'
+import { useStudioSessions } from '../../composables/studio/useStudioSessions.js'
 
 const emit = defineEmits(['open-tool'])
+
+const { activeSessionId } = useStudioSessions()
 
 const isOpen = ref(false)
 const tools = ref([])
@@ -118,15 +174,36 @@ const searchQuery = ref('')
 const dropdownRef = ref(null)
 const searchInputRef = ref(null)
 const showRecycleBin = ref(false)
+const scopeFilter = ref('global') // 'global', 'session'
 
 const filteredTools = computed(() => {
-  const list = showRecycleBin.value ? deletedTools.value : tools.value
-  if (!searchQuery.value.trim()) return list
-  const q = searchQuery.value.toLowerCase()
-  return list.filter(t =>
-    t.name?.toLowerCase().includes(q) ||
-    t.sourcePrompt?.toLowerCase().includes(q)
-  )
+  let list = showRecycleBin.value ? deletedTools.value : tools.value
+
+  // Apply scope filter (whether searching or not)
+  if (!showRecycleBin.value) {
+    if (scopeFilter.value === 'global') {
+      // Global filter: show all tools (global + all sessions) when searching
+      // When not searching, show only global tools
+      if (!searchQuery.value.trim()) {
+        list = list.filter(t => t.scope === 'global' || !t.scope)
+      }
+      // When searching, keep all tools (no filtering)
+    } else if (scopeFilter.value === 'session') {
+      // Session filter: always only show current session tools
+      list = list.filter(t => t.scope === 'session' && t.sessionId === activeSessionId.value)
+    }
+  }
+
+  // Apply search query
+  if (searchQuery.value.trim()) {
+    const q = searchQuery.value.toLowerCase()
+    return list.filter(t =>
+      t.name?.toLowerCase().includes(q) ||
+      t.sourcePrompt?.toLowerCase().includes(q)
+    )
+  }
+
+  return list
 })
 
 let hasInitialSync = false
@@ -217,6 +294,61 @@ function formatDate(timestamp) {
   if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
   return date.toLocaleDateString()
+}
+
+async function promoteToGlobal(id) {
+  await updateToolScope(id, 'global')
+  await loadTools()
+}
+
+async function demoteToSession(id) {
+  await updateToolScope(id, 'session', activeSessionId.value)
+  await loadTools()
+}
+
+function getScopeBadge(tool) {
+  if (tool.scope === 'session') {
+    return { label: 'Session', icon: '🔒', class: 'session-badge' }
+  }
+  return { label: 'Global', icon: '🌍', class: 'global-badge' }
+}
+
+function isToolFromOtherSession(tool) {
+  return tool.scope === 'session' && tool.sessionId !== activeSessionId.value
+}
+
+async function cloneTool(tool) {
+  // Create a copy of the tool for the current session with a unique name
+  const { saveTool, getAllTools } = await import('../../services/indexedDB.js')
+
+  // Get existing tools in current session to find a unique name
+  const allTools = await getAllTools()
+  const currentSessionTools = allTools.filter(t =>
+    t.scope === 'session' && t.sessionId === activeSessionId.value
+  )
+
+  // Find a unique name by appending (Copy), (Copy 2), etc.
+  let cloneName = `${tool.name} (Copy)`
+  let counter = 2
+  while (currentSessionTools.some(t => t.name === cloneName)) {
+    cloneName = `${tool.name} (Copy ${counter})`
+    counter++
+  }
+
+  // Create the clone with the unique name and NO id (so saveTool creates new)
+  const clonedTool = {
+    name: cloneName,
+    emoji: tool.emoji,
+    type: tool.type,
+    code: tool.code,
+    sourcePrompt: tool.sourcePrompt,
+    scope: 'session',
+    sessionId: activeSessionId.value
+    // Note: NO id field - saveTool will create a new one
+  }
+
+  await saveTool(clonedTool)
+  await loadTools()
 }
 
 defineExpose({ loadTools, toggleOpen })
@@ -484,6 +616,117 @@ defineExpose({ loadTools, toggleOpen })
 .empty-bin-btn:hover {
   background: var(--color-error, #ef4444);
   color: white;
+}
+
+/* Scope filter tabs */
+.scope-filter {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.scope-tab {
+  flex: 1;
+  padding: 6px 8px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.scope-tab:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-base);
+}
+
+.scope-tab.active {
+  background: var(--color-bg-hover);
+  border-color: var(--color-border-subtle);
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+/* Tool sections */
+.tool-section {
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.tool-section:last-child {
+  border-bottom: none;
+}
+
+.section-header {
+  padding: 8px 16px 4px;
+  background: var(--color-bg-muted);
+}
+
+.section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tool-section.archived .section-title {
+  opacity: 0.7;
+}
+
+/* Tool meta (contains badge and date) */
+.tool-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+/* Scope badges */
+.scope-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.scope-badge.global-badge {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+.scope-badge.session-badge {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+/* Promote/demote buttons */
+.promote-btn:hover {
+  color: var(--color-success, #22c55e);
+}
+
+.demote-btn:hover {
+  color: var(--color-primary);
+}
+
+/* Clone button */
+.clone-btn:hover {
+  color: var(--color-primary);
+}
+
+/* Other session tool items */
+.tool-item.other-session {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.tool-item.other-session:hover {
+  opacity: 0.8;
 }
 
 /* Dropdown animation */

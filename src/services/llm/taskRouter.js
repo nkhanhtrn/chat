@@ -180,7 +180,8 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
     onPlanComplete,
     verifyMode = false,
     maxRetries = 3,
-    config = {}
+    config = {},
+    sessionId = null
   } = options
 
   // Get the last user message
@@ -269,6 +270,7 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
     signal,
     onChunk: null,  // Only stream on final capability
     webSearchResults,
+    sessionId,
     callbacks: {
       onCodeGenerated,
       onExecutionComplete,

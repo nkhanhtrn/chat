@@ -47,7 +47,7 @@ export class BuildCapability extends BaseCapability {
 
   async process(input) {
     const { data: pipedData, context } = input
-    const { fullContext, models, config, provider, signal, callbacks = {} } = context
+    const { fullContext, models, config, provider, signal, callbacks = {}, sessionId } = context
     const { onToolGenerated } = callbacks
 
     // Sync tools from cloud first (non-blocking, best effort)
@@ -63,8 +63,13 @@ export class BuildCapability extends BaseCapability {
       return { success: false, result: null, error: e.message }
     }
 
-    // Auto-save tool to library
-    saveTool({ ...parsedTool, sourcePrompt: fullContext }).catch(console.error)
+    // Auto-save tool to library with session scope (defaults to session if sessionId provided)
+    saveTool({
+      ...parsedTool,
+      sourcePrompt: fullContext,
+      scope: sessionId ? 'session' : 'global',
+      sessionId: sessionId || null
+    }).catch(console.error)
 
     if (onToolGenerated) onToolGenerated(parsedTool)
 

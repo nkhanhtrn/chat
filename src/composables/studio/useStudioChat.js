@@ -380,7 +380,8 @@ export function useStudioChat() {
         onPlanGenerated: planningCallbacks.onPlanGenerated,
         onStepStart: planningCallbacks.onStepStart,
         onStepComplete: planningCallbacks.onStepComplete,
-        onPlanComplete: planningCallbacks.onPlanComplete
+        onPlanComplete: planningCallbacks.onPlanComplete,
+        sessionId: sessionManager?.activeSessionId?.value || null
       }
     )
 

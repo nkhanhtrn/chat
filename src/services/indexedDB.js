@@ -157,6 +157,8 @@ export const saveTool = async (tool) => {
     type: tool.type,
     code: tool.code,
     sourcePrompt: tool.sourcePrompt || null,
+    scope: tool.scope || existing?.scope || 'global',
+    sessionId: tool.sessionId || existing?.sessionId || null,
     createdAt: existing?.createdAt || Date.now(),
     updatedAt: Date.now()
   }
@@ -303,6 +305,36 @@ export const emptyRecycleBin = async () => {
     // Sync to cloud (non-blocking)
     permanentlyDeleteToolFromFirestore(tool.id).catch(err => console.error('Cloud sync failed:', err))
   }
+}
+
+/**
+ * Update tool scope (promote session tool to global, or demote global tool to session)
+ */
+export const updateToolScope = async (id, newScope, sessionId = null) => {
+  const db = await getDB()
+  const tool = await db.get(TOOLS_STORE, id)
+  if (tool) {
+    tool.scope = newScope
+    tool.sessionId = newScope === 'session' ? sessionId : null
+    tool.updatedAt = Date.now()
+    await db.put(TOOLS_STORE, tool)
+    // Sync to cloud (non-blocking)
+    saveToolToFirestore(tool).catch(err => console.error('Cloud sync failed:', err))
+    return tool
+  }
+  return null
+}
+
+/**
+ * Get tools by scope
+ */
+export const getToolsByScope = async (scope, sessionId = null) => {
+  const tools = await getAllTools()
+  if (scope === 'global') {
+    return tools.filter(t => t.scope === 'global' || !t.scope)
+  }
+  // For session scope, filter by sessionId
+  return tools.filter(t => t.scope === 'session' && t.sessionId === sessionId)
 }
 
 /**
