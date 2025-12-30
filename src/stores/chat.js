@@ -94,19 +94,6 @@ export const useChatStore = defineStore('chat', {
 
     // Get all chats with computed title and questions from messages
     chatList: (state) => {
-      // Helper to count messages with children
-      const countWithChildren = (messageId) => {
-        const msg = state.messagesById[messageId]
-        if (!msg) return 1
-        let count = 1
-        if (msg.childIds?.length) {
-          for (const childId of msg.childIds) {
-            count += countWithChildren(childId)
-          }
-        }
-        return count
-      }
-
       return state.chats.map(chat => {
         const questions = chat.rootMessageIds
           .map(id => state.messagesById[id])
@@ -118,16 +105,31 @@ export const useChatStore = defineStore('chat', {
             rootIndex: chat.rootMessageIds.indexOf(msg.id)
           }))
 
-        // Calculate total message count including children
-        let totalMessageCount = 0
-        for (const rootId of chat.rootMessageIds) {
-          totalMessageCount += countWithChildren(rootId)
+        // Use cached messageCount if available, otherwise compute and cache it
+        if (chat.messageCount === undefined) {
+          const countWithChildren = (messageId) => {
+            const msg = state.messagesById[messageId]
+            if (!msg) return 1
+            let count = 1
+            if (msg.childIds?.length) {
+              for (const childId of msg.childIds) {
+                count += countWithChildren(childId)
+              }
+            }
+            return count
+          }
+
+          let totalMessageCount = 0
+          for (const rootId of chat.rootMessageIds) {
+            totalMessageCount += countWithChildren(rootId)
+          }
+          chat.messageCount = totalMessageCount
         }
 
         return {
           id: chat.id,
           title: chat.name || 'New Subject',
-          messageCount: totalMessageCount,
+          messageCount: chat.messageCount,
           questions
         }
       })
@@ -326,6 +328,11 @@ export const useChatStore = defineStore('chat', {
         chat.name = message.question
       }
 
+      // Update cached message count
+      if (chat) {
+        chat.messageCount = (chat.messageCount || 0) + 1
+      }
+
       this._syncCurrentChat()
       this._persistState()
       return message
@@ -354,6 +361,12 @@ export const useChatStore = defineStore('chat', {
 
       // Set navigation to new child
       this.currentMessageId = childMessage.id
+
+      // Update cached message count
+      const chat = this.chats.find(c => c.id === this.currentChatId)
+      if (chat) {
+        chat.messageCount = (chat.messageCount || 0) + 1
+      }
 
       this._persistState()
       return childMessage
@@ -596,11 +609,20 @@ export const useChatStore = defineStore('chat', {
       const index = this.rootMessageIds.indexOf(messageId)
       if (index === -1) return
 
+      // Count messages to be removed before deletion
+      const removedCount = this._countMessageTree(messageId)
+
       // Remove from root array
       this.rootMessageIds.splice(index, 1)
 
       // Remove message and all its descendants
       this._removeMessageTree(messageId)
+
+      // Update cached message count
+      const chat = this.chats.find(c => c.id === this.currentChatId)
+      if (chat && chat.messageCount !== undefined) {
+        chat.messageCount = Math.max(0, chat.messageCount - removedCount)
+      }
 
       // Clear current message if it was removed
       if (this.currentMessageId === messageId) {
@@ -631,6 +653,20 @@ export const useChatStore = defineStore('chat', {
       delete this.messagesById[messageId]
     },
 
+    // Helper to count messages in a tree
+    _countMessageTree(messageId) {
+      const message = this.messagesById[messageId]
+      if (!message) return 0
+
+      let count = 1
+      if (message.childIds && message.childIds.length > 0) {
+        for (const childId of message.childIds) {
+          count += this._countMessageTree(childId)
+        }
+      }
+      return count
+    },
+
     /**
      * Delete a child message and all its descendants, including cleanup of question links
      * @param {string} messageId - ID of the message to delete
@@ -643,6 +679,9 @@ export const useChatStore = defineStore('chat', {
 
       const parentId = message.parentId
       const shouldNavigateToParent = this.currentMessageId === messageId && parentId
+
+      // Count messages to be removed before deletion
+      const removedCount = this._countMessageTree(messageId)
 
       // Remove from parent's childIds
       if (parentId) {
@@ -660,6 +699,12 @@ export const useChatStore = defineStore('chat', {
 
       // Recursively delete the message and its children
       this._removeMessageTree(messageId)
+
+      // Update cached message count
+      const chat = this.chats.find(c => c.id === this.currentChatId)
+      if (chat && chat.messageCount !== undefined) {
+        chat.messageCount = Math.max(0, chat.messageCount - removedCount)
+      }
 
       this._persistState()
 
@@ -1092,6 +1137,9 @@ export const useChatStore = defineStore('chat', {
       const messageIndex = chat.rootMessageIds.indexOf(messageId)
       if (messageIndex === -1) return
 
+      // Count messages to be removed before deletion
+      const removedCount = this._countMessageTree(messageId)
+
       // Check if this is the current chat
       const isCurrentChat = this.currentChatId === chatId
 
@@ -1141,6 +1189,11 @@ export const useChatStore = defineStore('chat', {
 
       // Delete the message and its children
       deleteMessageTree(messageId)
+
+      // Update cached message count
+      if (chat.messageCount !== undefined) {
+        chat.messageCount = Math.max(0, chat.messageCount - removedCount)
+      }
 
       // If we deleted the currently viewed message, switch to another
       if (this.currentMessageId === messageId) {
