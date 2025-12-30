@@ -23,36 +23,21 @@
 
       <SlideTransition v-else appear direction="vertical">
         <div class="books-grid">
-          <!-- Show uploading book first if uploading -->
-          <div
-            v-if="uploadingBook"
-            key="uploading"
-            class="book-card is-uploading"
-          >
-            <div class="book-cover">
-              <img v-if="uploadingBook.coverUrl" :src="uploadingBook.coverUrl" :alt="uploadingBook.title">
-              <div v-else class="cover-placeholder">📖</div>
-              <!-- Upload progress overlay -->
-              <div class="upload-overlay">
-                <ProgressBar :progress="uploadProgress" :status="uploadStatus" />
-              </div>
-            </div>
-            <div class="book-info">
-              <h3 class="book-title">{{ uploadingBook.title }}</h3>
-              <p class="book-author">{{ uploadingBook.author }}</p>
-            </div>
-          </div>
-
           <!-- Regular books -->
           <div
-            v-for="book in booksStore.booksSortedByDate.filter(b => b.id !== uploadingBook?.id)"
+            v-for="book in booksStore.booksSortedByDate"
             :key="book.id"
             class="book-card"
+            :class="{ 'is-uploading': isUploading && uploadingBookId === book.id }"
             @click="openBook(book.id)"
           >
             <div class="book-cover">
               <img v-if="book.coverUrl" :src="book.coverUrl" :alt="book.title">
               <div v-else class="cover-placeholder">📖</div>
+              <!-- Upload progress overlay -->
+              <div v-if="isUploading && uploadingBookId === book.id" class="upload-overlay">
+                <ProgressBar :progress="uploadProgress" />
+              </div>
             </div>
             <div class="book-info">
               <h3 class="book-title">{{ book.title }}</h3>
@@ -67,7 +52,7 @@
             <button class="delete-btn" @click.stop="deleteBook(book.id)" title="Delete book">×</button>
           </div>
 
-          <div v-if="booksStore.books.length === 0 && !uploadingBook" class="empty-state">
+          <div v-if="booksStore.books.length === 0 && !isUploading" class="empty-state">
             <div class="empty-icon">📚</div>
             <p>No books yet</p>
             <p class="empty-hint">Add your first EPUB book to get started</p>
@@ -87,7 +72,7 @@ import Button from '../components/Button.vue'
 import ProgressBar from '../components/ProgressBar.vue'
 import SlideTransition from '../components/SlideTransition.vue'
 import { extractEpubMetadata, coverUrlToDataUrl } from '../services/epubRenderer.js'
-import { uploadBookToStorage } from '../services/bookStorage.js'
+import { uploadBookToStorage, saveBookFileToIDB } from '../services/bookStorage.js'
 
 const router = useRouter()
 const booksStore = useBooksStore()
@@ -95,8 +80,7 @@ const booksStore = useBooksStore()
 const fileInput = ref(null)
 const isLoading = ref(false)
 const isUploading = ref(false)
-const uploadingBook = ref(null) // The book being uploaded
-const uploadStatus = ref('')
+const uploadingBookId = ref(null) // ID of the book being uploaded
 const uploadProgress = ref(0)
 const error = ref(null)
 
@@ -133,27 +117,34 @@ const handleFileUpload = async (event) => {
 
   isUploading.value = true
   uploadProgress.value = 0
-  uploadStatus.value = 'Reading file...'
   error.value = null
 
-  // Create a temporary book object for the UI
-  uploadingBook.value = {
-    id: 'uploading',
-    title: file.name.replace('.epub', ''),
-    author: 'Loading...',
-    coverUrl: null,
-    totalProgress: 0
-  }
-
   try {
+    // Create book record first (will be assigned ID in store)
+    const book = await booksStore.addBook({
+      title: file.name.replace('.epub', ''),
+      author: 'Loading...',
+      coverUrl: null,
+      fileSize: file.size
+    })
+
+    // Track the uploading book ID
+    uploadingBookId.value = book.id
+
+    uploadProgress.value = 5
+
+    // Read file as ArrayBuffer and cache in IndexedDB
+    const arrayBuffer = await file.arrayBuffer()
+    console.log('[Upload] Caching file in IndexedDB for book:', book.id, 'Size:', arrayBuffer.byteLength)
+    await saveBookFileToIDB(book.id, arrayBuffer)
+    console.log('[Upload] ✓ File cached in IndexedDB')
+
     uploadProgress.value = 10
-    uploadStatus.value = 'Extracting metadata...'
 
     // Extract metadata from EPUB
     const metadata = await extractEpubMetadata(file)
 
     uploadProgress.value = 30
-    uploadStatus.value = 'Processing cover...'
 
     // Convert cover to data URL if available
     let coverDataUrl = null
@@ -161,39 +152,19 @@ const handleFileUpload = async (event) => {
       coverDataUrl = await coverUrlToDataUrl(metadata.coverUrl)
     }
 
-    // Update the uploading book with extracted metadata
-    uploadingBook.value = {
-      ...uploadingBook.value,
+    // Update the book with extracted metadata
+    await booksStore.updateBook(book.id, {
       title: metadata.title,
       author: metadata.author,
       coverUrl: coverDataUrl
-    }
-
-    uploadProgress.value = 50
-    uploadStatus.value = 'Creating book record...'
-
-    // Create book record (will be assigned ID in store)
-    const bookData = {
-      title: metadata.title,
-      author: metadata.author,
-      coverUrl: coverDataUrl,
-      fileSize: file.size
-    }
-
-    // Add to store (this creates the book with an ID)
-    const book = await booksStore.addBook(bookData)
-
-    // Update uploadingBook with the real ID
-    uploadingBook.value.id = book.id
+    })
 
     uploadProgress.value = 70
-    uploadStatus.value = 'Uploading to cloud...'
 
     // Upload file to Firebase Storage
     const downloadUrl = await uploadBookToStorage(file, book.id)
 
     uploadProgress.value = 90
-    uploadStatus.value = 'Finishing...'
 
     // Update book with storage path
     await booksStore.updateBook(book.id, {
@@ -201,31 +172,28 @@ const handleFileUpload = async (event) => {
     })
 
     uploadProgress.value = 100
-    uploadStatus.value = 'Done!'
 
     // Reset input
     event.target.value = ''
 
-    // Clear uploading book after a delay
+    // Clear uploading state after a delay
     setTimeout(() => {
-      uploadingBook.value = null
-      uploadStatus.value = ''
+      uploadingBookId.value = null
       uploadProgress.value = 0
+      isUploading.value = false
     }, 1500)
   } catch (err) {
     console.error('Failed to upload book:', err)
     error.value = err.message || 'Failed to upload book'
-    uploadingBook.value = null
-    uploadStatus.value = ''
+    uploadingBookId.value = null
     uploadProgress.value = 0
-  } finally {
     isUploading.value = false
   }
 }
 
-const openBook = (bookId) => {
+const openBook = async (bookId) => {
   booksStore.setCurrentBook(bookId)
-  router.push({ name: 'book-viewer', params: { id: bookId } })
+  await router.push({ name: 'book-viewer', params: { id: bookId } })
 }
 
 const deleteBook = async (bookId) => {

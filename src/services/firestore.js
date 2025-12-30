@@ -15,11 +15,15 @@ const CACHE_TTL_MS = 30000 // 30 seconds cache validity
 // Pending settings to be saved (for batching)
 let pendingSettings = {}
 let saveDebounceTimer = null
-const SAVE_DEBOUNCE_MS = 1000 // Debounce saves by 1 second
+const SAVE_DEBOUNCE_MS = 200 // Debounce saves by 200ms
 
 // Active subscriptions
 let settingsUnsubscribe = null
 let chatStateUnsubscribe = null
+
+// Flag to track if we're in the middle of processing a subscription update
+// This prevents writing back settings that we just received from Firestore
+let isProcessingSubscriptionUpdate = false
 
 /**
  * Wait for Firebase Auth to be ready and return the current user
@@ -420,16 +424,43 @@ const flushPendingSettings = async () => {
  * @param {Object} settings - The settings to save
  */
 export const saveUserSettings = (settings) => {
-  // Merge new settings into pending batch
-  pendingSettings = { ...pendingSettings, ...settings }
+  // Skip writes if we're processing a subscription update (prevents feedback loop)
+  if (isProcessingSubscriptionUpdate) {
+    // Still update cache and localStorage for responsiveness
+    if (settingsCache) {
+      settingsCache = { ...settingsCache, ...settings }
+    }
+    saveSettingsToLocalStorage(settings)
+    return
+  }
+
+  // Check if any values actually changed (prevent feedback loop from subscription updates)
+  let hasChanges = false
+  for (const [key, value] of Object.entries(settings)) {
+    // Compare with current cache value
+    if (settingsCache && settingsCache[key] !== undefined && settingsCache[key] === value) {
+      // Value hasn't changed, skip it
+      continue
+    }
+    // Value changed or not in cache, add to pending
+    if (pendingSettings[key] !== value) {
+      pendingSettings[key] = value
+      hasChanges = true
+    }
+  }
+
+  if (!hasChanges) {
+    // No actual changes, don't trigger a write
+    return
+  }
 
   // Also update cache immediately for responsive UI
   if (settingsCache) {
-    settingsCache = { ...settingsCache, ...settings }
+    settingsCache = { ...settingsCache, ...pendingSettings }
   }
 
   // Save to localStorage immediately for responsiveness
-  saveSettingsToLocalStorage(settings)
+  saveSettingsToLocalStorage(pendingSettings)
 
   // Debounce Firestore save
   if (saveDebounceTimer) {
@@ -547,7 +578,15 @@ export const subscribeToUserSettings = (callback) => {
         // Update cache from subscription
         settingsCache = data
         settingsCacheTimestamp = Date.now()
-        callback(data)
+
+        // Set flag to prevent saveUserSettings from writing back to Firestore
+        isProcessingSubscriptionUpdate = true
+        try {
+          callback(data)
+        } finally {
+          // Clear flag after callback completes
+          isProcessingSubscriptionUpdate = false
+        }
       }
     }, (error) => {
       console.error('Error in settings subscription:', error)

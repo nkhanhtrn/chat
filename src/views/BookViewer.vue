@@ -2,13 +2,18 @@
   <AppLayout storage-key="book-viewer-layout">
     <template #side>
       <div class="toc-sidebar">
-        <h3>Contents</h3>
+        <input
+          v-model="searchQuery"
+          type="text"
+          class="toc-search-input"
+          placeholder="Search chapters..."
+        />
         <div class="toc-list">
           <div
-            v-for="(chapter, index) in chapters"
+            v-for="(chapter, index) in filteredChapters"
             :key="index"
             class="toc-item"
-            :class="{ active: currentChapterIndex === index }"
+            :class="{ active: currentChapterIndex === chapters.indexOf(chapter) }"
             @click="gotoChapter(chapter.href)"
           >
             {{ chapter.label }}
@@ -23,11 +28,11 @@
           ← Library
         </button>
         <div class="toolbar-center">
-          <button class="nav-btn" @click="prevPage" :disabled="!canGoPrev" title="Previous page">
+          <button class="nav-btn" @click="prevPage" title="Previous page">
             ◀
           </button>
           <span class="progress">{{ progressPercent }}%</span>
-          <button class="nav-btn" @click="nextPage" :disabled="!canGoNext" title="Next page">
+          <button class="nav-btn" @click="nextPage" title="Next page">
             ▶
           </button>
         </div>
@@ -38,12 +43,15 @@
         </div>
       </div>
 
-      <div v-if="isLoading" class="loading">
-        <ProgressBar v-if="downloadProgress > 0" :progress="downloadProgress" :status="downloadStatus" />
-        <span v-else>Loading book...</span>
+      <div ref="viewerContainer" class="viewer-container">
+        <div v-if="isLoading || error" class="loading-overlay">
+          <div v-if="isLoading" class="loading">
+            <ProgressBar v-if="downloadProgress > 0" :progress="downloadProgress" />
+            <span v-else>Loading book...</span>
+          </div>
+          <div v-else-if="error" class="error">{{ error }}</div>
+        </div>
       </div>
-      <div v-else-if="error" class="error">{{ error }}</div>
-      <div v-else ref="viewerContainer" class="viewer-container"></div>
     </div>
   </AppLayout>
 </template>
@@ -67,19 +75,30 @@ const currentChapterIndex = ref(0)
 const renderer = ref(null)
 const isLoading = ref(true)
 const downloadProgress = ref(0)
-const downloadStatus = ref('')
 const error = ref(null)
+const searchQuery = ref('')
+
+const filteredChapters = computed(() => {
+  if (!searchQuery.value.trim()) {
+    return chapters.value
+  }
+  const query = searchQuery.value.toLowerCase()
+  return chapters.value.filter(chapter =>
+    chapter.label.toLowerCase().includes(query)
+  )
+})
 
 const currentBook = computed(() => booksStore.currentBook)
 const progressPercent = computed(() => {
   return currentBook.value ? Math.round(currentBook.value.totalProgress * 100) : 0
 })
 
-// For pagination buttons (simplified - just enables/disables based on progress)
-const canGoPrev = computed(() => progressPercent.value > 0)
-const canGoNext = computed(() => progressPercent.value < 100)
+// Enable pagination buttons - epub.js will handle boundaries internally
+const canGoPrev = computed(() => true)
+const canGoNext = computed(() => true)
 
 let saveInterval = null
+let settingsObserver = null
 
 onMounted(async () => {
   await booksStore.initializeStore()
@@ -99,6 +118,9 @@ onMounted(async () => {
 
   // Set up auto-save interval
   saveInterval = setInterval(saveReadingPosition, 5000)
+
+  // Watch for CSS variable changes (settings) and refresh EPUB theme
+  setupSettingsWatcher()
 })
 
 onUnmounted(() => {
@@ -108,12 +130,28 @@ onUnmounted(() => {
   if (saveInterval) {
     clearInterval(saveInterval)
   }
+  if (settingsObserver) {
+    settingsObserver.disconnect()
+  }
 })
+
+function setupSettingsWatcher() {
+  // Watch for changes to CSS variables on documentElement
+  settingsObserver = new MutationObserver(() => {
+    if (renderer.value?.refreshTheme) {
+      renderer.value.refreshTheme()
+    }
+  })
+
+  settingsObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['style', 'data-theme']
+  })
+}
 
 async function loadBook(bookId) {
   isLoading.value = true
   downloadProgress.value = 0
-  downloadStatus.value = 'Loading book...'
   error.value = null
 
   // Simulate progress while loading
@@ -130,13 +168,11 @@ async function loadBook(bookId) {
     }
 
     downloadProgress.value = 70
-    downloadStatus.value = 'Downloading from cloud...'
 
     // Get or download book file (IndexedDB cache → Firebase Storage → IndexedDB cache)
     const fileData = await getOrDownloadBookFile(bookId, book.storagePath)
 
     downloadProgress.value = 90
-    downloadStatus.value = 'Preparing reader...'
 
     if (!fileData) {
       throw new Error('Failed to load book file')
@@ -147,7 +183,6 @@ async function loadBook(bookId) {
     await renderer.value.initialize()
 
     downloadProgress.value = 100
-    downloadStatus.value = 'Ready!'
 
     // Get table of contents
     const toc = renderer.value.getTableOfContents()
@@ -158,14 +193,14 @@ async function loadBook(bookId) {
       await renderer.value.gotoCfi(book.lastReadCfi)
     }
 
-    // Update current chapter index
+    // Update current chapter index and progress
     updateCurrentChapter()
+    updateProgress()
 
     // Clear progress after a short delay
     setTimeout(() => {
       clearInterval(progressInterval)
       downloadProgress.value = 0
-      downloadStatus.value = ''
       isLoading.value = false
     }, 500)
   } catch (err) {
@@ -173,7 +208,6 @@ async function loadBook(bookId) {
     console.error('Failed to load book:', err)
     error.value = err.message || 'Failed to load book'
     downloadProgress.value = 0
-    downloadStatus.value = ''
     isLoading.value = false
   }
 }
@@ -184,26 +218,31 @@ async function gotoChapter(href) {
   try {
     await renderer.value.goto(href)
     updateCurrentChapter()
+    updateProgress()
   } catch (err) {
     console.error('Failed to navigate to chapter:', err)
   }
 }
 
 async function prevPage() {
-  if (!renderer.value || !canGoPrev.value) return
+  if (!renderer.value) return
   try {
     await renderer.value.prev()
     updateCurrentChapter()
+    // Small delay to let epub.js update the location
+    setTimeout(updateProgress, 100)
   } catch (err) {
     console.error('Failed to go to previous page:', err)
   }
 }
 
 async function nextPage() {
-  if (!renderer.value || !canGoNext.value) return
+  if (!renderer.value) return
   try {
     await renderer.value.next()
     updateCurrentChapter()
+    // Small delay to let epub.js update the location
+    setTimeout(updateProgress, 100)
   } catch (err) {
     console.error('Failed to go to next page:', err)
   }
@@ -225,6 +264,18 @@ function updateCurrentChapter() {
   }
 }
 
+function updateProgress() {
+  if (!renderer.value || !currentBook.value) return
+
+  const progress = renderer.value.getProgress()
+  const cfi = renderer.value.getCurrentCfi()
+
+  if (cfi && currentBook.value.id) {
+    // Update the store immediately for UI feedback
+    booksStore.updateReadingPosition(currentBook.value.id, cfi, progress)
+  }
+}
+
 function saveReadingPosition() {
   if (!renderer.value || !currentBook.value) return
 
@@ -237,7 +288,10 @@ function saveReadingPosition() {
 }
 
 function goBack() {
-  router.push({ name: 'books' })
+  router.push({ name: 'books' }).catch(() => {
+    // Fallback: go back in history
+    router.back()
+  })
 }
 
 function toggleTOC() {
@@ -324,6 +378,25 @@ watch(() => route.params.id, async (newId, oldId) => {
   flex: 1;
   overflow: hidden;
   position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 0 1rem;
+}
+
+/* Center the EPUB iframe */
+.viewer-container :deep(iframe) {
+  margin: 0 auto;
+}
+
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--color-bg-base);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
 }
 
 .loading,
@@ -331,7 +404,6 @@ watch(() => route.params.id, async (newId, oldId) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100%;
   color: var(--color-text-muted);
 }
 
@@ -343,13 +415,31 @@ watch(() => route.params.id, async (newId, oldId) => {
 .toc-sidebar {
   padding: 1rem;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
-.toc-sidebar h3 {
-  margin: 0 0 1rem;
+.toc-search-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
   font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-text-base);
+  font-family: inherit;
+  background-color: var(--color-bg-page);
+  border: 1px solid var(--color-border-base);
+  border-radius: 8px;
+  color: var(--color-text-message);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.toc-search-input:focus {
+  outline: none;
+  border-color: var(--color-border-accent);
+  box-shadow: 0 0 0 3px var(--shadow-primary);
+}
+
+.toc-search-input::placeholder {
+  color: var(--color-text-muted);
 }
 
 .toc-list {
@@ -362,7 +452,7 @@ watch(() => route.params.id, async (newId, oldId) => {
   padding: 0.5rem 0.75rem;
   cursor: pointer;
   border-radius: 6px;
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   color: var(--color-text-secondary);
   transition: background 0.15s;
 }

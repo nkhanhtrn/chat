@@ -403,9 +403,18 @@ export const syncToolsFromCloud = async () => {
 
 /**
  * Save a book to IndexedDB (upsert by id)
+ * Preserves existing fileData if not present in the update
  */
 export const saveBookToIDB = async (book) => {
   const db = await getDB()
+  // If this update doesn't include fileData, preserve existing fileData
+  if (!book.fileData) {
+    const existing = await db.get(BOOKS_STORE, book.id)
+    if (existing?.fileData) {
+      book.fileData = existing.fileData
+      book.fileCachedAt = existing.fileCachedAt
+    }
+  }
   await db.put(BOOKS_STORE, book)
 }
 
@@ -441,7 +450,21 @@ export const deleteBookFromIDB = async (id) => {
 export const getBookFileFromIDB = async (id) => {
   const db = await getDB()
   const book = await db.get(BOOKS_STORE, id)
-  return book?.fileData || null
+  if (!book || !book.fileData) {
+    return null
+  }
+
+  const fileData = book.fileData
+
+  // Handle cases where IndexedDB returns Uint8Array instead of ArrayBuffer
+  let result = fileData
+  if (fileData instanceof Uint8Array) {
+    result = fileData.buffer.slice(fileData.byteOffset, fileData.byteOffset + fileData.byteLength)
+  } else if (!(fileData instanceof ArrayBuffer) && fileData?.buffer instanceof ArrayBuffer) {
+    result = fileData.buffer
+  }
+
+  return result
 }
 
 /**
@@ -454,5 +477,7 @@ export const saveBookFileToIDB = async (id, fileData) => {
     book.fileData = fileData
     book.fileCachedAt = Date.now()
     await db.put(BOOKS_STORE, book)
+  } else {
+    throw new Error(`Book ${id} not found in IndexedDB - cannot cache file data. Was the book record saved first?`)
   }
 }

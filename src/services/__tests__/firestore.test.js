@@ -365,8 +365,8 @@ describe('firestore.js', () => {
       // No Firestore write yet (debouncing)
       expect(setDoc).not.toHaveBeenCalled()
 
-      // Advance past debounce timer (1000ms)
-      await vi.advanceTimersByTimeAsync(1100)
+      // Advance past debounce timer (200ms + buffer)
+      await vi.advanceTimersByTimeAsync(250)
 
       // Should have made exactly ONE Firestore call with merged settings
       expect(setDoc).toHaveBeenCalledTimes(1)
@@ -388,20 +388,20 @@ describe('firestore.js', () => {
 
       saveUserSettings({ theme: 'light' })
 
-      // Advance 500ms (still within debounce window)
-      await vi.advanceTimersByTimeAsync(500)
+      // Advance 100ms (still within 200ms debounce window)
+      await vi.advanceTimersByTimeAsync(100)
 
       // Add another setting
       saveUserSettings({ fontSize: 20 })
 
-      // Advance another 500ms (still within new debounce window)
-      await vi.advanceTimersByTimeAsync(500)
+      // Advance another 100ms (still within new 200ms debounce window)
+      await vi.advanceTimersByTimeAsync(100)
 
       // Still no write
       expect(setDoc).not.toHaveBeenCalled()
 
-      // Advance past debounce
-      await vi.advanceTimersByTimeAsync(600)
+      // Advance past debounce (200ms total + buffer)
+      await vi.advanceTimersByTimeAsync(150)
 
       // Should batch both settings
       expect(setDoc).toHaveBeenCalledTimes(1)

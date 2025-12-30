@@ -45,9 +45,21 @@ describe('Router Configuration', () => {
       expect(notebooksRoute.path).toBe('/notebooks')
     })
 
+    it('should have books route', () => {
+      const booksRoute = router.getRoutes().find(r => r.name === 'books')
+      expect(booksRoute).toBeDefined()
+      expect(booksRoute.path).toBe('/books')
+    })
+
+    it('should have book-viewer route with id parameter', () => {
+      const bookViewerRoute = router.getRoutes().find(r => r.name === 'book-viewer')
+      expect(bookViewerRoute).toBeDefined()
+      expect(bookViewerRoute.path).toBe('/books/:id')
+    })
+
     it('should have correct number of routes', () => {
       const routes = router.getRoutes()
-      expect(routes.length).toBe(7)
+      expect(routes.length).toBe(9)
     })
   })
 
@@ -112,6 +124,27 @@ describe('Router Configuration', () => {
     it('should resolve studio route by name', () => {
       const resolved = router.resolve({ name: 'studio' })
       expect(resolved.fullPath).toBe('/studio')
+    })
+
+    it('should resolve books route correctly', () => {
+      const resolved = router.resolve('/books')
+      expect(resolved.name).toBe('books')
+    })
+
+    it('should resolve books route by name', () => {
+      const resolved = router.resolve({ name: 'books' })
+      expect(resolved.fullPath).toBe('/books')
+    })
+
+    it('should resolve book-viewer route with id correctly', () => {
+      const resolved = router.resolve('/books/test-book-id')
+      expect(resolved.name).toBe('book-viewer')
+      expect(resolved.params.id).toBe('test-book-id')
+    })
+
+    it('should resolve book-viewer route by name with params', () => {
+      const resolved = router.resolve({ name: 'book-viewer', params: { id: 'my-book' } })
+      expect(resolved.fullPath).toBe('/books/my-book')
     })
   })
 })

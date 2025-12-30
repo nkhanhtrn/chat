@@ -64,8 +64,10 @@ const getBookDocRef = (bookId) => {
 export const saveBookToFirestore = async (book) => {
   try {
     const bookRef = getBookDocRef(book.id)
+    // Destructure to exclude fields that shouldn't be in Firestore
+    const { fileData, ...firestoreData } = book
     await setDoc(bookRef, {
-      ...book,
+      ...firestoreData,
       lastUpdated: serverTimestamp()
     }, { merge: true })
   } catch (error) {
@@ -175,7 +177,11 @@ export const downloadBookFromStorage = async (bookId, url = null) => {
     if (!response.ok) {
       throw new Error(`Failed to download book: ${response.statusText}`)
     }
-    return await response.arrayBuffer()
+    const arrayBuffer = await response.arrayBuffer()
+    if (arrayBuffer.byteLength === 0) {
+      throw new Error('Downloaded EPUB file is empty')
+    }
+    return arrayBuffer
   } catch (error) {
     console.error('Failed to download book from Firebase Storage:', error)
     throw error
@@ -199,14 +205,43 @@ export const deleteBookFromFirebaseStorage = async (bookId) => {
 // Combined Storage Functions
 // ============================================================================
 
+// Debounced Firestore writes to avoid rate limiting
+const firestoreWriteDebounceMap = new Map()
+const FIRESTORE_DEBOUNCE_MS = 200 // Wait 200ms after last change before writing to Firestore
+
 /**
  * Save a book to both IndexedDB and Firestore
+ * IndexedDB is written immediately, Firestore is debounced
  */
 export const saveBookToStorage = async (book) => {
-  // Deep clone to remove Vue reactive proxies
-  const plainBook = JSON.parse(JSON.stringify(book))
+  // Deep clone to remove Vue reactive proxies, but exclude fileData
+  // (fileData is managed separately via saveBookFileToIDB to avoid JSON corruption)
+  const { fileData, ...bookMetadata } = book
+  const plainBook = JSON.parse(JSON.stringify(bookMetadata))
+
+  // Always write to IndexedDB immediately (fast, no rate limits)
   await saveBookToIDB(plainBook)
-  await saveBookToFirestore(plainBook)
+
+  // Debounce Firestore writes to avoid rate limiting
+  const bookId = book.id
+
+  // Clear any existing timeout for this book
+  if (firestoreWriteDebounceMap.has(bookId)) {
+    clearTimeout(firestoreWriteDebounceMap.get(bookId))
+  }
+
+  // Set new timeout for Firestore write
+  const timeoutId = setTimeout(async () => {
+    try {
+      await saveBookToFirestore(plainBook)
+      firestoreWriteDebounceMap.delete(bookId)
+    } catch (error) {
+      console.error('Failed to save book to Firestore after debounce:', error)
+      firestoreWriteDebounceMap.delete(bookId)
+    }
+  }, FIRESTORE_DEBOUNCE_MS)
+
+  firestoreWriteDebounceMap.set(bookId, timeoutId)
 }
 
 /**
@@ -256,18 +291,15 @@ export const deleteBookFromStorage = async (bookId) => {
 export const getOrDownloadBookFile = async (bookId, storagePath) => {
   // Check IndexedDB first
   const cachedFile = await getBookFileFromIDB(bookId)
-  if (cachedFile) {
-    console.log('Book file loaded from IndexedDB cache')
+  if (cachedFile && cachedFile.byteLength > 0) {
     return cachedFile
   }
 
   // Download from Firebase Storage
-  console.log('Downloading book file from Firebase Storage...')
   const fileData = await downloadBookFromStorage(bookId)
 
   // Cache in IndexedDB for next time
   await saveBookFileToIDB(bookId, fileData)
-  console.log('Book file cached in IndexedDB')
 
   return fileData
 }

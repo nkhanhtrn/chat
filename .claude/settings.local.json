@@ -36,7 +36,8 @@
       "Bash(timeout 10 npx vitest run:*)",
       "Bash(echo:*)",
       "Bash(timeout:*)",
-      "Bash(1)"
+      "Bash(1)",
+      "Bash(node:*)"
     ],
     "deny": [],
     "ask": []

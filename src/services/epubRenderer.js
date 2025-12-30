@@ -11,11 +11,37 @@ export class EpubRenderer {
    */
   constructor(element, bookData) {
     this.element = element
-    this.book = ePub(bookData || '')
+
+    // Convert any binary data to proper ArrayBuffer for epub.js
+    let binaryData = bookData
+
+    // Handle Uint8Array (commonly returned by IndexedDB)
+    if (bookData instanceof Uint8Array) {
+      binaryData = bookData.buffer.slice(bookData.byteOffset, bookData.byteOffset + bookData.byteLength)
+    }
+    // Handle other typed arrays
+    else if (bookData?.buffer instanceof ArrayBuffer) {
+      binaryData = bookData.buffer
+    }
+
+    const hasBuffer = binaryData instanceof ArrayBuffer ||
+      (binaryData && typeof binaryData === 'object' && 'byteLength' in binaryData)
+
+    if (hasBuffer) {
+      const size = binaryData.byteLength
+      if (size === 0) {
+        throw new Error('EPUB file is empty (0 bytes)')
+      }
+      this._arrayBuffer = binaryData
+    }
+
+    // Initialize epub.js book - pass binary data directly or use as URL
+    this.book = hasBuffer ? ePub(binaryData) : ePub(bookData || '')
     this.rendition = null
     this.navigation = null
     this.locations = null
     this.ready = false
+    this._fontHookRegistered = false
   }
 
   /**
@@ -24,14 +50,26 @@ export class EpubRenderer {
    * @returns {Promise} Resolves when rendition is ready
    */
   async initialize(options = {}) {
+    // Wait for book to be ready
+    await this.book.ready
+
+    // Get content width from settings for rendition width
+    const rootStyles = getComputedStyle(document.documentElement)
+    const contentMaxWidth = rootStyles.getPropertyValue('--content-max-width').trim() || '800px'
+
     const defaultOptions = {
-      width: '100%',
+      width: contentMaxWidth,
       height: '100%',
       spread: 'none',
+      flow: 'paginated',
+      allowScriptedContent: false,
       ...options
     }
 
     this.rendition = this.book.renderTo(this.element, defaultOptions)
+
+    // Apply theme styles BEFORE displaying
+    this.applyThemeStyles()
 
     // Display the book
     await this.rendition.display()
@@ -39,12 +77,139 @@ export class EpubRenderer {
     // Get navigation (table of contents)
     this.navigation = await this.book.loaded.navigation
 
-    // Generate locations for progress tracking (character count for CFI generation)
-    // 1024 is a reasonable character count for accurate progress
-    this.locations = await this.book.locations.generate(1024)
-
+    // Generate locations in background - this is slow so don't block
     this.ready = true
+    this.book.locations.generate(1024).then((locations) => {
+      this.locations = locations
+    }).catch((err) => {
+      // Silently fail - progress tracking won't work until this completes
+    })
+
     return this.rendition
+  }
+
+  /**
+   * Apply theme styles from global CSS variables to EPUB content
+   */
+  applyThemeStyles() {
+    if (!this.rendition) return
+
+    // Get CSS variables from document
+    const rootStyles = getComputedStyle(document.documentElement)
+    const fontFamily = rootStyles.getPropertyValue('--message-font-family').trim() || 'Georgia, serif'
+    const fontSize = rootStyles.getPropertyValue('--message-font-size').trim() || '18px'
+    const lineHeight = rootStyles.getPropertyValue('--message-line-height').trim() || '1.7'
+    const contentMaxWidth = rootStyles.getPropertyValue('--content-max-width').trim() || '800px'
+
+    // Get theme colors from CSS variables
+    const textColor = rootStyles.getPropertyValue('--color-text-message').trim() || '#333333'
+    const bgColor = rootStyles.getPropertyValue('--color-bg-page').trim() || '#ffffff'
+    const linkColor = rootStyles.getPropertyValue('--color-primary').trim() || '#3b82f6'
+
+    // Register and select the theme
+    this.rendition.themes.register('reader', {
+      body: {
+        'color': textColor + ' !important',
+        'background-color': bgColor + ' !important',
+        'font-family': fontFamily + ' !important',
+        'font-size': fontSize + ' !important',
+        'line-height': lineHeight + ' !important',
+        'padding': '40px !important',
+        'margin': '0 !important'
+      },
+      p: {
+        'color': textColor + ' !important',
+        'font-family': fontFamily + ' !important',
+        'font-size': fontSize + ' !important',
+        'line-height': lineHeight + ' !important'
+      },
+      a: {
+        'color': linkColor + ' !important',
+        'text-decoration': 'underline !important'
+      },
+      'p:first-of-type::first-letter': {
+        'text-transform': 'uppercase',
+        'font-weight': 'bold'
+      }
+    })
+
+    this.rendition.themes.select('reader')
+
+    // Register font and background hooks only once
+    if (!this._fontHookRegistered) {
+      this._fontHookRegistered = true
+
+      // Set iframe background when rendered
+      this.rendition?.hooks?.render?.register((iframe, contents) => {
+        const rootStyles = getComputedStyle(document.documentElement)
+        const bgColor = rootStyles.getPropertyValue('--color-bg-page').trim() || '#ffffff'
+        if (iframe && iframe.style) {
+          iframe.style.background = bgColor
+        }
+        // Also set on the iframe's document body
+        if (contents && contents.document && contents.document.documentElement) {
+          contents.document.documentElement.style.backgroundColor = bgColor
+        }
+      })
+
+      // Inject fonts into EPUB iframe so custom fonts are available
+      this.rendition?.hooks?.content?.register((contents) => {
+        // Copy all @font-face and link tags from main document to EPUB iframe
+        const mainDoc = document
+        const epubDoc = contents.document
+
+        // Copy font-face rules from all stylesheets
+        for (const sheet of mainDoc.styleSheets) {
+          try {
+            for (const rule of sheet.cssRules) {
+              if (rule instanceof CSSFontFaceRule) {
+                const style = epubDoc.createElement('style')
+                style.textContent = rule.cssText
+                epubDoc.head.appendChild(style)
+              }
+            }
+          } catch (e) {
+            // CORS restrictions on some stylesheets - skip
+          }
+        }
+
+        // Copy link tags (including font imports)
+        for (const link of mainDoc.querySelectorAll('link[rel="stylesheet"]')) {
+          // Check if this link is already in the EPUB document
+          const href = link.getAttribute('href')
+          const existingLink = epubDoc.querySelector(`link[href="${href}"]`)
+          if (!existingLink) {
+            const newLink = epubDoc.createElement('link')
+            newLink.rel = 'stylesheet'
+            newLink.href = href
+            epubDoc.head.appendChild(newLink)
+          }
+        }
+      })
+    }
+  }
+
+  /**
+   * Refresh theme styles (call when settings change)
+   */
+  refreshTheme() {
+    if (!this.rendition) return
+
+    // Get content width from settings
+    const rootStyles = getComputedStyle(document.documentElement)
+    const contentMaxWidth = rootStyles.getPropertyValue('--content-max-width').trim() || '800px'
+
+    // Resize the rendition to the new width
+    this.rendition.resize(contentMaxWidth, '100%')
+
+    // Re-apply theme styles
+    this.applyThemeStyles()
+
+    // Force re-display to apply new styles
+    const currentCfi = this.getCurrentCfi()
+    if (currentCfi) {
+      this.rendition.display(currentCfi)
+    }
   }
 
   /**
@@ -106,13 +271,20 @@ export class EpubRenderer {
    * @returns {number} Progress from 0 to 1
    */
   getProgress() {
-    if (!this.locations || !this.rendition) {
+    if (!this.rendition) {
       return 0
     }
+
+    // If locations aren't ready yet (still generating in background), return 0
+    if (!this.locations || typeof this.locations.percentageFromCfi !== 'function') {
+      return 0
+    }
+
     try {
       const currentCfi = this.getCurrentCfi()
       if (!currentCfi) return 0
-      return this.locations.percentageFromCfi(currentCfi) || 0
+      const progress = this.locations.percentageFromCfi(currentCfi) || 0
+      return progress
     } catch {
       return 0
     }
@@ -150,38 +322,14 @@ export class EpubRenderer {
   }
 
   /**
-   * Set the font size
-   * @param {number} size - Font size in pixels
-   */
-  setFontSize(size) {
-    if (!this.rendition) return
-    this.rendition.themes.fontSize(`${size}px`)
-  }
-
-  /**
-   * Set the theme
-   * @param {string} theme - Theme name ('light', 'dark', 'sepia')
-   */
-  setTheme(theme) {
-    if (!this.rendition) return
-
-    const themes = {
-      light: { body: { color: '#000', background: '#fff' } },
-      dark: { body: { color: '#fff', background: '#1a1a1a' } },
-      sepia: { body: { color: '#5c4b37', background: '#f4ecd8' } }
-    }
-
-    this.rendition.themes.register(themes[theme] || themes.light)
-    this.rendition.themes.select(theme)
-  }
-
-  /**
    * Clean up resources
    */
   destroy() {
     if (this.book) {
       this.book.destroy()
     }
+    // Clean up resources
+    this._arrayBuffer = null
     this.ready = false
     this.rendition = null
     this.navigation = null
