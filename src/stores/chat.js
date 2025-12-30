@@ -31,6 +31,10 @@ export const useChatStore = defineStore('chat', {
       // Back navigation - tracks previous location for back button
       previousLocation: null, // { messageId, chatId } or null
 
+      // Last viewed content for cross-device sync
+      lastViewedContentType: null, // 'book' | 'notebook' | null
+      lastViewedContentId: null, // string | null
+
       // Initialization state
       isInitialized: false,
 
@@ -288,6 +292,10 @@ export const useChatStore = defineStore('chat', {
 
       this.currentMessageId = savedState.currentMessageId || null
       this.currentRootIndex = savedState.currentRootIndex || 0
+
+      // Restore last viewed content for cross-device sync
+      this.lastViewedContentType = savedState.lastViewedContentType || null
+      this.lastViewedContentId = savedState.lastViewedContentId || null
     },
 
     // Resolve a sync conflict and apply the chosen state
@@ -949,6 +957,13 @@ export const useChatStore = defineStore('chat', {
       }
 
       this.chats = reorderedChats
+      this._persistState()
+    },
+
+    // Set the last viewed content type and ID (for cross-device sync)
+    setLastViewedContent(type, id) {
+      this.lastViewedContentType = type
+      this.lastViewedContentId = id
       this._persistState()
     },
 
