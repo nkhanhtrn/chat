@@ -38,7 +38,9 @@
       "Bash(timeout:*)",
       "Bash(1)",
       "Bash(node:*)",
-      "Bash(pgrep:*)"
+      "Bash(pgrep:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

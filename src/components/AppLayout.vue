@@ -73,7 +73,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, useSlots } from 'vue'
+import { ref, computed, onMounted, onUnmounted, useSlots, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useChatStore } from '../stores/chat.js'
 import { useBooksStore } from '../stores/books.js'
@@ -110,6 +110,10 @@ const showSettings = ref(false)
 const isDragging = ref(false)
 const startX = ref(0)
 const startWidth = ref(0)
+
+// Track the last viewed content type and ID
+const lastViewedContentType = ref(localStorage.getItem('last-viewed-content-type') || null)
+const lastViewedContentId = ref(localStorage.getItem('last-viewed-content-id') || null)
 
 // Check if side panel slot has content
 const hasSidePanel = computed(() => !!slots.side)
@@ -148,6 +152,49 @@ function toggleSide() {
   localStorage.setItem(props.storageKey, sideExpanded.value.toString())
 }
 
+// Watch route changes to track the last viewed content
+watch(() => route.name, (name) => {
+  if (name === 'current-content') {
+    // Track based on route params type
+    const type = route.params.type
+    const id = route.params.id
+    if (type && id) {
+      lastViewedContentType.value = type
+      lastViewedContentId.value = id
+      localStorage.setItem('last-viewed-content-type', type)
+      localStorage.setItem('last-viewed-content-id', id)
+    }
+  } else if (name === 'current-content-question') {
+    // Track notebook with specific question
+    const type = route.params.type
+    const id = route.params.id
+    if (type && id) {
+      lastViewedContentType.value = type
+      lastViewedContentId.value = id
+      localStorage.setItem('last-viewed-content-type', type)
+      localStorage.setItem('last-viewed-content-id', id)
+    }
+  } else if (name === 'notebook' || name === 'question') {
+    // Track legacy notebook routes (for backward compatibility)
+    const id = route.params.id
+    if (id) {
+      lastViewedContentType.value = 'notebook'
+      lastViewedContentId.value = id
+      localStorage.setItem('last-viewed-content-type', 'notebook')
+      localStorage.setItem('last-viewed-content-id', id)
+    }
+  } else if (name === 'book-viewer') {
+    // Track legacy book routes (for backward compatibility)
+    const id = route.params.id
+    if (id) {
+      lastViewedContentType.value = 'book'
+      lastViewedContentId.value = id
+      localStorage.setItem('last-viewed-content-type', 'book')
+      localStorage.setItem('last-viewed-content-id', id)
+    }
+  }
+}, { immediate: true })
+
 function goTo(page) {
   // If clicking on the current page's button, toggle the side panel
   if (page === activePage.value && hasSidePanel.value) {
@@ -162,24 +209,40 @@ function goTo(page) {
   } else if (page === 'books') {
     router.push({ name: 'books' })
   } else if (page === 'current-content') {
-    // Navigate to the current content - prioritize notebook over book
-    if (chatStore.currentChatId) {
+    // Navigate to the last viewed content
+    const contentType = lastViewedContentType.value
+    const contentId = lastViewedContentId.value
+
+    if (contentType === 'notebook' && contentId && chatStore.currentChatId === contentId) {
       if (chatStore.currentMessageId) {
         router.push({
           name: 'current-content-question',
-          params: { type: 'notebook', id: chatStore.currentChatId, questionId: chatStore.currentMessageId }
+          params: { type: 'notebook', id: contentId, questionId: chatStore.currentMessageId }
         })
       } else {
         router.push({
           name: 'current-content',
-          params: { type: 'notebook', id: chatStore.currentChatId }
+          params: { type: 'notebook', id: contentId }
         })
       }
-    } else if (booksStore.currentBookId) {
+    } else if (contentType === 'book' && contentId && booksStore.currentBookId === contentId) {
       router.push({
         name: 'current-content',
-        params: { type: 'book', id: booksStore.currentBookId }
+        params: { type: 'book', id: contentId }
       })
+    } else {
+      // Fallback: try notebook first, then book
+      if (chatStore.currentChatId) {
+        router.push({
+          name: 'current-content',
+          params: { type: 'notebook', id: chatStore.currentChatId }
+        })
+      } else if (booksStore.currentBookId) {
+        router.push({
+          name: 'current-content',
+          params: { type: 'book', id: booksStore.currentBookId }
+        })
+      }
     }
   } else if (page === 'notebook' && chatStore.currentChatId) {
     if (chatStore.currentMessageId) {
