@@ -119,9 +119,13 @@ export class EpubRenderer {
       },
       p: {
         'color': textColor + ' !important',
+        'background-color': 'transparent !important',
         'font-family': fontFamily + ' !important',
         'font-size': fontSize + ' !important',
         'line-height': lineHeight + ' !important'
+      },
+      div: {
+        'background-color': 'transparent !important'
       },
       a: {
         'color': linkColor + ' !important',
@@ -143,12 +147,45 @@ export class EpubRenderer {
       this.rendition?.hooks?.render?.register((iframe, contents) => {
         const rootStyles = getComputedStyle(document.documentElement)
         const bgColor = rootStyles.getPropertyValue('--color-bg-page').trim() || '#ffffff'
+        const textColor = rootStyles.getPropertyValue('--color-text-message').trim() || '#333333'
+
+        // Set inline styles on iframe
         if (iframe && iframe.style) {
           iframe.style.background = bgColor
         }
-        // Also set on the iframe's document body
-        if (contents && contents.document && contents.document.documentElement) {
-          contents.document.documentElement.style.backgroundColor = bgColor
+
+        if (contents && contents.document) {
+          const doc = contents.document
+
+          // Set inline styles directly on html and body elements (highest specificity)
+          if (doc.documentElement) {
+            doc.documentElement.style.backgroundColor = bgColor
+            doc.documentElement.style.color = textColor
+          }
+          if (doc.body) {
+            doc.body.style.backgroundColor = bgColor
+            doc.body.style.color = textColor
+          }
+
+          // Inject stylesheet with maximum specificity
+          const style = doc.createElement('style')
+          style.setAttribute('data-reader-theme', 'override')
+          style.textContent = `
+            html.html {
+              background-color: ${bgColor} !important;
+              color: ${textColor} !important;
+            }
+            body.body {
+              background-color: ${bgColor} !important;
+              color: ${textColor} !important;
+            }
+            html > body {
+              background-color: ${bgColor} !important;
+              color: ${textColor} !important;
+            }
+          `
+          // Append at the end of head to override epub's styles
+          doc.head.appendChild(style)
         }
       })
 
@@ -173,18 +210,10 @@ export class EpubRenderer {
           }
         }
 
-        // Copy link tags (including font imports)
-        for (const link of mainDoc.querySelectorAll('link[rel="stylesheet"]')) {
-          // Check if this link is already in the EPUB document
-          const href = link.getAttribute('href')
-          const existingLink = epubDoc.querySelector(`link[href="${href}"]`)
-          if (!existingLink) {
-            const newLink = epubDoc.createElement('link')
-            newLink.rel = 'stylesheet'
-            newLink.href = href
-            epubDoc.head.appendChild(newLink)
-          }
-        }
+        // Note: We DON'T copy link tags because:
+        // 1. App CSS (Vue components, etc.) shouldn't be in the epub iframe
+        // 2. Epub has its own stylesheets
+        // 3. Copying app CSS causes 404 errors and style conflicts
       })
     }
   }

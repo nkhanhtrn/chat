@@ -1,21 +1,28 @@
 <template>
   <div class="notebook-overview">
+    <!-- Book Cover (optional) -->
+    <div v-if="coverUrl" class="overview-cover">
+      <img :src="coverUrl" :alt="title" />
+    </div>
+
     <div class="overview-header">
       <div class="title-row">
         <InlineEdit
+          v-if="!readOnly"
           ref="titleEditRef"
-          :model-value="notebook?.title || 'Untitled Notebook'"
+          :model-value="title"
           text-class="overview-title"
           input-class="overview-title-input"
           @save="handleNotebookRename"
         />
-        <button class="title-edit-button" @click="titleEditRef?.startEditing()" title="Edit title">
+        <span v-else class="inline-edit-text overview-title">{{ title }}</span>
+        <button v-if="!readOnly" class="title-edit-button" @click="titleEditRef?.startEditing()" title="Edit title">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <path d="M17 3l4 4L7 21H3v-4L17 3z"/>
           </svg>
         </button>
       </div>
-      <p class="overview-subtitle">{{ questionCount }} question{{ questionCount !== 1 ? 's' : '' }}</p>
+      <p class="overview-subtitle">{{ readOnly && subtitle ? subtitle : `${questionCount} question${questionCount !== 1 ? 's' : ''}` }}</p>
     </div>
 
     <div class="overview-content">
@@ -25,6 +32,9 @@
         :root-messages="rootMessages"
         :show-collapse-button="true"
         :initial-expand-all="true"
+        :draggable="!readOnly"
+        :editable="!readOnly"
+        :show-delete-button="!readOnly"
         @select="handleSelect"
         @delete-root="handleDeleteRoot"
         @delete-child="handleDeleteChild"
@@ -41,87 +51,114 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
-import { useChatStore } from '../stores/chat.js'
+import { ref } from 'vue'
 import QuestionTree from './QuestionTree.vue'
 import InlineEdit from './InlineEdit.vue'
 
 const titleEditRef = ref(null)
+const questionTreeRef = ref(null)
 
 const props = defineProps({
   notebookId: {
     type: String,
     required: true
+  },
+  title: {
+    type: String,
+    default: 'Untitled Notebook'
+  },
+  questionCount: {
+    type: Number,
+    default: 0
+  },
+  rootMessages: {
+    type: Array,
+    default: () => []
+  },
+  // Optional: for delete confirmation logic
+  needsDeleteConfirmation: {
+    type: Function,
+    default: () => false
+  },
+  // Read-only mode - disables editing, reordering, and deleting
+  readOnly: {
+    type: Boolean,
+    default: false
+  },
+  // Optional: book cover image URL
+  coverUrl: {
+    type: String,
+    default: ''
+  },
+  // Optional: custom subtitle text (for read-only mode, e.g., book author)
+  subtitle: {
+    type: String,
+    default: ''
   }
 })
 
-const emit = defineEmits(['select-question'])
-
-const chatStore = useChatStore()
-
-const notebook = computed(() => {
-  return chatStore.chatList.find(c => c.id === props.notebookId)
-})
-
-const rootMessages = computed(() => {
-  if (!notebook.value?.questions) return []
-  return notebook.value.questions.map(q => {
-    const msg = chatStore.messagesById[q.id]
-    return msg || { id: q.id, question: q.text, questionSummarized: q.text }
-  })
-})
-
-const questionCount = computed(() => {
-  return chatStore.getTotalMessageCount(props.notebookId)
-})
+const emit = defineEmits([
+  'select-question',
+  'rename-notebook',
+  'delete-root',
+  'delete-child',
+  'rename',
+  'drop'
+])
 
 const handleSelect = (selection) => {
   emit('select-question', { id: selection.id })
 }
 
 const handleNotebookRename = (newTitle) => {
-  chatStore.renameChat(props.notebookId, newTitle)
-}
-
-// Check if question needs delete confirmation (has children or custom content)
-const needsDeleteConfirmation = (messageId) => {
-  const stats = chatStore.getMessageTreeStats(messageId)
-  return stats.descendantCount > 0 || stats.customContentCount > 0
+  emit('rename-notebook', newTitle)
 }
 
 const handleDeleteRoot = (rootMsg) => {
-  if (needsDeleteConfirmation(rootMsg.id)) {
+  if (props.needsDeleteConfirmation(rootMsg.id)) {
     if (!confirm('This question has custom content. Are you sure you want to delete it?')) return
   }
-  chatStore.deleteQuestion(rootMsg.id, props.notebookId)
+  emit('delete-root', rootMsg)
 }
 
 const handleDeleteChild = (childMsg) => {
-  if (needsDeleteConfirmation(childMsg.id)) {
+  if (props.needsDeleteConfirmation(childMsg.id)) {
     if (!confirm('This question has custom content. Are you sure you want to delete it?')) return
   }
-  chatStore.deleteChildMessage(childMsg.id)
+  emit('delete-child', childMsg)
 }
 
 const handleRename = (item, newText) => {
-  chatStore.setQuestionSummarized(item.id, newText)
+  emit('rename', item, newText)
 }
 
 const handleDrop = (dropData) => {
-  const { messageId, targetId, position, targetIndex } = dropData
-  if (position === 'above') {
-    chatStore.moveMessage(messageId, null, targetIndex)
-  } else {
-    chatStore.moveMessage(messageId, targetId, 0)
-  }
+  emit('drop', dropData)
 }
 </script>
 
 <style scoped>
 .notebook-overview {
-  max-width: 800px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 2rem;
+  padding: 2rem 1rem;
+  font-family: 'Georgia', 'Palatino Linotype', 'Book Antiqua', 'Times New Roman', serif;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.overview-cover {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+.overview-cover img {
+  max-width: 200px;
+  max-height: 300px;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .overview-header {
@@ -129,6 +166,30 @@ const handleDrop = (dropData) => {
   margin-bottom: 2rem;
   padding-bottom: 1.5rem;
   border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.overview-content {
+  padding: 0;
+  text-align: center;
+}
+
+/* Custom scrollbar for notebook overview */
+.notebook-overview::-webkit-scrollbar {
+  width: 8px;
+}
+
+.notebook-overview::-webkit-scrollbar-track {
+  background: var(--color-scrollbar-track);
+  border-radius: 4px;
+}
+
+.notebook-overview::-webkit-scrollbar-thumb {
+  background: var(--color-scrollbar-thumb);
+  border-radius: 4px;
+}
+
+.notebook-overview::-webkit-scrollbar-thumb:hover {
+  background: var(--color-scrollbar-thumb-hover);
 }
 
 .title-row {
@@ -190,10 +251,6 @@ const handleDrop = (dropData) => {
   font-size: 0.95rem;
   color: var(--color-text-muted);
   margin: 0;
-}
-
-.overview-content {
-  padding: 0;
 }
 
 .empty-state {

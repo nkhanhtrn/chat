@@ -32,7 +32,16 @@
             v-if="showingOverview && chatStore.currentChatId"
             key="overview"
             :notebook-id="chatStore.currentChatId"
+            :title="notebookTitle"
+            :question-count="notebookQuestionCount"
+            :root-messages="notebookRootMessages"
+            :needs-delete-confirmation="needsDeleteConfirmation"
             @select-question="handleOverviewSelectQuestion"
+            @rename-notebook="handleNotebookRename"
+            @delete-root="handleOverviewDeleteRoot"
+            @delete-child="handleOverviewDeleteChild"
+            @rename="handleRenameQuestion"
+            @drop="handleOverviewDrop"
           />
 
           <div v-else-if="chatStore.rootMessages.length === 0 || isAddingNewQuestion" key="welcome" class="welcome-message">
@@ -88,7 +97,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted, provide, watch } from 'vue'
+import { ref, nextTick, onMounted, provide, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
 import ChatMessage from '../components/ChatMessage.vue'
@@ -113,6 +122,30 @@ const showingOverview = ref(false)
 
 const isDev = getIsDev()
 const prepopulatedQuestions = ref(getDefaultQuestions())
+
+// Computed properties for NotebookOverview props
+const notebookTitle = computed(() => {
+  const notebook = chatStore.chatList.find(c => c.id === chatStore.currentChatId)
+  return notebook?.title || 'Untitled Notebook'
+})
+
+const notebookQuestionCount = computed(() => {
+  return chatStore.getTotalMessageCount(chatStore.currentChatId)
+})
+
+const notebookRootMessages = computed(() => {
+  const notebook = chatStore.chatList.find(c => c.id === chatStore.currentChatId)
+  if (!notebook?.questions) return []
+  return notebook.questions.map(q => {
+    const msg = chatStore.messagesById[q.id]
+    return msg || { id: q.id, question: q.text, questionSummarized: q.text }
+  })
+})
+
+const needsDeleteConfirmation = (messageId) => {
+  const stats = chatStore.getMessageTreeStats(messageId)
+  return stats.descendantCount > 0 || stats.customContentCount > 0
+}
 
 // Shared drag state for tree components (ChatSidebar and NotebookOverview)
 const draggedItem = ref(null)
@@ -344,7 +377,9 @@ const handleSelectQuestion = (question) => {
   })
 }
 
-const handleRenameQuestion = (messageId, newSummary) => {
+const handleRenameQuestion = (itemOrId, newSummary) => {
+  // Handle both: (item, newSummary) from NotebookOverview and (messageId, newSummary) from ChatSidebar
+  const messageId = typeof itemOrId === 'string' ? itemOrId : itemOrId.id
   chatStore.setQuestionSummarized(messageId, newSummary)
 }
 
@@ -359,6 +394,27 @@ const handleNewQuestion = () => {
 const handleOverviewSelectQuestion = (question) => {
   showingOverview.value = false
   handleSelectQuestion(question)
+}
+
+const handleNotebookRename = (newTitle) => {
+  chatStore.renameChat(chatStore.currentChatId, newTitle)
+}
+
+const handleOverviewDeleteRoot = (rootMsg) => {
+  chatStore.deleteQuestion(rootMsg.id, chatStore.currentChatId)
+}
+
+const handleOverviewDeleteChild = (childMsg) => {
+  chatStore.deleteChildMessage(childMsg.id)
+}
+
+const handleOverviewDrop = (dropData) => {
+  const { messageId, targetId, position, targetIndex } = dropData
+  if (position === 'above') {
+    chatStore.moveMessage(messageId, null, targetIndex)
+  } else {
+    chatStore.moveMessage(messageId, targetId, 0)
+  }
 }
 
 const handleScratchpadUpdate = (content) => {

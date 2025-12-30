@@ -2,12 +2,20 @@
   <AppLayout storage-key="book-viewer-layout">
     <template #side>
       <div class="toc-sidebar">
-        <input
-          v-model="searchQuery"
-          type="text"
-          class="toc-search-input"
-          placeholder="Search chapters..."
-        />
+        <div class="toc-sidebar-header">
+          <input
+            v-model="searchQuery"
+            type="text"
+            class="toc-search-input"
+            placeholder="Search chapters..."
+          />
+          <div v-if="currentBook" class="overview-header-item" @click="showingOverview = true">
+            <svg class="overview-icon" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+              <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
+            </svg>
+            <span class="overview-text">{{ currentBook.title }}</span>
+          </div>
+        </div>
         <div class="toc-list">
           <div
             v-for="(chapter, index) in filteredChapters"
@@ -52,6 +60,19 @@
           <div v-else-if="error" class="error">{{ error }}</div>
         </div>
       </div>
+
+      <!-- Notebook Overview Overlay -->
+      <NotebookOverview
+        v-if="showingOverview"
+        :notebook-id="currentBook?.id || ''"
+        :title="currentBook?.title || 'Book Contents'"
+        :question-count="chapters.length"
+        :root-messages="chapterMessages"
+        :read-only="true"
+        :cover-url="currentBook?.coverUrl || ''"
+        :subtitle="currentBook?.author || ''"
+        @select-question="handleSelectChapter"
+      />
     </div>
   </AppLayout>
 </template>
@@ -61,6 +82,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useBooksStore } from '../stores/books.js'
 import AppLayout from '../components/AppLayout.vue'
+import NotebookOverview from '../components/NotebookOverview.vue'
 import ProgressBar from '../components/ProgressBar.vue'
 import { EpubRenderer } from '../services/epubRenderer.js'
 import { getOrDownloadBookFile } from '../services/bookStorage.js'
@@ -77,6 +99,27 @@ const isLoading = ref(true)
 const downloadProgress = ref(0)
 const error = ref(null)
 const searchQuery = ref('')
+const showingOverview = ref(false)
+
+const currentBook = computed(() => booksStore.currentBook)
+
+// Transform chapters into the format expected by NotebookOverview (like messages)
+const chapterMessages = computed(() => {
+  return chapters.value.map(chapter => ({
+    id: chapter.href || chapter.id || crypto.randomUUID(),
+    question: chapter.label,
+    questionSummarized: chapter.label,
+    // Store the href for navigation
+    href: chapter.href,
+    subitems: chapter.subitems?.map(sub => ({
+      id: sub.href || sub.id || crypto.randomUUID(),
+      question: sub.label,
+      questionSummarized: sub.label,
+      href: sub.href,
+      parentId: chapter.href || chapter.id
+    })) || []
+  }))
+})
 
 const filteredChapters = computed(() => {
   if (!searchQuery.value.trim()) {
@@ -88,14 +131,29 @@ const filteredChapters = computed(() => {
   )
 })
 
-const currentBook = computed(() => booksStore.currentBook)
 const progressPercent = computed(() => {
   return currentBook.value ? Math.round(currentBook.value.totalProgress * 100) : 0
 })
 
-// Enable pagination buttons - epub.js will handle boundaries internally
-const canGoPrev = computed(() => true)
-const canGoNext = computed(() => true)
+// Handle chapter selection from NotebookOverview
+function handleSelectChapter(selection) {
+  // Find the chapter with matching id (href)
+  const allChapters = [...chapters.value]
+  for (const chapter of chapters.value) {
+    if (chapter.subitems) {
+      allChapters.push(...chapter.subitems)
+    }
+  }
+
+  const selectedChapter = allChapters.find(ch =>
+    (ch.href || ch.id) === selection.id
+  )
+
+  if (selectedChapter?.href) {
+    showingOverview.value = false
+    gotoChapter(selectedChapter.href)
+  }
+}
 
 let saveInterval = null
 let settingsObserver = null
@@ -215,6 +273,9 @@ async function loadBook(bookId) {
 async function gotoChapter(href) {
   if (!renderer.value) return
 
+  // Hide overview when navigating from sidebar
+  showingOverview.value = false
+
   try {
     await renderer.value.goto(href)
     updateCurrentChapter()
@@ -226,6 +287,9 @@ async function gotoChapter(href) {
 
 async function prevPage() {
   if (!renderer.value) return
+
+  showingOverview.value = false
+
   try {
     await renderer.value.prev()
     updateCurrentChapter()
@@ -238,6 +302,14 @@ async function prevPage() {
 
 async function nextPage() {
   if (!renderer.value) return
+  if (showingOverview.value) {
+    // Go to first page if overview is showing
+    showingOverview.value = false
+    if (chapters.value.length > 0 && chapters.value[0].href) {
+      await gotoChapter(chapters.value[0].href)
+    }
+    return
+  }
   try {
     await renderer.value.next()
     updateCurrentChapter()
@@ -328,16 +400,40 @@ watch(() => route.params.id, async (newId, oldId) => {
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+  position: relative;
+}
+
+/* NotebookOverview overlay - positioned below toolbar */
+.book-viewer :deep(.notebook-overview) {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--color-bg-base);
+  max-width: 100% !important;
+  z-index: 100;
+  margin: 0;
+  padding: 2rem 15%;
 }
 
 .viewer-toolbar {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: center;
   padding: 0.5rem 1rem;
   background: var(--color-bg-surface);
   border-bottom: 1px solid var(--color-border-base);
   gap: 1rem;
+  position: relative;
+}
+
+.viewer-toolbar > button:first-child {
+  position: absolute;
+  left: 1rem;
+}
+
+.toolbar-right {
+  position: absolute;
+  right: 1rem;
 }
 
 .nav-btn {
@@ -413,11 +509,61 @@ watch(() => route.params.id, async (newId, oldId) => {
 
 /* Table of Contents Sidebar */
 .toc-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.toc-sidebar-header {
   padding: 1rem;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  flex-shrink: 0;
+}
+
+.toc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  overflow-y: auto;
+  flex: 1;
+  padding: 0 1rem 1rem;
+}
+
+/* Overview header item */
+.overview-header-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.25rem;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.15s;
+}
+
+.overview-header-item:hover {
+  background-color: var(--color-bg-hover);
+}
+
+.overview-icon {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.overview-text {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.overview-header-item:hover .overview-text {
+  color: var(--color-primary);
 }
 
 .toc-search-input {

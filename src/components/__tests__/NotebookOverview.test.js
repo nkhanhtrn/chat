@@ -51,6 +51,51 @@ describe('NotebookOverview', () => {
         childIds: q.childIds || []
       })
     })
+
+    // Return root messages formatted as props
+    return questions
+      .filter(q => !q.parentId)
+      .map(q => ({
+        id: q.id,
+        question: q.question,
+        questionSummarized: q.questionSummarized || q.question,
+        subitems: q.childIds ? q.childIds.map(childId => {
+          const child = chatStore.messagesById[childId]
+          return child ? {
+            id: child.id,
+            question: child.question,
+            questionSummarized: child.questionSummarized || child.question,
+            parentId: child.parentId
+          } : null
+        }).filter(Boolean) : []
+      }))
+  }
+
+  // Helper to get all message descendants for counting
+  const countAllDescendants = (message) => {
+    if (!message.childIds || message.childIds.length === 0) return 0
+    let count = message.childIds.length
+    message.childIds.forEach(childId => {
+      const child = chatStore.messagesById[childId]
+      if (child) {
+        count += countAllDescendants(child)
+      }
+    })
+    return count
+  }
+
+  // Helper to get total question count
+  const getTotalQuestionCount = (notebookId) => {
+    const chat = chatStore.chats.find(c => c.id === notebookId)
+    if (!chat) return 0
+    let count = chat.rootMessageIds.length
+    chat.rootMessageIds.forEach(rootId => {
+      const rootMsg = chatStore.messagesById[rootId]
+      if (rootMsg) {
+        count += countAllDescendants(rootMsg)
+      }
+    })
+    return count
   }
 
   // Create provide for drag state
@@ -64,7 +109,11 @@ describe('NotebookOverview', () => {
       setupNotebook('notebook1', 'Test Notebook', [])
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          rootMessages: [],
+          questionCount: 0
+        },
         global: { provide: createProvide() }
       })
 
@@ -75,7 +124,12 @@ describe('NotebookOverview', () => {
       setupNotebook('notebook1', 'My Test Notebook', [])
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          title: 'My Test Notebook',
+          rootMessages: [],
+          questionCount: 0
+        },
         global: { provide: createProvide() }
       })
 
@@ -83,12 +137,17 @@ describe('NotebookOverview', () => {
     })
 
     it('should render question count with correct pluralization', () => {
-      setupNotebook('notebook1', 'Test', [
+      const rootMessages = setupNotebook('notebook1', 'Test', [
         { id: 'q1', question: 'Question 1' }
       ])
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          title: 'Test',
+          rootMessages,
+          questionCount: 1
+        },
         global: { provide: createProvide() }
       })
 
@@ -96,13 +155,18 @@ describe('NotebookOverview', () => {
     })
 
     it('should pluralize question count for multiple questions', () => {
-      setupNotebook('notebook1', 'Test', [
+      const rootMessages = setupNotebook('notebook1', 'Test', [
         { id: 'q1', question: 'Question 1' },
         { id: 'q2', question: 'Question 2' }
       ])
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          title: 'Test',
+          rootMessages,
+          questionCount: 2
+        },
         global: { provide: createProvide() }
       })
 
@@ -110,44 +174,33 @@ describe('NotebookOverview', () => {
     })
 
     it('should count children in question count', () => {
-      const Message = require('../../stores/Message.js').default
-
-      // Clear and set up manually to control root vs child messages
-      chatStore.chats = []
-      chatStore.messagesById = {}
-
-      // Only q1 is a root message
-      chatStore.chats.push({
-        id: 'notebook1',
-        name: 'Test',
-        rootMessageIds: ['q1']
-      })
-
-      // Add all messages including children
-      chatStore.messagesById['q1'] = new Message({
-        id: 'q1',
-        question: 'Question 1',
-        childIds: ['child1', 'child2']
-      })
-      chatStore.messagesById['child1'] = new Message({
+      const rootMessages = setupNotebook('notebook1', 'Test', [
+        { id: 'q1', question: 'Question 1', childIds: ['child1', 'child2'] }
+      ])
+      const child1 = chatStore.messagesById['child1'] = new (require('../../stores/Message.js').default)({
         id: 'child1',
         question: 'Child 1',
         parentId: 'q1'
       })
-      chatStore.messagesById['child2'] = new Message({
+      const child2 = chatStore.messagesById['child2'] = new (require('../../stores/Message.js').default)({
         id: 'child2',
         question: 'Child 2',
         parentId: 'q1',
         childIds: ['grandchild1']
       })
-      chatStore.messagesById['grandchild1'] = new Message({
+      chatStore.messagesById['grandchild1'] = new (require('../../stores/Message.js').default)({
         id: 'grandchild1',
         question: 'Grandchild 1',
         parentId: 'child2'
       })
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          title: 'Test',
+          rootMessages,
+          questionCount: 4
+        },
         global: { provide: createProvide() }
       })
 
@@ -159,7 +212,11 @@ describe('NotebookOverview', () => {
       setupNotebook('notebook1', 'Test', [])
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          rootMessages: [],
+          questionCount: 0
+        },
         global: { provide: createProvide() }
       })
 
@@ -168,12 +225,17 @@ describe('NotebookOverview', () => {
     })
 
     it('should render QuestionTree when questions exist', () => {
-      setupNotebook('notebook1', 'Test', [
+      const rootMessages = setupNotebook('notebook1', 'Test', [
         { id: 'q1', question: 'Question 1' }
       ])
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          title: 'Test',
+          rootMessages,
+          questionCount: 1
+        },
         global: { provide: createProvide() }
       })
 
@@ -184,7 +246,11 @@ describe('NotebookOverview', () => {
       setupNotebook('notebook1', 'Test', [])
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          rootMessages: [],
+          questionCount: 0
+        },
         global: { provide: createProvide() }
       })
 
@@ -197,7 +263,12 @@ describe('NotebookOverview', () => {
       setupNotebook('notebook1', 'Test Notebook', [])
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          title: 'Test Notebook',
+          rootMessages: [],
+          questionCount: 0
+        },
         global: { provide: createProvide() }
       })
 
@@ -208,7 +279,12 @@ describe('NotebookOverview', () => {
       setupNotebook('notebook1', 'My Notebook Title', [])
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          title: 'My Notebook Title',
+          rootMessages: [],
+          questionCount: 0
+        },
         global: { provide: createProvide() }
       })
 
@@ -218,43 +294,49 @@ describe('NotebookOverview', () => {
 
     it('should call renameChat when title is saved', async () => {
       setupNotebook('notebook1', 'Old Title', [])
-      const renameSpy = vi.spyOn(chatStore, 'renameChat')
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          title: 'Old Title',
+          rootMessages: [],
+          questionCount: 0
+        },
         global: { provide: createProvide() }
       })
 
       const inlineEdit = wrapper.findComponent({ name: 'InlineEdit' })
       await inlineEdit.vm.$emit('save', 'New Title')
 
-      expect(renameSpy).toHaveBeenCalledWith('notebook1', 'New Title')
+      // Component emits 'rename-notebook' event
+      expect(wrapper.emitted('rename-notebook')).toBeTruthy()
+      expect(wrapper.emitted('rename-notebook')[0][0]).toBe('New Title')
     })
 
     it('should show fallback title when notebook has no title', () => {
-      // Clear store and add notebook without title
-      chatStore.chats = []
-      chatStore.messagesById = {}
-      chatStore.chats.push({
-        id: 'notebook1',
-        name: '',
-        rootMessageIds: []
-      })
-
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          title: 'Untitled Notebook',
+          rootMessages: [],
+          questionCount: 0
+        },
         global: { provide: createProvide() }
       })
 
-      // chatList getter transforms empty title to 'New Subject'
-      expect(wrapper.text()).toContain('New Subject')
+      expect(wrapper.text()).toContain('Untitled Notebook')
     })
 
     it('should render title edit button', () => {
       setupNotebook('notebook1', 'Test Notebook', [])
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          title: 'Test Notebook',
+          rootMessages: [],
+          questionCount: 0
+        },
         global: { provide: createProvide() }
       })
 
@@ -265,7 +347,12 @@ describe('NotebookOverview', () => {
       setupNotebook('notebook1', 'Test Notebook', [])
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          title: 'Test Notebook',
+          rootMessages: [],
+          questionCount: 0
+        },
         global: { provide: createProvide() }
       })
 
@@ -279,7 +366,12 @@ describe('NotebookOverview', () => {
       setupNotebook('notebook1', 'Test Notebook', [])
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          title: 'Test Notebook',
+          rootMessages: [],
+          questionCount: 0
+        },
         global: { provide: createProvide() }
       })
 
@@ -290,12 +382,17 @@ describe('NotebookOverview', () => {
 
   describe('QuestionTree Props', () => {
     it('should pass initialExpandAll=true to QuestionTree', () => {
-      setupNotebook('notebook1', 'Test', [
+      const rootMessages = setupNotebook('notebook1', 'Test', [
         { id: 'q1', question: 'Question 1' }
       ])
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          title: 'Test',
+          rootMessages,
+          questionCount: 1
+        },
         global: { provide: createProvide() }
       })
 
@@ -304,13 +401,18 @@ describe('NotebookOverview', () => {
     })
 
     it('should pass root messages to QuestionTree', () => {
-      setupNotebook('notebook1', 'Test', [
+      const rootMessages = setupNotebook('notebook1', 'Test', [
         { id: 'q1', question: 'Question 1' },
         { id: 'q2', question: 'Question 2' }
       ])
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          title: 'Test',
+          rootMessages,
+          questionCount: 2
+        },
         global: { provide: createProvide() }
       })
 
@@ -319,12 +421,17 @@ describe('NotebookOverview', () => {
     })
 
     it('should pass showCollapseButton=true to QuestionTree', () => {
-      setupNotebook('notebook1', 'Test', [
+      const rootMessages = setupNotebook('notebook1', 'Test', [
         { id: 'q1', question: 'Question 1' }
       ])
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          title: 'Test',
+          rootMessages,
+          questionCount: 1
+        },
         global: { provide: createProvide() }
       })
 
@@ -335,12 +442,17 @@ describe('NotebookOverview', () => {
 
   describe('Events', () => {
     it('should emit select-question when QuestionTree emits select', async () => {
-      setupNotebook('notebook1', 'Test', [
+      const rootMessages = setupNotebook('notebook1', 'Test', [
         { id: 'q1', question: 'Question 1' }
       ])
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          title: 'Test',
+          rootMessages,
+          questionCount: 1
+        },
         global: { provide: createProvide() }
       })
 
@@ -354,114 +466,155 @@ describe('NotebookOverview', () => {
 
   describe('Delete Operations', () => {
     it('should call deleteQuestion when delete-root is triggered', async () => {
-      setupNotebook('notebook1', 'Test', [
+      const rootMessages = setupNotebook('notebook1', 'Test', [
         { id: 'q1', question: 'Question 1' }
       ])
-      const deleteSpy = vi.spyOn(chatStore, 'deleteQuestion').mockImplementation(() => {})
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          title: 'Test',
+          rootMessages,
+          questionCount: 1
+        },
         global: { provide: createProvide() }
       })
 
       const questionTree = wrapper.findComponent({ name: 'QuestionTree' })
       await questionTree.vm.$emit('delete-root', { id: 'q1' })
 
-      expect(deleteSpy).toHaveBeenCalledWith('q1', 'notebook1')
+      // Component emits 'delete-root' event
+      expect(wrapper.emitted('delete-root')).toBeTruthy()
+      expect(wrapper.emitted('delete-root')[0][0]).toEqual({ id: 'q1' })
     })
 
     it('should call deleteChildMessage when delete-child is triggered', async () => {
-      setupNotebook('notebook1', 'Test', [
-        { id: 'q1', question: 'Question 1', childIds: ['child1'] },
-        { id: 'child1', question: 'Child 1', parentId: 'q1' }
+      const rootMessages = setupNotebook('notebook1', 'Test', [
+        { id: 'q1', question: 'Question 1', childIds: ['child1'] }
       ])
-      const deleteSpy = vi.spyOn(chatStore, 'deleteChildMessage').mockImplementation(() => ({}))
+      chatStore.messagesById['child1'] = new (require('../../stores/Message.js').default)({
+        id: 'child1',
+        question: 'Child 1',
+        parentId: 'q1'
+      })
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          title: 'Test',
+          rootMessages,
+          questionCount: 2
+        },
         global: { provide: createProvide() }
       })
 
       const questionTree = wrapper.findComponent({ name: 'QuestionTree' })
       await questionTree.vm.$emit('delete-child', { id: 'child1' })
 
-      expect(deleteSpy).toHaveBeenCalledWith('child1')
+      // Component emits 'delete-child' event
+      expect(wrapper.emitted('delete-child')).toBeTruthy()
+      expect(wrapper.emitted('delete-child')[0][0]).toEqual({ id: 'child1' })
     })
   })
 
   describe('Rename Operations', () => {
     it('should call setQuestionSummarized when rename is triggered', async () => {
-      setupNotebook('notebook1', 'Test', [
+      const rootMessages = setupNotebook('notebook1', 'Test', [
         { id: 'q1', question: 'Question 1' }
       ])
-      const renameSpy = vi.spyOn(chatStore, 'setQuestionSummarized').mockImplementation(() => {})
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          title: 'Test',
+          rootMessages,
+          questionCount: 1
+        },
         global: { provide: createProvide() }
       })
 
       const questionTree = wrapper.findComponent({ name: 'QuestionTree' })
       await questionTree.vm.$emit('rename', { id: 'q1' }, 'New Question Name')
 
-      expect(renameSpy).toHaveBeenCalledWith('q1', 'New Question Name')
+      // Component emits 'rename' event
+      expect(wrapper.emitted('rename')).toBeTruthy()
+      expect(wrapper.emitted('rename')[0][0]).toEqual({ id: 'q1' })
+      expect(wrapper.emitted('rename')[0][1]).toBe('New Question Name')
     })
   })
 
   describe('Drop Operations', () => {
     it('should call moveMessage with null parent for position above', async () => {
-      setupNotebook('notebook1', 'Test', [
+      const rootMessages = setupNotebook('notebook1', 'Test', [
         { id: 'q1', question: 'Question 1' },
         { id: 'q2', question: 'Question 2' }
       ])
       chatStore.currentChatId = 'notebook1'
-      const moveSpy = vi.spyOn(chatStore, 'moveMessage').mockImplementation(() => {})
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          title: 'Test',
+          rootMessages,
+          questionCount: 2
+        },
         global: { provide: createProvide() }
       })
 
       const questionTree = wrapper.findComponent({ name: 'QuestionTree' })
-      await questionTree.vm.$emit('drop', {
+      const dropData = {
         messageId: 'q2',
         targetId: 'q1',
         position: 'above',
         targetIndex: 0
-      })
+      }
+      await questionTree.vm.$emit('drop', dropData)
 
-      expect(moveSpy).toHaveBeenCalledWith('q2', null, 0)
+      // Component emits 'drop' event
+      expect(wrapper.emitted('drop')).toBeTruthy()
+      expect(wrapper.emitted('drop')[0][0]).toEqual(dropData)
     })
 
     it('should call moveMessage with target as parent for position below', async () => {
-      setupNotebook('notebook1', 'Test', [
+      const rootMessages = setupNotebook('notebook1', 'Test', [
         { id: 'q1', question: 'Question 1' },
         { id: 'q2', question: 'Question 2' }
       ])
       chatStore.currentChatId = 'notebook1'
-      const moveSpy = vi.spyOn(chatStore, 'moveMessage').mockImplementation(() => {})
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          title: 'Test',
+          rootMessages,
+          questionCount: 2
+        },
         global: { provide: createProvide() }
       })
 
       const questionTree = wrapper.findComponent({ name: 'QuestionTree' })
-      await questionTree.vm.$emit('drop', {
+      const dropData = {
         messageId: 'q2',
         targetId: 'q1',
         position: 'below',
         targetIndex: 0
-      })
+      }
+      await questionTree.vm.$emit('drop', dropData)
 
-      expect(moveSpy).toHaveBeenCalledWith('q2', 'q1', 0)
+      // Component emits 'drop' event
+      expect(wrapper.emitted('drop')).toBeTruthy()
+      expect(wrapper.emitted('drop')[0][0]).toEqual(dropData)
     })
   })
 
   describe('Edge Cases', () => {
     it('should handle non-existent notebook gracefully', () => {
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'non-existent' },
+        props: {
+          notebookId: 'non-existent',
+          rootMessages: [],
+          questionCount: 0
+        },
         global: { provide: createProvide() }
       })
 
@@ -471,7 +624,11 @@ describe('NotebookOverview', () => {
 
     it('should show 0 questions for non-existent notebook', () => {
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'non-existent' },
+        props: {
+          notebookId: 'non-existent',
+          rootMessages: [],
+          questionCount: 0
+        },
         global: { provide: createProvide() }
       })
 
@@ -482,12 +639,17 @@ describe('NotebookOverview', () => {
   describe('Shared Drag State', () => {
     it('should use injected draggedItem from parent', () => {
       const sharedDraggedItem = ref(null)
-      setupNotebook('notebook1', 'Test', [
+      const rootMessages = setupNotebook('notebook1', 'Test', [
         { id: 'q1', question: 'Question 1' }
       ])
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          title: 'Test',
+          rootMessages,
+          questionCount: 1
+        },
         global: {
           provide: {
             draggedItem: sharedDraggedItem,
@@ -503,12 +665,17 @@ describe('NotebookOverview', () => {
 
     it('should update shared draggedItem when dragging starts in tree', async () => {
       const sharedDraggedItem = ref(null)
-      setupNotebook('notebook1', 'Test', [
+      const rootMessages = setupNotebook('notebook1', 'Test', [
         { id: 'q1', question: 'Question 1' }
       ])
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          title: 'Test',
+          rootMessages,
+          questionCount: 1
+        },
         global: {
           provide: {
             draggedItem: sharedDraggedItem,
@@ -535,12 +702,17 @@ describe('NotebookOverview', () => {
 
     it('should clear shared draggedItem when drag ends', async () => {
       const sharedDraggedItem = ref({ id: 'q1' })
-      setupNotebook('notebook1', 'Test', [
+      const rootMessages = setupNotebook('notebook1', 'Test', [
         { id: 'q1', question: 'Question 1' }
       ])
 
       wrapper = mount(NotebookOverview, {
-        props: { notebookId: 'notebook1' },
+        props: {
+          notebookId: 'notebook1',
+          title: 'Test',
+          rootMessages,
+          questionCount: 1
+        },
         global: {
           provide: {
             draggedItem: sharedDraggedItem,
