@@ -23,7 +23,7 @@
       <button class="nav-btn" :class="{ active: activePage === 'books' }" @click="goTo('books')" title="Books">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/></svg>
       </button>
-      <button class="nav-btn" :class="{ active: activePage === 'notebook' }" :disabled="!hasCurrentNotebook" @click="goTo('notebook')" title="Current Notebook">
+      <button class="nav-btn" :class="{ active: activePage === 'current-content' }" :disabled="!hasCurrentContent" @click="goTo('current-content')" title="Current Content">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z"/></svg>
       </button>
       <button class="nav-btn" :class="{ active: activePage === 'studio' }" @click="goTo('studio')" title="Studio">
@@ -76,6 +76,7 @@
 import { ref, computed, onMounted, onUnmounted, useSlots } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useChatStore } from '../stores/chat.js'
+import { useBooksStore } from '../stores/books.js'
 import SettingsModal from './Modal/SettingsModal.vue'
 
 const props = defineProps({
@@ -100,6 +101,7 @@ const props = defineProps({
 const router = useRouter()
 const route = useRoute()
 const chatStore = useChatStore()
+const booksStore = useBooksStore()
 const slots = useSlots()
 
 const sideExpanded = ref(true)
@@ -117,6 +119,7 @@ const activePage = computed(() => {
   if (name === 'home') return 'home'
   if (name === 'notebooks') return 'notebooks'
   if (name === 'notebook' || name === 'question') return 'notebook'
+  if (name === 'current-content' || name === 'current-content-question') return 'current-content'
   if (name === 'calendar') return 'calendar'
   if (name === 'playground') return 'playground'
   if (name === 'studio') return 'studio'
@@ -126,6 +129,8 @@ const activePage = computed(() => {
 })
 
 const hasCurrentNotebook = computed(() => Boolean(chatStore.currentChatId))
+const hasCurrentBook = computed(() => Boolean(booksStore.currentBookId))
+const hasCurrentContent = computed(() => hasCurrentNotebook.value || hasCurrentBook.value)
 
 onMounted(() => {
   const stored = localStorage.getItem(props.storageKey)
@@ -156,6 +161,26 @@ function goTo(page) {
     router.push({ name: 'notebooks' })
   } else if (page === 'books') {
     router.push({ name: 'books' })
+  } else if (page === 'current-content') {
+    // Navigate to the current content - prioritize notebook over book
+    if (chatStore.currentChatId) {
+      if (chatStore.currentMessageId) {
+        router.push({
+          name: 'current-content-question',
+          params: { type: 'notebook', id: chatStore.currentChatId, questionId: chatStore.currentMessageId }
+        })
+      } else {
+        router.push({
+          name: 'current-content',
+          params: { type: 'notebook', id: chatStore.currentChatId }
+        })
+      }
+    } else if (booksStore.currentBookId) {
+      router.push({
+        name: 'current-content',
+        params: { type: 'book', id: booksStore.currentBookId }
+      })
+    }
   } else if (page === 'notebook' && chatStore.currentChatId) {
     if (chatStore.currentMessageId) {
       router.push({ name: 'question', params: { id: chatStore.currentChatId, questionId: chatStore.currentMessageId } })

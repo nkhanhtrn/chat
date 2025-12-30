@@ -193,7 +193,7 @@ const handleFileUpload = async (event) => {
 
 const openBook = async (bookId) => {
   booksStore.setCurrentBook(bookId)
-  await router.push({ name: 'book-viewer', params: { id: bookId } })
+  await router.push({ name: 'current-content', params: { type: 'book', id: bookId } })
 }
 
 const deleteBook = async (bookId) => {

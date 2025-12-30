@@ -37,6 +37,16 @@ const routes = [
     component: () => import('../views/BookViewer.vue')
   },
   {
+    path: '/current/:type/:id',
+    name: 'current-content',
+    component: () => import('../views/CurrentContentView.vue')
+  },
+  {
+    path: '/current/:type/:id/q/:questionId',
+    name: 'current-content-question',
+    component: () => import('../views/CurrentContentView.vue')
+  },
+  {
     path: '/notebook/:id',
     name: 'notebook',
     component: () => import('../views/ChatView.vue')

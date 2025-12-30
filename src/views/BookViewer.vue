@@ -91,6 +91,13 @@ const router = useRouter()
 const route = useRoute()
 const booksStore = useBooksStore()
 
+const props = defineProps({
+  bookId: {
+    type: String,
+    default: null
+  }
+})
+
 const viewerContainer = ref(null)
 const chapters = ref([])
 const currentChapterIndex = ref(0)
@@ -100,6 +107,9 @@ const downloadProgress = ref(0)
 const error = ref(null)
 const searchQuery = ref('')
 const showingOverview = ref(false)
+
+// Use prop bookId if provided, otherwise fall back to route param
+const effectiveBookId = computed(() => props.bookId || route.params.id)
 
 const currentBook = computed(() => booksStore.currentBook)
 
@@ -161,7 +171,7 @@ let settingsObserver = null
 onMounted(async () => {
   await booksStore.initializeStore()
 
-  const bookId = route.params.id
+  const bookId = effectiveBookId.value
   if (!bookId) {
     error.value = 'No book ID provided'
     isLoading.value = false
@@ -381,7 +391,7 @@ function toggleTOC() {
 }
 
 // Watch for route changes (e.g., navigating to a different book)
-watch(() => route.params.id, async (newId, oldId) => {
+watch(() => effectiveBookId.value, async (newId, oldId) => {
   if (newId && newId !== oldId) {
     // Clean up old renderer
     if (renderer.value) {

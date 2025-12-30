@@ -112,6 +112,17 @@ import { useChatStore } from '../stores/chat.js'
 import DevToolbar from '../components/DevToolbar.vue'
 import { getIsDev, getDefaultQuestions } from '../composables/useEnvironment.js'
 import { getMainPrompts } from '../services/extraPrompt.js'
+const props = defineProps({
+  notebookId: {
+    type: String,
+    default: null
+  },
+  questionId: {
+    type: String,
+    default: null
+  }
+})
+
 const route = useRoute()
 const router = useRouter()
 const error = ref(null)
@@ -119,6 +130,10 @@ const messagesContainer = ref(null)
 const chatStore = useChatStore()
 const isAddingNewQuestion = ref(false)
 const showingOverview = ref(false)
+
+// Use props if provided, otherwise fall back to route params
+const effectiveNotebookId = computed(() => props.notebookId || route.params.id)
+const effectiveQuestionId = computed(() => props.questionId || route.params.questionId)
 
 const isDev = getIsDev()
 const prepopulatedQuestions = ref(getDefaultQuestions())
@@ -188,9 +203,9 @@ const navigateToQuestion = (questionId) => {
 }
 
 onMounted(async () => {
-  // Get notebook ID from route
-  const notebookId = route.params.id
-  const questionId = route.params.questionId
+  // Get notebook ID from effective source (prop or route)
+  const notebookId = effectiveNotebookId.value
+  const questionId = effectiveQuestionId.value
 
   // Switch to the specified notebook if it exists
   if (notebookId) {
@@ -230,9 +245,7 @@ onMounted(async () => {
 })
 
 // Watch for route changes to switch notebooks and questions
-watch(() => route.params, (newParams) => {
-  const { id: newId, questionId } = newParams
-
+watch([effectiveNotebookId, effectiveQuestionId], ([newId, questionId]) => {
   if (newId && chatStore.currentChatId !== newId) {
     const chatExists = chatStore.chats.some(c => c.id === newId)
     if (chatExists) {
@@ -257,7 +270,7 @@ watch(() => route.params, (newParams) => {
     showingOverview.value = true
     chatStore.currentMessageId = null
   }
-}, { deep: true })
+})
 
 const scrollToBottom = () => {
   nextTick(() => {

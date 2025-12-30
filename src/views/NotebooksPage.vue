@@ -148,12 +148,12 @@ onMounted(() => {
 
 const createNewNotebook = () => {
   const newChat = chatStore.createNewChat()
-  router.push({ name: 'notebook', params: { id: newChat.id } })
+  router.push({ name: 'current-content', params: { type: 'notebook', id: newChat.id } })
 }
 
 const openNotebook = (id) => {
   chatStore.switchToChat(id)
-  router.push({ name: 'notebook', params: { id } })
+  router.push({ name: 'current-content', params: { type: 'notebook', id } })
 }
 
 const openQuestion = (result) => {
@@ -161,8 +161,11 @@ const openQuestion = (result) => {
   if (chatStore.currentChatId !== result.chatId) {
     chatStore.switchToChat(result.chatId)
   }
-  // Let the router handle the rest - the router watcher in ChatView will update the store
-  router.push({ name: 'question', params: { id: result.chatId, questionId: result.id } })
+  // Navigate to the unified content viewer with the specific question
+  router.push({
+    name: 'current-content-question',
+    params: { type: 'notebook', id: result.chatId, questionId: result.id }
+  })
 }
 
 const deleteNotebook = (id) => {
