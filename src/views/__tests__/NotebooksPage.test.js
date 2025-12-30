@@ -183,8 +183,8 @@ describe('NotebooksPage', () => {
 
       expect(mockPush).toHaveBeenCalledTimes(1)
       expect(mockPush).toHaveBeenCalledWith({
-        name: 'notebook',
-        params: { id: expect.any(String) }
+        name: 'current-content',
+        params: { type: 'notebook', id: expect.any(String) }
       })
     })
 
@@ -284,8 +284,8 @@ describe('NotebooksPage', () => {
       await card.trigger('click')
 
       expect(mockPush).toHaveBeenCalledWith({
-        name: 'notebook',
-        params: { id: newChat.id }
+        name: 'current-content',
+        params: { type: 'notebook', id: newChat.id }
       })
     })
 
@@ -696,8 +696,8 @@ describe('NotebooksPage', () => {
       await resultItem.trigger('click')
 
       expect(mockPush).toHaveBeenCalledWith({
-        name: 'question',
-        params: { id: newChat.id, questionId: 'msg1' }
+        name: 'current-content-question',
+        params: { type: 'notebook', id: newChat.id, questionId: 'msg1' }
       })
     })
 
@@ -864,8 +864,8 @@ describe('NotebooksPage', () => {
       await resultItem.trigger('click')
 
       expect(mockPush).toHaveBeenCalledWith({
-        name: 'notebook',
-        params: { id: newChat.id }
+        name: 'current-content',
+        params: { type: 'notebook', id: newChat.id }
       })
     })
 

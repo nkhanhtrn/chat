@@ -224,7 +224,7 @@ describe('AppLayout', () => {
 
       expect(wrapper.find('[title="Home"]').exists()).toBe(true)
       expect(wrapper.find('[title="Notebooks"]').exists()).toBe(true)
-      expect(wrapper.find('[title="Current Notebook"]').exists()).toBe(true)
+      expect(wrapper.find('[title="Current Content"]').exists()).toBe(true)
       expect(wrapper.find('[title="Studio"]').exists()).toBe(true)
       expect(wrapper.find('[title="Playground"]').exists()).toBe(true)
       expect(wrapper.find('[title="Calendar"]').exists()).toBe(true)
@@ -239,7 +239,7 @@ describe('AppLayout', () => {
       wrapper = mountComponent()
       await flushPromises()
 
-      const notebookBtn = wrapper.find('[title="Current Notebook"]')
+      const notebookBtn = wrapper.find('[title="Current Content"]')
       expect(notebookBtn.attributes('disabled')).toBeDefined()
     })
 
@@ -251,7 +251,7 @@ describe('AppLayout', () => {
       wrapper = mountComponent()
       await flushPromises()
 
-      const notebookBtn = wrapper.find('[title="Current Notebook"]')
+      const notebookBtn = wrapper.find('[title="Current Content"]')
       expect(notebookBtn.attributes('disabled')).toBeUndefined()
     })
   })

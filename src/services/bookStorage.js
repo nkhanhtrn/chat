@@ -295,8 +295,8 @@ export const getOrDownloadBookFile = async (bookId, storagePath) => {
     return cachedFile
   }
 
-  // Download from Firebase Storage
-  const fileData = await downloadBookFromStorage(bookId)
+  // Download from Firebase Storage (use storagePath if provided)
+  const fileData = await downloadBookFromStorage(bookId, storagePath)
 
   // Cache in IndexedDB for next time
   await saveBookFileToIDB(bookId, fileData)

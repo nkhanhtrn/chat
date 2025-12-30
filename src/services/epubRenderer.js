@@ -42,6 +42,7 @@ export class EpubRenderer {
     this.locations = null
     this.ready = false
     this._fontHookRegistered = false
+    this._lastWidth = null
   }
 
   /**
@@ -228,8 +229,11 @@ export class EpubRenderer {
     const rootStyles = getComputedStyle(document.documentElement)
     const contentMaxWidth = rootStyles.getPropertyValue('--content-max-width').trim() || '800px'
 
-    // Resize the rendition to the new width
-    this.rendition.resize(contentMaxWidth, '100%')
+    // Only resize if width has changed (resize can cause rendering issues)
+    if (this._lastWidth !== contentMaxWidth) {
+      this._lastWidth = contentMaxWidth
+      this.rendition.resize(contentMaxWidth, '100%')
+    }
 
     // Re-apply theme styles
     this.applyThemeStyles()
