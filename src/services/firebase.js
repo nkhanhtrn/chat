@@ -2,6 +2,7 @@
 import { initializeApp } from 'firebase/app'
 import { getFirestore } from 'firebase/firestore'
 import { getAuth } from 'firebase/auth'
+import { getStorage } from 'firebase/storage'
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -19,6 +20,7 @@ const firebaseConfig = {
 let app = null
 let db = null
 let auth = null
+let storage = null
 
 export const initializeFirebase = () => {
   try {
@@ -26,9 +28,10 @@ export const initializeFirebase = () => {
       app = initializeApp(firebaseConfig)
       db = getFirestore(app)
       auth = getAuth(app)
+      storage = getStorage(app)
       console.log('Firebase initialized successfully')
     }
-    return { app, db, auth }
+    return { app, db, auth, storage }
   } catch (error) {
     console.error('Error initializing Firebase:', error)
     throw error
@@ -47,4 +50,11 @@ export const getFirebaseAuth = () => {
     initializeFirebase()
   }
   return auth
+}
+
+export const getFirebaseStorage = () => {
+  if (!storage) {
+    initializeFirebase()
+  }
+  return storage
 }

@@ -27,6 +27,16 @@ const routes = [
     component: () => import('../views/CalendarPage.vue')
   },
   {
+    path: '/books',
+    name: 'books',
+    component: () => import('../views/BooksLibrary.vue')
+  },
+  {
+    path: '/books/:id',
+    name: 'book-viewer',
+    component: () => import('../views/BookViewer.vue')
+  },
+  {
     path: '/notebook/:id',
     name: 'notebook',
     component: () => import('../views/ChatView.vue')

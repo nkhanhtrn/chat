@@ -9,33 +9,61 @@ import {
 } from './firestore.js'
 
 const DB_NAME = 'chat-clone-db'
-const DB_VERSION = 2
+const DB_VERSION = 3
 const STORE_NAME = 'app-data'
 const TOOLS_STORE = 'saved-tools'
+const BOOKS_STORE = 'books'
 const CHAT_STATE_KEY = 'chat-state'
 
 let dbPromise = null
+let currentDbVersion = 2  // Track the version we have a promise for
+
+/**
+ * Delete the existing database (used for recovery from version conflicts)
+ * @returns {Promise<void>}
+ */
+export const deleteDatabase = () => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.deleteDatabase(DB_NAME)
+    request.onsuccess = () => resolve()
+    request.onerror = () => reject(request.error)
+  })
+}
 
 /**
  * Initialize and get the IndexedDB database instance
  * @returns {Promise<IDBDatabase>}
  */
 const getDB = () => {
-  if (!dbPromise) {
-    dbPromise = openDB(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-          db.createObjectStore(STORE_NAME)
-        }
-        if (!db.objectStoreNames.contains(TOOLS_STORE)) {
-          const toolsStore = db.createObjectStore(TOOLS_STORE, { keyPath: 'id' })
-          toolsStore.createIndex('name', 'name', { unique: false })
-          toolsStore.createIndex('createdAt', 'createdAt', { unique: false })
-        }
-      },
-    })
-  }
-  return dbPromise
+  // Always return a fresh promise to ensure version upgrades happen
+  // The idb library handles connection pooling internally
+  return openDB(DB_NAME, DB_VERSION, {
+    upgrade(db, oldVersion, newVersion) {
+      console.log(`IndexedDB upgrade: v${oldVersion} → v${newVersion}`)
+
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME)
+      }
+      if (!db.objectStoreNames.contains(TOOLS_STORE)) {
+        const toolsStore = db.createObjectStore(TOOLS_STORE, { keyPath: 'id' })
+        toolsStore.createIndex('name', 'name', { unique: false })
+        toolsStore.createIndex('createdAt', 'createdAt', { unique: false })
+      }
+      if (!db.objectStoreNames.contains(BOOKS_STORE)) {
+        const booksStore = db.createObjectStore(BOOKS_STORE, { keyPath: 'id' })
+        booksStore.createIndex('createdAt', 'createdAt', { unique: false })
+        booksStore.createIndex('lastReadAt', 'lastReadAt', { unique: false })
+        console.log('Created books store in IndexedDB')
+      }
+      currentDbVersion = DB_VERSION
+    },
+    blocked() {
+      console.error('IndexedDB upgrade blocked - close all tabs and refresh')
+    },
+    blocking() {
+      console.error('IndexedDB upgrade blocking - please close other tabs')
+    }
+  })
 }
 
 /**
@@ -368,5 +396,63 @@ export const syncToolsFromCloud = async () => {
   } catch (error) {
     console.error('Failed to sync tools:', error)
     return { fromCloud: 0, toCloud: 0 }
+  }
+}
+
+// ============ Book Storage ============
+
+/**
+ * Save a book to IndexedDB (upsert by id)
+ */
+export const saveBookToIDB = async (book) => {
+  const db = await getDB()
+  await db.put(BOOKS_STORE, book)
+}
+
+/**
+ * Load all books from IndexedDB
+ */
+export const loadBooksFromIDB = async () => {
+  const db = await getDB()
+  const all = await db.getAll(BOOKS_STORE)
+  return all.filter(b => !b.deletedAt)
+}
+
+/**
+ * Get a single book by ID from IndexedDB
+ */
+export const getBookFromIDB = async (id) => {
+  const db = await getDB()
+  return await db.get(BOOKS_STORE, id)
+}
+
+/**
+ * Delete a book from IndexedDB
+ */
+export const deleteBookFromIDB = async (id) => {
+  const db = await getDB()
+  await db.delete(BOOKS_STORE, id)
+}
+
+/**
+ * Get book file data (ArrayBuffer) from IndexedDB
+ * The file data is stored alongside the book metadata
+ */
+export const getBookFileFromIDB = async (id) => {
+  const db = await getDB()
+  const book = await db.get(BOOKS_STORE, id)
+  return book?.fileData || null
+}
+
+/**
+ * Save book file data to IndexedDB
+ */
+export const saveBookFileToIDB = async (id, fileData) => {
+  const db = await getDB()
+  const book = await db.get(BOOKS_STORE, id)
+  if (book) {
+    book.fileData = fileData
+    book.fileCachedAt = Date.now()
+    await db.put(BOOKS_STORE, book)
   }
 }

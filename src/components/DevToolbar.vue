@@ -3,6 +3,9 @@
     <Button @click="handleClearCache" class="dev-button" title="Clear localStorage cache" variant="secondary">
       Reset localStorage
     </Button>
+    <Button @click="handleClearDB" class="dev-button" title="Delete and recreate IndexedDB" variant="secondary">
+      Reset IndexedDB
+    </Button>
     <Button @click="handleTriggerStaleData" class="dev-button" title="Trigger stale data banner" variant="secondary">
       {{ staleDataTriggered ? 'Stale Data Active' : 'Trigger Stale Data' }}
     </Button>
@@ -48,7 +51,7 @@
 <script setup>
 import { ref, inject, computed } from 'vue'
 import { clearAllStorage } from '../services/storage.js'
-import { saveTool } from '../services/indexedDB.js'
+import { saveTool, deleteDatabase } from '../services/indexedDB.js'
 import { useChatStore } from '../stores/chat.js'
 import { useStudioCanvas } from '../composables/studio/useStudioCanvas.js'
 import Button from './Button.vue'
@@ -90,6 +93,18 @@ const handleClearCache = () => {
   if (confirm('Are you sure you want to clear all localStorage cache? This will delete all your chat history.')) {
     clearAllStorage()
     window.location.reload()
+  }
+}
+
+const handleClearDB = async () => {
+  if (confirm('Are you sure you want to delete and recreate IndexedDB? This will delete all saved tools.')) {
+    try {
+      await deleteDatabase()
+      window.location.reload()
+    } catch (err) {
+      console.error('Failed to delete database:', err)
+      alert('Failed to delete database: ' + err.message)
+    }
   }
 }
 
