@@ -460,65 +460,7 @@ describe('BooksLibrary', () => {
       // Just verify the button exists - actual file input trigger requires more complex setup
     })
 
-    it('handles file upload with valid EPUB', async () => {
-      wrapper = mountBooksLibrary()
-
-      const mockFile = new File(['content'], 'test-book.epub', { type: 'application/epub+zip' })
-      const event = { target: { files: [mockFile], value: '' } }
-
-      const addBookSpy = vi.spyOn(booksStore, 'addBook').mockResolvedValue({
-        id: 'new-book-id',
-        title: 'test-book',
-        author: 'Loading...',
-        coverUrl: null
-      })
-
-      await wrapper.vm.handleFileUpload(event)
-      await wrapper.vm.$nextTick()
-
-      expect(addBookSpy).toHaveBeenCalled()
-
-      addBookSpy.mockRestore()
-    })
-
-    it('shows error for non-EPUB files', async () => {
-      wrapper = mountBooksLibrary()
-
-      const mockFile = new File(['content'], 'test.pdf', { type: 'application/pdf' })
-      const event = { target: { files: [mockFile] } }
-
-      await wrapper.vm.handleFileUpload(event)
-      await wrapper.vm.$nextTick()
-
-      expect(wrapper.vm.error).toBe('Please select an EPUB file (.epub)')
-    })
-
-    it('shows loading state during upload', async () => {
-      wrapper = mountBooksLibrary()
-
-      vi.spyOn(booksStore, 'addBook').mockImplementation(() => {
-        return new Promise(resolve => {
-          setTimeout(() => {
-            resolve({
-              id: 'uploading-book',
-              title: 'Uploading Book',
-              author: 'Loading...',
-              coverUrl: null
-            })
-          }, 100)
-        })
-      })
-
-      const mockFile = new File(['content'], 'test.epub', { type: 'application/epub+zip' })
-      const event = { target: { files: [mockFile] } }
-
-      wrapper.vm.handleFileUpload(event)
-      await wrapper.vm.$nextTick()
-
-      expect(wrapper.vm.isUploading).toBe(true)
-
-      vi.restoreAllMocks()
-    })
+    // Note: File upload functionality removed - now uses BookSearchModal for adding books
   })
 
   describe('Loading State', () => {

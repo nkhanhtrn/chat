@@ -38,18 +38,11 @@
               <rect x="14" y="14" width="7" height="7" rx="1" />
             </svg>
           </button>
-          <Button variant="primary" @click="triggerFileInput" :disabled="isUploading" class="add-book-btn">
+          <Button variant="primary" @click="openBookModal('upload')" :disabled="isUploading" class="add-book-btn">
             + New Book
           </Button>
-          <input
-            ref="fileInput"
-            type="file"
-            accept=".epub"
-            @change="handleFileUpload"
-            style="display: none"
-          >
         </div>
-        <Button variant="primary" @click="triggerFileInput" :disabled="isUploading" class="add-book-btn mobile-only-btn">
+        <Button variant="primary" @click="openBookModal('upload')" :disabled="isUploading" class="add-book-btn mobile-only-btn">
           +
         </Button>
       </div>
@@ -131,6 +124,15 @@
       @save="saveBookChanges"
       @delete="handleModalDelete"
     />
+
+    <!-- Book Search Modal (Public Library) -->
+    <BookSearchModal
+      :visible="showSearchModal"
+      :default-tab="modalDefaultTab"
+      @close="showSearchModal = false"
+      @download="handleDownloadedBook"
+      @upload="handleUploadedBook"
+    />
   </AppLayout>
 </template>
 
@@ -143,6 +145,7 @@ import Button from '../components/Button.vue'
 import ProgressBar from '../components/ProgressBar.vue'
 import SlideTransition from '../components/SlideTransition.vue'
 import EditBookModal from '../components/EditBookModal.vue'
+import BookSearchModal from '../components/Modal/BookSearchModal.vue'
 import { extractEpubMetadata, coverUrlToDataUrl } from '../services/epubRenderer.js'
 import { uploadBookToStorage, saveBookFileToIDB } from '../services/bookStorage.js'
 import { generateDefaultCover } from '../services/bookCoverGenerator.js'
@@ -158,13 +161,16 @@ const toggleViewMode = () => {
   localStorage.setItem('books-view-mode', viewMode.value)
 }
 
-const fileInput = ref(null)
 const isLoading = ref(false)
 const isUploading = ref(false)
 const uploadingBookId = ref(null) // ID of the book being uploaded
 const uploadProgress = ref(0)
 const error = ref(null)
 const searchQuery = ref('')
+
+// Public Library search modal state
+const showSearchModal = ref(false)
+const modalDefaultTab = ref('search')
 
 // Filtered books based on search query
 const filteredBooks = computed(() => {
@@ -223,80 +229,49 @@ onMounted(async () => {
   }
 })
 
-const triggerFileInput = () => {
-  fileInput.value.click()
+function openBookModal(tab) {
+  modalDefaultTab.value = 'upload'
+  showSearchModal.value = true
 }
 
-const handleFileUpload = async (event) => {
-  const file = event.target.files[0]
-  if (!file) return
-
-  // Validate file type
-  if (!file.name.toLowerCase().endsWith('.epub')) {
-    error.value = 'Please select an EPUB file (.epub)'
-    return
-  }
-
+/**
+ * Handle book uploaded from the modal
+ */
+async function handleUploadedBook(bookData) {
   isUploading.value = true
   uploadProgress.value = 0
   error.value = null
 
   try {
-    // Create book record first (will be assigned ID in store)
+    // Create book record first
     const book = await booksStore.addBook({
-      title: file.name.replace('.epub', ''),
-      author: 'Loading...',
-      coverUrl: null,
-      fileSize: file.size
+      title: bookData.title,
+      author: bookData.author,
+      coverUrl: bookData.coverUrl || null,
+      fileSize: bookData.fileSize || 0
     })
 
-    // Track the uploading book ID
     uploadingBookId.value = book.id
+    uploadProgress.value = 50
 
-    uploadProgress.value = 5
+    // Cache the file in IndexedDB
+    console.log('[Upload] Saving file to IndexedDB for book:', book.id)
+    await saveBookFileToIDB(book.id, bookData.fileData)
+    console.log('[Upload] ✓ File saved to IndexedDB')
 
-    // Read file as ArrayBuffer and cache in IndexedDB
-    const arrayBuffer = await file.arrayBuffer()
-    console.log('[Upload] Caching file in IndexedDB for book:', book.id, 'Size:', arrayBuffer.byteLength)
-    await saveBookFileToIDB(book.id, arrayBuffer)
-    console.log('[Upload] ✓ File cached in IndexedDB')
+    uploadProgress.value = 80
 
-    uploadProgress.value = 10
-
-    // Extract metadata from EPUB
-    const metadata = await extractEpubMetadata(file)
-
-    uploadProgress.value = 30
-
-    // Convert cover to data URL if available
-    let coverDataUrl = null
-    if (metadata.coverUrl) {
-      coverDataUrl = await coverUrlToDataUrl(metadata.coverUrl)
+    // Update book with storage path (already uploaded by modal)
+    if (bookData.storagePath) {
+      await booksStore.updateBook(book.id, {
+        storagePath: bookData.storagePath
+      })
     }
-
-    // Update the book with extracted metadata
-    await booksStore.updateBook(book.id, {
-      title: metadata.title,
-      author: metadata.author,
-      coverUrl: coverDataUrl
-    })
-
-    uploadProgress.value = 70
-
-    // Upload file to Firebase Storage
-    const downloadUrl = await uploadBookToStorage(file, book.id)
-
-    uploadProgress.value = 90
-
-    // Update book with storage path
-    await booksStore.updateBook(book.id, {
-      storagePath: downloadUrl
-    })
 
     uploadProgress.value = 100
 
-    // Reset input
-    event.target.value = ''
+    // Close the modal after successful upload
+    showSearchModal.value = false
 
     // Clear uploading state after a delay
     setTimeout(() => {
@@ -305,8 +280,8 @@ const handleFileUpload = async (event) => {
       isUploading.value = false
     }, 1500)
   } catch (err) {
-    console.error('Failed to upload book:', err)
-    error.value = err.message || 'Failed to upload book'
+    console.error('[Upload] Failed to save uploaded book:', err)
+    error.value = err.message || 'Failed to save uploaded book'
     uploadingBookId.value = null
     uploadProgress.value = 0
     isUploading.value = false
@@ -380,6 +355,64 @@ async function handleModalDelete() {
     closeEditModal()
   } catch (err) {
     error.value = err.message || 'Failed to delete book'
+  }
+}
+
+/**
+ * Handle book downloaded from Public Library
+ */
+async function handleDownloadedBook(bookData) {
+  isUploading.value = true
+  uploadProgress.value = 0
+  error.value = null
+
+  try {
+    // Create book record first
+    const book = await booksStore.addBook({
+      title: bookData.title,
+      author: bookData.author,
+      coverUrl: bookData.coverUrl || null,
+      fileSize: bookData.fileData?.byteLength || 0
+    })
+
+    uploadingBookId.value = book.id
+    uploadProgress.value = 10
+
+    // Cache the file in IndexedDB
+    console.log('[PublicLibrary] Saving file to IndexedDB for book:', book.id)
+    await saveBookFileToIDB(book.id, bookData.fileData)
+    console.log('[PublicLibrary] ✓ File saved to IndexedDB')
+
+    uploadProgress.value = 50
+
+    // Upload file to Firebase Storage
+    const fileBlob = new Blob([bookData.fileData], { type: 'application/epub+zip' })
+    const downloadUrl = await uploadBookToStorage(fileBlob, book.id)
+
+    uploadProgress.value = 80
+
+    // Update book with storage path
+    await booksStore.updateBook(book.id, {
+      storagePath: downloadUrl
+    })
+
+    uploadProgress.value = 100
+
+    // Close the search modal after successful download
+    showSearchModal.value = false
+
+    // Clear uploading state after a delay
+    setTimeout(() => {
+      uploadingBookId.value = null
+      uploadProgress.value = 0
+      isUploading.value = false
+    }, 1500)
+  } catch (err) {
+    console.error('[PublicLibrary] Failed to save downloaded book:', err)
+    error.value = err.message || 'Failed to save downloaded book'
+    uploadingBookId.value = null
+    uploadProgress.value = 0
+    isUploading.value = false
   }
 }
 </script>

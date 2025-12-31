@@ -26,7 +26,7 @@ const SETTINGS_CACHE_TTL = 30000 // 30 seconds
  * Get the custom fetch URL from settings (cached)
  * @returns {Promise<string|null>}
  */
-async function getCustomFetchUrl() {
+export async function getCustomFetchUrl() {
   const now = Date.now()
   if (settingsCache && (now - settingsCacheTimestamp) < SETTINGS_CACHE_TTL) {
     return settingsCache.customFetchUrl || null

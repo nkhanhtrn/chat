@@ -47,7 +47,7 @@ const props = defineProps({
   size: {
     type: String,
     default: 'small',
-    validator: (value) => ['small', 'medium', 'large'].includes(value)
+    validator: (value) => ['small', 'medium', 'large', 'xlarge'].includes(value)
   },
   contentStyle: {
     type: Object,
@@ -124,6 +124,10 @@ onUnmounted(() => {
 
 .modal-content--large {
   max-width: 600px;
+}
+
+.modal-content--xlarge {
+  max-width: 800px;
 }
 
 .modal-header {

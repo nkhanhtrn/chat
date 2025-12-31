@@ -119,6 +119,7 @@
 
           <!-- LLM Tab Content -->
           <div v-else-if="activeTab === 'llm'" key="llm" class="settings-body">
+        <!-- Provider -->
         <div class="setting-item setting-item-vertical">
           <label class="setting-label">Provider</label>
           <div class="button-group provider-group">
@@ -131,6 +132,7 @@
               {{ provider.name }}
             </button>
           </div>
+          <!-- API Key inputs -->
           <div v-if="selectedProviderRequiresKey">
             <ApiKeyInput
               v-if="currentProvider === 'google'"
@@ -145,6 +147,7 @@
               @update:model-value="onCerebrasApiKeysChange"
             />
           </div>
+          <!-- LM Studio URL -->
           <div v-if="!selectedProviderRequiresKey && currentProvider === 'lmstudio'" class="api-key-section">
             <input
               type="text"
@@ -153,9 +156,8 @@
               class="api-key-input"
               @input="onBaseUrlChange"
             />
-            <div class="api-key-hint">LM Studio server URL</div>
           </div>
-          <!-- Model selector for providers that have multiple models -->
+          <!-- Model selector -->
           <div v-if="availableModels.length > 0" class="model-section">
             <label class="model-label">Model</label>
             <select v-model="selectedModel" class="model-select" @change="onModelChange">
@@ -164,23 +166,53 @@
               </option>
             </select>
           </div>
+          <!-- Connection status -->
           <div v-if="connectionStatus" :class="['connection-status', connectionStatus.type]">
             {{ connectionStatus.message }}
           </div>
         </div>
 
-        <!-- Custom Fetch URL Section -->
-        <div class="setting-item setting-item-vertical fetch-section">
-          <label class="setting-label">Website Fetch Service</label>
-          <div class="api-key-section">
+        <!-- Extra Services -->
+        <div class="setting-item setting-item-vertical">
+          <label class="setting-label">Extra Services</label>
+          <div class="button-group provider-group">
+            <button
+              :class="['toggle-button', { active: bookSource === 'public-library' }]"
+              @click="bookSource = 'public-library'; onBookSourceChange()"
+            >
+              Public Library
+            </button>
+            <button
+              :class="['toggle-button', { active: bookSource === 'custom' }]"
+              @click="bookSource = 'custom'; onBookSourceChange()"
+            >
+              Browser Proxy
+            </button>
+          </div>
+          <div v-if="bookSource === 'public-library'" class="api-key-section">
+            <input
+              type="text"
+              v-model="bookApiUrl"
+              placeholder="https://your-library.org"
+              class="api-key-input"
+              @input="onBookApiUrlChange"
+            />
+            <input
+              type="password"
+              v-model="bookApiKey"
+              placeholder="API Key (optional)"
+              class="api-key-input"
+              @input="onBookApiKeyChange"
+            />
+          </div>
+          <div v-if="bookSource === 'custom'" class="api-key-section">
             <input
               type="text"
               v-model="customFetchUrl"
-              placeholder="https://your-fetch-service.com/api/fetch"
+              placeholder="https://your-service.com/api"
               class="api-key-input"
               @input="onCustomFetchUrlChange"
             />
-            <div class="api-key-hint">Custom fetch service URL (leave empty to use default fallback chain)</div>
           </div>
         </div>
           </div>
@@ -309,6 +341,9 @@ const restoreStatus = ref(null)
 const availableModels = ref([])
 const selectedModel = ref('')
 const customFetchUrl = ref('')
+const bookApiUrl = ref('')
+const bookApiKey = ref('')
+const bookSource = ref('public-library')
 const chatStore = useChatStore()
 
 // Computed properties for current provider's config
@@ -422,7 +457,8 @@ const loadProviderSettings = async () => {
 
   // Load available models and current selection
   // Prefer Firestore settings for cross-device sync, fallback to store
-  selectedModel.value = settings?.currentModel || chatStore.currentModel || ''
+  const currentModels = settings?.currentModels || {}
+  selectedModel.value = currentModels[currentProvider.value] || chatStore.currentModel || ''
   await loadModels()
 }
 
@@ -430,29 +466,50 @@ const loadModels = async () => {
   try {
     availableModels.value = await fetchModels()
 
+    // Get saved models per provider
+    const settings = await loadUserSettings()
+    const currentModels = settings?.currentModels || {}
+    const savedModel = currentModels[currentProvider.value]
+
     // Validate selected model exists in available models
     const modelExists = availableModels.value.some(m => m.id === selectedModel.value)
 
-    // If no model selected or selected model not available, select the first one
-    if ((!selectedModel.value || !modelExists) && availableModels.value.length > 0) {
-      selectedModel.value = availableModels.value[0].id
+    // If saved model exists and is valid, use it
+    if (savedModel && availableModels.value.some(m => m.id === savedModel)) {
+      selectedModel.value = savedModel
       chatStore.setCurrentModel(selectedModel.value)
-      saveUserSettings({ currentModel: selectedModel.value })
+    } else if (!selectedModel.value || !modelExists) {
+      // If no model selected or selected model not available, select the first one
+      if (availableModels.value.length > 0) {
+        selectedModel.value = availableModels.value[0].id
+        chatStore.setCurrentModel(selectedModel.value)
+        // Save the initial selection for this provider
+        const updatedModels = { ...currentModels, [currentProvider.value]: selectedModel.value }
+        saveUserSettings({ currentModels: updatedModels })
+      }
     } else if (selectedModel.value && modelExists) {
       // Sync Firestore model selection to store
       chatStore.setCurrentModel(selectedModel.value)
     }
   } catch (error) {
-    availableModels.value = []
+    // Don't clear models if we already have some - just show error
+    if (availableModels.value.length === 0) {
+      availableModels.value = []
+    }
+    // Show connection error for model loading failures
+    connectionStatus.value = { type: 'error', message: `Failed to load models: ${error.message}` }
     console.warn('Failed to load models:', error.message)
   }
 }
 
-const onModelChange = () => {
+const onModelChange = async () => {
   if (selectedModel.value) {
     chatStore.setCurrentModel(selectedModel.value)
-    // Also save to Firestore for cross-device sync
-    saveUserSettings({ currentModel: selectedModel.value })
+    // Save to Firestore per provider for cross-device sync
+    const settings = await loadUserSettings()
+    const currentModels = settings?.currentModels || {}
+    currentModels[currentProvider.value] = selectedModel.value
+    saveUserSettings({ currentModels })
   }
 }
 
@@ -484,8 +541,6 @@ const buildCleanProviderConfigs = () => {
 const selectProvider = async (providerId) => {
   currentProvider.value = providerId
   connectionStatus.value = null
-  availableModels.value = []
-  selectedModel.value = ''
 
   // Get config for the selected provider
   const providerConfig = providerConfigs.value[providerId] || {}
@@ -506,6 +561,7 @@ const selectProvider = async (providerId) => {
     config.baseUrl = providerConfig.baseUrl || 'http://localhost:1234'
   }
 
+  // Set provider config BEFORE loading models
   setProvider(providerId, config)
   emit('provider-changed', providerId)
 
@@ -531,6 +587,18 @@ const onCustomFetchUrlChange = () => {
   invalidateFetchSettingsCache()
 }
 
+const onBookApiUrlChange = () => {
+  saveUserSettings({ bookApiUrl: bookApiUrl.value.trim() })
+}
+
+const onBookApiKeyChange = () => {
+  saveUserSettings({ bookApiKey: bookApiKey.value.trim() })
+}
+
+const onBookSourceChange = () => {
+  saveUserSettings({ bookSource: bookSource.value })
+}
+
 // API key change handlers
 const onGoogleApiKeysChange = async (keys) => {
   googleApiKeys.value = keys
@@ -538,7 +606,6 @@ const onGoogleApiKeysChange = async (keys) => {
   providerConfigs.value.google = { apiKeys: filteredKeys }
   setProvider('google', { apiKeys: filteredKeys })
   connectionStatus.value = null
-  availableModels.value = []
 
   saveUserSettings({ providerConfigs: buildCleanProviderConfigs() })
 
@@ -554,7 +621,6 @@ const onCerebrasApiKeysChange = async (keys) => {
   providerConfigs.value.cerebras = { apiKeys: filteredKeys }
   setProvider('cerebras', { apiKeys: filteredKeys })
   connectionStatus.value = null
-  availableModels.value = []
 
   saveUserSettings({ providerConfigs: buildCleanProviderConfigs() })
 
@@ -618,6 +684,18 @@ onMounted(async () => {
 
     if (settings.customFetchUrl) {
       customFetchUrl.value = settings.customFetchUrl
+    }
+
+    if (settings.bookApiUrl) {
+      bookApiUrl.value = settings.bookApiUrl
+    }
+
+    if (settings.bookApiKey) {
+      bookApiKey.value = settings.bookApiKey
+    }
+
+    if (settings.bookSource) {
+      bookSource.value = settings.bookSource
     }
   } else {
     currentTheme.value = window.__getTheme?.() || 'light'
