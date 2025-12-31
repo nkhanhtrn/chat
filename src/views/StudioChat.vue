@@ -62,6 +62,7 @@
       :visible-windows="canvas.visibleWindows.value"
       :minimized-categories="canvas.minimizedWindowsByCategory.value"
       :sessionId="sessions.activeSessionId.value || 'default'"
+      :hasHistoryFn="canvas.hasHistory"
       @close-window="canvas.removeWindow"
       @minimize-window="canvas.minimizeWindow"
       @restore-window="canvas.restoreWindow"
@@ -72,6 +73,8 @@
       @edit-window="handleEditWindow"
       @clone-window="handleCloneWindow"
       @open-tool="canvas.addWindow"
+      @go-back="handleGoBack"
+      @refresh="handleRefresh"
       />
     </SlideTransition>
   </AppLayout>
@@ -285,6 +288,29 @@ function handleUpdateTitle(windowId, title) {
   setTimeout(() => {
     canvasPanelRef.value?.reloadToolLibrary()
   }, 100)
+}
+
+// Handle go back to previous version
+function handleGoBack(windowId) {
+  const previousContent = canvas.popFromHistory(windowId)
+  if (previousContent) {
+    canvas.restoreContent(windowId, previousContent, false)
+    setTimeout(() => {
+      canvasPanelRef.value?.reloadToolLibrary()
+    }, 100)
+  }
+}
+
+// Handle refresh (reload current version)
+function handleRefresh(windowId) {
+  const currentContent = canvas.getCurrentContent(windowId)
+  if (currentContent) {
+    // Force re-render by restoring the same content, but don't sync to cloud since nothing changed
+    canvas.restoreContent(windowId, currentContent, false, false)
+    setTimeout(() => {
+      canvasPanelRef.value?.reloadToolLibrary()
+    }, 100)
+  }
 }
 
 // Handle send message

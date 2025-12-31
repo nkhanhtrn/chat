@@ -23,6 +23,7 @@
         :window="window"
         :container-rect="containerRect"
         :sessionId="sessionId"
+        :hasHistory="hasHistoryFn(window.id)"
         @close="$emit('close-window', window.id)"
         @minimize="$emit('minimize-window', window.id)"
         @clone="$emit('clone-window', window)"
@@ -31,6 +32,8 @@
         @update:title="(title) => $emit('update-title', window.id, title)"
         @bring-to-front="$emit('bring-to-front', window.id)"
         @edit-window="(data) => $emit('edit-window', data)"
+        @go-back="$emit('go-back', window.id)"
+        @refresh="$emit('refresh', window.id)"
       />
     </TransitionGroup>
 
@@ -52,10 +55,11 @@ import ToolLibrary from './ToolLibrary.vue'
 defineProps({
   visibleWindows: { type: Array, default: () => [] },
   minimizedCategories: { type: Array, default: () => [] },
-  sessionId: { type: String, default: 'default' }
+  sessionId: { type: String, default: 'default' },
+  hasHistoryFn: { type: Function, default: () => () => false }
 })
 
-defineEmits(['close-window', 'minimize-window', 'clone-window', 'restore-window', 'update-position', 'update-size', 'update-title', 'bring-to-front', 'edit-window', 'open-tool'])
+defineEmits(['close-window', 'minimize-window', 'clone-window', 'restore-window', 'update-position', 'update-size', 'update-title', 'bring-to-front', 'edit-window', 'open-tool', 'go-back', 'refresh'])
 
 const canvasRef = ref(null)
 const toolLibraryRef = ref(null)

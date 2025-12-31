@@ -27,6 +27,29 @@
       <div class="window-controls">
         <button
           v-if="window.type === 'tool'"
+          class="window-control-btn back-btn"
+          :class="{ 'is-disabled': !hasHistory }"
+          :disabled="!hasHistory"
+          @click.stop="$emit('go-back')"
+          title="Back to previous version"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+        <button
+          v-if="window.type === 'tool'"
+          class="window-control-btn refresh-btn"
+          @click.stop="$emit('refresh')"
+          title="Reload current version"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 4v6h-6"></path>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+          </svg>
+        </button>
+        <button
+          v-if="window.type === 'tool'"
           class="window-control-btn clone-btn"
           @click.stop="$emit('clone')"
           title="Clone"
@@ -91,7 +114,7 @@
       ></div>
 
       <!-- Tool -->
-      <div v-else-if="window.type === 'tool'" class="tool-wrapper">
+      <div v-else-if="window.type === 'tool'" class="tool-wrapper" :class="{ 'is-reloading': isReloading }">
         <VueToolRenderer
           v-if="isVueSfcTool"
           :code="window.content.code"
@@ -160,7 +183,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import ChartRenderer from '../ChartRenderer.vue'
 import MermaidBlock from '../markdown/MermaidBlock.vue'
 import ToolRenderer from '../ToolRenderer.vue'
@@ -172,10 +195,11 @@ import { parseChartOption } from '../../utils/chart.js'
 const props = defineProps({
   window: { type: Object, required: true },
   containerRect: { type: Object, default: () => ({ width: 0, height: 0 }) },
-  sessionId: { type: String, default: 'default' }
+  sessionId: { type: String, default: 'default' },
+  hasHistory: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['close', 'minimize', 'clone', 'update:position', 'update:size', 'update:title', 'bring-to-front', 'edit-window'])
+const emit = defineEmits(['close', 'minimize', 'clone', 'update:position', 'update:size', 'update:title', 'bring-to-front', 'edit-window', 'go-back', 'refresh'])
 
 const windowRef = ref(null)
 const isDragging = ref(false)
@@ -183,6 +207,19 @@ const isResizing = ref(false)
 const resizeDirection = ref('')
 const dragStart = ref({ x: 0, y: 0 })
 const resizeStart = ref({ x: 0, y: 0, width: 0, height: 0, posX: 0, posY: 0 })
+
+// Reload animation state
+const isReloading = ref(false)
+
+// Watch for content changes to trigger reload animation
+watch(() => props.window.content?.code, (newCode, oldCode) => {
+  if (oldCode !== undefined && newCode !== oldCode) {
+    isReloading.value = true
+    setTimeout(() => {
+      isReloading.value = false
+    }, 1000)
+  }
+}, { deep: true })
 
 // Edit panel state
 const showEditPanel = ref(false)
@@ -602,7 +639,12 @@ onUnmounted(() => {
   transition: all 0.15s;
 }
 
-.window-control-btn:hover {
+.window-control-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.window-control-btn:not(:disabled):hover {
   background-color: var(--color-bg-hover);
   color: var(--color-text-base);
 }
@@ -649,6 +691,23 @@ onUnmounted(() => {
   flex-direction: column;
   margin: -0.5rem; /* Negate window-content padding */
   background: var(--color-bg-base);
+  transition: background 1s ease;
+}
+
+.tool-wrapper.is-reloading {
+  animation: tool-reload 1s ease-out;
+}
+
+@keyframes tool-reload {
+  0% {
+    background: var(--color-bg-base);
+  }
+  50% {
+    background: linear-gradient(135deg, var(--color-primary-subtle, #dbeafe) 0%, var(--color-bg-base) 100%);
+  }
+  100% {
+    background: var(--color-bg-base);
+  }
 }
 
 
@@ -912,5 +971,15 @@ onUnmounted(() => {
 .clone-btn:hover {
   background-color: var(--color-success-subtle, #dcfce7);
   color: var(--color-success, #22c55e);
+}
+
+.back-btn:hover {
+  background-color: var(--color-warning-subtle, #fef3c7);
+  color: var(--color-warning, #f59e0b);
+}
+
+.refresh-btn:hover {
+  background-color: var(--color-info-subtle, #dbeafe);
+  color: var(--color-info, #3b82f6);
 }
 </style>

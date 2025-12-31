@@ -182,18 +182,18 @@ describe('useStudioCanvas', () => {
       expect(localStorageMock.setItem).toHaveBeenCalled()
     })
 
-    it('should close existing tool windows when adding a new tool window', () => {
+    it('should allow multiple tool windows to be open', () => {
       const canvas = useStudioCanvas()
 
       // Add first tool window
       const tool1 = canvas.addWindow({ messageId: 'msg-1', type: 'tool', content: { name: 'Tool 1' } })
       expect(canvas.windows.value).toHaveLength(1)
 
-      // Add second tool window - should replace the first
+      // Add second tool window - should keep both
       const tool2 = canvas.addWindow({ messageId: 'msg-2', type: 'tool', content: { name: 'Tool 2' } })
-      expect(canvas.windows.value).toHaveLength(1)
-      expect(canvas.windows.value[0].id).toBe(tool2.id)
-      expect(canvas.windows.value[0].content.name).toBe('Tool 2')
+      expect(canvas.windows.value).toHaveLength(2)
+      expect(canvas.windows.value[0].id).toBe(tool1.id)
+      expect(canvas.windows.value[1].id).toBe(tool2.id)
     })
 
     it('should not close non-tool windows when adding a tool window', () => {
@@ -624,6 +624,518 @@ describe('useStudioCanvas', () => {
       canvas.cloneWindow(original)
 
       expect(mockSaveTool).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Tool History', () => {
+    beforeEach(() => {
+      // Reset state before each history test
+      const canvas = useStudioCanvas()
+      canvas.resetState()
+    })
+
+    describe('hasHistory', () => {
+      it('should return false for window with no history', () => {
+        const canvas = useStudioCanvas()
+        const window = canvas.addWindow({
+          messageId: 'msg-1',
+          type: 'tool',
+          content: { name: 'Test', code: 'initial code' }
+        })
+
+        expect(canvas.hasHistory(window.id)).toBe(false)
+      })
+
+      it('should return true for window with history', () => {
+        const canvas = useStudioCanvas()
+        const window = canvas.addWindow({
+          messageId: 'msg-1',
+          type: 'tool',
+          content: { name: 'Test', code: 'initial code' }
+        })
+
+        // Update content to push to history
+        canvas.updateWindowContent(window.id, { code: 'updated code' })
+
+        expect(canvas.hasHistory(window.id)).toBe(true)
+      })
+
+      it('should return false for non-existent window', () => {
+        const canvas = useStudioCanvas()
+        expect(canvas.hasHistory('non-existent')).toBe(false)
+      })
+    })
+
+    describe('pushToHistory', () => {
+      it('should save content to history stack', () => {
+        const canvas = useStudioCanvas()
+        const window = canvas.addWindow({
+          messageId: 'msg-1',
+          type: 'tool',
+          content: { name: 'Test', code: 'version 1' }
+        })
+
+        canvas.updateWindowContent(window.id, { code: 'version 2' })
+
+        expect(canvas.hasHistory(window.id)).toBe(true)
+      })
+
+      it('should not save history for non-tool windows', () => {
+        const canvas = useStudioCanvas()
+        const window = canvas.addWindow({
+          messageId: 'msg-1',
+          type: 'chart',
+          content: { title: 'Chart' }
+        })
+
+        canvas.updateWindowContent(window.id, { title: 'Updated' })
+
+        expect(canvas.hasHistory(window.id)).toBe(false)
+      })
+
+      it('should maintain separate history for each tool window', () => {
+        const canvas = useStudioCanvas()
+        const tool1 = canvas.addWindow({
+          messageId: 'msg-1',
+          type: 'tool',
+          content: { name: 'Tool 1', code: 'tool1 v1' }
+        })
+        const tool2 = canvas.addWindow({
+          messageId: 'msg-2',
+          type: 'tool',
+          content: { name: 'Tool 2', code: 'tool2 v1' }
+        })
+
+        canvas.updateWindowContent(tool1.id, { code: 'tool1 v2' })
+        canvas.updateWindowContent(tool2.id, { code: 'tool2 v2' })
+
+        expect(canvas.hasHistory(tool1.id)).toBe(true)
+        expect(canvas.hasHistory(tool2.id)).toBe(true)
+      })
+    })
+
+    describe('popFromHistory', () => {
+      it('should return and remove previous content from history', () => {
+        const canvas = useStudioCanvas()
+        const window = canvas.addWindow({
+          messageId: 'msg-1',
+          type: 'tool',
+          content: { name: 'Test', code: 'version 1' }
+        })
+
+        canvas.updateWindowContent(window.id, { code: 'version 2' })
+
+        const previous = canvas.popFromHistory(window.id)
+        expect(previous).toEqual({ name: 'Test', code: 'version 1' })
+        expect(canvas.hasHistory(window.id)).toBe(false)
+      })
+
+      it('should return null when history is empty', () => {
+        const canvas = useStudioCanvas()
+        const window = canvas.addWindow({
+          messageId: 'msg-1',
+          type: 'tool',
+          content: { name: 'Test', code: 'code' }
+        })
+
+        const previous = canvas.popFromHistory(window.id)
+        expect(previous).toBeNull()
+      })
+
+      it('should return null for non-existent window', () => {
+        const canvas = useStudioCanvas()
+        const previous = canvas.popFromHistory('non-existent')
+        expect(previous).toBeNull()
+      })
+
+      it('should maintain LIFO order (stack)', () => {
+        const canvas = useStudioCanvas()
+        const window = canvas.addWindow({
+          messageId: 'msg-1',
+          type: 'tool',
+          content: { name: 'Test', code: 'v1' }
+        })
+
+        canvas.updateWindowContent(window.id, { code: 'v2' })
+        canvas.updateWindowContent(window.id, { code: 'v3' })
+
+        expect(canvas.popFromHistory(window.id)).toEqual({ name: 'Test', code: 'v2' })
+        expect(canvas.popFromHistory(window.id)).toEqual({ name: 'Test', code: 'v1' })
+        expect(canvas.popFromHistory(window.id)).toBeNull()
+      })
+    })
+
+    describe('clearHistory', () => {
+      it('should clear history for a specific window', () => {
+        const canvas = useStudioCanvas()
+        const window = canvas.addWindow({
+          messageId: 'msg-1',
+          type: 'tool',
+          content: { name: 'Test', code: 'v1' }
+        })
+
+        canvas.updateWindowContent(window.id, { code: 'v2' })
+        expect(canvas.hasHistory(window.id)).toBe(true)
+
+        canvas.clearHistory(window.id)
+        expect(canvas.hasHistory(window.id)).toBe(false)
+      })
+
+      it('should not error when clearing non-existent window history', () => {
+        const canvas = useStudioCanvas()
+        expect(() => canvas.clearHistory('non-existent')).not.toThrow()
+      })
+    })
+
+    describe('getCurrentContent', () => {
+      it('should return current window content', () => {
+        const canvas = useStudioCanvas()
+        const window = canvas.addWindow({
+          messageId: 'msg-1',
+          type: 'tool',
+          content: { name: 'Test', code: 'my code' }
+        })
+
+        const content = canvas.getCurrentContent(window.id)
+        expect(content).toEqual({ name: 'Test', code: 'my code' })
+      })
+
+      it('should return null for non-existent window', () => {
+        const canvas = useStudioCanvas()
+        const content = canvas.getCurrentContent('non-existent')
+        expect(content).toBeNull()
+      })
+    })
+
+    describe('restoreContent', () => {
+      it('should restore content to window', () => {
+        const canvas = useStudioCanvas()
+        const window = canvas.addWindow({
+          messageId: 'msg-1',
+          type: 'tool',
+          content: { name: 'Test', code: 'current' }
+        })
+
+        canvas.restoreContent(window.id, { name: 'Test', code: 'restored' }, false, false)
+
+        expect(canvas.windows.value[0].content).toEqual({ name: 'Test', code: 'restored' })
+      })
+
+      it('should preserve existing id, name, emoji when restoring', () => {
+        const canvas = useStudioCanvas()
+        const window = canvas.addWindow({
+          messageId: 'msg-1',
+          type: 'tool',
+          content: { id: 'tool-123', name: 'Calculator', emoji: '🧮', code: 'v1' }
+        })
+
+        canvas.restoreContent(window.id, { code: 'v2' }, false, false)
+
+        expect(canvas.windows.value[0].content.id).toBe('tool-123')
+        expect(canvas.windows.value[0].content.name).toBe('Calculator')
+        expect(canvas.windows.value[0].content.emoji).toBe('🧮')
+        expect(canvas.windows.value[0].content.code).toBe('v2')
+      })
+
+      it('should save to history before restoring when saveToHistory is true', () => {
+        const canvas = useStudioCanvas()
+        const window = canvas.addWindow({
+          messageId: 'msg-1',
+          type: 'tool',
+          content: { name: 'Test', code: 'current' }
+        })
+
+        canvas.restoreContent(window.id, { name: 'Test', code: 'new' }, true, false)
+
+        expect(canvas.hasHistory(window.id)).toBe(true)
+        const previous = canvas.popFromHistory(window.id)
+        expect(previous).toEqual({ name: 'Test', code: 'current' })
+      })
+
+      it('should not save to history when saveToHistory is false', () => {
+        const canvas = useStudioCanvas()
+        const window = canvas.addWindow({
+          messageId: 'msg-1',
+          type: 'tool',
+          content: { name: 'Test', code: 'current' }
+        })
+
+        canvas.restoreContent(window.id, { name: 'Test', code: 'new' }, false, false)
+
+        expect(canvas.hasHistory(window.id)).toBe(false)
+      })
+
+      it('should save to IndexedDB when saveToIndexedDB is true', () => {
+        const canvas = useStudioCanvas()
+        const window = canvas.addWindow({
+          messageId: 'msg-1',
+          type: 'tool',
+          content: { name: 'Test', emoji: '🔧', code: 'code' }
+        })
+        vi.clearAllMocks()
+
+        canvas.restoreContent(window.id, { name: 'Test', code: 'new' }, false, true)
+
+        expect(mockSaveTool).toHaveBeenCalledWith({
+          id: undefined,
+          name: 'Test',
+          emoji: '🔧',
+          type: undefined,
+          code: 'new'
+        })
+      })
+
+      it('should not save to IndexedDB when saveToIndexedDB is false', () => {
+        const canvas = useStudioCanvas()
+        const window = canvas.addWindow({
+          messageId: 'msg-1',
+          type: 'tool',
+          content: { name: 'Test', emoji: '🔧', code: 'code' }
+        })
+        vi.clearAllMocks()
+
+        canvas.restoreContent(window.id, { name: 'Test', code: 'new' }, false, false)
+
+        expect(mockSaveTool).not.toHaveBeenCalled()
+      })
+
+      it('should not restore content for non-tool windows', () => {
+        const canvas = useStudioCanvas()
+        const window = canvas.addWindow({
+          messageId: 'msg-1',
+          type: 'chart',
+          content: { title: 'Chart' }
+        })
+        vi.clearAllMocks()
+
+        canvas.restoreContent(window.id, { title: 'New' }, false, false)
+
+        // Content should not change for non-tool windows
+        expect(canvas.windows.value[0].content.title).toBe('Chart')
+      })
+    })
+
+    describe('updateWindowContent with history', () => {
+      it('should automatically save to history before updating tool content', () => {
+        const canvas = useStudioCanvas()
+        const window = canvas.addWindow({
+          messageId: 'msg-1',
+          type: 'tool',
+          content: { name: 'Test', code: 'v1' }
+        })
+
+        canvas.updateWindowContent(window.id, { code: 'v2' })
+
+        expect(canvas.hasHistory(window.id)).toBe(true)
+        const previous = canvas.popFromHistory(window.id)
+        expect(previous).toEqual({ name: 'Test', code: 'v1' })
+      })
+
+      it('should not save to history for non-tool windows', () => {
+        const canvas = useStudioCanvas()
+        const window = canvas.addWindow({
+          messageId: 'msg-1',
+          type: 'chart',
+          content: { title: 'Chart' }
+        })
+
+        canvas.updateWindowContent(window.id, { title: 'Updated' })
+
+        expect(canvas.hasHistory(window.id)).toBe(false)
+      })
+    })
+  })
+
+  describe('cleanObject helper', () => {
+    it('should remove undefined values from objects', () => {
+      const canvas = useStudioCanvas()
+      const window = canvas.addWindow({
+        messageId: 'msg-1',
+        type: 'tool',
+        content: { name: 'Test', code: 'code', id: undefined, emoji: undefined }
+      })
+
+      // The addWindow function cleans the content
+      expect(window.content.id).toBeUndefined()
+      expect(window.content.emoji).toBeUndefined()
+      // But name and code should be present
+      expect(window.content.name).toBe('Test')
+      expect(window.content.code).toBe('code')
+    })
+
+    it('should clean nested objects', () => {
+      const canvas = useStudioCanvas()
+      const window = canvas.addWindow({
+        messageId: 'msg-1',
+        type: 'tool',
+        content: {
+          name: 'Test',
+          code: 'code',
+          nested: { a: 1, b: undefined, c: { d: 2, e: undefined } }
+        }
+      })
+
+      // Check that nested undefined values are removed
+      expect(window.content.nested.b).toBeUndefined()
+      expect(window.content.nested.c.e).toBeUndefined()
+      expect(window.content.nested.a).toBe(1)
+      expect(window.content.nested.c.d).toBe(2)
+    })
+
+    it('should handle arrays', () => {
+      const canvas = useStudioCanvas()
+      const window = canvas.addWindow({
+        messageId: 'msg-1',
+        type: 'tool',
+        content: {
+          name: 'Test',
+          items: [1, undefined, 3, { a: undefined, b: 2 }]
+        }
+      })
+
+      // Arrays should be preserved with undefined values filtered from objects
+      expect(window.content.items).toEqual([1, undefined, 3, { b: 2 }])
+    })
+  })
+
+  describe('Debounced save behavior', () => {
+    it('should debounce saveToStorage for position updates', () => {
+      vi.useFakeTimers()
+      const canvas = useStudioCanvas()
+      const window = canvas.addWindow({
+        messageId: 'msg-1',
+        type: 'tool',
+        content: { name: 'Test' }
+      })
+      vi.clearAllMocks()
+
+      // Multiple rapid position updates
+      canvas.updateWindowPosition(window.id, { x: 10, y: 10 })
+      canvas.updateWindowPosition(window.id, { x: 20, y: 20 })
+      canvas.updateWindowPosition(window.id, { x: 30, y: 30 })
+
+      // Should not have saved yet
+      expect(localStorageMock.setItem).not.toHaveBeenCalled()
+
+      // Fast forward past debounce time
+      vi.advanceTimersByTime(500)
+
+      // Now it should have saved once
+      expect(localStorageMock.setItem).toHaveBeenCalled()
+
+      vi.useRealTimers()
+    })
+
+    it('should debounce saveToStorage for size updates', () => {
+      vi.useFakeTimers()
+      const canvas = useStudioCanvas()
+      const window = canvas.addWindow({
+        messageId: 'msg-1',
+        type: 'tool',
+        content: { name: 'Test' }
+      })
+      vi.clearAllMocks()
+
+      // Multiple rapid size updates
+      canvas.updateWindowSize(window.id, { width: 400, height: 300 })
+      canvas.updateWindowSize(window.id, { width: 500, height: 400 })
+      canvas.updateWindowSize(window.id, { width: 600, height: 500 })
+
+      // Should not have saved yet
+      expect(localStorageMock.setItem).not.toHaveBeenCalled()
+
+      vi.advanceTimersByTime(500)
+
+      expect(localStorageMock.setItem).toHaveBeenCalled()
+
+      vi.useRealTimers()
+    })
+
+    it('should debounce saveToStorage for bringToFront', () => {
+      vi.useFakeTimers()
+      const canvas = useStudioCanvas()
+      const w1 = canvas.addWindow({ messageId: 'msg-1', type: 'tool', content: {} })
+      const w2 = canvas.addWindow({ messageId: 'msg-2', type: 'tool', content: {} })
+      vi.clearAllMocks()
+
+      // Multiple rapid bringToFront calls
+      canvas.bringToFront(w1.id)
+      canvas.bringToFront(w2.id)
+      canvas.bringToFront(w1.id)
+
+      expect(localStorageMock.setItem).not.toHaveBeenCalled()
+
+      vi.advanceTimersByTime(500)
+
+      expect(localStorageMock.setItem).toHaveBeenCalled()
+
+      vi.useRealTimers()
+    })
+
+    it('should save immediately for content changes (not debounced)', () => {
+      const canvas = useStudioCanvas()
+      const window = canvas.addWindow({
+        messageId: 'msg-1',
+        type: 'tool',
+        content: { name: 'Test', code: 'code' }
+      })
+      vi.clearAllMocks()
+
+      canvas.updateWindowContent(window.id, { code: 'new code' })
+
+      // Should save immediately
+      expect(localStorageMock.setItem).toHaveBeenCalled()
+    })
+  })
+
+  describe('Multiple tool windows', () => {
+    it('should allow multiple tool windows to be open', () => {
+      const canvas = useStudioCanvas()
+
+      const tool1 = canvas.addWindow({
+        messageId: 'msg-1',
+        type: 'tool',
+        content: { name: 'Tool 1', code: 'code1' }
+      })
+      const tool2 = canvas.addWindow({
+        messageId: 'msg-2',
+        type: 'tool',
+        content: { name: 'Tool 2', code: 'code2' }
+      })
+
+      expect(canvas.windows.value).toHaveLength(2)
+      expect(canvas.windows.value[0].id).toBe(tool1.id)
+      expect(canvas.windows.value[1].id).toBe(tool2.id)
+    })
+
+    it('should maintain separate history for each tool window', () => {
+      const canvas = useStudioCanvas()
+
+      const tool1 = canvas.addWindow({
+        messageId: 'msg-1',
+        type: 'tool',
+        content: { name: 'Tool 1', code: 'v1' }
+      })
+      const tool2 = canvas.addWindow({
+        messageId: 'msg-2',
+        type: 'tool',
+        content: { name: 'Tool 2', code: 'v1' }
+      })
+
+      canvas.updateWindowContent(tool1.id, { code: 'tool1 v2' })
+      canvas.updateWindowContent(tool2.id, { code: 'tool2 v2' })
+
+      expect(canvas.hasHistory(tool1.id)).toBe(true)
+      expect(canvas.hasHistory(tool2.id)).toBe(true)
+
+      const tool1History = canvas.popFromHistory(tool1.id)
+      const tool2History = canvas.popFromHistory(tool2.id)
+
+      // History contains the original content with preserved name
+      expect(tool1History.name).toBe('Tool 1')
+      expect(tool1History.code).toBe('v1')
+      expect(tool2History.name).toBe('Tool 2')
+      expect(tool2History.code).toBe('v1')
     })
   })
 })

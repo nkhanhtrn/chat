@@ -825,6 +825,8 @@ export const mergeCloudLocal = (cloudItems, localItems) => {
 // Studio Sessions (Cloud Sync)
 // ============================================
 
+import { debugLog } from '../utils/debug.js'
+
 /**
  * Save studio sessions to Firestore
  * Structure: users/{uid}/studioSessions/{sessionId}
@@ -868,9 +870,60 @@ export const saveStudioSessionsToFirestore = async (sessions, activeSessionId) =
     }, { merge: true })
 
     await batch.commit()
-    console.log(`Synced ${sessions.length} studio sessions to cloud`)
+    debugLog(`Synced ${sessions.length} studio sessions to cloud`)
   } catch (error) {
     console.error('Failed to save studio sessions to Firestore:', error)
+    throw error
+  }
+}
+
+/**
+ * Save a single studio session to Firestore (more efficient than syncing all sessions)
+ * Structure: users/{uid}/studioSessions/{sessionId}
+ * @param {Object} session - Single session object
+ * @param {string} activeSessionId - Currently active session ID (for metadata)
+ * @returns {Promise<void>}
+ */
+export const saveSingleSessionToFirestore = async (session, activeSessionId) => {
+  try {
+    const auth = getFirebaseAuth()
+    const user = auth.currentUser
+
+    if (!user) {
+      debugLog('[Session Sync] No authenticated user, skipping studio session cloud sync')
+      return
+    }
+
+    const db = getFirebaseDb()
+
+    // Collect tool instance data for this session from localStorage
+    const toolInstanceData = collectToolInstanceData(session.id)
+
+    // Load chat and canvas state from localStorage to include in sync
+    const chatKey = `studio-chat-${session.id}`
+    const canvasKey = `studio-canvas-windows-${session.id}`
+    const chatState = localStorage.getItem(chatKey)
+    const canvasState = localStorage.getItem(canvasKey)
+
+    const sessionRef = doc(db, 'users', user.uid, 'studioSessions', session.id)
+    await setDoc(sessionRef, {
+      ...session,
+      chatState: chatState ? JSON.parse(chatState) : null,
+      canvasState: canvasState ? JSON.parse(canvasState) : null,
+      toolInstanceData,
+      lastUpdated: serverTimestamp()
+    }, { merge: true })
+
+    // Also update metadata if active session changed
+    const metadataRef = doc(db, 'users', user.uid, 'studioSessions', 'metadata')
+    await setDoc(metadataRef, {
+      activeSessionId,
+      lastUpdated: serverTimestamp()
+    }, { merge: true })
+
+    debugLog('[Session Sync] ✅ Single session synced to Firestore:', session.id)
+  } catch (error) {
+    console.error('Failed to save single studio session to Firestore:', error)
     throw error
   }
 }

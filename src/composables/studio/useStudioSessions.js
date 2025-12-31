@@ -1,6 +1,8 @@
 import { ref, computed, watch, nextTick } from 'vue'
+import { debugLog } from '../../utils/debug.js'
 import {
   saveStudioSessionsToFirestore,
+  saveSingleSessionToFirestore,
   loadStudioSessionsFromFirestore,
   deleteStudioSessionFromFirestore,
   mergeCloudLocal
@@ -27,6 +29,7 @@ function generateSessionId() {
  */
 async function saveToStorage() {
   try {
+    debugLog('[Session Sync] saveToStorage called - syncing ALL sessions:', sessions.value.length)
     const state = {
       sessions: sessions.value.map(s => ({
         id: s.id,
@@ -365,8 +368,11 @@ async function deleteSession(sessionId) {
 function updateChatState(chatState) {
   const session = getActiveSession()
   if (session) {
-    session.chatMessages = chatState.messages
-    session.nextMessageId = chatState.nextMessageId
+    debugLog('[Session Sync] updateChatState called for session:', session.id)
+
+    // Set skipWatch at the START to prevent watcher from triggering during this entire operation
+    skipWatch = true
+
     session.updatedAt = Date.now()
 
     // Persist to localStorage
@@ -376,6 +382,21 @@ function updateChatState(chatState) {
     } catch (e) {
       console.warn('Failed to save chat state:', e)
     }
+
+    debugLog('[Session Sync] Syncing single session to Firestore:', session.id)
+    // Sync only this session to Firestore (not all sessions)
+    saveSingleSessionToFirestore(session, activeSessionId.value)
+      .then(() => {
+        debugLog('[Session Sync] ✅ Single session sync complete')
+      })
+      .catch(err => {
+        console.warn('Failed to sync session chat state to cloud:', err)
+      })
+      .finally(() => {
+        // Clear skipWatch AFTER sync is complete
+        skipWatch = false
+        debugLog('[Session Sync] skipWatch flag cleared')
+      })
   }
 }
 
@@ -385,10 +406,11 @@ function updateChatState(chatState) {
 function updateCanvasState(canvasState) {
   const session = getActiveSession()
   if (session) {
-    session.canvasWindows = canvasState.windows
-    session.nextWindowId = canvasState.nextWindowId
-    session.cascadeOffset = canvasState.cascadeOffset
-    session.maxZIndex = canvasState.maxZIndex
+    debugLog('[Session Sync] updateCanvasState called for session:', session.id, 'windows:', canvasState.windows.length)
+
+    // Set skipWatch at the START to prevent watcher from triggering during this entire operation
+    skipWatch = true
+
     session.updatedAt = Date.now()
 
     // Persist to localStorage
@@ -398,6 +420,21 @@ function updateCanvasState(canvasState) {
     } catch (e) {
       console.warn('Failed to save canvas state:', e)
     }
+
+    debugLog('[Session Sync] Syncing single session to Firestore:', session.id)
+    // Sync only this session to Firestore (not all sessions)
+    saveSingleSessionToFirestore(session, activeSessionId.value)
+      .then(() => {
+        debugLog('[Session Sync] ✅ Single session sync complete')
+      })
+      .catch(err => {
+        console.warn('Failed to sync session canvas state to cloud:', err)
+      })
+      .finally(() => {
+        // Clear skipWatch AFTER sync is complete
+        skipWatch = false
+        debugLog('[Session Sync] skipWatch flag cleared')
+      })
   }
 }
 
@@ -462,8 +499,11 @@ let skipWatch = false
 
 // Watch sessions for changes and save
 watch(sessions, () => {
+  debugLog('[Session Sync] Deep watcher triggered, skipWatch:', skipWatch)
   if (!skipWatch) {
     saveToStorage()
+  } else {
+    debugLog('[Session Sync] ⏭️ Skipping full sync - skipWatch flag is set')
   }
 }, { deep: true })
 
