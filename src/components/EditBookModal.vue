@@ -35,7 +35,7 @@
         <div class="cover-upload">
           <div class="cover-preview">
             <img v-if="coverPreview" :src="coverPreview" alt="Book cover">
-            <div v-else class="cover-placeholder">📖</div>
+            <img v-else :src="defaultCoverUrl" alt="Default cover">
           </div>
           <div class="cover-actions">
             <Button v-if="formData.coverUrl" variant="secondary" @click="removeCover">
@@ -58,7 +58,7 @@
 
     <template #footer>
       <div class="footer-left">
-        <Button variant="danger" @click="onDelete" title="Delete book">
+        <Button variant="danger" @click="emit('delete')" title="Delete book">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="3 6 5 6 21 6"></polyline>
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -79,6 +79,7 @@
 import { ref, computed, watch } from 'vue'
 import Modal from './Modal/Modal.vue'
 import Button from './Button.vue'
+import { generateDefaultCover } from '../services/bookCoverGenerator.js'
 
 const props = defineProps({
   visible: {
@@ -104,6 +105,10 @@ const isSaving = ref(false)
 const originalData = ref({})
 
 const coverPreview = computed(() => formData.value.coverUrl)
+
+const defaultCoverUrl = computed(() =>
+  generateDefaultCover(formData.value.title, formData.value.author)
+)
 
 const hasChanges = computed(() => {
   return (
@@ -172,13 +177,6 @@ async function onSave() {
     })
   } finally {
     isSaving.value = false
-  }
-}
-
-function onDelete() {
-  const bookTitle = props.book?.title || 'this book'
-  if (confirm(`Delete "${bookTitle}"?`)) {
-    emit('delete')
   }
 }
 </script>

@@ -133,7 +133,7 @@ defineEmits([
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem 1.25rem;
-  background: var(--color-bg-surface);
+  background: var(--color-bg-base);
   border-bottom: 1px solid var(--color-border-base);
   gap: 1rem;
 }

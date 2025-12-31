@@ -1,5 +1,10 @@
 <template>
   <div class="app-layout">
+    <!-- Mobile backdrop for side panel -->
+    <Transition name="fade">
+      <div v-if="hasSidePanel && sideExpanded && isMobile" class="mobile-backdrop" @click="closeSide"></div>
+    </Transition>
+
     <!-- Navigation Bar (always visible) -->
     <nav class="nav-bar">
       <button
@@ -45,7 +50,7 @@
 
     <!-- Side Panel (optional, collapsible) -->
     <Transition name="slide-side">
-      <aside v-if="hasSidePanel && sideExpanded" class="side-panel" :style="{ width: sideWidth + 'px' }">
+      <aside v-if="hasSidePanel && sideExpanded" class="side-panel" :class="{ 'is-mobile': isMobile }" :style="isMobile ? {} : { width: sideWidth + 'px' }">
         <slot name="side"></slot>
       </aside>
     </Transition>
@@ -110,6 +115,37 @@ const showSettings = ref(false)
 const isDragging = ref(false)
 const startX = ref(0)
 const startWidth = ref(0)
+const isMobile = ref(false)
+
+// Check if mobile
+function checkMobile() {
+  isMobile.value = window.innerWidth <= 768
+}
+
+onMounted(() => {
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+  const stored = localStorage.getItem(props.storageKey)
+  if (stored !== null) {
+    sideExpanded.value = stored === 'true'
+  }
+  const storedWidth = localStorage.getItem(`${props.storageKey}-width`)
+  if (storedWidth !== null) {
+    sideWidth.value = parseInt(storedWidth, 10)
+  }
+  // On mobile, start with side panel closed
+  if (isMobile.value) {
+    sideExpanded.value = false
+  }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
+  document.removeEventListener('mousemove', handleDrag)
+  document.removeEventListener('mouseup', stopDrag)
+  document.removeEventListener('touchmove', handleDrag)
+  document.removeEventListener('touchend', stopDrag)
+})
 
 // Check if side panel slot has content
 const hasSidePanel = computed(() => !!slots.side)
@@ -146,6 +182,11 @@ onMounted(() => {
 function toggleSide() {
   sideExpanded.value = !sideExpanded.value
   localStorage.setItem(props.storageKey, sideExpanded.value.toString())
+}
+
+function closeSide() {
+  sideExpanded.value = false
+  localStorage.setItem(props.storageKey, 'false')
 }
 
 // Watch route changes to track the last viewed content
@@ -307,7 +348,7 @@ defineExpose({ sideExpanded, toggleSide })
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem;
-  background: var(--color-bg-surface);
+  background: var(--color-bg-base);
   border-right: 1px solid var(--color-border-subtle);
   flex-shrink: 0;
 }
@@ -401,7 +442,7 @@ defineExpose({ sideExpanded, toggleSide })
   flex-direction: column;
   height: 100%;
   overflow: hidden;
-  background: var(--color-bg-surface);
+  background: var(--color-bg-base);
 }
 
 .divider {
@@ -470,13 +511,88 @@ defineExpose({ sideExpanded, toggleSide })
 
 /* Mobile responsive */
 @media (max-width: 768px) {
-  .side-panel,
-  .divider {
+  .app-layout {
+    flex-direction: column;
+  }
+
+  .nav-bar {
+    flex-direction: row;
+    order: 2;
+    width: 100%;
+    height: auto;
+    border-right: none;
+    border-top: 1px solid var(--color-border-subtle);
+    padding: 0.75rem 0.5rem;
+    justify-content: space-around;
+  }
+
+  .nav-spacer {
     display: none;
   }
 
   .expand-btn {
     display: none;
+  }
+
+  .divider {
+    display: none;
+  }
+
+  .nav-btn.active::after {
+    left: 50%;
+    top: auto;
+    bottom: -0.5rem;
+    transform: translateX(-50%);
+    width: 20px;
+    height: 3px;
+    border-radius: 2px 2px 0 0;
+  }
+
+  .nav-btn.active svg {
+    transform: none;
+  }
+
+  .nav-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .nav-btn svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .side-panel.is-mobile {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: calc(100% - 70px);
+    width: 350px !important;
+    max-width: 85vw;
+    z-index: 1000;
+    background: var(--color-bg-base);
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+  }
+
+  .mobile-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: calc(100% - 70px);
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+  }
+
+  .slide-side-enter-active,
+  .slide-side-leave-active {
+    transition: transform 0.25s ease, opacity 0.25s ease;
+  }
+
+  .slide-side-enter-from,
+  .slide-side-leave-to {
+    transform: translateX(-100%);
+    opacity: 0;
   }
 }
 </style>

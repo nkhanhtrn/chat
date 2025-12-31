@@ -111,7 +111,7 @@ function handleRestore(windowId) {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  background: var(--color-bg-surface);
+  background: var(--color-bg-base);
   border: 1px solid var(--color-border-base);
   cursor: pointer;
   transition: all 0.15s;
@@ -165,7 +165,7 @@ function handleRestore(windowId) {
   left: 0;
   min-width: 200px;
   max-width: 280px;
-  background: var(--color-bg-surface);
+  background: var(--color-bg-base);
   border: 1px solid var(--color-border-base);
   overflow: hidden;
 }

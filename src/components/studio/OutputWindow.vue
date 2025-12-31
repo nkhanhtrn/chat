@@ -530,7 +530,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 0.5rem 0.75rem;
-  background-color: var(--color-bg-surface);
+  background-color: var(--color-bg-base);
   border-bottom: 1px solid var(--color-border-subtle);
   cursor: grab;
   flex-shrink: 0;
@@ -742,7 +742,7 @@ onUnmounted(() => {
 .result-value {
   margin: 0;
   padding: 0.75rem;
-  background-color: var(--color-bg-surface);
+  background-color: var(--color-bg-base);
   border-radius: 6px;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 0.85rem;
@@ -793,7 +793,7 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   padding: 0.75rem;
-  background: linear-gradient(to bottom, var(--color-bg-elevated, #2a2a2a), var(--color-bg-base, #1a1a1a));
+  background: linear-gradient(to bottom, var(--color-bg-base, #2a2a2a), var(--color-bg-base, #1a1a1a));
   border-top: 1px solid var(--color-primary, #3b82f6);
   box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.2);
   z-index: 5;

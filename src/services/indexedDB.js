@@ -481,3 +481,33 @@ export const saveBookFileToIDB = async (id, fileData) => {
     throw new Error(`Book ${id} not found in IndexedDB - cannot cache file data. Was the book record saved first?`)
   }
 }
+
+/**
+ * Delete all book file data (cached EPUB files) from IndexedDB
+ * This removes the fileData property from all books while keeping the book metadata
+ */
+export const deleteAllBookFilesFromIDB = async () => {
+  const db = await getDB()
+  const books = await db.getAll(BOOKS_STORE)
+
+  let deletedCount = 0
+  let totalSize = 0
+
+  for (const book of books) {
+    if (book.fileData) {
+      // Calculate size before deleting
+      const size = book.fileData.byteLength || 0
+      totalSize += size
+
+      // Remove file data and cache timestamp
+      delete book.fileData
+      delete book.fileCachedAt
+
+      // Update the book record
+      await db.put(BOOKS_STORE, book)
+      deletedCount++
+    }
+  }
+
+  return { deletedCount, totalSize }
+}

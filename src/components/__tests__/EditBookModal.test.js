@@ -8,6 +8,11 @@ global.confirm = vi.fn(() => true)
 // Mock window.alert
 global.alert = vi.fn(() => {})
 
+// Mock book cover generator
+vi.mock('../../services/bookCoverGenerator.js', () => ({
+  generateDefaultCover: vi.fn((title, author) => `blob:default-cover-${title}-${author}`)
+}))
+
 describe('EditBookModal', () => {
   let wrapper
   let root
@@ -88,11 +93,11 @@ describe('EditBookModal', () => {
       expect(wrapper.vm.formData.coverUrl).toBe('data:image/jpeg;base64,/9j/4AAQSkZJRg==')
     })
 
-    it('renders cover placeholder when book has no cover', async () => {
+    it('renders default cover preview when book has no cover', async () => {
       await mountModal({ book: { ...mockBook, coverUrl: null } })
-      const coverPlaceholder = document.body.querySelector('.cover-placeholder')
-      expect(coverPlaceholder).toBeTruthy()
-      expect(coverPlaceholder.textContent).toBe('📖')
+      const defaultCover = document.body.querySelector('.cover-preview img')
+      expect(defaultCover).toBeTruthy()
+      expect(defaultCover.getAttribute('src')).toContain('blob:default-cover-The Great Gatsby-F. Scott Fitzgerald')
     })
 
     it('renders Remove Cover button when cover exists', async () => {
@@ -264,34 +269,34 @@ describe('EditBookModal', () => {
   })
 
   describe('Delete Action', () => {
-    it('shows confirmation dialog when calling onDelete', async () => {
+    it('emits delete when delete button is clicked', async () => {
       await mountModal()
-      global.confirm.mockReturnValue(true)
 
-      wrapper.vm.onDelete()
+      // Find and click the delete button
+      const deleteButton = Array.from(document.querySelectorAll('button')).find(btn =>
+        btn.querySelector('svg') && btn.getAttribute('title') === 'Delete book'
+      )
+      expect(deleteButton).toBeTruthy()
 
-      expect(global.confirm).toHaveBeenCalledWith('Delete "The Great Gatsby"?')
-      global.confirm.mockReset()
-    })
-
-    it('emits delete when user confirms deletion', async () => {
-      await mountModal()
-      global.confirm.mockReturnValue(true)
-
-      wrapper.vm.onDelete()
+      deleteButton.click()
+      await wrapper.vm.$nextTick()
 
       expect(wrapper.emitted('delete')).toBeTruthy()
-      global.confirm.mockReset()
     })
 
-    it('does not emit delete when user cancels deletion', async () => {
+    it('emits delete immediately without confirmation', async () => {
       await mountModal()
-      global.confirm.mockReturnValue(false)
 
-      wrapper.vm.onDelete()
+      const deleteButton = Array.from(document.querySelectorAll('button')).find(btn =>
+        btn.querySelector('svg') && btn.getAttribute('title') === 'Delete book'
+      )
 
-      expect(wrapper.emitted('delete')).toBeFalsy()
-      global.confirm.mockReset()
+      deleteButton.click()
+      await wrapper.vm.$nextTick()
+
+      // Should emit delete without any confirmation dialog
+      expect(wrapper.emitted('delete')).toBeTruthy()
+      expect(global.confirm).not.toHaveBeenCalled()
     })
   })
 

@@ -628,10 +628,6 @@ const handleScratchpadUpdate = (content) => {
 
 /* Mobile/small screen responsive styles */
 @media (max-width: 768px) {
-  .chat-container {
-    padding-bottom: 4rem;
-  }
-
   .messages-container {
     padding: 1.5rem 1rem;
   }

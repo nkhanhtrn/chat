@@ -156,7 +156,7 @@ defineEmits(['removeFile'])
 
 .file-reader-badge {
   padding: 0.1rem 0.3rem;
-  background-color: var(--color-bg-surface);
+  background-color: var(--color-bg-base);
   border: 1px solid var(--color-border-base);
   border-radius: 3px;
   font-size: 0.65rem;

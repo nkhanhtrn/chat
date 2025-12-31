@@ -755,7 +755,7 @@ watch([() => state.r, () => state.g, () => state.b], ([r, g, b]) => {
 .toggle-knob {
   width: 22px;
   height: 22px;
-  background-color: var(--color-bg-surface, white);
+  background-color: var(--color-bg-base, white);
   border-radius: 50%;
   transition: transform 0.2s;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
@@ -953,7 +953,7 @@ watch([() => state.r, () => state.g, () => state.b], ([r, g, b]) => {
   border: 1px solid var(--color-border-base);
   border-radius: 8px;
   margin-bottom: 0.75rem;
-  background-color: var(--color-bg-elevated);
+  background-color: var(--color-bg-base);
   overflow: hidden;
 }
 

@@ -142,7 +142,7 @@ defineExpose({
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: var(--color-bg-surface);
+  background: var(--color-bg-base);
 }
 
 .model-bar {
@@ -198,7 +198,7 @@ defineExpose({
   border: 1px solid var(--color-border-base);
   border-top: none;
   border-radius: 0 0 4px 4px;
-  background: var(--color-bg-surface);
+  background: var(--color-bg-base);
   color: var(--color-text-muted);
   cursor: pointer;
   transition: all 0.15s;

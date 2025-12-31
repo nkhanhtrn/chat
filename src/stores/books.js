@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { loadBooksFromStorage, saveBookToStorage, deleteBookFromStorage } from '../services/bookStorage.js'
+import { loadBooksFromStorage, saveBookToStorage, deleteBookFromStorage, getOrDownloadBookFile } from '../services/bookStorage.js'
+import { EpubRenderer } from '../services/epubRenderer.js'
 
 export const useBooksStore = defineStore('books', {
   state: () => ({
@@ -17,7 +18,16 @@ export const useBooksStore = defineStore('books', {
     error: null,
 
     // Initialization state
-    isInitialized: false
+    isInitialized: false,
+
+    // Preloaded book data (bookId -> { fileData, toc, tocString })
+    preloadedBooks: {},
+
+    // Preloading progress (bookId -> 0-100)
+    preloadProgress: {},
+
+    // Books currently being preloaded
+    preloadingIds: new Set()
   }),
 
   getters: {
@@ -46,6 +56,21 @@ export const useBooksStore = defineStore('books', {
     // Get book by ID
     getBookById: (state) => (id) => {
       return state.books.find(b => b.id === id) || null
+    },
+
+    // Check if a book is preloaded
+    isBookPreloaded: (state) => (id) => {
+      return !!state.preloadedBooks[id]
+    },
+
+    // Check if a book is currently preloading
+    isBookPreloading: (state) => (id) => {
+      return state.preloadingIds.has(id)
+    },
+
+    // Get preload progress for a book
+    getPreloadProgress: (state) => (id) => {
+      return state.preloadProgress[id] || 0
     }
   },
 
@@ -163,6 +188,84 @@ export const useBooksStore = defineStore('books', {
         Object.assign(book, updates, { updatedAt: Date.now() })
         await saveBookToStorage(book)
       }
+    },
+
+    /**
+     * Preload a book (download file and extract TOC)
+     * @param {string} bookId - Book ID
+     * @param {Function} onProgress - Progress callback (progress) => void
+     * @returns {Promise<{ fileData, toc }>}
+     */
+    async preloadBook(bookId, onProgress = null) {
+      // Return cached if already preloaded
+      if (this.preloadedBooks[bookId]) {
+        return this.preloadedBooks[bookId]
+      }
+
+      // Mark as preloading
+      this.preloadingIds.add(bookId)
+      this.preloadProgress[bookId] = 0
+
+      try {
+        const book = this.getBookById(bookId)
+        if (!book) {
+          throw new Error('Book not found')
+        }
+
+        onProgress?.(10)
+
+        // Get or download book file
+        const fileData = await getOrDownloadBookFile(bookId, book.storagePath)
+        onProgress?.(60)
+
+        // Create a temporary container for TOC extraction
+        const tempContainer = document.createElement('div')
+        tempContainer.style.cssText = 'position: absolute; visibility: hidden; width: 0; height: 0; overflow: hidden;'
+        document.body.appendChild(tempContainer)
+
+        // Initialize temporary renderer to get TOC
+        const tempRenderer = new EpubRenderer(tempContainer, fileData)
+        await tempRenderer.initialize()
+        onProgress?.(85)
+
+        // Get table of contents
+        const toc = tempRenderer.getTableOfContents()
+
+        // Clean up temporary renderer and container
+        tempRenderer.destroy()
+        tempContainer.remove()
+        onProgress?.(100)
+
+        // Store preloaded data (file data + TOC, renderer will be created by viewer)
+        this.preloadedBooks[bookId] = {
+          fileData,
+          toc
+        }
+
+        return this.preloadedBooks[bookId]
+      } finally {
+        // Clear preloading state
+        this.preloadingIds.delete(bookId)
+        // Keep the progress at 100 to show completion
+      }
+    },
+
+    /**
+     * Get preloaded book data
+     * @param {string} bookId - Book ID
+     * @returns {{ fileData, toc } | null}
+     */
+    getPreloadedBook(bookId) {
+      return this.preloadedBooks[bookId] || null
+    },
+
+    /**
+     * Clear preloaded book data (call after viewer takes over)
+     * @param {string} bookId - Book ID
+     */
+    clearPreloadedBook(bookId) {
+      delete this.preloadedBooks[bookId]
+      delete this.preloadProgress[bookId]
     }
   }
 })

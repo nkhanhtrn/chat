@@ -2,10 +2,44 @@
   <AppLayout storage-key="books-layout">
     <div class="books-library">
       <div class="library-header">
+        <button
+          class="view-toggle mobile-only-btn"
+          @click="toggleViewMode"
+          :title="viewMode === 'grid' ? 'Switch to list view' : 'Switch to grid view'"
+        >
+          <svg v-if="viewMode === 'grid'" class="view-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+          <svg v-else class="view-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" rx="1" />
+            <rect x="14" y="3" width="7" height="7" rx="1" />
+            <rect x="3" y="14" width="7" height="7" rx="1" />
+            <rect x="14" y="14" width="7" height="7" rx="1" />
+          </svg>
+        </button>
         <h1>My Library</h1>
-        <div class="upload-section">
-          <Button variant="primary" @click="triggerFileInput" :disabled="isUploading">
-            + Add Book
+        <div class="header-actions desktop-only">
+          <button
+            class="view-toggle"
+            @click="toggleViewMode"
+            :title="viewMode === 'grid' ? 'Switch to list view' : 'Switch to grid view'"
+          >
+            <svg v-if="viewMode === 'grid'" class="view-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+            <svg v-else class="view-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+          </button>
+          <Button variant="primary" @click="triggerFileInput" :disabled="isUploading" class="add-book-btn">
+            + New Book
           </Button>
           <input
             ref="fileInput"
@@ -15,6 +49,18 @@
             style="display: none"
           >
         </div>
+        <Button variant="primary" @click="triggerFileInput" :disabled="isUploading" class="add-book-btn mobile-only-btn">
+          +
+        </Button>
+      </div>
+
+      <div class="search-container">
+        <input
+          v-model="searchQuery"
+          type="text"
+          class="search-input"
+          placeholder="Search books by title or author..."
+        />
       </div>
 
       <div v-if="isLoading" class="loading">Loading library...</div>
@@ -22,21 +68,30 @@
       <div v-else-if="error" class="error">{{ error }}</div>
 
       <SlideTransition v-else appear direction="vertical">
-        <div class="books-grid">
+        <transition name="view-mode" mode="out-in">
+          <div :key="viewMode" class="books-grid" :class="viewMode === 'list' ? 'books-list' : 'books-grid'">
           <!-- Regular books -->
           <div
-            v-for="book in booksStore.booksSortedByDate"
+            v-for="book in filteredBooks"
             :key="book.id"
             class="book-card"
-            :class="{ 'is-uploading': isUploading && uploadingBookId === book.id }"
+            :class="{
+              'is-uploading': isUploading && uploadingBookId === book.id,
+              'is-preloading': booksStore.isBookPreloading(book.id),
+              'is-disabled': booksStore.isBookPreloading(book.id)
+            }"
             @click="openBook(book.id)"
           >
             <div class="book-cover">
               <img v-if="book.coverUrl" :src="book.coverUrl" :alt="book.title">
-              <div v-else class="cover-placeholder">📖</div>
+              <img v-else :src="getDefaultCover(book.title, book.author)" :alt="book.title" class="default-cover">
               <!-- Upload progress overlay -->
               <div v-if="isUploading && uploadingBookId === book.id" class="upload-overlay">
                 <ProgressBar :progress="uploadProgress" />
+              </div>
+              <!-- Preloading progress overlay -->
+              <div v-if="booksStore.isBookPreloading(book.id)" class="upload-overlay">
+                <ProgressBar :progress="booksStore.getPreloadProgress(book.id)" />
               </div>
             </div>
             <div class="book-info">
@@ -58,12 +113,13 @@
             </div>
           </div>
 
-          <div v-if="booksStore.books.length === 0 && !isUploading" class="empty-state">
-            <div class="empty-icon">📚</div>
-            <p>No books yet</p>
-            <p class="empty-hint">Add your first EPUB book to get started</p>
+          <div v-if="filteredBooks.length === 0 && !isUploading" class="empty-state">
+            <div class="empty-icon">{{ searchQuery.trim() ? '🔍' : '📚' }}</div>
+            <p>{{ searchQuery.trim() ? 'No books found matching "' + searchQuery + '"' : 'No books yet' }}</p>
+            <p v-if="!searchQuery.trim()" class="empty-hint">Add your first EPUB book to get started</p>
           </div>
         </div>
+        </transition>
       </SlideTransition>
     </div>
 
@@ -89,9 +145,18 @@ import SlideTransition from '../components/SlideTransition.vue'
 import EditBookModal from '../components/EditBookModal.vue'
 import { extractEpubMetadata, coverUrlToDataUrl } from '../services/epubRenderer.js'
 import { uploadBookToStorage, saveBookFileToIDB } from '../services/bookStorage.js'
+import { generateDefaultCover } from '../services/bookCoverGenerator.js'
 
 const router = useRouter()
 const booksStore = useBooksStore()
+
+// View mode state (grid or list)
+const viewMode = ref(localStorage.getItem('books-view-mode') || 'grid')
+
+const toggleViewMode = () => {
+  viewMode.value = viewMode.value === 'grid' ? 'list' : 'grid'
+  localStorage.setItem('books-view-mode', viewMode.value)
+}
 
 const fileInput = ref(null)
 const isLoading = ref(false)
@@ -99,6 +164,39 @@ const isUploading = ref(false)
 const uploadingBookId = ref(null) // ID of the book being uploaded
 const uploadProgress = ref(0)
 const error = ref(null)
+const searchQuery = ref('')
+
+// Filtered books based on search query
+const filteredBooks = computed(() => {
+  const query = searchQuery.value.trim().toLowerCase()
+  if (!query) {
+    return booksStore.booksSortedByDate
+  }
+
+  // Split query into individual words for multi-word search
+  const searchWords = query.split(/\s+/).filter(w => w.length > 0)
+
+  return booksStore.booksSortedByDate.filter(book => {
+    const title = (book.title || '').toLowerCase()
+    const author = (book.author || '').toLowerCase()
+
+    // Match if ALL search words are found in either title or author
+    return searchWords.every(word =>
+      title.includes(word) || author.includes(word)
+    )
+  })
+})
+
+// Cache for generated default covers
+const defaultCoverCache = new Map()
+
+function getDefaultCover(title, author) {
+  const key = `${title}|${author}`
+  if (!defaultCoverCache.has(key)) {
+    defaultCoverCache.set(key, generateDefaultCover(title, author))
+  }
+  return defaultCoverCache.get(key)
+}
 
 // Edit modal state
 const isEditModalOpen = ref(false)
@@ -216,20 +314,40 @@ const handleFileUpload = async (event) => {
 }
 
 const openBook = async (bookId) => {
-  booksStore.setCurrentBook(bookId)
-  await router.push({ name: 'current-content', params: { type: 'book', id: bookId } })
+  // If already preloading, ignore
+  if (booksStore.isBookPreloading(bookId)) {
+    return
+  }
+
+  // If already preloaded, navigate immediately
+  if (booksStore.isBookPreloaded(bookId)) {
+    booksStore.setCurrentBook(bookId)
+    await router.push({ name: 'current-content', params: { type: 'book', id: bookId } })
+    return
+  }
+
+  // Preload the book first, then navigate
+  try {
+    await booksStore.preloadBook(bookId, (progress) => {
+      // Progress is tracked in the store for UI display
+    })
+    // Book is now fully loaded, navigate
+    booksStore.setCurrentBook(bookId)
+    await router.push({ name: 'current-content', params: { type: 'book', id: bookId } })
+  } catch (err) {
+    console.error('Failed to preload book:', err)
+    error.value = err.message || 'Failed to open book'
+  }
 }
 
 const deleteBook = async (bookId) => {
   const book = booksStore.getBookById(bookId)
   const bookTitle = book?.title || 'this book'
 
-  if (confirm(`Delete "${bookTitle}"?`)) {
-    try {
-      await booksStore.deleteBook(bookId)
-    } catch (err) {
-      error.value = err.message || 'Failed to delete book'
-    }
+  try {
+    await booksStore.deleteBook(bookId)
+  } catch (err) {
+    error.value = err.message || 'Failed to delete book'
   }
 }
 
@@ -269,17 +387,19 @@ async function handleModalDelete() {
 <style scoped>
 .books-library {
   height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  overflow-y: auto;
+  background-color: var(--color-bg-base);
 }
 
 .library-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: 1.5rem 2rem 1rem;
-  background: var(--color-bg-page);
+  align-items: center;
+  max-width: 1200px;
+  margin: 0 auto 2rem;
+  padding: 2rem 2rem 0;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--color-border-base);
 }
 
 .library-header h1 {
@@ -290,10 +410,69 @@ async function handleModalDelete() {
   color: var(--color-text-message);
 }
 
+.search-container {
+  max-width: 1200px;
+  margin: 0 auto 1.5rem;
+  padding: 0 2rem;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  font-family: inherit;
+  background-color: var(--color-bg-page);
+  border: 1px solid var(--color-border-base);
+  border-radius: 8px;
+  color: var(--color-text-message);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--color-border-accent);
+  box-shadow: 0 0 0 3px var(--shadow-primary);
+}
+
+.search-input::placeholder {
+  color: var(--color-text-muted);
+}
+
 .upload-section {
   display: flex;
   align-items: center;
   gap: 1rem;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.view-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: 1px solid var(--color-border-base);
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.view-toggle:hover {
+  background-color: var(--color-bg-page);
+  border-color: var(--color-border-accent);
+  color: var(--color-text-message);
+}
+
+.view-icon {
+  width: 18px;
+  height: 18px;
 }
 
 .loading,
@@ -311,15 +490,47 @@ async function handleModalDelete() {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 1.5rem;
-  padding: 1rem 2rem 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 2rem 2rem;
   overflow-y: auto;
+}
+
+.books-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.books-list .book-card {
+  flex-direction: row;
+  align-items: center;
+  padding: 0;
+  min-height: auto;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.books-list .book-cover {
+  width: 80px;
+  height: 120px;
+  flex-shrink: 0;
+}
+
+.books-list .book-title {
+  font-size: 1rem;
+}
+
+.books-list .book-card:hover {
+  transform: none;
 }
 
 .book-card {
   position: relative;
   display: flex;
   flex-direction: column;
-  background: var(--color-bg-surface);
+  background: var(--color-bg-base);
   border: 1px solid var(--color-border-base);
   border-radius: 12px;
   overflow: hidden;
@@ -339,6 +550,15 @@ async function handleModalDelete() {
   transform: none;
 }
 
+.book-card.is-disabled {
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+.book-card.is-preloading {
+  cursor: wait;
+}
+
 .book-cover {
   width: 100%;
   aspect-ratio: 2/3;
@@ -353,11 +573,6 @@ async function handleModalDelete() {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.cover-placeholder {
-  font-size: 4rem;
-  opacity: 0.5;
 }
 
 .upload-overlay {
@@ -493,22 +708,92 @@ async function handleModalDelete() {
 }
 
 @media (max-width: 768px) {
+  .mobile-only-btn {
+    display: flex !important;
+  }
+
+  .desktop-only {
+    display: none !important;
+  }
+
   .library-header {
-    padding: 1rem;
-    flex-direction: column;
-    gap: 1rem;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
   }
 
   .library-header h1 {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
+    flex: 1;
     text-align: center;
   }
 
-  .books-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 1rem;
-    padding: 1rem;
+  .view-toggle {
+    width: 36px;
+    height: 36px;
   }
+
+  .add-book-btn.mobile-only-btn {
+    min-width: 36px;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    font-size: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .search-container {
+    padding: 0 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .search-input {
+    padding: 0.875rem 1rem;
+    font-size: 1rem;
+  }
+
+  .books-grid {
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 1.25rem;
+    padding: 0 1rem 1rem;
+  }
+
+  .books-list {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    padding: 0 1rem 1rem;
+  }
+}
+
+@media (min-width: 769px) {
+  .mobile-only-btn {
+    display: none !important;
+  }
+}
+
+/* View mode transition */
+.view-mode-enter-active,
+.view-mode-leave-active {
+  transition: all 0.1s ease;
+}
+
+.view-mode-enter-from {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.view-mode-leave-to {
+  opacity: 0;
+  transform: scale(1.05);
+}
+
+.view-mode-enter-to,
+.view-mode-leave-from {
+  opacity: 1;
+  transform: scale(1);
 }
 </style>

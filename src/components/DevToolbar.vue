@@ -6,6 +6,9 @@
     <Button @click="handleClearDB" class="dev-button" title="Delete and recreate IndexedDB" variant="secondary">
       Reset IndexedDB
     </Button>
+    <Button @click="handleDeleteAllBookFiles" class="dev-button" title="Delete all cached EPUB files from IndexedDB" variant="secondary">
+      Delete Book Files ({{ bookFileCount }})
+    </Button>
     <Button @click="handleTriggerStaleData" class="dev-button" title="Trigger stale data banner" variant="secondary">
       {{ staleDataTriggered ? 'Stale Data Active' : 'Trigger Stale Data' }}
     </Button>
@@ -49,16 +52,20 @@
 </template>
 
 <script setup>
-import { ref, inject, computed } from 'vue'
+import { ref, inject, computed, onMounted } from 'vue'
 import { clearAllStorage } from '../services/storage.js'
-import { saveTool, deleteDatabase } from '../services/indexedDB.js'
+import { saveTool, deleteDatabase, deleteAllBookFilesFromIDB, loadBooksFromIDB } from '../services/indexedDB.js'
 import { useChatStore } from '../stores/chat.js'
+import { useBooksStore } from '../stores/books.js'
 import { useStudioCanvas } from '../composables/studio/useStudioCanvas.js'
 import Button from './Button.vue'
 
 // Inject the trigger function from App.vue
 const triggerStaleDataBanner = inject('triggerStaleDataBanner', null)
 const staleDataTriggered = ref(false)
+
+// Book files count
+const bookFileCount = ref(0)
 
 // Studio canvas
 const { windows, removeLastWindow } = useStudioCanvas()
@@ -67,6 +74,7 @@ const toolWindows = computed(() => windows.value.filter(w => w.type === 'tool'))
 const toolWindowCount = computed(() => toolWindows.value.length)
 
 const chatStore = useChatStore()
+const booksStore = useBooksStore()
 
 // Count of messages missing createdAt
 const missingCreatedAtCount = computed(() => {
@@ -191,6 +199,35 @@ const handleSaveAllTools = async () => {
     }
   }
   console.log(`Saved ${saved} tools to library`)
+}
+
+// Count book files on mount
+onMounted(async () => {
+  try {
+    const books = await loadBooksFromIDB()
+    bookFileCount.value = books.filter(b => b.fileData).length
+  } catch (err) {
+    console.error('Failed to count book files:', err)
+  }
+})
+
+const handleDeleteAllBookFiles = async () => {
+  if (bookFileCount.value === 0) {
+    console.log('No cached book files to delete.')
+    return
+  }
+
+  try {
+    const result = await deleteAllBookFilesFromIDB()
+    bookFileCount.value = 0
+    // Clear preloaded books data from store
+    booksStore.preloadedBooks = {}
+    booksStore.preloadProgress = {}
+    booksStore.preloadingIds.clear()
+    console.log(`Deleted ${result.deletedCount} book files from IndexedDB`)
+  } catch (err) {
+    console.error('Failed to delete book files:', err)
+  }
 }
 
 </script>

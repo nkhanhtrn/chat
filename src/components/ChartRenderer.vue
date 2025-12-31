@@ -213,7 +213,7 @@ onUnmounted(() => {
 .chart-container {
   width: 100%;
   height: v-bind(height);
-  background-color: var(--color-bg-surface);
+  background-color: var(--color-bg-base);
   border: 1px solid var(--color-border-base);
   border-radius: 8px;
   padding: 0.75rem;

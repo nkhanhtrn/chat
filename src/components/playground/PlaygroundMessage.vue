@@ -198,7 +198,7 @@ function getIcon(att) {
 }
 
 .pg-message.user .message-content {
-  background: var(--color-bg-surface);
+  background: var(--color-bg-base);
   border: 1px solid var(--color-border-base);
   border-radius: 8px;
   padding: 0.75rem 1rem;
@@ -261,7 +261,7 @@ function getIcon(att) {
 .svg-output {
   max-width: 350px;
   margin: 0.5rem 0;
-  background: var(--color-bg-surface);
+  background: var(--color-bg-base);
   border: 1px solid var(--color-border-base);
   border-radius: 6px;
   padding: 1rem;

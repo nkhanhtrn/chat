@@ -212,7 +212,7 @@ const hasContent = computed(() => {
   border: 1px solid var(--color-border-base);
   border-radius: 6px;
   overflow: hidden;
-  background-color: var(--color-bg-surface);
+  background-color: var(--color-bg-base);
   font-family: system-ui, -apple-system, sans-serif;
   font-size: 0.85rem;
 }
@@ -226,7 +226,7 @@ const hasContent = computed(() => {
 }
 
 .capability-progress.has-content .progress-header:hover {
-  background-color: var(--color-bg-surface);
+  background-color: var(--color-bg-base);
 }
 
 .capability-progress.has-content .progress-header::before {

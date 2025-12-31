@@ -97,7 +97,7 @@ function cancelRenaming() {
   display: flex;
   align-items: center;
   padding: 0.5rem 0 0 0.5rem;
-  background: var(--color-bg-surface);
+  background: var(--color-bg-base);
   border-bottom: 1px solid var(--color-border-base);
   min-height: 42px;
 }

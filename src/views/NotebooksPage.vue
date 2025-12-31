@@ -2,8 +2,25 @@
   <AppLayout storage-key="home-layout">
     <div class="homepage">
       <div class="homepage-header">
+        <button
+          class="view-toggle mobile-only-btn"
+          @click="toggleViewMode"
+          :title="viewMode === 'grid' ? 'Switch to list view' : 'Switch to grid view'"
+        >
+          <svg v-if="viewMode === 'grid'" class="view-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+          <svg v-else class="view-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" rx="1" />
+            <rect x="14" y="3" width="7" height="7" rx="1" />
+            <rect x="3" y="14" width="7" height="7" rx="1" />
+            <rect x="14" y="14" width="7" height="7" rx="1" />
+          </svg>
+        </button>
         <h1>My Notebooks</h1>
-        <div class="header-actions">
+        <div class="header-actions desktop-only">
           <button
             class="view-toggle"
             @click="toggleViewMode"
@@ -25,6 +42,9 @@
             + New Notebook
           </Button>
         </div>
+        <Button variant="primary" @click="createNewNotebook" class="add-notebook-btn mobile-only-btn">
+          +
+        </Button>
       </div>
 
       <div class="search-container">
@@ -521,26 +541,49 @@ const handleDrop = (event, targetIndex) => {
 
 /* Mobile/small screen responsive styles */
 @media (max-width: 768px) {
+  .mobile-only-btn {
+    display: flex !important;
+  }
+
+  .desktop-only {
+    display: none !important;
+  }
+
   .homepage {
     padding: 1rem;
     padding-bottom: 4rem; /* Space for fixed settings button */
   }
 
   .homepage-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.75rem;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
     margin-bottom: 1rem;
-    padding-bottom: 0.75rem;
+    padding: 0.75rem 0;
   }
 
   .homepage-header h1 {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
+    flex: 1;
     text-align: center;
+    margin: 0;
   }
 
-  .header-actions {
-    display: none;
+  .view-toggle {
+    width: 36px;
+    height: 36px;
+  }
+
+  .add-notebook-btn {
+    min-width: 36px;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    font-size: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .search-container {
@@ -592,6 +635,12 @@ const handleDrop = (event, targetIndex) => {
 
   .result-question {
     font-size: 0.9375rem;
+  }
+}
+
+@media (min-width: 769px) {
+  .mobile-only-btn {
+    display: none !important;
   }
 }
 </style>

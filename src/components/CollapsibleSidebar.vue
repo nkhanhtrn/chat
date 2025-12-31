@@ -124,7 +124,7 @@ defineExpose({ isVisible, toggle })
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem;
-  background: var(--color-bg-surface);
+  background: var(--color-bg-base);
   border-right: 1px solid var(--color-border-subtle);
 }
 
@@ -184,6 +184,7 @@ defineExpose({ isVisible, toggle })
   min-width: 300px;
   max-width: 800px;
   height: 100%;
+  background: var(--color-bg-base);
   border-right: 1px solid var(--color-border-subtle);
   overflow: hidden;
 }

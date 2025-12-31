@@ -359,7 +359,7 @@ defineExpose({ loadTools, toggleOpen })
   position: absolute;
   top: 12px;
   right: 12px;
-  z-index: 100;
+  z-index: 9999;
 }
 
 .library-trigger {
@@ -370,7 +370,7 @@ defineExpose({ loadTools, toggleOpen })
   height: 40px;
   border-radius: 8px;
   border: 1px solid var(--color-border-base);
-  background: var(--color-bg-surface);
+  background: var(--color-bg-base);
   color: var(--color-text-muted);
   cursor: pointer;
   position: relative;
@@ -405,11 +405,12 @@ defineExpose({ loadTools, toggleOpen })
   right: 0;
   width: 280px;
   max-height: 400px;
-  background: var(--color-bg-surface);
+  background: var(--color-bg-base);
   border: 1px solid var(--color-border-base);
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   overflow: hidden;
+  z-index: 9999;
 }
 
 .dropdown-header {

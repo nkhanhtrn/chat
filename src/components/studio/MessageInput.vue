@@ -213,7 +213,7 @@ defineExpose({
   display: flex;
   align-items: flex-end;
   gap: 0.5rem;
-  background-color: var(--color-bg-surface);
+  background-color: var(--color-bg-base);
   border: 1px solid var(--color-border-base);
   padding: 0.5rem;
   transition: border-color 0.15s;

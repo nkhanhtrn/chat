@@ -259,7 +259,7 @@ function getAttachmentIcon(att) {
 }
 
 .message.user .message-content {
-  background-color: var(--color-bg-surface);
+  background-color: var(--color-bg-base);
   border: 1px solid var(--color-border-subtle);
   padding: 0.75rem 1rem;
   white-space: pre-wrap;
@@ -317,7 +317,7 @@ function getAttachmentIcon(att) {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  background-color: var(--color-bg-surface);
+  background-color: var(--color-bg-base);
   border: 1px solid var(--color-border-subtle);
   color: var(--color-text-muted);
   font-size: 0.8rem;

@@ -140,7 +140,7 @@ watch(() => [contentType.value, contentId.value], ([type, id]) => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.25rem;
-  background: var(--color-bg-surface);
+  background: var(--color-bg-base);
   border: 1px solid var(--color-border-base);
   border-radius: 6px;
   color: var(--color-text-base);

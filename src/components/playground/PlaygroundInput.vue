@@ -189,7 +189,7 @@ defineExpose({
 <style scoped>
 .input-area {
   padding: 1rem 1.5rem 1.25rem;
-  background: var(--color-bg-surface);
+  background: var(--color-bg-base);
   border-top: 1px solid var(--color-border-base);
 }
 

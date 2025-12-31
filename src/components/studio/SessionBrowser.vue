@@ -149,7 +149,7 @@ function cancelRename() {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--color-bg-surface);
+  background: var(--color-bg-base);
 }
 
 .browser-header {
@@ -320,7 +320,7 @@ function cancelRename() {
   width: 100%;
   padding: 0.75rem 1rem;
   border: 1px solid var(--color-border-strong);
-  background: var(--color-bg-surface);
+  background: var(--color-bg-base);
   color: var(--color-text-base);
   font-family: 'Georgia', serif;
   font-size: 0.95rem;

@@ -222,6 +222,37 @@ async function loadBook(bookId) {
   downloadProgress.value = 0
   error.value = null
 
+  // Check if book is already preloaded
+  const preloaded = booksStore.getPreloadedBook(bookId)
+
+  if (preloaded) {
+    // Use preloaded data - instant loading!
+    const { fileData, toc } = preloaded
+
+    // Initialize the renderer with preloaded data
+    renderer.value = new EpubRenderer(viewerContainer.value, fileData)
+    await renderer.value.initialize()
+
+    chapters.value = toc
+
+    // Restore last position if available
+    const book = currentBook.value
+    if (book?.lastReadCfi) {
+      await renderer.value.gotoCfi(book.lastReadCfi)
+    }
+
+    // Update current chapter index and progress
+    updateCurrentChapter()
+    updateProgress()
+
+    // Clear preloaded data since we're now using it
+    booksStore.clearPreloadedBook(bookId)
+
+    isLoading.value = false
+    return
+  }
+
+  // Normal loading flow (not preloaded)
   // Simulate progress while loading
   const progressInterval = setInterval(() => {
     if (downloadProgress.value < 70) {
@@ -430,7 +461,7 @@ watch(() => effectiveBookId.value, async (newId, oldId) => {
   align-items: center;
   justify-content: center;
   padding: 0.5rem 1rem;
-  background: var(--color-bg-surface);
+  background: var(--color-bg-base);
   border-bottom: 1px solid var(--color-border-base);
   gap: 1rem;
   position: relative;
