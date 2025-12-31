@@ -49,7 +49,13 @@
                 <span class="progress-text">{{ Math.round(book.totalProgress * 100) }}%</span>
             </div>
             </div>
-            <button class="delete-btn" @click.stop="deleteBook(book.id)" title="Delete book">×</button>
+            <div class="book-actions">
+              <button class="action-btn menu-btn" @click.stop="openEditModal(book.id)" title="Edit book">
+                <span></span>
+                <span></span>
+                <span></span>
+              </button>
+            </div>
           </div>
 
           <div v-if="booksStore.books.length === 0 && !isUploading" class="empty-state">
@@ -60,17 +66,27 @@
         </div>
       </SlideTransition>
     </div>
+
+    <!-- Edit Book Modal -->
+    <EditBookModal
+      :visible="isEditModalOpen"
+      :book="editingBook"
+      @close="closeEditModal"
+      @save="saveBookChanges"
+      @delete="handleModalDelete"
+    />
   </AppLayout>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useBooksStore } from '../stores/books.js'
 import AppLayout from '../components/AppLayout.vue'
 import Button from '../components/Button.vue'
 import ProgressBar from '../components/ProgressBar.vue'
 import SlideTransition from '../components/SlideTransition.vue'
+import EditBookModal from '../components/EditBookModal.vue'
 import { extractEpubMetadata, coverUrlToDataUrl } from '../services/epubRenderer.js'
 import { uploadBookToStorage, saveBookFileToIDB } from '../services/bookStorage.js'
 
@@ -83,6 +99,14 @@ const isUploading = ref(false)
 const uploadingBookId = ref(null) // ID of the book being uploaded
 const uploadProgress = ref(0)
 const error = ref(null)
+
+// Edit modal state
+const isEditModalOpen = ref(false)
+const editingBookId = ref(null)
+const editingBook = computed(() => {
+  if (!editingBookId.value) return null
+  return booksStore.getBookById(editingBookId.value)
+})
 
 onMounted(async () => {
   isLoading.value = true
@@ -208,6 +232,38 @@ const deleteBook = async (bookId) => {
     }
   }
 }
+
+function openEditModal(bookId) {
+  editingBookId.value = bookId
+  isEditModalOpen.value = true
+}
+
+function closeEditModal() {
+  isEditModalOpen.value = false
+  editingBookId.value = null
+}
+
+async function saveBookChanges(updates) {
+  if (!editingBookId.value) return
+
+  try {
+    await booksStore.updateBook(editingBookId.value, updates)
+    closeEditModal()
+  } catch (err) {
+    error.value = err.message || 'Failed to save changes'
+  }
+}
+
+async function handleModalDelete() {
+  if (!editingBookId.value) return
+
+  try {
+    await booksStore.deleteBook(editingBookId.value)
+    closeEditModal()
+  } catch (err) {
+    error.value = err.message || 'Failed to delete book'
+  }
+}
 </script>
 
 <style scoped>
@@ -272,9 +328,7 @@ const deleteBook = async (bookId) => {
 }
 
 .book-card:hover {
-  border-color: var(--color-border-accent);
-  box-shadow: 0 4px 12px var(--shadow-primary);
-  transform: translateY(-2px);
+  /* No hover effect */
 }
 
 .book-card.is-uploading {
@@ -371,31 +425,45 @@ const deleteBook = async (bookId) => {
   text-align: right;
 }
 
-.delete-btn {
+.book-actions {
   position: absolute;
   top: 0.5rem;
   right: 0.5rem;
+  display: flex;
+  gap: 0.25rem;
+}
+
+.action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   width: 28px;
   height: 28px;
   padding: 0;
   background: rgba(0, 0, 0, 0.6);
   border: none;
-  border-radius: 50%;
-  color: white;
-  font-size: 1.25rem;
-  line-height: 1;
+  border-radius: 6px;
   cursor: pointer;
   opacity: 0;
   transition: all 0.2s;
+  color: white;
 }
 
-.book-card:hover .delete-btn {
+.book-card:hover .action-btn {
   opacity: 1;
 }
 
-.delete-btn:hover {
-  background: var(--color-error-bg);
-  color: var(--color-error-text);
+.action-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.menu-btn span {
+  width: 3px;
+  height: 3px;
+  background: white;
+  border-radius: 50%;
+  margin: 1px 0;
 }
 
 .empty-state {
