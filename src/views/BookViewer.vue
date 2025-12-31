@@ -3,20 +3,56 @@
     <template #side>
       <div class="toc-sidebar">
         <div class="toc-sidebar-header">
-          <input
-            v-model="searchQuery"
-            type="text"
-            class="toc-search-input"
-            placeholder="Search chapters..."
-          />
-          <div v-if="currentBook" class="overview-header-item" @click="showingOverview = true">
-            <svg class="overview-icon" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-              <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
-            </svg>
-            <span class="overview-text">{{ currentBook.title }}</span>
+          <!-- Tab Navigation -->
+          <div class="tab-navigation">
+            <button
+              class="tab-button"
+              :class="{ active: activeTab === 'contents' }"
+              @click="activeTab = 'contents'"
+            >
+              Contents
+            </button>
+            <button
+              class="tab-button"
+              :class="{ active: activeTab === 'notebook' }"
+              @click="activeTab = 'notebook'"
+            >
+              Notebook
+            </button>
+          </div>
+
+          <!-- Contents Tab -->
+          <div v-show="activeTab === 'contents'" class="tab-content">
+            <input
+              ref="contentsSearchInput"
+              v-model="searchQuery"
+              type="text"
+              class="toc-search-input"
+              placeholder="Search chapters..."
+            />
+            <div v-if="currentBook" class="overview-header-item" @click="showingOverview = true">
+              <svg class="overview-icon" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
+              </svg>
+              <span class="overview-text">{{ currentBook.title }}</span>
+            </div>
+          </div>
+
+          <!-- Notebook Tab -->
+          <div v-show="activeTab === 'notebook'" class="tab-content">
+            <input
+              ref="notebookSearchInput"
+              v-model="notebookSearchQuery"
+              type="text"
+              class="toc-search-input"
+              placeholder="Search notebooks..."
+              @input="selectedMessage = null"
+            />
           </div>
         </div>
-        <div class="toc-list">
+
+        <!-- Contents List -->
+        <div v-show="activeTab === 'contents'" class="toc-list">
           <div
             v-for="(chapter, index) in filteredChapters"
             :key="index"
@@ -27,31 +63,71 @@
             {{ chapter.label }}
           </div>
         </div>
+
+        <!-- Notebook List -->
+        <div v-show="activeTab === 'notebook'" class="toc-list">
+          <!-- Show message content when selected -->
+          <template v-if="selectedMessage">
+            <div class="message-content">
+              <div class="message-question">{{ selectedMessage.question }}</div>
+              <MarkdownRenderer :content="selectedMessage.response || ''" class="message-response" />
+            </div>
+          </template>
+
+          <!-- Show current notebook's messages (if no search and no selection) -->
+          <template v-else-if="showCurrentNotebook">
+            <div class="notebook-header">
+              <span class="notebook-header-title">{{ currentNotebookChat?.name || 'Notebook' }}</span>
+            </div>
+            <div class="notebook-messages">
+              <div
+                v-for="msg in currentNotebookMessages"
+                :key="msg.id"
+                class="notebook-message"
+              >
+                <div class="notebook-message-response">
+                  <MarkdownRenderer :content="msg.response || ''" />
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- Show search results -->
+          <template v-else>
+            <div v-if="filteredMessages.length === 0 && notebookSearchQuery" class="empty-notebook">
+              <p>No matching questions</p>
+            </div>
+            <div v-else-if="!notebookSearchQuery" class="empty-notebook">
+              <p>Search for questions</p>
+            </div>
+            <div
+              v-for="msg in filteredMessages"
+              :key="msg.id"
+              class="toc-item"
+              @click="selectMessage(msg)"
+            >
+              {{ msg.questionSummarized || msg.question }}
+            </div>
+          </template>
+        </div>
       </div>
     </template>
 
     <div class="book-viewer">
-      <div class="viewer-toolbar">
-        <button class="nav-btn" @click="goBack" title="Back to Library">
-          ← Library
-        </button>
-        <div class="toolbar-center">
-          <button class="nav-btn" @click="prevPage" title="Previous page">
-            ◀
-          </button>
-          <span class="progress">{{ progressPercent }}%</span>
-          <button class="nav-btn" @click="nextPage" title="Next page">
-            ▶
-          </button>
-        </div>
-        <div class="toolbar-right">
-          <button class="nav-btn" @click="toggleTOC" title="Toggle table of contents">
-            ☰
-          </button>
-        </div>
-      </div>
-
       <div ref="viewerContainer" class="viewer-container">
+        <!-- Left navigation button -->
+        <button class="side-nav-btn side-nav-left" @click="prevPage" title="Previous page">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+            <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+          </svg>
+        </button>
+
+        <!-- Right navigation button -->
+        <button class="side-nav-btn side-nav-right" @click="nextPage" title="Next page">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+            <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+          </svg>
+        </button>
         <div v-if="isLoading || error" class="loading-overlay">
           <div v-if="isLoading" class="loading">
             <ProgressBar v-if="downloadProgress > 0" :progress="downloadProgress" />
@@ -114,15 +190,17 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, defineAsyncComponent } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick, defineAsyncComponent } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useBooksStore } from '../stores/books.js'
+import { useChatStore } from '../stores/chat.js'
 import AppLayout from '../components/AppLayout.vue'
 const NotebookOverview = defineAsyncComponent(() => import('../components/NotebookOverview.vue'))
 import ProgressBar from '../components/ProgressBar.vue'
 import ContextMenu from '../components/ContextMenu.vue'
 import DictionaryModal from '../components/Modal/DictionaryModal.vue'
 import Note from '../components/Note.vue'
+import MarkdownRenderer from '../components/MarkdownRenderer.vue'
 import { EpubRenderer } from '../services/epubRenderer.js'
 import { getOrDownloadBookFile } from '../services/bookStorage.js'
 import { sendChatMessageForFeature, FeatureType } from '../services/api.js'
@@ -131,6 +209,7 @@ import { getDictionaryPrompts, getQuickExplainPrompts } from '../services/extraP
 const router = useRouter()
 const route = useRoute()
 const booksStore = useBooksStore()
+const chatStore = useChatStore()
 
 const props = defineProps({
   bookId: {
@@ -141,6 +220,8 @@ const props = defineProps({
 
 const appLayoutRef = ref(null)
 const viewerContainer = ref(null)
+const contentsSearchInput = ref(null)
+const notebookSearchInput = ref(null)
 const chapters = ref([])
 const currentChapterIndex = ref(0)
 const renderer = ref(null)
@@ -149,6 +230,11 @@ const downloadProgress = ref(0)
 const error = ref(null)
 const searchQuery = ref('')
 const showingOverview = ref(false)
+
+// Sidebar tab state
+const activeTab = ref('contents') // 'contents' or 'notebook'
+const notebookSearchQuery = ref('')
+const selectedMessage = ref(null) // Selected message to display content
 
 // Context menu state for text selection (Dictionary, Explain, DeepDive)
 const contextMenu = ref({
@@ -180,6 +266,71 @@ const isExplainTemp = ref(true)
 const effectiveBookId = computed(() => props.bookId || route.params.id)
 
 const currentBook = computed(() => booksStore.currentBook)
+
+// All notebooks (chats) for searching
+const allNotebooks = computed(() => chatStore.chatList)
+
+// Get the notebook associated with the current book
+const currentNotebookId = computed(() => {
+  if (!currentBook.value) return null
+  return booksStore.getBookNotebook(currentBook.value.id)
+})
+
+// Get the current notebook's chat
+const currentNotebookChat = computed(() => {
+  if (!currentNotebookId.value) return null
+  return chatStore.chats.find(c => c.id === currentNotebookId.value)
+})
+
+// Get the current notebook's root messages
+const currentNotebookMessages = computed(() => {
+  if (!currentNotebookChat.value) return []
+  return currentNotebookChat.value.rootMessageIds
+    .map(id => chatStore.messagesById[id])
+    .filter(Boolean)
+})
+
+// Search all messages across all notebooks (when searching)
+const filteredMessages = computed(() => {
+  if (!notebookSearchQuery.value.trim()) {
+    return []
+  }
+  const query = notebookSearchQuery.value.toLowerCase()
+  const results = []
+
+  // Search through all notebooks
+  for (const notebook of allNotebooks.value) {
+    const chat = chatStore.chats.find(c => c.id === notebook.id)
+    if (!chat) continue
+
+    for (const messageId of chat.rootMessageIds) {
+      const msg = chatStore.messagesById[messageId]
+      if (!msg) continue
+
+      const questionMatches = msg.question?.toLowerCase().includes(query) ||
+                             msg.questionSummarized?.toLowerCase().includes(query)
+
+      if (questionMatches) {
+        results.push({
+          ...msg,
+          notebookId: notebook.id
+        })
+      }
+    }
+  }
+
+  return results
+})
+
+// Computed: whether to show the current notebook's messages
+const showCurrentNotebook = computed(() => {
+  return currentNotebookMessages.value.length > 0 && !selectedMessage.value && !notebookSearchQuery.value.trim()
+})
+
+// Notebook message count for tab badge
+const notebookMessageCount = computed(() => {
+  return currentNotebookMessages.value.length
+})
 
 // Transform chapters into the format expected by NotebookOverview (like messages)
 const chapterMessages = computed(() => {
@@ -233,11 +384,36 @@ function handleSelectChapter(selection) {
   }
 }
 
+// Select a message to display its content
+function selectMessage(msg) {
+  selectedMessage.value = msg
+  // Save the notebook association for this book
+  if (currentBook.value) {
+    const notebookId = msg.notebookId || currentNotebookId.value
+    if (notebookId) {
+      booksStore.setBookNotebook(currentBook.value.id, notebookId)
+    }
+  }
+}
+
+// Watch for tab changes to focus the appropriate search input
+watch(activeTab, (newTab) => {
+  nextTick(() => {
+    if (newTab === 'contents') {
+      contentsSearchInput.value?.focus()
+    } else if (newTab === 'notebook') {
+      notebookSearchInput.value?.focus()
+    }
+  })
+})
+
 let saveInterval = null
 let settingsObserver = null
+let resizeObserver = null
 
 onMounted(async () => {
   await booksStore.initializeStore()
+  await chatStore.initializeStore()
 
   const bookId = effectiveBookId.value
 
@@ -276,6 +452,12 @@ onUnmounted(() => {
   if (settingsObserver) {
     settingsObserver.disconnect()
   }
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+  }
+  if (resizeObserver?._debounceTimer) {
+    clearTimeout(resizeObserver._debounceTimer)
+  }
   if (selectionCheckTimeout.value) {
     clearTimeout(selectionCheckTimeout.value)
   }
@@ -294,6 +476,31 @@ function setupSettingsWatcher() {
     attributes: true,
     attributeFilter: ['style', 'data-theme']
   })
+}
+
+function setupResizeObserver() {
+  // Clean up existing observer if any
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+  }
+
+  // Create new resize observer
+  resizeObserver = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.target === viewerContainer.value && renderer.value?.refreshTheme) {
+        // Debounce the refresh to avoid excessive calls during drag
+        if (resizeObserver._debounceTimer) {
+          clearTimeout(resizeObserver._debounceTimer)
+        }
+        resizeObserver._debounceTimer = setTimeout(() => {
+          renderer.value.refreshTheme()
+        }, 100)
+        break
+      }
+    }
+  })
+
+  resizeObserver.observe(viewerContainer.value)
 }
 
 async function loadBook(bookId) {
@@ -316,6 +523,9 @@ async function loadBook(bookId) {
     renderer.value.setupSelectionHandler((selectionData) => {
       handleEpubSelection(selectionData)
     })
+
+    // Set up resize observer to reflow epub when container size changes
+    setupResizeObserver()
 
     chapters.value = toc
 
@@ -369,6 +579,9 @@ async function loadBook(bookId) {
     renderer.value.setupSelectionHandler((selectionData) => {
       handleEpubSelection(selectionData)
     })
+
+    // Set up resize observer to reflow epub when container size changes
+    setupResizeObserver()
 
     downloadProgress.value = 100
 
@@ -566,7 +779,7 @@ async function handleDictionary() {
 
   try {
     const prompts = getDictionaryPrompts(selectedText)
-    const result = await sendChatMessageForFeature(prompts, FeatureType.Dictionary)
+    const result = await sendChatMessageForFeature(FeatureType.DICTIONARY, prompts)
     dictionaryDefinition.value = result
   } catch (err) {
     console.error('Dictionary lookup failed:', err)
@@ -598,7 +811,7 @@ async function handleQuickExplain() {
 
   try {
     const prompts = getQuickExplainPrompts(selectedText)
-    const result = await sendChatMessageForFeature(prompts, FeatureType.Explain)
+    const result = await sendChatMessageForFeature(FeatureType.EXPLAIN, prompts)
     explainContent.value = result
   } catch (err) {
     console.error('Quick explain failed:', err)
@@ -623,7 +836,7 @@ async function handleCustomPrompt(prompt) {
 
   try {
     const prompts = [{ role: 'user', content: prompt }]
-    const result = await sendChatMessageForFeature(prompts, FeatureType.DeepDive)
+    const result = await sendChatMessageForFeature(FeatureType.DEEP_DIVE, prompts)
     explainContent.value = result
   } catch (err) {
     console.error('Custom prompt failed:', err)
@@ -702,7 +915,7 @@ watch(() => effectiveBookId.value, async (newId, oldId) => {
   position: relative;
 }
 
-/* NotebookOverview overlay - positioned below toolbar */
+/* NotebookOverview overlay */
 .book-viewer :deep(.notebook-overview) {
   left: 0;
   right: 0;
@@ -712,61 +925,6 @@ watch(() => effectiveBookId.value, async (newId, oldId) => {
   z-index: 100;
   margin: 0;
   padding: 2rem 15%;
-}
-
-.viewer-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.5rem 1rem;
-  background: var(--color-bg-base);
-  border-bottom: 1px solid var(--color-border-base);
-  gap: 1rem;
-  position: relative;
-}
-
-.viewer-toolbar > button:first-child {
-  position: absolute;
-  left: 1rem;
-}
-
-.toolbar-right {
-  position: absolute;
-  right: 1rem;
-}
-
-.nav-btn {
-  padding: 0.5rem 0.75rem;
-  background: var(--color-bg-button);
-  border: 1px solid var(--color-border-button);
-  border-radius: 6px;
-  color: var(--color-text-base);
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 0.875rem;
-}
-
-.nav-btn:hover:not(:disabled) {
-  background: var(--color-bg-button-hover);
-  border-color: var(--color-border-button-hover);
-}
-
-.nav-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.toolbar-center {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.progress {
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
-  min-width: 3ch;
-  text-align: center;
 }
 
 .viewer-container {
@@ -782,6 +940,54 @@ watch(() => effectiveBookId.value, async (newId, oldId) => {
 /* Center the EPUB iframe */
 .viewer-container :deep(iframe) {
   margin: 0 auto;
+}
+
+/* Side navigation buttons - only visible on mouse hover (desktop), not on touch devices */
+.side-nav-btn {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 80px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s, background-color 0.2s, color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+}
+
+/* Only show on hover for devices with mouse (desktop) */
+@media (hover: hover) {
+  .side-nav-btn:hover {
+    opacity: 1;
+    background-color: rgba(128, 128, 128, 0.15);
+    color: var(--color-text-base);
+  }
+}
+
+/* On touch devices, keep buttons hidden */
+@media (hover: none) {
+  .side-nav-btn {
+    display: none;
+  }
+}
+
+.side-nav-left {
+  left: 0;
+}
+
+.side-nav-right {
+  right: 0;
+}
+
+.side-nav-btn svg {
+  width: 40px;
+  height: 40px;
 }
 
 .loading-overlay {
@@ -817,8 +1023,160 @@ watch(() => effectiveBookId.value, async (newId, oldId) => {
   padding: 1rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
   flex-shrink: 0;
+}
+
+/* Tab Navigation */
+.tab-navigation {
+  display: flex;
+  gap: 0.25rem;
+  background: var(--color-bg-page);
+  padding: 0.25rem;
+  border-radius: 8px;
+}
+
+.tab-button {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.tab-button:hover {
+  background: var(--color-bg-hover);
+}
+
+.tab-button.active {
+  background: var(--color-bg-base);
+  color: var(--color-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.tab-count {
+  font-size: 0.75rem;
+  background: var(--color-bg-hover);
+  padding: 0.125rem 0.375rem;
+  border-radius: 10px;
+  color: var(--color-text-muted);
+}
+
+.tab-button.active .tab-count {
+  background: var(--color-bg-page);
+  color: var(--color-primary);
+}
+
+.tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Notebook items */
+.notebook-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.notebook-question {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notebook-children-count {
+  font-size: 0.75rem;
+  background: var(--color-bg-page);
+  padding: 0.125rem 0.375rem;
+  border-radius: 10px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.empty-notebook {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.message-content {
+  padding: 0 0.5rem 1rem;
+  overflow-y: auto;
+}
+
+.message-question {
+  font-weight: 600;
+  color: var(--color-text-strong);
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.message-response {
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.message-response :deep(.markdown-renderer) {
+  font-size: 0.875rem;
+}
+
+.message-response :deep(.markdown-renderer *) {
+  font-size: inherit;
+}
+
+.notebook-header {
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.notebook-header-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.notebook-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0 0.5rem 1rem;
+}
+
+.notebook-message {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.notebook-message-response {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.notebook-message-response :deep(.markdown-renderer) {
+  font-size: 0.875rem;
+}
+
+.notebook-message-response :deep(.markdown-renderer *) {
+  font-size: inherit;
 }
 
 .toc-list {

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { loadBooksFromStorage, saveBookToStorage, deleteBookFromStorage, getOrDownloadBookFile } from '../services/bookStorage.js'
+import { loadBooksFromStorage, saveBookToStorage, deleteBookFromStorage, getOrDownloadBookFile, loadBookNotebooksFromFirestore, saveBookNotebooksToFirestore } from '../services/bookStorage.js'
 import { EpubRenderer } from '../services/epubRenderer.js'
 
 export const useBooksStore = defineStore('books', {
@@ -30,7 +30,10 @@ export const useBooksStore = defineStore('books', {
     preloadingIds: new Set(),
 
     // Book highlights: { bookId: [{ id, cfiRange, text, colorIndex, note, noteContent, createdAt }] }
-    highlights: {}
+    highlights: {},
+
+    // Book to notebook mapping: { bookId: notebookId }
+    bookNotebooks: {}
   }),
 
   getters: {
@@ -85,6 +88,17 @@ export const useBooksStore = defineStore('books', {
     currentBookHighlights: (state) => {
       if (!state.currentBookId) return []
       return state.highlights[state.currentBookId] || []
+    },
+
+    // Get notebook ID for a book
+    getBookNotebook: (state) => (bookId) => {
+      return state.bookNotebooks[bookId] || null
+    },
+
+    // Get current book's notebook ID
+    currentBookNotebook: (state) => {
+      if (!state.currentBookId) return null
+      return state.bookNotebooks[state.currentBookId] || null
     }
   },
 
@@ -111,6 +125,33 @@ export const useBooksStore = defineStore('books', {
 
         if (result.state && result.state.books) {
           this.books = result.state.books
+        }
+
+        // Load book-notebook mapping from Firestore and localStorage
+        try {
+          // Try Firestore first for cloud sync
+          const firestoreData = await loadBookNotebooksFromFirestore()
+          if (Object.keys(firestoreData).length > 0) {
+            this.bookNotebooks = firestoreData
+            // Also save to localStorage as backup
+            localStorage.setItem('bookNotebooks', JSON.stringify(firestoreData))
+          } else {
+            // Fall back to localStorage
+            const localSaved = localStorage.getItem('bookNotebooks')
+            if (localSaved) {
+              this.bookNotebooks = JSON.parse(localSaved)
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to load bookNotebooks, trying localStorage:', e)
+          try {
+            const saved = localStorage.getItem('bookNotebooks')
+            if (saved) {
+              this.bookNotebooks = JSON.parse(saved)
+            }
+          } catch (localError) {
+            console.warn('Failed to load bookNotebooks from localStorage:', localError)
+          }
         }
 
         this.isInitialized = true
@@ -363,6 +404,42 @@ export const useBooksStore = defineStore('books', {
       } else {
         this.highlights[bookId] = []
       }
+    },
+
+    /**
+     * Set or update the notebook associated with a book
+     * @param {string} bookId - Book ID
+     * @param {string} notebookId - Notebook/Chat ID
+     */
+    setBookNotebook(bookId, notebookId) {
+      this.bookNotebooks[bookId] = notebookId
+      // Persist to localStorage immediately
+      try {
+        localStorage.setItem('bookNotebooks', JSON.stringify(this.bookNotebooks))
+      } catch (e) {
+        console.warn('Failed to save bookNotebooks to localStorage:', e)
+      }
+      // Save to Firestore (async, don't wait)
+      saveBookNotebooksToFirestore(this.bookNotebooks).catch(e => {
+        console.warn('Failed to save bookNotebooks to Firestore:', e)
+      })
+    },
+
+    /**
+     * Remove the notebook association for a book
+     * @param {string} bookId - Book ID
+     */
+    removeBookNotebook(bookId) {
+      delete this.bookNotebooks[bookId]
+      try {
+        localStorage.setItem('bookNotebooks', JSON.stringify(this.bookNotebooks))
+      } catch (e) {
+        console.warn('Failed to save bookNotebooks to localStorage:', e)
+      }
+      // Save to Firestore (async, don't wait)
+      saveBookNotebooksToFirestore(this.bookNotebooks).catch(e => {
+        console.warn('Failed to save bookNotebooks to Firestore:', e)
+      })
     }
   }
 })

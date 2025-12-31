@@ -5,6 +5,7 @@ import { ref } from 'vue'
 import BookViewer from '../BookViewer.vue'
 import ProgressBar from '../../components/ProgressBar.vue'
 import { useBooksStore } from '../../stores/books.js'
+import { useChatStore } from '../../stores/chat.js'
 
 const mockChapters = [
   { label: 'Chapter 1: Introduction', href: 'chapter1.xhtml' },
@@ -88,7 +89,9 @@ vi.mock('../../services/bookStorage.js', () => ({
   getOrDownloadBookFile: vi.fn(() => Promise.resolve(new ArrayBuffer(1024))),
   loadBooksFromStorage: vi.fn(() => Promise.resolve({ hasConflict: false, state: { books: [] } })),
   saveBookToStorage: vi.fn(() => Promise.resolve()),
-  deleteBookFromStorage: vi.fn(() => Promise.resolve())
+  deleteBookFromStorage: vi.fn(() => Promise.resolve()),
+  loadBookNotebooksFromFirestore: vi.fn(() => Promise.resolve({})),
+  saveBookNotebooksToFirestore: vi.fn(() => Promise.resolve())
 }))
 
 // Mock AppLayout to avoid route dependency issues
@@ -118,10 +121,20 @@ vi.mock('../../components/NotebookOverview.vue', () => ({
   }
 }))
 
+// Mock MarkdownRenderer
+vi.mock('../../components/MarkdownRenderer.vue', () => ({
+  default: {
+    name: 'MarkdownRenderer',
+    props: ['content'],
+    template: '<div class="markdown-renderer-mock">{{ content }}</div>'
+  }
+}))
+
 describe('BookViewer', () => {
   let wrapper
   let pinia
   let booksStore
+  let chatStore
 
   beforeEach(async () => {
     if (wrapper) {
@@ -133,6 +146,7 @@ describe('BookViewer', () => {
     pinia = createPinia()
     setActivePinia(pinia)
     booksStore = useBooksStore(pinia)
+    chatStore = useChatStore(pinia)
 
     // Directly add a test book to the store with known ID 'book-1'
     booksStore.books.push({
@@ -150,6 +164,36 @@ describe('BookViewer', () => {
     })
     booksStore.setCurrentBook('book-1')
     booksStore.isInitialized = true
+
+    // Initialize chat store with test data
+    chatStore.isInitialized = true
+    const notebookId = 'test-notebook-1'
+    const messageId1 = 'test-msg-1'
+    const messageId2 = 'test-msg-2'
+
+    chatStore.chats.push({
+      id: notebookId,
+      name: 'Test Notebook',
+      rootMessageIds: [messageId1, messageId2],
+      messageCount: 2
+    })
+
+    chatStore.messagesById[messageId1] = {
+      id: messageId1,
+      question: 'What is Vue.js?',
+      response: 'Vue.js is a JavaScript framework for building user interfaces.',
+      childIds: []
+    }
+
+    chatStore.messagesById[messageId2] = {
+      id: messageId2,
+      question: 'How does Pinia work?',
+      response: 'Pinia is a state management library for Vue.',
+      childIds: []
+    }
+
+    // Set the notebook association for the test book
+    booksStore.setBookNotebook('book-1', notebookId)
   })
 
   afterEach(() => {
@@ -170,17 +214,6 @@ describe('BookViewer', () => {
 
       await flushPromises()
       expect(wrapper.find('.book-viewer').exists()).toBe(true)
-    })
-
-    it('should render the viewer toolbar', async () => {
-      wrapper = mount(BookViewer, {
-        global: {
-          plugins: [pinia]
-        }
-      })
-
-      await flushPromises()
-      expect(wrapper.find('.viewer-toolbar').exists()).toBe(true)
     })
 
     it('should render the TOC sidebar', async () => {
@@ -205,7 +238,7 @@ describe('BookViewer', () => {
       expect(wrapper.find('.viewer-container').exists()).toBe(true)
     })
 
-    it('should render navigation buttons', async () => {
+    it('should render side navigation buttons', async () => {
       wrapper = mount(BookViewer, {
         global: {
           plugins: [pinia]
@@ -214,19 +247,8 @@ describe('BookViewer', () => {
 
       await flushPromises()
 
-      const navBtns = wrapper.findAll('.nav-btn')
-      expect(navBtns.length).toBeGreaterThanOrEqual(4) // Back, Prev, Progress/Next, TOC toggle
-    })
-
-    it('should render progress display', async () => {
-      wrapper = mount(BookViewer, {
-        global: {
-          plugins: [pinia]
-        }
-      })
-
-      await flushPromises()
-      expect(wrapper.find('.progress').exists()).toBe(true)
+      const sideNavBtns = wrapper.findAll('.side-nav-btn')
+      expect(sideNavBtns.length).toBe(2) // Left and right buttons
     })
   })
 
@@ -462,7 +484,7 @@ describe('BookViewer', () => {
   })
 
   describe('Navigation Buttons', () => {
-    it('should have back to library button', async () => {
+    it('should have left and right side navigation buttons', async () => {
       wrapper = mount(BookViewer, {
         global: {
           plugins: [pinia]
@@ -471,11 +493,13 @@ describe('BookViewer', () => {
 
       await flushPromises()
 
-      const navBtns = wrapper.findAll('.nav-btn')
-      expect(navBtns[0].text()).toContain('Library')
+      const leftBtn = wrapper.find('.side-nav-left')
+      const rightBtn = wrapper.find('.side-nav-right')
+      expect(leftBtn.exists()).toBe(true)
+      expect(rightBtn.exists()).toBe(true)
     })
 
-    it('should navigate back to library when back button is clicked', async () => {
+    it('should have prevPage and nextPage methods', async () => {
       wrapper = mount(BookViewer, {
         global: {
           plugins: [pinia]
@@ -484,41 +508,8 @@ describe('BookViewer', () => {
 
       await flushPromises()
 
-      const navBtns = wrapper.findAll('.nav-btn')
-      await navBtns[0].trigger('click')
-
-      expect(mockPush).toHaveBeenCalledWith({
-        name: 'books'
-      })
-    })
-
-    it('should have previous and next navigation buttons', async () => {
-      wrapper = mount(BookViewer, {
-        global: {
-          plugins: [pinia]
-        }
-      })
-
-      await flushPromises()
-
-      const navTexts = wrapper.findAll('.nav-btn').map(btn => btn.text())
-      expect(navTexts.some(t => t.includes('◀'))).toBe(true)
-      expect(navTexts.some(t => t.includes('▶'))).toBe(true)
-    })
-
-    it('should have TOC toggle button', async () => {
-      wrapper = mount(BookViewer, {
-        global: {
-          plugins: [pinia]
-        }
-      })
-
-      await flushPromises()
-
-      const navBtns = wrapper.findAll('.nav-btn')
-      // Last button should be the TOC toggle
-      const lastBtn = navBtns[navBtns.length - 1]
-      expect(lastBtn.text()).toContain('☰')
+      expect(typeof wrapper.vm.prevPage).toBe('function')
+      expect(typeof wrapper.vm.nextPage).toBe('function')
     })
   })
 
@@ -590,9 +581,8 @@ describe('BookViewer', () => {
     })
   })
 
-  describe('Progress Display', () => {
-    it('should display progress percentage', async () => {
-      // The mock renderer sets progress to 0.5, which gets applied to the book
+  describe('Notebook Tab', () => {
+    it('should render tab navigation with Contents and Notebook tabs', async () => {
       wrapper = mount(BookViewer, {
         global: {
           plugins: [pinia]
@@ -601,48 +591,113 @@ describe('BookViewer', () => {
 
       await flushPromises()
 
-      // Mock renderer returns 0.5, so progress should be 50%
-      expect(wrapper.find('.progress').text()).toBe('50%')
+      const tabButtons = wrapper.findAll('.tab-button')
+      expect(tabButtons.length).toBe(2)
+      expect(tabButtons[0].text()).toBe('Contents')
+      expect(tabButtons[1].text()).toBe('Notebook')
     })
 
-    it('should show 0% for book with no progress', async () => {
-      // Create a new test suite for this specific case
-      if (wrapper) {
-        wrapper.unmount()
-      }
-
-      // Add a new book with 0 progress
-      booksStore.books = [{
-        id: 'book-2',
-        title: 'Zero Progress Book',
-        author: 'Test Author',
-        coverUrl: null,
-        storagePath: 'test-path-2',
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        lastReadAt: Date.now(),
-        lastReadCfi: null,
-        totalProgress: 0,
-        deletedAt: null
-      }]
-      booksStore.setCurrentBook('book-2')
-
-      // Need to update the route mock to return book-2
-      const routeParams = { id: 'book-2' }
-
+    it('should show Contents tab by default', async () => {
       wrapper = mount(BookViewer, {
         global: {
-          plugins: [pinia],
-          provide: {
-            route: { params: routeParams }
-          }
+          plugins: [pinia]
         }
       })
 
       await flushPromises()
 
-      // Due to how the component works with the mock, we'll just check progress displays
-      expect(wrapper.find('.progress').exists()).toBe(true)
+      const activeTab = wrapper.find('.tab-button.active')
+      expect(activeTab.text()).toBe('Contents')
+    })
+
+    it('should switch to Notebook tab when clicked', async () => {
+      wrapper = mount(BookViewer, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      await flushPromises()
+
+      const tabButtons = wrapper.findAll('.tab-button')
+      await tabButtons[1].trigger('click')
+
+      await flushPromises()
+
+      const activeTab = wrapper.find('.tab-button.active')
+      expect(activeTab.text()).toBe('Notebook')
+    })
+
+    it('should show notebook messages when notebook is associated with book', async () => {
+      wrapper = mount(BookViewer, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      await flushPromises()
+
+      // Switch to Notebook tab
+      const tabButtons = wrapper.findAll('.tab-button')
+      await tabButtons[1].trigger('click')
+      await flushPromises()
+
+      // Should show notebook header with notebook name
+      expect(wrapper.find('.notebook-header').exists()).toBe(true)
+      expect(wrapper.find('.notebook-header-title').text()).toBe('Test Notebook')
+
+      // Should show notebook messages
+      const notebookMessages = wrapper.findAll('.notebook-message')
+      expect(notebookMessages.length).toBe(2)
+    })
+
+    it('should show empty state when no notebook is associated', async () => {
+      // Clear the notebook association
+      booksStore.bookNotebooks = {}
+
+      wrapper = mount(BookViewer, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      await flushPromises()
+
+      // Switch to Notebook tab
+      const tabButtons = wrapper.findAll('.tab-button')
+      await tabButtons[1].trigger('click')
+      await flushPromises()
+
+      // Should show empty state
+      expect(wrapper.find('.empty-notebook').exists()).toBe(true)
+      expect(wrapper.find('.empty-notebook').text()).toContain('Search for questions')
+    })
+
+    it('should save notebook association when selecting a message', async () => {
+      // Start with no notebook association
+      booksStore.bookNotebooks = {}
+
+      wrapper = mount(BookViewer, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      await flushPromises()
+
+      // Get the component instance and call selectMessage directly
+      const vm = wrapper.vm
+      const testMessage = {
+        id: 'test-msg-1',
+        question: 'What is Vue.js?',
+        notebookId: 'test-notebook-1'
+      }
+
+      vm.selectMessage(testMessage)
+      await flushPromises()
+
+      // Should have saved the notebook association
+      expect(booksStore.bookNotebooks['book-1']).toBe('test-notebook-1')
     })
   })
 })

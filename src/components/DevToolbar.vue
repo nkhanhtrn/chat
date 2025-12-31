@@ -48,6 +48,15 @@
     >
       Save Tools ({{ toolWindowCount }})
     </Button>
+    <Button
+      @click="handleTogglePublicAI"
+      class="dev-button"
+      :class="{ active: usePublicAI }"
+      title="Toggle between local LM Studio and public AI (Cerebras) for feature-based requests"
+      variant="secondary"
+    >
+      {{ usePublicAI ? 'Public AI ON' : 'Public AI OFF' }}
+    </Button>
   </div>
 </template>
 
@@ -63,6 +72,9 @@ import Button from './Button.vue'
 // Inject the trigger function from App.vue
 const triggerStaleDataBanner = inject('triggerStaleDataBanner', null)
 const staleDataTriggered = ref(false)
+
+// Public AI toggle for development mode
+const usePublicAI = ref(false)
 
 // Book files count
 const bookFileCount = ref(0)
@@ -230,6 +242,13 @@ const handleDeleteAllBookFiles = async () => {
   }
 }
 
+const handleTogglePublicAI = () => {
+  usePublicAI.value = !usePublicAI.value
+  // Set global flag that LLM service can check
+  window.__devUsePublicAI = usePublicAI.value
+  console.log(`[DevToolbar] Public AI for features: ${usePublicAI.value ? 'ENABLED (will use Cerebras)' : 'DISABLED (will use LM Studio)'}`)
+}
+
 </script>
 
 <style scoped>
@@ -246,5 +265,11 @@ const handleDeleteAllBookFiles = async () => {
   background: #1a1a2e;
   border-bottom: 1px solid #333;
   box-sizing: border-box;
+}
+
+.dev-button.active {
+  background: #4caf50;
+  color: white;
+  border-color: #4caf50;
 }
 </style>

@@ -297,8 +297,8 @@ const isProviderAvailable = (providerId) => {
  * @returns {Promise<string|null>}
  */
 export const sendChatMessageForFeature = async (featureType, messages, onChunk = null, signal = null) => {
-  // In dev mode, always use local LM Studio
-  if (isDev()) {
+  // In dev mode, always use local LM Studio UNLESS overridden by DevToolbar
+  if (isDev() && !window.__devUsePublicAI) {
     const provider = providers.lmstudio
     const config = getProviderConfig('lmstudio')
     // Use first available model or a placeholder

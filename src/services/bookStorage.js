@@ -77,6 +77,56 @@ export const saveBookToFirestore = async (book) => {
 }
 
 /**
+ * Get the book-notebooks mapping document reference
+ */
+const getBookNotebooksDocRef = () => {
+  const auth = getFirebaseAuth()
+  if (!auth.currentUser) {
+    throw new Error('User not authenticated')
+  }
+  const db = getFirebaseDb()
+  return doc(db, 'users', auth.currentUser.uid, 'settings', 'bookNotebooks')
+}
+
+/**
+ * Save book-notebook mapping to Firestore
+ */
+export const saveBookNotebooksToFirestore = async (bookNotebooks) => {
+  try {
+    const docRef = getBookNotebooksDocRef()
+    await setDoc(docRef, {
+      bookNotebooks,
+      lastUpdated: serverTimestamp()
+    }, { merge: true })
+  } catch (error) {
+    console.error('Failed to save bookNotebooks to Firestore:', error)
+    throw error
+  }
+}
+
+/**
+ * Load book-notebook mapping from Firestore
+ */
+export const loadBookNotebooksFromFirestore = async () => {
+  try {
+    const auth = getFirebaseAuth()
+    if (!auth.currentUser) {
+      return {}
+    }
+    const docRef = getBookNotebooksDocRef()
+    const docSnap = await getDoc(docRef)
+    if (docSnap.exists()) {
+      const data = docSnap.data()
+      return data.bookNotebooks || {}
+    }
+    return {}
+  } catch (error) {
+    console.error('Failed to load bookNotebooks from Firestore:', error)
+    return {}
+  }
+}
+
+/**
  * Load all books from Firestore
  */
 export const loadBooksFromFirestore = async () => {
