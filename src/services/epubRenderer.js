@@ -39,7 +39,6 @@ export class EpubRenderer {
     this.book = hasBuffer ? ePub(binaryData) : ePub(bookData || '')
     this.rendition = null
     this.navigation = null
-    this.locations = null
     this.ready = false
     this._fontHookRegistered = false
     this._lastWidth = null
@@ -47,6 +46,8 @@ export class EpubRenderer {
     // Selection callback for context menu (Dictionary, Explain, DeepDive)
     this._onSelectionCallback = null
     this._selectionHandlers = []
+    // Location change callback for progress tracking
+    this._onRelocatedCallback = null
   }
 
   /**
@@ -82,13 +83,7 @@ export class EpubRenderer {
     // Get navigation (table of contents)
     this.navigation = await this.book.loaded.navigation
 
-    // Generate locations in background - this is slow so don't block
     this.ready = true
-    this.book.locations.generate(1024).then((locations) => {
-      this.locations = locations
-    }).catch((err) => {
-      // Silently fail - progress tracking won't work until this completes
-    })
 
     return this.rendition
   }
@@ -308,20 +303,39 @@ export class EpubRenderer {
    * @returns {number} Progress from 0 to 1
    */
   getProgress() {
-    if (!this.rendition) {
-      return 0
-    }
+    return this.estimateProgress()
+  }
 
-    // If locations aren't ready yet (still generating in background), return 0
-    if (!this.locations || typeof this.locations.percentageFromCfi !== 'function') {
-      return 0
-    }
-
+  /**
+   * Estimate progress from CFI without waiting for locations
+   * @returns {number} Estimated progress (0-1)
+   */
+  estimateProgress() {
     try {
+      if (!this.rendition) return 0
+
+      // Try to get percentage from currentLocation (may work before full locations generate)
+      const currentLocation = this.rendition.currentLocation()
+      if (currentLocation?.start?.percentage !== undefined) {
+        return Math.max(0, Math.min(1, currentLocation.start.percentage))
+      }
+
+      // Fallback: parse spine index from CFI for rough estimate
       const currentCfi = this.getCurrentCfi()
       if (!currentCfi) return 0
-      const progress = this.locations.percentageFromCfi(currentCfi) || 0
-      return progress
+
+      const pathMatch = currentCfi.match(/epubcfi\(\/(\d+)/)
+      if (!pathMatch) {
+        return 0
+      }
+
+      const spineIndex = parseInt(pathMatch[1], 10) - 1
+      const totalSpineItems = this.book.spine.items.length
+
+      if (totalSpineItems === 0) return 0
+
+      const progress = spineIndex / totalSpineItems
+      return Math.min(1, Math.max(0, progress))
     } catch {
       return 0
     }
@@ -378,6 +392,23 @@ export class EpubRenderer {
         this._attachSelectionHandlers(this.rendition.contents[0])
       }
     }, 100)
+  }
+
+  /**
+   * Set up relocated handler for progress tracking
+   * @param {Function} onRelocated - Callback when location changes
+   */
+  setupRelocatedHandler(onRelocated = null) {
+    if (!this.rendition) return
+
+    this._onRelocatedCallback = onRelocated
+
+    // Listen to epub.js relocated event
+    this.rendition.on('relocated', (location) => {
+      if (this._onRelocatedCallback) {
+        this._onRelocatedCallback(location)
+      }
+    })
   }
 
   /**
@@ -443,7 +474,6 @@ export class EpubRenderer {
     this.ready = false
     this.rendition = null
     this.navigation = null
-    this.locations = null
     this._onSelectionCallback = null
   }
 }

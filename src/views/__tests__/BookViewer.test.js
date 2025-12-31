@@ -23,6 +23,7 @@ vi.mock('../../services/epubRenderer.js', () => {
       this.chapters = mockChapters
       this.currentCfi = null
       this.progress = 0.5
+      this.locations = null
     }
 
     async initialize() {
@@ -62,6 +63,8 @@ vi.mock('../../services/epubRenderer.js', () => {
     refreshTheme() {}
 
     setupSelectionHandler() {}
+
+    setupRelocatedHandler() {}
 
     destroy() {}
   }
@@ -698,6 +701,111 @@ describe('BookViewer', () => {
 
       // Should have saved the notebook association
       expect(booksStore.bookNotebooks['book-1']).toBe('test-notebook-1')
+    })
+  })
+
+  describe('Progress Bar', () => {
+    it('should render the progress bar', async () => {
+      wrapper = mount(BookViewer, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      await flushPromises()
+
+      expect(wrapper.find('.reading-progress-bar').exists()).toBe(true)
+    })
+
+    it('should initialize progress from saved book totalProgress', async () => {
+      // Set a saved progress on the book
+      booksStore.books[0].totalProgress = 0.5
+
+      wrapper = mount(BookViewer, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      await flushPromises()
+
+      // Progress should be 50%
+      expect(wrapper.vm.progressPercent).toBe(50)
+    })
+
+    it('should update progress when updateProgress is called', async () => {
+      // Set initial progress
+      booksStore.books[0].totalProgress = 0.3
+
+      wrapper = mount(BookViewer, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      await flushPromises()
+
+      // Initially progress should be 30% from book
+      expect(wrapper.vm.progressPercent).toBe(30)
+
+      // Change the mock progress
+      wrapper.vm.renderer.progress = 0.75
+      await wrapper.vm.updateProgress()
+
+      expect(wrapper.vm.progressPercent).toBe(75)
+    })
+
+    it('should save progress to store when updated', async () => {
+      wrapper = mount(BookViewer, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      await flushPromises()
+
+      const updateReadingPositionSpy = vi.spyOn(booksStore, 'updateReadingPosition')
+
+      await wrapper.vm.updateProgress()
+
+      expect(updateReadingPositionSpy).toHaveBeenCalledWith(
+        'book-1',
+        expect.any(String),
+        0.5
+      )
+    })
+
+    it('should render progress fill with correct width', async () => {
+      // Set progress on the book
+      booksStore.books[0].totalProgress = 0.5
+
+      wrapper = mount(BookViewer, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      await flushPromises()
+
+      const progressFill = wrapper.find('.reading-progress-fill')
+      expect(progressFill.exists()).toBe(true)
+      expect(progressFill.attributes('style')).toContain('width: 50%')
+    })
+
+    it('should show 0% progress when no progress saved', async () => {
+      // Ensure totalProgress is 0
+      booksStore.books[0].totalProgress = 0
+
+      wrapper = mount(BookViewer, {
+        global: {
+          plugins: [pinia]
+        }
+      })
+
+      await flushPromises()
+
+      const progressFill = wrapper.find('.reading-progress-fill')
+      expect(progressFill.attributes('style')).toContain('width: 0%')
     })
   })
 })

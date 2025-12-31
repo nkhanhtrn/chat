@@ -114,6 +114,11 @@
     </template>
 
     <div class="book-viewer">
+      <!-- Reading progress bar -->
+      <div class="reading-progress-bar">
+        <div class="reading-progress-fill" :style="{ width: progressPercent + '%' }"></div>
+      </div>
+
       <div ref="viewerContainer" class="viewer-container">
         <!-- Left navigation button -->
         <button class="side-nav-btn side-nav-left" @click="prevPage" title="Previous page">
@@ -230,6 +235,7 @@ const downloadProgress = ref(0)
 const error = ref(null)
 const searchQuery = ref('')
 const showingOverview = ref(false)
+const progressPercent = ref(0) // Local progress state for immediate updates
 
 // Sidebar tab state
 const activeTab = ref('contents') // 'contents' or 'notebook'
@@ -358,10 +364,6 @@ const filteredChapters = computed(() => {
   return chapters.value.filter(chapter =>
     chapter.label.toLowerCase().includes(query)
   )
-})
-
-const progressPercent = computed(() => {
-  return currentBook.value ? Math.round(currentBook.value.totalProgress * 100) : 0
 })
 
 // Handle chapter selection from NotebookOverview
@@ -524,6 +526,11 @@ async function loadBook(bookId) {
       handleEpubSelection(selectionData)
     })
 
+    // Set up relocated callback for progress tracking
+    renderer.value.setupRelocatedHandler(() => {
+      updateProgress()
+    })
+
     // Set up resize observer to reflow epub when container size changes
     setupResizeObserver()
 
@@ -535,9 +542,16 @@ async function loadBook(bookId) {
       await renderer.value.gotoCfi(book.lastReadCfi)
     }
 
-    // Update current chapter index and progress
+    // Initialize progress from saved value (temporary, until we get actual progress)
+    if (book?.totalProgress !== undefined) {
+      progressPercent.value = Math.round(book.totalProgress * 100)
+    }
+
+    // Update current chapter index
     updateCurrentChapter()
-    updateProgress()
+
+    // Update progress after a short delay to ensure epub.js has processed navigation
+    setTimeout(() => updateProgress(), 100)
 
     // Clear preloaded data since we're now using it
     booksStore.clearPreloadedBook(bookId)
@@ -580,6 +594,11 @@ async function loadBook(bookId) {
       handleEpubSelection(selectionData)
     })
 
+    // Set up relocated callback for progress tracking
+    renderer.value.setupRelocatedHandler(() => {
+      updateProgress()
+    })
+
     // Set up resize observer to reflow epub when container size changes
     setupResizeObserver()
 
@@ -594,9 +613,16 @@ async function loadBook(bookId) {
       await renderer.value.gotoCfi(book.lastReadCfi)
     }
 
-    // Update current chapter index and progress
+    // Initialize progress from saved value (temporary, until we get actual progress)
+    if (book.totalProgress !== undefined) {
+      progressPercent.value = Math.round(book.totalProgress * 100)
+    }
+
+    // Update current chapter index
     updateCurrentChapter()
-    updateProgress()
+
+    // Update progress after a short delay to ensure epub.js has processed navigation
+    setTimeout(() => updateProgress(), 100)
 
     // Clear progress after a short delay
     setTimeout(() => {
@@ -621,6 +647,13 @@ async function gotoChapter(href) {
 
   try {
     await renderer.value.goto(href)
+
+    // Force a display refresh to ensure content renders
+    const currentCfi = renderer.value.getCurrentCfi()
+    if (currentCfi) {
+      await renderer.value.goto(currentCfi)
+    }
+
     updateCurrentChapter()
     updateProgress()
   } catch (err) {
@@ -685,8 +718,11 @@ function updateProgress() {
   const progress = renderer.value.getProgress()
   const cfi = renderer.value.getCurrentCfi()
 
+  // Update progress bar - getProgress() now returns estimate if locations aren't ready
+  progressPercent.value = Math.round(progress * 100)
+
   if (cfi && currentBook.value.id) {
-    // Update the store immediately for UI feedback
+    // Always save the current progress (estimated or accurate) to store
     booksStore.updateReadingPosition(currentBook.value.id, cfi, progress)
   }
 }
@@ -698,6 +734,7 @@ function saveReadingPosition() {
   const progress = renderer.value.getProgress()
 
   if (cfi && currentBook.value.id) {
+    // Always save the current progress (estimated or accurate) to store
     booksStore.updateReadingPosition(currentBook.value.id, cfi, progress)
   }
 }
@@ -904,6 +941,13 @@ watch(() => effectiveBookId.value, async (newId, oldId) => {
     await loadBook(newId)
   }
 })
+
+// Initialize progress from currentBook when it becomes available
+watch(() => currentBook.value, (book) => {
+  if (book) {
+    progressPercent.value = Math.round((book.totalProgress || 0) * 100)
+  }
+}, { immediate: true })
 </script>
 
 <style scoped>
@@ -913,6 +957,26 @@ watch(() => effectiveBookId.value, async (newId, oldId) => {
   height: 100%;
   overflow: hidden;
   position: relative;
+}
+
+/* Reading progress bar - subtle top indicator */
+.reading-progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: var(--color-border-subtle);
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.reading-progress-fill {
+  height: 100%;
+  background: var(--color-primary);
+  opacity: 0.8;
+  transition: width 0.3s ease-out;
 }
 
 /* NotebookOverview overlay */

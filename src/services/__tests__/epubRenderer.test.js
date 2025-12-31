@@ -172,21 +172,6 @@ describe('EpubRenderer', () => {
       expect(renderer.navigation.toc).toHaveLength(2)
     })
 
-    it('generates locations in background', async () => {
-      mockArrayBuffer = new ArrayBuffer(1024)
-      const renderer = new EpubRenderer(container, mockArrayBuffer)
-
-      await renderer.initialize()
-
-      const ePub = (await import('epubjs')).default
-      const mockBook = ePub()
-
-      // Locations generation is not awaited, so we need to wait a bit
-      await new Promise(resolve => setTimeout(resolve, 10))
-
-      expect(mockBook.locations.generate).toHaveBeenCalledWith(1024)
-    })
-
     it('sets ready flag to true', async () => {
       mockArrayBuffer = new ArrayBuffer(1024)
       const renderer = new EpubRenderer(container, mockArrayBuffer)
@@ -423,25 +408,7 @@ describe('EpubRenderer', () => {
   })
 
   describe('getProgress', () => {
-    it('returns progress when locations are ready', async () => {
-      mockArrayBuffer = new ArrayBuffer(1024)
-      const renderer = new EpubRenderer(container, mockArrayBuffer)
-      await renderer.initialize()
-
-      // Mock locations with percentageFromCfi
-      const ePub = (await import('epubjs')).default
-      const mockBook = ePub()
-      mockBook.locations.percentageFromCfi = vi.fn(() => 0.5)
-
-      // Update the renderer's locations reference
-      renderer.locations = mockBook.locations
-
-      const progress = renderer.getProgress()
-
-      expect(progress).toBe(0.5)
-    })
-
-    it('returns 0 when locations not ready', async () => {
+    it('returns estimated progress', async () => {
       mockArrayBuffer = new ArrayBuffer(1024)
       const renderer = new EpubRenderer(container, mockArrayBuffer)
       await renderer.initialize()
@@ -534,7 +501,6 @@ describe('EpubRenderer', () => {
       expect(renderer.ready).toBe(false)
       expect(renderer.rendition).toBeNull()
       expect(renderer.navigation).toBeNull()
-      expect(renderer.locations).toBeNull()
     })
   })
 })
