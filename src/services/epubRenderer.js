@@ -43,6 +43,10 @@ export class EpubRenderer {
     this.ready = false
     this._fontHookRegistered = false
     this._lastWidth = null
+
+    // Selection callback for context menu (Dictionary, Explain, DeepDive)
+    this._onSelectionCallback = null
+    this._selectionHandlers = []
   }
 
   /**
@@ -355,11 +359,84 @@ export class EpubRenderer {
   }
 
   /**
+   * Set up selection handler for context menu (Dictionary, Explain, DeepDive)
+   * @param {Function} onSelection - Callback when text is selected { text, rect }
+   */
+  setupSelectionHandler(onSelection = null) {
+    if (!this.rendition) return
+
+    this._onSelectionCallback = onSelection
+
+    // Set up handlers when content is rendered
+    this.rendition.hooks.content.register((contents) => {
+      this._attachSelectionHandlers(contents)
+    })
+
+    // Also attach to existing content
+    setTimeout(() => {
+      if (this.rendition?.contents?.[0]) {
+        this._attachSelectionHandlers(this.rendition.contents[0])
+      }
+    }, 100)
+  }
+
+  /**
+   * Attach selection handlers to the EPUB iframe document
+   * @param {Object} contents - epub.js contents object
+   */
+  _attachSelectionHandlers(contents) {
+    const doc = contents.document
+    const win = contents.window
+    if (!doc || !win) return
+
+    // Check if handlers already attached
+    const docElement = doc.documentElement || doc.body
+    if (docElement && typeof docElement.hasAttribute === 'function' &&
+        docElement.hasAttribute('data-selection-handlers')) {
+      return
+    }
+
+    // Mark document as having handlers
+    if (docElement && typeof docElement.setAttribute === 'function') {
+      docElement.setAttribute('data-selection-handlers', 'true')
+    }
+
+    // Mouse handler for text selection
+    const mouseupHandler = (e) => {
+      setTimeout(() => {
+        const selection = win.getSelection()
+        if (selection && selection.toString().trim() && !selection.isCollapsed) {
+          const text = selection.toString().trim()
+          const range = selection.getRangeAt(0)
+          const rect = range.getBoundingClientRect()
+
+          // Trigger callback
+          if (this._onSelectionCallback) {
+            this._onSelectionCallback({ text, rect })
+          }
+        }
+      }, 10)
+    }
+
+    doc.addEventListener('mouseup', mouseupHandler)
+
+    // Store for cleanup
+    this._selectionHandlers.push({ doc, mouseupHandler })
+  }
+
+  /**
    * Clean up resources
    */
   destroy() {
     if (this.book) {
       this.book.destroy()
+    }
+    // Clean up selection handlers
+    if (this._selectionHandlers) {
+      for (const handler of this._selectionHandlers) {
+        handler.doc.removeEventListener('mouseup', handler.mouseupHandler)
+      }
+      this._selectionHandlers = []
     }
     // Clean up resources
     this._arrayBuffer = null
@@ -367,6 +444,7 @@ export class EpubRenderer {
     this.rendition = null
     this.navigation = null
     this.locations = null
+    this._onSelectionCallback = null
   }
 }
 

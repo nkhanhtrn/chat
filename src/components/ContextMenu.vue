@@ -8,31 +8,40 @@
         @mousedown.stop
         @touchstart.stop
       >
-        <div class="context-menu-row highlight-row">
-          <Button class="context-menu-btn highlight-btn" @click="onHighlightAction" variant="tertiary">{{ hasExistingHighlight ? 'Remove' : 'Highlight' }}</Button>
-          <div class="color-picker">
-            <button
-              v-for="(color, index) in highlightColors"
-              :key="index"
-              class="color-circle"
-              :class="{ selected: selectedColorIndex === index }"
-              :style="{ backgroundColor: color }"
-              @click="selectColor(index)"
-            ></button>
+        <template v-if="!readOnly">
+          <div class="context-menu-row highlight-row">
+            <Button class="context-menu-btn highlight-btn" @click="onHighlightAction" variant="tertiary">{{ hasExistingHighlight ? 'Remove' : 'Highlight' }}</Button>
+            <div class="color-picker">
+              <button
+                v-for="(color, index) in highlightColors"
+                :key="index"
+                class="color-circle"
+                :class="{ selected: selectedColorIndex === index }"
+                :style="{ backgroundColor: color }"
+                @click="selectColor(index)"
+              ></button>
+            </div>
           </div>
-        </div>
-        <div class="context-menu-row">
-          <Button class="context-menu-btn" @click="onCopy" variant="tertiary">Copy</Button>
-          <Button class="context-menu-btn" @click="onDictionary" :disabled="isStreaming" variant="tertiary">Dictionary</Button>
-          <Button class="context-menu-btn" @click="onLinkToQuestion" variant="tertiary">Link to Question</Button>
-        </div>
-        <div class="context-menu-row">
-          <Button class="context-menu-btn" @click="onAddNote" variant="tertiary">{{ hasExistingNote ? 'Edit Note' : 'Note' }}</Button>
-          <Button class="context-menu-btn" @click="onQuickExplain" :disabled="isStreaming" variant="tertiary">Explain</Button>
-        </div>
-        <div class="context-menu-row">
-          <Button class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming" variant="tertiary">Deep Dive</Button>
-        </div>
+          <div class="context-menu-row">
+            <Button class="context-menu-btn" @click="onCopy" variant="tertiary">Copy</Button>
+            <Button class="context-menu-btn" @click="onDictionary" :disabled="isStreaming" variant="tertiary">Dictionary</Button>
+            <Button class="context-menu-btn" @click="onLinkToQuestion" variant="tertiary">Link to Question</Button>
+          </div>
+          <div class="context-menu-row">
+            <Button class="context-menu-btn" @click="onAddNote" variant="tertiary">{{ hasExistingNote ? 'Edit Note' : 'Note' }}</Button>
+            <Button class="context-menu-btn" @click="onQuickExplain" :disabled="isStreaming" variant="tertiary">Explain</Button>
+          </div>
+          <div class="context-menu-row">
+            <Button class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming" variant="tertiary">Deep Dive</Button>
+          </div>
+        </template>
+        <template v-else>
+          <!-- Read-only mode: only Dictionary, Explain -->
+          <div class="context-menu-row">
+            <Button class="context-menu-btn" @click="onDictionary" :disabled="isStreaming" variant="tertiary">Dictionary</Button>
+            <Button class="context-menu-btn" @click="onQuickExplain" :disabled="isStreaming" variant="tertiary">Explain</Button>
+          </div>
+        </template>
         <PromptInput
           placeholder="Ctrl + Enter to deep dive"
           :disabled="isStreaming"
@@ -68,6 +77,10 @@ const props = defineProps({
     default: false
   },
   hasExistingNote: {
+    type: Boolean,
+    default: false
+  },
+  readOnly: {
     type: Boolean,
     default: false
   }

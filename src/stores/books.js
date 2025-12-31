@@ -27,7 +27,10 @@ export const useBooksStore = defineStore('books', {
     preloadProgress: {},
 
     // Books currently being preloaded
-    preloadingIds: new Set()
+    preloadingIds: new Set(),
+
+    // Book highlights: { bookId: [{ id, cfiRange, text, colorIndex, note, noteContent, createdAt }] }
+    highlights: {}
   }),
 
   getters: {
@@ -71,6 +74,17 @@ export const useBooksStore = defineStore('books', {
     // Get preload progress for a book
     getPreloadProgress: (state) => (id) => {
       return state.preloadProgress[id] || 0
+    },
+
+    // Get highlights for a book
+    getBookHighlights: (state) => (bookId) => {
+      return state.highlights[bookId] || []
+    },
+
+    // Get current book highlights
+    currentBookHighlights: (state) => {
+      if (!state.currentBookId) return []
+      return state.highlights[state.currentBookId] || []
     }
   },
 
@@ -266,6 +280,89 @@ export const useBooksStore = defineStore('books', {
     clearPreloadedBook(bookId) {
       delete this.preloadedBooks[bookId]
       delete this.preloadProgress[bookId]
+    },
+
+    /**
+     * Add a highlight to a book
+     * @param {string} bookId - Book ID
+     * @param {Object} highlight - Highlight data { cfiRange, text, colorIndex, note, noteContent }
+     * @returns {string} Highlight ID
+     */
+    addHighlight(bookId, highlight) {
+      const highlightData = {
+        id: crypto.randomUUID(),
+        createdAt: Date.now(),
+        colorIndex: 0,
+        ...highlight
+      }
+
+      if (!this.highlights[bookId]) {
+        this.highlights[bookId] = []
+      }
+
+      this.highlights[bookId].push(highlightData)
+      this.saveHighlights(bookId)
+
+      return highlightData.id
+    },
+
+    /**
+     * Remove a highlight from a book
+     * @param {string} bookId - Book ID
+     * @param {string} highlightId - Highlight ID
+     */
+    removeHighlight(bookId, highlightId) {
+      if (!this.highlights[bookId]) return
+
+      const index = this.highlights[bookId].findIndex(h => h.id === highlightId)
+      if (index !== -1) {
+        this.highlights[bookId].splice(index, 1)
+        this.saveHighlights(bookId)
+      }
+    },
+
+    /**
+     * Update a highlight
+     * @param {string} bookId - Book ID
+     * @param {string} highlightId - Highlight ID
+     * @param {Object} updates - Fields to update
+     */
+    updateHighlight(bookId, highlightId, updates) {
+      if (!this.highlights[bookId]) return
+
+      const highlight = this.highlights[bookId].find(h => h.id === highlightId)
+      if (highlight) {
+        Object.assign(highlight, updates)
+        this.saveHighlights(bookId)
+      }
+    },
+
+    /**
+     * Save highlights to storage
+     * @param {string} bookId - Book ID
+     */
+    async saveHighlights(bookId) {
+      const book = this.books.find(b => b.id === bookId)
+      if (!book) return
+
+      // Save highlights as part of book metadata
+      book.highlights = this.highlights[bookId] || []
+      book.updatedAt = Date.now()
+
+      await saveBookToStorage(book)
+    },
+
+    /**
+     * Load highlights from book data
+     * @param {string} bookId - Book ID
+     */
+    loadHighlights(bookId) {
+      const book = this.books.find(b => b.id === bookId)
+      if (book?.highlights) {
+        this.highlights[bookId] = book.highlights
+      } else {
+        this.highlights[bookId] = []
+      }
     }
   }
 })

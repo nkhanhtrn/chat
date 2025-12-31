@@ -1,5 +1,5 @@
 <template>
-  <AppLayout storage-key="book-viewer-layout">
+  <AppLayout ref="appLayoutRef" storage-key="book-viewer-layout">
     <template #side>
       <div class="toc-sidebar">
         <div class="toc-sidebar-header">
@@ -74,18 +74,59 @@
         @select-question="handleSelectChapter"
       />
     </div>
+
+    <!-- Context Menu for text selection (Dictionary, Explain, DeepDive) - Read-only mode -->
+    <ContextMenu
+      :visible="contextMenu.visible"
+      :x="contextMenu.x"
+      :y="contextMenu.y"
+      :highlighted-text="contextMenu.selectedText"
+      :read-only="true"
+      @close="closeContextMenu"
+      @dictionary="handleDictionary"
+      @quick-explain="handleQuickExplain"
+      @custom-prompt="handleCustomPrompt"
+      @custom-prompt-deep-dive="handleDeepDive"
+    />
+
+    <!-- Dictionary Modal -->
+    <DictionaryModal
+      :visible="showDictionaryModal"
+      :word="dictionaryWord"
+      :definition="dictionaryDefinition"
+      :is-streaming="isDictionaryStreaming"
+      @close="closeDictionaryModal"
+    />
+
+    <!-- Note Modal (used for Explain and Deep-dive results) -->
+    <Note
+      :visible="showExplainModal"
+      :note-id="explainId"
+      :initial-content="explainContent"
+      :highlighted-text="explainHighlightedText"
+      :is-temp="isExplainTemp"
+      :is-streaming="isExplainStreaming"
+      :is-custom-prompt="true"
+      :read-only="true"
+      @cancel="closeExplainModal"
+    />
   </AppLayout>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, defineAsyncComponent } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useBooksStore } from '../stores/books.js'
 import AppLayout from '../components/AppLayout.vue'
-import NotebookOverview from '../components/NotebookOverview.vue'
+const NotebookOverview = defineAsyncComponent(() => import('../components/NotebookOverview.vue'))
 import ProgressBar from '../components/ProgressBar.vue'
+import ContextMenu from '../components/ContextMenu.vue'
+import DictionaryModal from '../components/Modal/DictionaryModal.vue'
+import Note from '../components/Note.vue'
 import { EpubRenderer } from '../services/epubRenderer.js'
 import { getOrDownloadBookFile } from '../services/bookStorage.js'
+import { sendChatMessageForFeature, FeatureType } from '../services/api.js'
+import { getDictionaryPrompts, getQuickExplainPrompts } from '../services/extraPrompt.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -98,6 +139,7 @@ const props = defineProps({
   }
 })
 
+const appLayoutRef = ref(null)
 const viewerContainer = ref(null)
 const chapters = ref([])
 const currentChapterIndex = ref(0)
@@ -107,6 +149,32 @@ const downloadProgress = ref(0)
 const error = ref(null)
 const searchQuery = ref('')
 const showingOverview = ref(false)
+
+// Context menu state for text selection (Dictionary, Explain, DeepDive)
+const contextMenu = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+  selectedText: ''
+})
+
+// Selection handling state
+const isMobile = ref(false)
+const selectionCheckTimeout = ref(null)
+
+// Dictionary modal state
+const showDictionaryModal = ref(false)
+const dictionaryWord = ref('')
+const dictionaryDefinition = ref('')
+const isDictionaryStreaming = ref(false)
+
+// Explain/Deep-dive modal state (using Note component for markdown rendering)
+const showExplainModal = ref(false)
+const explainId = ref('')
+const explainContent = ref('')
+const explainHighlightedText = ref('')
+const isExplainStreaming = ref(false)
+const isExplainTemp = ref(true)
 
 // Use prop bookId if provided, otherwise fall back to route param
 const effectiveBookId = computed(() => props.bookId || route.params.id)
@@ -172,6 +240,7 @@ onMounted(async () => {
   await booksStore.initializeStore()
 
   const bookId = effectiveBookId.value
+
   if (!bookId) {
     error.value = 'No book ID provided'
     isLoading.value = false
@@ -189,6 +258,12 @@ onMounted(async () => {
 
   // Watch for CSS variable changes (settings) and refresh EPUB theme
   setupSettingsWatcher()
+
+  // Detect mobile and set up selection handling
+  isMobile.value = 'ontouchstart' in window || navigator.maxTouchPoints > 0
+  if (isMobile.value) {
+    document.addEventListener('selectionchange', handleSelectionChange)
+  }
 })
 
 onUnmounted(() => {
@@ -201,6 +276,10 @@ onUnmounted(() => {
   if (settingsObserver) {
     settingsObserver.disconnect()
   }
+  if (selectionCheckTimeout.value) {
+    clearTimeout(selectionCheckTimeout.value)
+  }
+  document.removeEventListener('selectionchange', handleSelectionChange)
 })
 
 function setupSettingsWatcher() {
@@ -232,6 +311,11 @@ async function loadBook(bookId) {
     // Initialize the renderer with preloaded data
     renderer.value = new EpubRenderer(viewerContainer.value, fileData)
     await renderer.value.initialize()
+
+    // Set up selection callback for context menu (Dictionary, Explain, DeepDive)
+    renderer.value.setupSelectionHandler((selectionData) => {
+      handleEpubSelection(selectionData)
+    })
 
     chapters.value = toc
 
@@ -280,6 +364,11 @@ async function loadBook(bookId) {
     // Initialize the renderer
     renderer.value = new EpubRenderer(viewerContainer.value, fileData)
     await renderer.value.initialize()
+
+    // Set up selection callback for context menu (Dictionary, Explain, DeepDive)
+    renderer.value.setupSelectionHandler((selectionData) => {
+      handleEpubSelection(selectionData)
+    })
 
     downloadProgress.value = 100
 
@@ -408,17 +497,186 @@ function goBack() {
 }
 
 function toggleTOC() {
-  // This would toggle the side panel visibility
-  // For now, the side panel is controlled by AppLayout's expand/collapse
-  // We could emit an event or call a method on AppLayout
-  const layout = document.querySelector('.app-layout')
-  if (layout) {
-    // Trigger the expand button click
-    const expandBtn = layout.querySelector('.expand-btn')
-    if (expandBtn) {
-      expandBtn.click()
-    }
+  // Toggle the side panel (TOC) visibility
+  appLayoutRef.value?.toggleSide()
+}
+
+// Context menu handling for text selection (Dictionary, Explain, DeepDive)
+function handleEpubSelection(selectionData) {
+  const { text, rect } = selectionData
+
+  // Get the iframe for positioning
+  const iframe = viewerContainer.value?.querySelector('iframe')
+  if (!iframe) return
+
+  // Calculate position relative to viewport
+  const iframeRect = iframe.getBoundingClientRect()
+  const absoluteRect = {
+    left: iframeRect.left + rect.left,
+    top: iframeRect.top + rect.top,
+    right: iframeRect.left + rect.right,
+    bottom: iframeRect.top + rect.bottom
   }
+
+  // Context menu dimensions
+  const CONTEXT_MENU_HEIGHT = 300
+  const CONTEXT_MENU_WIDTH = 250
+
+  // Vertical positioning
+  const spaceBelow = window.innerHeight - absoluteRect.bottom
+  const showAbove = spaceBelow < CONTEXT_MENU_HEIGHT
+  const y = showAbove
+    ? absoluteRect.top + window.scrollY - CONTEXT_MENU_HEIGHT
+    : absoluteRect.bottom + window.scrollY
+
+  // Horizontal positioning
+  let x = absoluteRect.left + window.scrollX
+  const spaceRight = window.innerWidth - absoluteRect.left
+  if (spaceRight < CONTEXT_MENU_WIDTH) {
+    x = window.innerWidth - CONTEXT_MENU_WIDTH + window.scrollX
+  }
+  if (x < window.scrollX) {
+    x = window.scrollX
+  }
+
+  contextMenu.value = {
+    visible: true,
+    x,
+    y,
+    selectedText: text
+  }
+}
+
+function closeContextMenu() {
+  contextMenu.value.visible = false
+}
+
+// Context menu action handlers
+async function handleDictionary() {
+  const selectedText = contextMenu.value.selectedText.trim()
+  if (!selectedText) return
+
+  closeContextMenu()
+
+  // Set up dictionary modal
+  dictionaryWord.value = selectedText
+  dictionaryDefinition.value = ''
+  showDictionaryModal.value = true
+  isDictionaryStreaming.value = true
+
+  try {
+    const prompts = getDictionaryPrompts(selectedText)
+    const result = await sendChatMessageForFeature(prompts, FeatureType.Dictionary)
+    dictionaryDefinition.value = result
+  } catch (err) {
+    console.error('Dictionary lookup failed:', err)
+    dictionaryDefinition.value = 'Sorry, couldn\'t fetch definition.'
+  } finally {
+    isDictionaryStreaming.value = false
+  }
+}
+
+function closeDictionaryModal() {
+  showDictionaryModal.value = false
+  dictionaryWord.value = ''
+  dictionaryDefinition.value = ''
+  isDictionaryStreaming.value = false
+}
+
+async function handleQuickExplain() {
+  const selectedText = contextMenu.value.selectedText.trim()
+  if (!selectedText) return
+
+  closeContextMenu()
+
+  // Set up explain modal
+  explainId.value = crypto.randomUUID()
+  explainContent.value = ''
+  explainHighlightedText.value = selectedText
+  isExplainStreaming.value = true
+  showExplainModal.value = true
+
+  try {
+    const prompts = getQuickExplainPrompts(selectedText)
+    const result = await sendChatMessageForFeature(prompts, FeatureType.Explain)
+    explainContent.value = result
+  } catch (err) {
+    console.error('Quick explain failed:', err)
+    explainContent.value = 'Sorry, couldn\'t generate explanation.'
+  } finally {
+    isExplainStreaming.value = false
+  }
+}
+
+async function handleCustomPrompt(prompt) {
+  const selectedText = contextMenu.value.selectedText.trim()
+  if (!prompt) return
+
+  closeContextMenu()
+
+  // Set up explain modal for custom prompt result
+  explainId.value = crypto.randomUUID()
+  explainContent.value = ''
+  explainHighlightedText.value = selectedText
+  isExplainStreaming.value = true
+  showExplainModal.value = true
+
+  try {
+    const prompts = [{ role: 'user', content: prompt }]
+    const result = await sendChatMessageForFeature(prompts, FeatureType.DeepDive)
+    explainContent.value = result
+  } catch (err) {
+    console.error('Custom prompt failed:', err)
+    explainContent.value = 'Sorry, couldn\'t process your request.'
+  } finally {
+    isExplainStreaming.value = false
+  }
+}
+
+async function handleDeepDive(prompt) {
+  // Same as custom prompt - Ctrl+Enter deep dive
+  await handleCustomPrompt(prompt)
+}
+
+function closeExplainModal() {
+  showExplainModal.value = false
+  explainId.value = ''
+  explainContent.value = ''
+  explainHighlightedText.value = ''
+  isExplainStreaming.value = false
+}
+
+// Handle double-click on EPUB content to select word
+function handleEpubDoubleClick(event) {
+  // Check if click is within an EPUB iframe
+  const iframe = viewerContainer.value?.querySelector('iframe')
+  if (!iframe) return
+
+  setTimeout(() => {
+    handleSelection()
+  }, 10)
+}
+
+// Mobile selection handling
+function checkMobileSelection() {
+  const selectionInfo = renderer.value?.getSelectionInfo()
+  if (!selectionInfo) return
+
+  handleSelection()
+}
+
+function handleSelectionChange() {
+  if (!isMobile.value) return
+
+  if (contextMenu.value.visible) return
+
+  if (selectionCheckTimeout.value) {
+    clearTimeout(selectionCheckTimeout.value)
+  }
+
+  selectionCheckTimeout.value = setTimeout(() => {
+    checkMobileSelection()
+  }, 500)
 }
 
 // Watch for route changes (e.g., navigating to a different book)

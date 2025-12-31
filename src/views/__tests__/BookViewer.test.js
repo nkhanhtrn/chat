@@ -60,6 +60,8 @@ vi.mock('../../services/epubRenderer.js', () => {
 
     refreshTheme() {}
 
+    setupSelectionHandler() {}
+
     destroy() {}
   }
 
@@ -95,6 +97,24 @@ vi.mock('../../components/AppLayout.vue', () => ({
     name: 'AppLayout',
     template: '<div class="app-layout"><slot name="side" /><slot /></div>',
     props: ['storageKey']
+  }
+}))
+
+// Mock ContextMenu
+vi.mock('../../components/ContextMenu.vue', () => ({
+  default: {
+    name: 'ContextMenu',
+    template: '<div v-if="visible" class="context-menu-mock"></div>',
+    props: ['visible', 'x', 'y', 'highlightedText', 'colorIndex', 'hasExistingHighlight', 'hasExistingNote']
+  }
+}))
+
+// Mock NotebookOverview
+vi.mock('../../components/NotebookOverview.vue', () => ({
+  default: {
+    name: 'NotebookOverview',
+    template: '<div v-if="questionCount" class="notebook-overview-mock">Overview</div>',
+    props: ['notebookId', 'title', 'questionCount', 'rootMessages', 'readOnly', 'coverUrl', 'subtitle']
   }
 }))
 

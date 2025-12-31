@@ -97,14 +97,14 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted, provide, watch, computed } from 'vue'
+import { ref, nextTick, onMounted, provide, watch, computed, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
 import ChatMessage from '../components/ChatMessage.vue'
 import ChatInput from '../components/ChatInput.vue'
 import ChatSidebar from '../components/ChatSidebar.vue'
 import MessageNavigation from '../components/MessageNavigation.vue'
-import NotebookOverview from '../components/NotebookOverview.vue'
+const NotebookOverview = defineAsyncComponent(() => import('../components/NotebookOverview.vue'))
 import Scratchpad from '../components/Scratchpad.vue'
 import SlideTransition from '../components/SlideTransition.vue'
 import { sendChatMessageForFeature, FeatureType, fetchModels } from '../services/api.js'

@@ -1,7 +1,7 @@
 <template>
   <Modal :visible="visible" title="Note" @close="onCancel" :content-style="modalStyle" :prevent-close="isResizing">
     <template #header-actions>
-      <div v-if="!isEditing && !isTemp && !customPromptText" class="note-header-actions">
+      <div v-if="!isEditing && !isTemp && !customPromptText && !readOnly" class="note-header-actions">
         <button class="note-icon-btn" @click="startEditing" title="Edit note">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -20,20 +20,20 @@
     </template>
 
     <!-- View mode: show text content with inline markdown -->
-    <template v-if="!isEditing && !isTemp">
+    <template v-if="!isEditing && (!isTemp || readOnly)">
       <div class="note-content">
         <MarkdownRenderer v-if="initialContent" :content="initialContent" /><span v-else-if="!isStreaming">No content</span><span v-if="isStreaming" class="streaming-cursor">▊</span>
       </div>
 
       <!-- Show Save and Explore buttons when viewing streamed content (custom prompt or quick explain) -->
-      <div v-if="customPromptText && !isStreaming" class="note-actions custom-prompt-actions">
+      <div v-if="customPromptText && !isStreaming && !readOnly" class="note-actions custom-prompt-actions">
         <Button variant="secondary" @click="onSaveCustomPrompt">Save</Button>
         <Button variant="secondary" @click="onExplore">Deep Dive →</Button>
       </div>
 
       <!-- Detail explain link (shown in view mode for saved notes with highlighted text) -->
       <a
-        v-else-if="!isStreaming && highlightedText && !customPromptText"
+        v-else-if="!isStreaming && highlightedText && !customPromptText && !readOnly"
         class="detail-explain-link"
         href="#"
         @click.prevent="onDetailExplain"
@@ -43,7 +43,7 @@
     </template>
 
     <!-- Edit mode: show textarea -->
-    <template v-else>
+    <template v-else-if="!readOnly">
       <textarea
         ref="textareaRef"
         v-model="content"
@@ -57,8 +57,8 @@
       </div>
     </template>
 
-    <!-- Resize handle -->
-    <div class="resize-handle" @mousedown="startResize">
+    <!-- Resize handle (hidden in read-only mode) -->
+    <div v-if="!readOnly" class="resize-handle" @mousedown="startResize">
       <svg width="10" height="10" viewBox="0 0 10 10">
         <path d="M9 1L1 9M9 5L5 9M9 9L9 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
       </svg>
@@ -116,6 +116,10 @@ const props = defineProps({
   customPromptText: {
     type: String,
     default: ''
+  },
+  readOnly: {
+    type: Boolean,
+    default: false
   }
 })
 
