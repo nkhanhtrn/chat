@@ -17,11 +17,6 @@ const routes = [
     component: () => import('../views/StudioChat.vue')
   },
   {
-    path: '/playground',
-    name: 'playground',
-    component: () => import('../views/PlaygroundChat.vue')
-  },
-  {
     path: '/calendar',
     name: 'calendar',
     component: () => import('../views/CalendarPage.vue')

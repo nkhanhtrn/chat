@@ -801,15 +801,15 @@ export const mergeCloudLocal = (cloudItems, localItems) => {
       toUpload.push(localItem)
       toCloud++
     } else if (!localItem) {
-      // Cloud-only → use cloud
-      merged.push(cloudItem)
+      // Cloud-only → use cloud, default showInTabs to true for new sessions
+      merged.push({ ...cloudItem, showInTabs: true })
       fromCloud++
     } else if (cloudItem.updatedAt > localItem.updatedAt) {
-      // Cloud is newer → use cloud
-      merged.push(cloudItem)
+      // Cloud is newer → use cloud, but preserve local showInTabs preference
+      merged.push({ ...cloudItem, showInTabs: localItem.showInTabs ?? true })
       fromCloud++
     } else {
-      // Local is newer or same → use local
+      // Local is newer or same → use local (preserves showInTabs)
       merged.push(localItem)
       if (localItem.updatedAt > cloudItem.updatedAt) {
         toUpload.push(localItem)
@@ -856,9 +856,13 @@ export const saveStudioSessionsToFirestore = async (sessions, activeSessionId) =
 
       const sessionRef = doc(db, 'users', user.uid, 'studioSessions', session.id)
       batch.set(sessionRef, {
-        ...session,
+        id: session.id,
+        name: session.name,
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt,
         toolInstanceData, // Include tool instance data in session document
         lastUpdated: serverTimestamp()
+        // Note: showInTabs is NOT synced to cloud (local-only preference)
       }, { merge: true })
     }
 
@@ -907,11 +911,15 @@ export const saveSingleSessionToFirestore = async (session, activeSessionId) => 
 
     const sessionRef = doc(db, 'users', user.uid, 'studioSessions', session.id)
     await setDoc(sessionRef, {
-      ...session,
+      id: session.id,
+      name: session.name,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
       chatState: chatState ? JSON.parse(chatState) : null,
       canvasState: canvasState ? JSON.parse(canvasState) : null,
       toolInstanceData,
       lastUpdated: serverTimestamp()
+      // Note: showInTabs is NOT synced to cloud (local-only preference)
     }, { merge: true })
 
     // Also update metadata if active session changed

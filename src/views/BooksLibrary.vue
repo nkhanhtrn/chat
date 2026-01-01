@@ -1,5 +1,10 @@
 <template>
   <AppLayout storage-key="books-layout">
+    <template #side>
+      <div class="side-playground-wrapper">
+        <SideChatPlayground />
+      </div>
+    </template>
     <div class="books-library">
       <div class="library-header">
         <button
@@ -142,6 +147,7 @@ import { useRouter } from 'vue-router'
 import { useBooksStore } from '../stores/books.js'
 import AppLayout from '../components/AppLayout.vue'
 import Button from '../components/Button.vue'
+import SideChatPlayground from '../components/SideChatPlayground.vue'
 import ProgressBar from '../components/ProgressBar.vue'
 import SlideTransition from '../components/SlideTransition.vue'
 import EditBookModal from '../components/EditBookModal.vue'
@@ -418,6 +424,10 @@ async function handleDownloadedBook(bookData) {
 </script>
 
 <style scoped>
+.side-playground-wrapper {
+  height: 100%;
+}
+
 .books-library {
   height: 100%;
   overflow-y: auto;
@@ -521,7 +531,7 @@ async function handleDownloadedBook(bookData) {
 
 .books-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(6, 1fr);
   gap: 1.5rem;
   max-width: 1200px;
   margin: 0 auto;
@@ -797,7 +807,7 @@ async function handleDownloadedBook(bookData) {
   }
 
   .books-list {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    grid-template-columns: 1fr;
     padding: 0 1rem 1rem;
   }
 }

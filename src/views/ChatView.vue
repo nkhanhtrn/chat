@@ -1,16 +1,45 @@
 <template>
   <AppLayout storage-key="notebook-layout">
     <template #side>
-      <ChatSidebar
-        :chats="chatStore.chatList"
-        :current-chat-id="chatStore.currentChatId"
-        :current-message-id="isAddingNewQuestion ? null : chatStore.currentMessageId"
-        :is-adding-new-question="isAddingNewQuestion"
-        @select-question="handleSelectQuestion"
-        @delete-question="handleDeleteQuestion"
-        @rename-question="handleRenameQuestion"
-        @new-question="handleNewQuestion"
-      />
+      <div class="chat-sidebar">
+        <div class="sidebar-header">
+          <div class="tab-navigation">
+            <button
+              class="tab-button"
+              :class="{ active: activeTab === 'questions' }"
+              @click="activeTab = 'questions'"
+            >
+              Questions
+            </button>
+            <button
+              class="tab-button"
+              :class="{ active: activeTab === 'playground' }"
+              @click="activeTab = 'playground'"
+            >
+              Chat
+            </button>
+          </div>
+        </div>
+
+        <!-- Questions Tab -->
+        <div v-show="activeTab === 'questions'" class="sidebar-content">
+          <ChatSidebar
+            :chats="chatStore.chatList"
+            :current-chat-id="chatStore.currentChatId"
+            :current-message-id="isAddingNewQuestion ? null : chatStore.currentMessageId"
+            :is-adding-new-question="isAddingNewQuestion"
+            @select-question="handleSelectQuestion"
+            @delete-question="handleDeleteQuestion"
+            @rename-question="handleRenameQuestion"
+            @new-question="handleNewQuestion"
+          />
+        </div>
+
+        <!-- Playground Tab -->
+        <div v-show="activeTab === 'playground'" class="sidebar-content playground-content">
+          <SideChatPlayground />
+        </div>
+      </div>
     </template>
 
     <div class="chat-container">
@@ -103,6 +132,7 @@ import AppLayout from '../components/AppLayout.vue'
 import ChatMessage from '../components/ChatMessage.vue'
 import ChatInput from '../components/ChatInput.vue'
 import ChatSidebar from '../components/ChatSidebar.vue'
+import SideChatPlayground from '../components/SideChatPlayground.vue'
 import MessageNavigation from '../components/MessageNavigation.vue'
 const NotebookOverview = defineAsyncComponent(() => import('../components/NotebookOverview.vue'))
 import Scratchpad from '../components/Scratchpad.vue'
@@ -130,6 +160,7 @@ const messagesContainer = ref(null)
 const chatStore = useChatStore()
 const isAddingNewQuestion = ref(false)
 const showingOverview = ref(false)
+const activeTab = ref('questions') // 'questions' or 'playground'
 
 // Use props if provided, otherwise fall back to route params
 const effectiveNotebookId = computed(() => props.notebookId || route.params.id)
@@ -437,6 +468,57 @@ const handleScratchpadUpdate = (content) => {
 </script>
 
 <style scoped>
+.chat-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.sidebar-header {
+  flex-shrink: 0;
+}
+
+.tab-navigation {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--color-border-base);
+}
+
+.tab-button {
+  flex: 1;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.tab-button:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-base);
+}
+
+.tab-button.active {
+  background: var(--color-bg-hover);
+  color: var(--color-primary);
+}
+
+.sidebar-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.playground-content {
+  height: 100%;
+}
+
 .chat-container {
   display: flex;
   flex-direction: column;

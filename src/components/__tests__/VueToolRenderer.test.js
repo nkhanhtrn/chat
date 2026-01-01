@@ -100,7 +100,7 @@ export default {
       await wrapper.vm.$nextTick()
 
       expect(wrapper.find('.error-message').exists()).toBe(true)
-      expect(wrapper.text()).toContain('No template found')
+      expect(wrapper.text()).toContain('No <template> found')
     })
 
     it('should show error for invalid code', async () => {

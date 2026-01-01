@@ -585,7 +585,7 @@ describe('BookViewer', () => {
   })
 
   describe('Notebook Tab', () => {
-    it('should render tab navigation with Contents and Notebook tabs', async () => {
+    it('should render tab navigation with Contents, Notebook and Chat tabs', async () => {
       wrapper = mount(BookViewer, {
         global: {
           plugins: [pinia]
@@ -595,9 +595,10 @@ describe('BookViewer', () => {
       await flushPromises()
 
       const tabButtons = wrapper.findAll('.tab-button')
-      expect(tabButtons.length).toBe(2)
+      expect(tabButtons.length).toBe(3)
       expect(tabButtons[0].text()).toBe('Contents')
       expect(tabButtons[1].text()).toBe('Notebook')
+      expect(tabButtons[2].text()).toBe('Chat')
     })
 
     it('should show Contents tab by default', async () => {

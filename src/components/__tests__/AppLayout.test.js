@@ -26,7 +26,6 @@ describe('AppLayout', () => {
     { path: '/notebook/:id', name: 'notebook', component: { template: '<div>Notebook</div>' } },
     { path: '/notebook/:id/q/:questionId', name: 'question', component: { template: '<div>Question</div>' } },
     { path: '/studio', name: 'studio', component: { template: '<div>Studio</div>' } },
-    { path: '/playground', name: 'playground', component: { template: '<div>Playground</div>' } },
     { path: '/calendar', name: 'calendar', component: { template: '<div>Calendar</div>' } }
   ]
 
@@ -226,7 +225,6 @@ describe('AppLayout', () => {
       expect(wrapper.find('[title="Notebooks"]').exists()).toBe(true)
       expect(wrapper.find('[title="Current Content"]').exists()).toBe(true)
       expect(wrapper.find('[title="Studio"]').exists()).toBe(true)
-      expect(wrapper.find('[title="Playground"]').exists()).toBe(true)
       expect(wrapper.find('[title="Calendar"]').exists()).toBe(true)
       expect(wrapper.find('[title="Settings"]').exists()).toBe(true)
     })

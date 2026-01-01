@@ -80,23 +80,44 @@ function compile(code) {
     styleEl.value = null
   }
 
+  // Don't try to compile empty code
+  if (!code || !code.trim()) {
+    error.value = 'Empty tool code'
+    return
+  }
+
   try {
     const { template, script, style } = parse(code)
 
-    if (!template) throw new Error('No template found')
+    if (!template) {
+      error.value = 'No <template> found in tool code'
+      return
+    }
 
     // Inject scoped styles
     if (style) {
-      styleEl.value = document.createElement('style')
-      styleEl.value.textContent = scopeStyles(style)
-      document.head.appendChild(styleEl.value)
+      try {
+        styleEl.value = document.createElement('style')
+        styleEl.value.textContent = scopeStyles(style)
+        document.head.appendChild(styleEl.value)
+      } catch (styleErr) {
+        console.warn('Failed to inject styles:', styleErr)
+        // Non-fatal, continue without styles
+      }
     }
 
     // Build component from Options API
-    compiledComponent.value = buildComponent(template, script)
+    try {
+      compiledComponent.value = buildComponent(template, script)
+    } catch (buildErr) {
+      error.value = `Component build error: ${buildErr.message}`
+      console.error('Component build error:', buildErr)
+      compiledComponent.value = null
+    }
   } catch (e) {
-    error.value = e.message
+    error.value = `Parse error: ${e.message}`
     console.error('Compile error:', e)
+    compiledComponent.value = null
   }
 }
 
@@ -109,7 +130,12 @@ function parse(code) {
 
 function buildComponent(template, script) {
   if (!script) {
-    return defineComponent({ template })
+    // Template-only component - wrap in try-catch for template compilation errors
+    try {
+      return defineComponent({ template })
+    } catch (e) {
+      throw new Error(`Template compilation failed: ${e.message}`)
+    }
   }
 
   // Extract export default { ... }
@@ -133,38 +159,44 @@ function buildComponent(template, script) {
         : () => ({})
 
       // Create wrapper component that injects persist API and auto-saves data
-      return defineComponent({
-        ...options,
-        data: wrappedData,
-        template,
-        setup() {
-          // Create persist store for this instance
-          const persist = useToolInstanceStore(props.toolName, props.toolId, props.sessionId)
+      // Wrap defineComponent in try-catch for template compilation errors
+      try {
+        return defineComponent({
+          ...options,
+          data: wrappedData,
+          template,
+          setup() {
+            // Create persist store for this instance
+            const persist = useToolInstanceStore(props.toolName, props.toolId, props.sessionId)
 
-          console.log('[VueToolRenderer] Options API setup - toolName:', props.toolName, 'toolId:', props.toolId, 'persist:', persist)
+            console.log('[VueToolRenderer] Options API setup - toolName:', props.toolName, 'toolId:', props.toolId, 'persist:', persist)
 
-          // Run original setup if present
-          const originalResult = options.setup ? options.setup() : {}
+            // Run original setup if present
+            const originalResult = options.setup ? options.setup() : {}
 
-          // Inject persist API and instance ID into the component (use non-reserved names)
-          return {
-            ...originalResult,
-            persistApi: persist,
-            toolInstanceId: props.toolId
+            // Inject persist API and instance ID into the component (use non-reserved names)
+            return {
+              ...originalResult,
+              persistApi: persist,
+              toolInstanceId: props.toolId
+            }
+          },
+          mounted() {
+            console.log('[VueToolRenderer] Options API mounted - persistApi:', this.persistApi, 'toolInstanceId:', this.toolInstanceId)
+            // Set up auto-save watchers for all data properties
+            setupAutoSaveWatchers(this, this.persistApi)
+            // Call original mounted if present
+            if (options.mounted) {
+              return options.mounted.call(this)
+            }
           }
-        },
-        mounted() {
-          console.log('[VueToolRenderer] Options API mounted - persistApi:', this.persistApi, 'toolInstanceId:', this.toolInstanceId)
-          // Set up auto-save watchers for all data properties
-          setupAutoSaveWatchers(this, this.persistApi)
-          // Call original mounted if present
-          if (options.mounted) {
-            return options.mounted.call(this)
-          }
-        }
-      })
+        })
+      } catch (templateErr) {
+        throw new Error(`Template compilation failed: ${templateErr.message}`)
+      }
     } catch (e) {
       console.error('Options parse error:', e)
+      throw new Error(`Script parsing failed: ${e.message}`)
     }
   }
 
@@ -190,55 +222,60 @@ function buildSetupComponent(template, script) {
     const setupFn = new Function('Vue', setupCode)
     const Vue = { ref, reactive, computed, watch, watchEffect: () => {}, onMounted: () => {}, onUnmounted: () => {} }
 
-    return defineComponent({
-      setup() {
-        // Create persist store for this instance
-        const persist = useToolInstanceStore(props.toolName, props.toolId, props.sessionId)
+    // Wrap defineComponent in try-catch for template compilation errors
+    try {
+      return defineComponent({
+        setup() {
+          // Create persist store for this instance
+          const persist = useToolInstanceStore(props.toolName, props.toolId, props.sessionId)
 
-        // Get saved data BEFORE running setup
-        const savedData = persist.getState()
+          // Get saved data BEFORE running setup
+          const savedData = persist.getState()
 
-        console.log('[VueToolRenderer] Composition API - saved data:', savedData)
+          console.log('[VueToolRenderer] Composition API - saved data:', savedData)
 
-        // Run the original setup function
-        const originalResult = setupFn(Vue)
+          // Run the original setup function
+          const originalResult = setupFn(Vue)
 
-        // Restore saved data into refs/reactive objects BEFORE setting up watchers
-        Object.keys(savedData).forEach(key => {
-          if (key === 'persistApi' || key === 'toolInstanceId') return
-          const value = originalResult[key]
-          if (value && typeof value === 'object') {
-            if ('value' in value) {
-              // It's a ref - restore its value
-              console.log('[VueToolRenderer] Restoring ref', key, '=', savedData[key])
-              value.value = savedData[key]
-            } else {
-              // It's a reactive object - merge saved data
-              console.log('[VueToolRenderer] Restoring reactive object', key, savedData[key])
-              Object.assign(value, savedData[key])
+          // Restore saved data into refs/reactive objects BEFORE setting up watchers
+          Object.keys(savedData).forEach(key => {
+            if (key === 'persistApi' || key === 'toolInstanceId') return
+            const value = originalResult[key]
+            if (value && typeof value === 'object') {
+              if ('value' in value) {
+                // It's a ref - restore its value
+                console.log('[VueToolRenderer] Restoring ref', key, '=', savedData[key])
+                value.value = savedData[key]
+              } else {
+                // It's a reactive object - merge saved data
+                console.log('[VueToolRenderer] Restoring reactive object', key, savedData[key])
+                Object.assign(value, savedData[key])
+              }
             }
+          })
+
+          // Inject persist API and instance ID into the component (use non-reserved names)
+          const result = {
+            ...originalResult,
+            persistApi: persist,
+            toolInstanceId: props.toolId
           }
-        })
 
-        // Inject persist API and instance ID into the component (use non-reserved names)
-        const result = {
-          ...originalResult,
-          persistApi: persist,
-          toolInstanceId: props.toolId
-        }
+          // Set up auto-save watchers AFTER restoration (to avoid race condition)
+          nextTick(() => {
+            setupAutoSaveForReactive(originalResult, persist)
+          })
 
-        // Set up auto-save watchers AFTER restoration (to avoid race condition)
-        nextTick(() => {
-          setupAutoSaveForReactive(originalResult, persist)
-        })
-
-        return result
-      },
-      template
-    })
+          return result
+        },
+        template
+      })
+    } catch (templateErr) {
+      throw new Error(`Template compilation failed: ${templateErr.message}`)
+    }
   } catch (e) {
     console.error('Setup error:', e)
-    return defineComponent({ template })
+    throw new Error(`Script execution failed: ${e.message}`)
   }
 }
 

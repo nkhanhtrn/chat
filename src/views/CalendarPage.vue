@@ -1,5 +1,10 @@
 <template>
   <AppLayout storage-key="calendar-layout">
+    <template #side>
+      <div class="side-playground-wrapper">
+        <SideChatPlayground />
+      </div>
+    </template>
     <div class="calendar-page">
       <div class="calendar-header">
         <h1>Activity Calendar</h1>
@@ -82,6 +87,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useChatStore } from '../stores/chat.js'
 import AppLayout from '../components/AppLayout.vue'
+import SideChatPlayground from '../components/SideChatPlayground.vue'
 import CalendarDayModal from '../components/Modal/CalendarDayModal.vue'
 import SlideTransition from '../components/SlideTransition.vue'
 
@@ -265,6 +271,10 @@ function handleOpenQuestion({ chatId, questionId }) {
 </script>
 
 <style scoped>
+.side-playground-wrapper {
+  height: 100%;
+}
+
 .calendar-page {
   height: 100%;
   overflow-y: auto;

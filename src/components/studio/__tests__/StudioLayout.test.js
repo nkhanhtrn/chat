@@ -69,8 +69,10 @@ describe('StudioLayout', () => {
       expect(wrapper.find('.studio-layout').exists()).toBe(true)
     })
 
-    it('should render sidebar content when visible', () => {
+    it('should render sidebar content when visible', async () => {
+      localStorageMock.store['studio-show-chat'] = 'true'
       wrapper = mountComponent()
+      await wrapper.vm.$nextTick()
       expect(wrapper.find('.sidebar-content').exists()).toBe(true)
     })
 
@@ -80,6 +82,7 @@ describe('StudioLayout', () => {
     })
 
     it('should render divider when sidebar is visible', async () => {
+      localStorageMock.store['studio-show-chat'] = 'true'
       wrapper = mountComponent()
       await wrapper.vm.$nextTick()
       expect(wrapper.find('.divider').exists()).toBe(true)
@@ -87,10 +90,12 @@ describe('StudioLayout', () => {
   })
 
   describe('Slots', () => {
-    it('should render chat slot content', () => {
+    it('should render chat slot content', async () => {
+      localStorageMock.store['studio-show-chat'] = 'true'
       wrapper = mountComponent({}, {
         chat: '<div class="test-chat-content">Chat Content</div>'
       })
+      await wrapper.vm.$nextTick()
       expect(wrapper.find('.test-chat-content').exists()).toBe(true)
       expect(wrapper.find('.test-chat-content').text()).toBe('Chat Content')
     })
@@ -103,19 +108,23 @@ describe('StudioLayout', () => {
       expect(wrapper.find('.test-canvas-content').text()).toBe('Canvas Content')
     })
 
-    it('should render both slots simultaneously', () => {
+    it('should render both slots simultaneously', async () => {
+      localStorageMock.store['studio-show-chat'] = 'true'
       wrapper = mountComponent({}, {
         chat: '<div class="chat-slot">Chat</div>',
         canvas: '<div class="canvas-slot">Canvas</div>'
       })
+      await wrapper.vm.$nextTick()
       expect(wrapper.find('.chat-slot').exists()).toBe(true)
       expect(wrapper.find('.canvas-slot').exists()).toBe(true)
     })
   })
 
   describe('Initial Layout', () => {
-    it('should have default sidebar width', () => {
+    it('should have default sidebar width', async () => {
+      localStorageMock.store['studio-show-chat'] = 'true'
       wrapper = mountComponent()
+      await wrapper.vm.$nextTick()
       const sidebarContent = wrapper.find('.sidebar-content')
       expect(sidebarContent.attributes('style')).toContain('width: 500px')
     })
@@ -123,6 +132,7 @@ describe('StudioLayout', () => {
 
   describe('Divider Interaction', () => {
     it('should add is-dragging class when divider is dragged', async () => {
+      localStorageMock.store['studio-show-chat'] = 'true'
       wrapper = mountComponent()
       await wrapper.vm.$nextTick()
       const divider = wrapper.find('.divider')
@@ -132,6 +142,7 @@ describe('StudioLayout', () => {
     })
 
     it('should remove is-dragging class on mouseup', async () => {
+      localStorageMock.store['studio-show-chat'] = 'true'
       wrapper = mountComponent()
       await wrapper.vm.$nextTick()
       const divider = wrapper.find('.divider')
@@ -147,6 +158,7 @@ describe('StudioLayout', () => {
     })
 
     it('should update sidebar width on drag', async () => {
+      localStorageMock.store['studio-show-chat'] = 'true'
       wrapper = mountComponent()
       await wrapper.vm.$nextTick()
       const divider = wrapper.find('.divider')
@@ -162,6 +174,7 @@ describe('StudioLayout', () => {
     })
 
     it('should enforce minimum sidebar width', async () => {
+      localStorageMock.store['studio-show-chat'] = 'true'
       wrapper = mountComponent()
       await wrapper.vm.$nextTick()
       const divider = wrapper.find('.divider')
@@ -178,6 +191,7 @@ describe('StudioLayout', () => {
     })
 
     it('should enforce maximum sidebar width', async () => {
+      localStorageMock.store['studio-show-chat'] = 'true'
       wrapper = mountComponent()
       await wrapper.vm.$nextTick()
       const divider = wrapper.find('.divider')
@@ -198,6 +212,7 @@ describe('StudioLayout', () => {
     it('should remove event listeners on unmount', async () => {
       const removeEventListenerSpy = vi.spyOn(document, 'removeEventListener')
 
+      localStorageMock.store['studio-show-chat'] = 'true'
       wrapper = mountComponent()
       await wrapper.vm.$nextTick()
       const divider = wrapper.find('.divider')
@@ -214,6 +229,7 @@ describe('StudioLayout', () => {
 
   describe('Divider Handle', () => {
     it('should render divider handle', async () => {
+      localStorageMock.store['studio-show-chat'] = 'true'
       wrapper = mountComponent()
       await wrapper.vm.$nextTick()
       expect(wrapper.find('.divider-handle').exists()).toBe(true)

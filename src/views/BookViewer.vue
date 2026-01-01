@@ -19,6 +19,13 @@
             >
               Notebook
             </button>
+            <button
+              class="tab-button"
+              :class="{ active: activeTab === 'playground' }"
+              @click="activeTab = 'playground'"
+            >
+              Chat
+            </button>
           </div>
 
           <!-- Contents Tab -->
@@ -109,6 +116,11 @@
               {{ msg.questionSummarized || msg.question }}
             </div>
           </template>
+        </div>
+
+        <!-- Playground Tab -->
+        <div v-show="activeTab === 'playground'" class="toc-list playground-list">
+          <SideChatPlayground />
         </div>
       </div>
     </template>
@@ -205,6 +217,7 @@ import ProgressBar from '../components/ProgressBar.vue'
 import ContextMenu from '../components/ContextMenu.vue'
 import DictionaryModal from '../components/Modal/DictionaryModal.vue'
 import Note from '../components/Note.vue'
+import SideChatPlayground from '../components/SideChatPlayground.vue'
 import MarkdownRenderer from '../components/MarkdownRenderer.vue'
 import { EpubRenderer } from '../services/epubRenderer.js'
 import { getOrDownloadBookFile } from '../services/bookStorage.js'
@@ -1313,6 +1326,11 @@ watch(() => currentBook.value, (book) => {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+}
+
+.playground-list {
+  flex: 1;
+  overflow: hidden;
 }
 
 .toc-item {

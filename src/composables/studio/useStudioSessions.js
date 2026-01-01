@@ -187,12 +187,8 @@ async function initializeSessions() {
     // Active session: prefer cloud's active, fall back to local's, then first session
     activeSessionId.value = cloudData?.activeSessionId || localState.activeSessionId || sessions.value[0]?.id || null
 
-    // Upload local-only and newer sessions to cloud
-    if (sessionsToUpload.length > 0) {
-      saveStudioSessionsToFirestore(sessionsToUpload, activeSessionId.value).catch(err =>
-        console.error('Failed to upload merged sessions to cloud:', err)
-      )
-    }
+    // Don't sync sessions to cloud during initialization
+    // Sessions will be synced when explicitly opened
 
     // Save merged state to localStorage
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
@@ -446,6 +442,56 @@ async function forceSyncToCloud() {
 }
 
 /**
+ * Sync a session's complete state (chat, canvas windows, positions) to Firestore
+ * This is called when explicitly opening a session
+ * @param {string} sessionId - The session ID to sync
+ */
+async function syncSessionData(sessionId) {
+  const session = sessions.value.find(s => s.id === sessionId)
+  if (!session) {
+    console.warn('Session not found:', sessionId)
+    return
+  }
+
+  try {
+    debugLog('[Session Sync] Syncing session data on open:', sessionId)
+
+    // Collect all data for this session from localStorage
+    const chatKey = `${CHAT_STORAGE_KEY}-${sessionId}`
+    const canvasKey = `${CANVAS_STORAGE_KEY}-${sessionId}`
+    const chatState = localStorage.getItem(chatKey)
+    const canvasState = localStorage.getItem(canvasKey)
+
+    // Collect tool instance data for this session
+    const toolInstanceData = {}
+    const toolPrefix = `tool-instance-${sessionId}-`
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && key.startsWith(toolPrefix)) {
+        const toolId = key.slice(toolPrefix.length)
+        try {
+          toolInstanceData[toolId] = JSON.parse(localStorage.getItem(key))
+        } catch (e) {
+          console.warn(`Failed to parse tool instance data for ${key}:`, e)
+        }
+      }
+    }
+
+    // Save to Firestore with all current state
+    await saveSingleSessionToFirestore({
+      ...session,
+      chatState: chatState ? JSON.parse(chatState) : null,
+      canvasState: canvasState ? JSON.parse(canvasState) : null,
+      toolInstanceData
+    }, activeSessionId.value)
+
+    debugLog('[Session Sync] ✅ Session data synced:', sessionId)
+  } catch (error) {
+    console.error('Failed to sync session data:', error)
+  }
+}
+
+/**
  * Computed: active session
  */
 const activeSession = computed(() => getActiveSession())
@@ -564,6 +610,7 @@ export function useStudioSessions() {
 
     // Cloud sync
     forceSyncToCloud,
+    syncSessionData,
 
     // Testing
     resetStateForTesting,

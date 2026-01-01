@@ -119,7 +119,7 @@ chat.setSessionManager(sessions)
 canvas.setSessionManager(sessions)
 
 // Session handlers
-function handleSelectSession(sessionId) {
+async function handleSelectSession(sessionId) {
   if (sessionId === sessions.activeSessionId.value) {
     // Close browser if clicking the active session
     isBrowsingSessions.value = false
@@ -140,11 +140,15 @@ function handleSelectSession(sessionId) {
     chat.loadState(sessionData.chat)
     canvas.loadState(sessionData.canvas)
     isBrowsingSessions.value = false
+
+    // Sync the newly opened session's data to cloud
+    // This syncs all current open windows, their positions, and chats
+    await sessions.syncSessionData(sessionId)
   }
 }
 
-function handleNewSession() {
-  sessions.createNewSession()
+async function handleNewSession() {
+  const newSession = sessions.createNewSession()
   // New session starts with empty state
   chat.loadState({ messages: [], nextMessageId: 1 })
   canvas.loadState({
@@ -154,6 +158,11 @@ function handleNewSession() {
     maxZIndex: 100
   })
   isBrowsingSessions.value = false
+
+  // Sync the new session to cloud
+  if (newSession?.id) {
+    await sessions.syncSessionData(newSession.id)
+  }
 }
 
 function handleCloseTab(sessionId) {
@@ -207,6 +216,11 @@ onMounted(async () => {
   const initialCanvasState = sessions.activeCanvasState.value
   chat.loadState(initialChatState)
   canvas.loadState(initialCanvasState)
+
+  // Sync the initial session to cloud
+  if (sessions.activeSessionId.value) {
+    await sessions.syncSessionData(sessions.activeSessionId.value)
+  }
 })
 
 // Watch input for URL detection

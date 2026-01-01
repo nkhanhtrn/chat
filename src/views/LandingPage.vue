@@ -1,5 +1,10 @@
 <template>
   <AppLayout storage-key="landing-layout">
+    <template #side>
+      <div class="side-playground-wrapper">
+        <SideChatPlayground />
+      </div>
+    </template>
     <SlideTransition appear direction="vertical">
       <div class="landing-page">
       <div class="landing-content">
@@ -20,7 +25,15 @@
             <div class="action-icon">📓</div>
             <div class="action-text">
               <h3>Notebooks</h3>
-              <p>Browse and manage your notebooks</p>
+              <p>learn from AI</p>
+            </div>
+          </router-link>
+
+          <router-link to="/books" class="action-card">
+            <div class="action-icon">📚</div>
+            <div class="action-text">
+              <h3>Books</h3>
+              <p>expand your minds</p>
             </div>
           </router-link>
 
@@ -28,15 +41,7 @@
             <div class="action-icon">🛠️</div>
             <div class="action-text">
               <h3>Studio</h3>
-              <p>Build with AI assistance</p>
-            </div>
-          </router-link>
-
-          <router-link to="/playground" class="action-card">
-            <div class="action-icon">💬</div>
-            <div class="action-text">
-              <h3>Playground</h3>
-              <p>Chat freely with AI</p>
+              <p>personalize your warfare</p>
             </div>
           </router-link>
 
@@ -44,7 +49,7 @@
             <div class="action-icon">📅</div>
             <div class="action-text">
               <h3>Calendar</h3>
-              <p>View activity history</p>
+              <p>your growth year-to-year</p>
             </div>
           </router-link>
         </div>
@@ -65,6 +70,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 import SlideTransition from '../components/SlideTransition.vue'
+import SideChatPlayground from '../components/SideChatPlayground.vue'
 import LoginModal from '../components/Modal/LoginModal.vue'
 import { onAuthChange } from '../services/auth.js'
 
@@ -86,6 +92,10 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.side-playground-wrapper {
+  height: 100%;
+}
+
 .landing-page {
   height: 100%;
   display: flex;

@@ -34,9 +34,6 @@
       <button class="nav-btn" :class="{ active: activePage === 'studio' }" @click="goTo('studio')" title="Studio">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>
       </button>
-      <button class="nav-btn" :class="{ active: activePage === 'playground' }" @click="goTo('playground')" title="Playground">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
-      </button>
       <button class="nav-btn" :class="{ active: activePage === 'calendar' }" @click="goTo('calendar')" title="Calendar">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM9 10H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z"/></svg>
       </button>
@@ -157,7 +154,6 @@ const activePage = computed(() => {
   if (name === 'notebook' || name === 'question') return 'notebook'
   if (name === 'current-content' || name === 'current-content-question') return 'current-content'
   if (name === 'calendar') return 'calendar'
-  if (name === 'playground') return 'playground'
   if (name === 'studio') return 'studio'
   if (name === 'books') return 'books'
   if (name === 'book-viewer') return 'books'
@@ -277,8 +273,6 @@ function goTo(page) {
     }
   } else if (page === 'calendar') {
     router.push({ name: 'calendar' })
-  } else if (page === 'playground') {
-    router.push({ name: 'playground' })
   } else if (page === 'studio') {
     router.push({ name: 'studio' })
   }

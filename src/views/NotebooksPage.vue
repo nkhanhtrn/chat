@@ -1,5 +1,10 @@
 <template>
   <AppLayout storage-key="home-layout">
+    <template #side>
+      <div class="side-playground-wrapper">
+        <SideChatPlayground />
+      </div>
+    </template>
     <div class="homepage">
       <div class="homepage-header">
         <button
@@ -138,6 +143,7 @@ import { useRouter } from 'vue-router'
 import { useChatStore } from '../stores/chat.js'
 import AppLayout from '../components/AppLayout.vue'
 import Button from '../components/Button.vue'
+import SideChatPlayground from '../components/SideChatPlayground.vue'
 import SlideTransition from '../components/SlideTransition.vue'
 import { useGlobalSearch } from '../composables/useGlobalSearch.js'
 
@@ -243,6 +249,10 @@ const handleDrop = (event, targetIndex) => {
 </script>
 
 <style scoped>
+.side-playground-wrapper {
+  height: 100%;
+}
+
 .homepage {
   height: 100%;
   overflow-y: auto;

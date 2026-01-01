@@ -28,7 +28,6 @@ const router = createRouter({
   routes: [
     { path: '/', name: 'home', component: { template: '<div>Home</div>' } },
     { path: '/studio', name: 'studio', component: { template: '<div>Studio</div>' } },
-    { path: '/playground', name: 'playground', component: { template: '<div>Playground</div>' } },
     { path: '/calendar', name: 'calendar', component: { template: '<div>Calendar</div>' } },
     { path: '/notebook/:id', name: 'notebook', component: { template: '<div>Notebook</div>' } },
     { path: '/notebook/:id/q/:questionId', name: 'question', component: { template: '<div>Question</div>' } }
@@ -71,21 +70,21 @@ describe('CollapsibleSidebar', () => {
   }
 
   describe('Rendering', () => {
-    it('should render expanded by default', () => {
+    it('should render collapsed by default', () => {
       wrapper = mountComponent()
-      expect(wrapper.find('.sidebar-content').exists()).toBe(true)
-      expect(wrapper.find('.collapsed-nav').exists()).toBe(false)
+      expect(wrapper.find('.collapsed-nav').exists()).toBe(true)
+      expect(wrapper.find('.sidebar-content').exists()).toBe(false)
     })
 
     it('should render slot content when expanded', () => {
-      wrapper = mountComponent({}, {
+      wrapper = mountComponent({ defaultVisible: true }, {
         default: '<div class="test-content">Chat Content</div>'
       })
       expect(wrapper.find('.test-content').exists()).toBe(true)
     })
 
     it('should render collapsed navigation when not visible', async () => {
-      wrapper = mountComponent({ defaultVisible: false })
+      wrapper = mountComponent()
       await wrapper.vm.$nextTick()
 
       expect(wrapper.find('.collapsed-nav').exists()).toBe(true)
@@ -94,19 +93,19 @@ describe('CollapsibleSidebar', () => {
   })
 
   describe('Toggle Functionality', () => {
-    it('should collapse when toggle is called', async () => {
+    it('should expand when toggle is called', async () => {
       wrapper = mountComponent()
-      expect(wrapper.find('.sidebar-content').exists()).toBe(true)
+      expect(wrapper.find('.collapsed-nav').exists()).toBe(true)
 
       wrapper.vm.toggle()
       await wrapper.vm.$nextTick()
 
-      expect(wrapper.find('.sidebar-content').exists()).toBe(false)
-      expect(wrapper.find('.collapsed-nav').exists()).toBe(true)
+      expect(wrapper.find('.sidebar-content').exists()).toBe(true)
+      expect(wrapper.find('.collapsed-nav').exists()).toBe(false)
     })
 
     it('should expand when expand button is clicked', async () => {
-      wrapper = mountComponent({ defaultVisible: false })
+      wrapper = mountComponent()
       await wrapper.vm.$nextTick()
 
       await wrapper.find('.expand-btn').trigger('click')
@@ -121,30 +120,30 @@ describe('CollapsibleSidebar', () => {
       wrapper.vm.toggle()
       await wrapper.vm.$nextTick()
 
-      expect(localStorageMock.setItem).toHaveBeenCalledWith('my-sidebar', 'false')
+      expect(localStorageMock.setItem).toHaveBeenCalledWith('my-sidebar', 'true')
     })
 
     it('should load state from localStorage on mount', async () => {
-      localStorageMock.store['saved-sidebar'] = 'false'
+      localStorageMock.store['saved-sidebar'] = 'true'
 
       wrapper = mountComponent({ storageKey: 'saved-sidebar' })
       await wrapper.vm.$nextTick()
 
-      expect(wrapper.find('.collapsed-nav').exists()).toBe(true)
+      expect(wrapper.find('.sidebar-content').exists()).toBe(true)
     })
   })
 
   describe('Navigation Buttons', () => {
     it('should render all navigation buttons when collapsed', async () => {
-      wrapper = mountComponent({ defaultVisible: false })
+      wrapper = mountComponent()
       await wrapper.vm.$nextTick()
 
       const navButtons = wrapper.findAll('.nav-btn')
-      expect(navButtons.length).toBe(7)
+      expect(navButtons.length).toBe(6)
     })
 
     it('should disable notebook button when no current chat', async () => {
-      wrapper = mountComponent({ defaultVisible: false })
+      wrapper = mountComponent()
       await wrapper.vm.$nextTick()
 
       const notebookBtn = wrapper.findAll('.nav-btn')[2]
@@ -154,10 +153,10 @@ describe('CollapsibleSidebar', () => {
 
   describe('Settings Modal', () => {
     it('should open settings modal when settings button clicked', async () => {
-      wrapper = mountComponent({ defaultVisible: false })
+      wrapper = mountComponent()
       await wrapper.vm.$nextTick()
 
-      const settingsBtn = wrapper.findAll('.nav-btn')[6]
+      const settingsBtn = wrapper.findAll('.nav-btn')[5]
       await settingsBtn.trigger('click')
 
       expect(wrapper.findComponent({ name: 'SettingsModal' }).exists()).toBe(true)
