@@ -1,14 +1,19 @@
 <template>
   <div class="vue-tool-renderer themed-tool" :data-tool-scope="scopeId">
     <div v-if="error" class="error-message">
-      <strong>Error:</strong> {{ error }}
+      <div class="error-content">
+        <strong>Tool Error:</strong> {{ error }}
+      </div>
+      <button class="remove-broken-btn" @click="emit('compile-error')" title="Remove this broken tool">
+        Remove Tool
+      </button>
     </div>
     <component v-else-if="compiledComponent" :is="compiledComponent" />
   </div>
 </template>
 
 <script setup>
-import { ref, watch, shallowRef, defineComponent, onErrorCaptured, onUnmounted, provide, nextTick, watch as vueWatch } from 'vue'
+import { ref, watch, shallowRef, defineComponent, onErrorCaptured, onUnmounted, provide, nextTick, watch as vueWatch, compile as compileTemplate } from 'vue'
 import { useToolInstanceStore } from '../composables/studio/useToolInstanceStore.js'
 
 const props = defineProps({
@@ -18,12 +23,37 @@ const props = defineProps({
   toolName: { type: String, default: 'unknown' }
 })
 
+const emit = defineEmits(['compile-error'])
+
 const compiledComponent = shallowRef(null)
 const error = ref(null)
 const styleEl = ref(null)
 
 // Generate unique scope ID for this instance
 const scopeId = `tool-${Math.random().toString(36).slice(2, 9)}`
+
+/**
+ * Validate Vue template syntax before compilation
+ * Returns true if valid, throws error with details if invalid
+ */
+function validateTemplate(template) {
+  if (!template || !template.trim()) {
+    throw new Error('Empty template')
+  }
+
+  try {
+    // Use Vue's compile to check for syntax errors
+    const result = compileTemplate(template)
+    return true
+  } catch (e) {
+    // Provide helpful error message with the template line number if available
+    let message = `Template syntax error: ${e.message}`
+    if (e.loc) {
+      message += ` (line ${e.loc.start.line}, column ${e.loc.start.column})`
+    }
+    throw new Error(message)
+  }
+}
 
 // Scope CSS selectors to prevent style leakage
 function scopeStyles(css) {
@@ -91,6 +121,16 @@ function compile(code) {
 
     if (!template) {
       error.value = 'No <template> found in tool code'
+      return
+    }
+
+    // Validate template syntax before building component
+    try {
+      validateTemplate(template)
+    } catch (validationErr) {
+      error.value = validationErr.message
+      console.error('Template validation error:', validationErr)
+      compiledComponent.value = null
       return
     }
 
@@ -384,6 +424,32 @@ onUnmounted(() => {
   background: var(--color-error-bg, #fee2e2);
   color: var(--color-error-text, #991b1b);
   flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.error-content {
+  flex: 1;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.remove-broken-btn {
+  padding: 0.5rem 1rem;
+  background: var(--color-error, #ef4444);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+  align-self: flex-start;
+}
+
+.remove-broken-btn:hover {
+  background: var(--color-error-hover, #dc2626);
 }
 
 /* Theme base styles for generated components */

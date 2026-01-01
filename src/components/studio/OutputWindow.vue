@@ -121,6 +121,7 @@
           :toolId="window.content.id"
           :sessionId="sessionId"
           :toolName="window.content.name || 'unnamed-tool'"
+          @compile-error="handleCompileError"
         />
         <ToolRenderer v-else :tool="window.content" />
       </div>
@@ -361,6 +362,13 @@ function formatResult(result) {
 // Bring to front on click
 function handleWindowClick() {
   emit('bring-to-front')
+}
+
+// Handle compile error from broken tool - log and close the window
+function handleCompileError() {
+  const toolName = props.window.content?.name || props.window.title || 'Unknown tool'
+  console.warn(`[OutputWindow] Removing broken tool: "${toolName}" due to compilation error`)
+  emit('close')
 }
 
 // Helper to get clientX/clientY from mouse or touch event
