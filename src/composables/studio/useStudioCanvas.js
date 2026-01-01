@@ -389,7 +389,17 @@ function getWindowByMessageId(messageId) {
  * Clone a window (creates a new window with same content, cascade position)
  */
 function cloneWindow(window) {
-  const clonedContent = JSON.parse(JSON.stringify(window.content))
+  // Only copy essential fields, NOT id or runtime data
+  // This ensures the clone gets a fresh id and doesn't inherit old data
+  const baseContent = window.content
+  const clonedContent = {
+    name: baseContent.name,
+    emoji: baseContent.emoji,
+    type: baseContent.type,
+    code: baseContent.code
+    // Note: NO id, sourcePrompt, scope, sessionId, etc.
+    // saveTool will create a new id when saving
+  }
 
   // Generate unique name for cloned tool
   if (clonedContent.name) {

@@ -64,16 +64,17 @@ export class BuildCapability extends BaseCapability {
     }
 
     // Auto-save tool to library with session scope (defaults to session if sessionId provided)
-    saveTool({
+    // This generates and assigns an ID that must be used for tool instance storage
+    const savedTool = await saveTool({
       ...parsedTool,
       sourcePrompt: fullContext,
       scope: sessionId ? 'session' : 'global',
       sessionId: sessionId || null
-    }).catch(console.error)
+    })
 
-    if (onToolGenerated) onToolGenerated(parsedTool)
+    if (onToolGenerated) onToolGenerated(savedTool)
 
-    return { success: true, result: parsedTool, error: null }
+    return { success: true, result: savedTool, error: null }
   }
 
   async _buildTool(userMessage, modelId, provider, config, signal, pipedData = null) {

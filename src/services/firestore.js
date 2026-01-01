@@ -1018,6 +1018,9 @@ export const loadStudioSessionsFromFirestore = async () => {
     const sessions = []
     let activeSessionId = null
 
+    // Collect tool instance data that needs to be uploaded (local is newer)
+    const toolDataToUpload = new Map() // sessionId -> { toolId -> data }
+
     sessionsSnap.forEach(doc => {
       if (doc.id === 'metadata') {
         // Skip metadata document
@@ -1025,13 +1028,16 @@ export const loadStudioSessionsFromFirestore = async () => {
       }
       const data = doc.data()
 
-      // Extract and restore tool instance data
+      // Extract and restore tool instance data (with merge)
       const toolInstanceData = data.toolInstanceData
       delete data.toolInstanceData
 
-      // Restore tool instance data to localStorage
+      // Merge and restore tool instance data to localStorage, collect items needing upload
       if (toolInstanceData) {
-        restoreToolInstanceData(doc.id, toolInstanceData)
+        const toUpload = restoreToolInstanceData(doc.id, toolInstanceData)
+        if (Object.keys(toUpload).length > 0) {
+          toolDataToUpload.set(doc.id, toUpload)
+        }
       }
 
       delete data.lastUpdated
@@ -1043,6 +1049,13 @@ export const loadStudioSessionsFromFirestore = async () => {
       activeSessionId = metadataSnap.data().activeSessionId
     }
 
+    // Upload tool instance data where local was newer
+    if (toolDataToUpload.size > 0) {
+      uploadMergedToolInstanceData(toolDataToUpload).catch(err =>
+        console.error('Failed to upload merged tool instance data:', err)
+      )
+    }
+
     console.log(`Loaded ${sessions.length} studio sessions from cloud`)
     return { sessions, activeSessionId }
   } catch (error) {
@@ -1052,19 +1065,107 @@ export const loadStudioSessionsFromFirestore = async () => {
 }
 
 /**
- * Restore tool instance data for a session to localStorage
- * @param {string} sessionId - The session ID
- * @param {Object} toolInstanceData - Map of toolId -> instance data
+ * Upload merged tool instance data where local was newer
+ * @param {Map} toolDataToUpload - Map of sessionId -> { toolId -> data }
  */
-function restoreToolInstanceData(sessionId, toolInstanceData) {
+async function uploadMergedToolInstanceData(toolDataToUpload) {
   try {
-    for (const [toolId, data] of Object.entries(toolInstanceData)) {
-      const key = `tool-instance-${sessionId}-${toolId}`
-      localStorage.setItem(key, JSON.stringify(data))
+    const auth = getFirebaseAuth()
+    const user = auth.currentUser
+
+    if (!user) return
+
+    const db = getFirebaseDb()
+
+    for (const [sessionId, toolData] of toolDataToUpload.entries()) {
+      const sessionRef = doc(db, 'users', user.uid, 'studioSessions', sessionId)
+
+      // Upload each tool instance data item
+      for (const [toolId, data] of Object.entries(toolData)) {
+        await setDoc(sessionRef, {
+          [`toolInstanceData.${toolId}`]: data,
+          lastUpdated: serverTimestamp()
+        }, { merge: true })
+      }
+
+      console.log(`Uploaded ${Object.keys(toolData).length} merged tool instances for session ${sessionId}`)
     }
-    console.log(`Restored ${Object.keys(toolInstanceData).length} tool instances for session ${sessionId}`)
+  } catch (error) {
+    console.error('Failed to upload merged tool instance data:', error)
+    throw error
+  }
+}
+
+/**
+ * Merge and restore tool instance data for a session (timestamp-based merge like notebooks)
+ * Strategy:
+ * - Cloud has item local doesn't → add to local
+ * - Local has item cloud doesn't → return for upload to cloud
+ * - Both have same item → use newer version (by _updatedAt), return local if newer
+ *
+ * @param {string} sessionId - The session ID
+ * @param {Object} cloudToolData - Map of toolId -> instance data from cloud
+ * @returns {Object} Map of toolId -> instance data that need to be uploaded to cloud
+ */
+function restoreToolInstanceData(sessionId, cloudToolData) {
+  try {
+    const toUpload = {}
+    const toolPrefix = `tool-instance-${sessionId}-`
+
+    // First, collect all existing local tool instance data
+    const localToolData = {}
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && key.startsWith(toolPrefix)) {
+        const toolId = key.slice(toolPrefix.length)
+        try {
+          localToolData[toolId] = JSON.parse(localStorage.getItem(key))
+        } catch (e) {
+          console.warn(`Failed to parse tool instance data for ${key}:`, e)
+        }
+      }
+    }
+
+    // Get all unique tool IDs
+    const allToolIds = new Set([...Object.keys(cloudToolData), ...Object.keys(localToolData)])
+
+    for (const toolId of allToolIds) {
+      const key = `tool-instance-${sessionId}-${toolId}`
+      const cloudItem = cloudToolData[toolId]
+      const localItem = localToolData[toolId]
+
+      if (!cloudItem) {
+        // Local-only → keep local, queue for upload
+        toUpload[toolId] = localItem
+      } else if (!localItem) {
+        // Cloud-only → use cloud data
+        localStorage.setItem(key, JSON.stringify(cloudItem))
+      } else {
+        // Both exist → use newer by _updatedAt timestamp
+        const cloudTime = cloudItem._updatedAt || 0
+        const localTime = localItem._updatedAt || 0
+
+        if (cloudTime > localTime) {
+          // Cloud is newer → use cloud data
+          localStorage.setItem(key, JSON.stringify(cloudItem))
+        } else {
+          // Local is newer or same → keep local data, queue for upload if newer
+          localStorage.setItem(key, JSON.stringify(localItem))
+          if (localTime > cloudTime) {
+            toUpload[toolId] = localItem
+          }
+        }
+      }
+    }
+
+    const restoredCount = allToolIds.size
+    const uploadCount = Object.keys(toUpload).length
+    console.log(`Merged ${restoredCount} tool instances for session ${sessionId}, ${uploadCount} need upload`)
+
+    return toUpload
   } catch (error) {
     console.error('Failed to restore tool instance data:', error)
+    return {}
   }
 }
 

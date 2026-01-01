@@ -8,7 +8,12 @@
     </button>
 
     <Transition name="dropdown">
-      <div v-if="isOpen" ref="dropdownRef" class="library-dropdown">
+      <div
+        v-if="isOpen"
+        ref="dropdownRef"
+        class="library-dropdown"
+        :style="{ width: dropdownWidth + 'px', height: dropdownHeight + 'px' }"
+      >
         <div class="dropdown-header">
           <span>{{ showRecycleBin ? 'Recycle Bin' : 'Tools' }}</span>
           <span class="shortcut-hint">Ctrl+Space</span>
@@ -144,6 +149,12 @@
         <div v-if="showRecycleBin && deletedTools.length > 0" class="bin-actions">
           <button class="empty-bin-btn" @click="emptyBin">Empty Recycle Bin</button>
         </div>
+
+        <!-- Resize handle -->
+        <div
+          class="resize-handle"
+          @mousedown.prevent="startResize"
+        ></div>
       </div>
     </Transition>
   </div>
@@ -175,6 +186,71 @@ const dropdownRef = ref(null)
 const searchInputRef = ref(null)
 const showRecycleBin = ref(false)
 const scopeFilter = ref('global') // 'global', 'session'
+
+// Dropdown size (resizeable) - load from localStorage
+const STORAGE_KEY = 'tool-library-size'
+const DEFAULT_WIDTH = 280
+const DEFAULT_HEIGHT = 400
+
+const dropdownWidth = ref(DEFAULT_WIDTH)
+const dropdownHeight = ref(DEFAULT_HEIGHT)
+const isResizing = ref(false)
+const resizeStart = ref({ x: 0, y: 0, width: 0, height: 0 })
+
+// Load saved size on mount
+function loadSavedSize() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved) {
+      const { width, height } = JSON.parse(saved)
+      dropdownWidth.value = width
+      dropdownHeight.value = height
+    }
+  } catch (e) {
+    console.warn('Failed to load tool library size from localStorage:', e)
+  }
+}
+
+// Save size to localStorage
+function saveSize() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      width: dropdownWidth.value,
+      height: dropdownHeight.value
+    }))
+  } catch (e) {
+    console.warn('Failed to save tool library size to localStorage:', e)
+  }
+}
+
+function startResize(e) {
+  isResizing.value = true
+  resizeStart.value = {
+    x: e.clientX,
+    y: e.clientY,
+    width: dropdownWidth.value,
+    height: dropdownHeight.value
+  }
+  document.addEventListener('mousemove', onResize)
+  document.addEventListener('mouseup', stopResize)
+}
+
+function onResize(e) {
+  if (!isResizing.value) return
+  const dx = e.clientX - resizeStart.value.x
+  const dy = e.clientY - resizeStart.value.y
+
+  // Minimum dimensions (invert dx for bottom-left resize)
+  dropdownWidth.value = Math.max(200, resizeStart.value.width - dx)
+  dropdownHeight.value = Math.max(200, resizeStart.value.height + dy)
+}
+
+function stopResize() {
+  isResizing.value = false
+  document.removeEventListener('mousemove', onResize)
+  document.removeEventListener('mouseup', stopResize)
+  saveSize()
+}
 
 const filteredTools = computed(() => {
   let list = showRecycleBin.value ? deletedTools.value : tools.value
@@ -248,6 +324,7 @@ onMounted(() => {
   document.addEventListener('keydown', handleKeydown)
   document.addEventListener('mousedown', handleClickOutside)
   loadTools()
+  loadSavedSize()
 })
 
 onUnmounted(() => {
@@ -318,19 +395,22 @@ function isToolFromOtherSession(tool) {
 }
 
 async function cloneTool(tool) {
-  // Create a copy of the tool for the current session with a unique name
+  // Create a copy of the tool, preserving its scope
   const { saveTool, getAllTools } = await import('../../services/indexedDB.js')
 
-  // Get existing tools in current session to find a unique name
+  // Determine scope filter for name uniqueness check
+  const isGlobalScope = !tool.scope || tool.scope === 'global'
+
+  // Get existing tools to find a unique name
   const allTools = await getAllTools()
-  const currentSessionTools = allTools.filter(t =>
-    t.scope === 'session' && t.sessionId === activeSessionId.value
-  )
+  const toolsForScopeCheck = isGlobalScope
+    ? allTools.filter(t => !t.scope || t.scope === 'global')
+    : allTools.filter(t => t.scope === 'session' && t.sessionId === tool.sessionId)
 
   // Find a unique name by appending (Copy), (Copy 2), etc.
   let cloneName = `${tool.name} (Copy)`
   let counter = 2
-  while (currentSessionTools.some(t => t.name === cloneName)) {
+  while (toolsForScopeCheck.some(t => t.name === cloneName)) {
     cloneName = `${tool.name} (Copy ${counter})`
     counter++
   }
@@ -342,8 +422,8 @@ async function cloneTool(tool) {
     type: tool.type,
     code: tool.code,
     sourcePrompt: tool.sourcePrompt,
-    scope: 'session',
-    sessionId: activeSessionId.value
+    scope: isGlobalScope ? 'global' : 'session',
+    sessionId: isGlobalScope ? undefined : tool.sessionId
     // Note: NO id field - saveTool will create a new one
   }
 
@@ -403,14 +483,16 @@ defineExpose({ loadTools, toggleOpen })
   position: absolute;
   top: 48px;
   right: 0;
-  width: 280px;
-  max-height: 400px;
+  min-width: 200px;
+  min-height: 200px;
   background: var(--color-bg-base);
   border: 1px solid var(--color-border-base);
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   overflow: hidden;
   z-index: 9999;
+  display: flex;
+  flex-direction: column;
 }
 
 .dropdown-header {
@@ -530,7 +612,8 @@ defineExpose({ loadTools, toggleOpen })
 }
 
 .tool-list {
-  max-height: 340px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -740,5 +823,21 @@ defineExpose({ loadTools, toggleOpen })
 .dropdown-leave-to {
   opacity: 0;
   transform: translateY(-8px);
+}
+
+/* Resize handle */
+.resize-handle {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nesw-resize;
+  background: linear-gradient(45deg, transparent 50%, var(--color-border-base) 50%);
+  border-radius: 0 0 0 8px;
+}
+
+.resize-handle:hover {
+  background: linear-gradient(45deg, transparent 50%, var(--color-primary) 50%);
 }
 </style>

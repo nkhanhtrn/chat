@@ -2,7 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { BuildCapability } from '../BuildCapability.js'
 
 vi.mock('../../../indexedDB.js', () => ({
-  saveTool: vi.fn().mockResolvedValue({}),
+  saveTool: vi.fn().mockImplementation(async (tool) => ({
+    id: 'mock-tool-id',
+    ...tool,
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  })),
   syncToolsFromCloud: vi.fn().mockResolvedValue(0)
 }))
 
