@@ -9,10 +9,11 @@ import {
 } from './firestore.js'
 
 const DB_NAME = 'chat-clone-db'
-const DB_VERSION = 3
+const DB_VERSION = 4
 const STORE_NAME = 'app-data'
 const TOOLS_STORE = 'saved-tools'
 const BOOKS_STORE = 'books'
+const TOOL_INSTANCES_STORE = 'tool-instances'
 const CHAT_STATE_KEY = 'chat-state'
 
 let dbPromise = null
@@ -54,6 +55,10 @@ const getDB = () => {
         booksStore.createIndex('createdAt', 'createdAt', { unique: false })
         booksStore.createIndex('lastReadAt', 'lastReadAt', { unique: false })
         console.log('Created books store in IndexedDB')
+      }
+      if (!db.objectStoreNames.contains(TOOL_INSTANCES_STORE)) {
+        db.createObjectStore(TOOL_INSTANCES_STORE)
+        console.log('Created tool-instances store in IndexedDB')
       }
       currentDbVersion = DB_VERSION
     },
@@ -510,4 +515,263 @@ export const deleteAllBookFilesFromIDB = async () => {
   }
 
   return { deletedCount, totalSize }
+}
+
+// ============ Tool Instance Storage ============
+
+/**
+ * Save tool instance state to IndexedDB
+ * @param {string} sessionId - The session identifier
+ * @param {string} toolId - The tool identifier
+ * @param {Object} state - The state object to store
+ * @returns {Promise<void>}
+ */
+export const saveToolInstanceState = async (sessionId, toolId, state) => {
+  try {
+    // Sanitize state to convert Proxy objects to plain objects
+    // IndexedDB uses structured clone which can't clone Proxies
+    const sanitizedState = sanitizeForIndexedDB(state)
+
+    const db = await getDB()
+    const key = `${sessionId}-${toolId}`
+    await db.put(TOOL_INSTANCES_STORE, sanitizedState, key)
+  } catch (error) {
+    console.error('Failed to save tool instance state to IndexedDB:', error)
+    throw error
+  }
+}
+
+/**
+ * Sanitize data for IndexedDB by converting Vue Proxy/reactive objects to plain objects.
+ * IndexedDB uses structured clone algorithm which can't clone:
+ * - Proxies, Functions, Symbols
+ * - BigInt, DOM elements, Window objects
+ * - WeakMap, WeakSet (empty after serialization)
+ * @param {*} value - The value to sanitize
+ * @param {WeakSet} seen - Set of objects already visited (for circular reference detection)
+ * @returns {*} Sanitized value
+ */
+function sanitizeForIndexedDB(value, seen = new WeakSet()) {
+  // Handle null/undefined
+  if (value === null || value === undefined) {
+    return value
+  }
+
+  // Skip functions (can't be cloned)
+  if (typeof value === 'function') {
+    return undefined
+  }
+
+  // Skip symbols (can't be cloned)
+  if (typeof value === 'symbol') {
+    return undefined
+  }
+
+  // Skip BigInt (can't be serialized with JSON)
+  if (typeof value === 'bigint') {
+    return value.toString() // Convert to string
+  }
+
+  // Handle primitives
+  if (typeof value !== 'object') {
+    return value
+  }
+
+  // Skip DOM elements and Window objects
+  if (value instanceof Element) {
+    return undefined
+  }
+  if (value instanceof Window) {
+    return undefined
+  }
+  if (value instanceof Node) {
+    return undefined
+  }
+
+  // Check for circular references - skip them
+  if (seen.has(value)) {
+    return undefined
+  }
+  seen.add(value)
+
+  // Handle arrays
+  if (Array.isArray(value)) {
+    return value.map(item => sanitizeForIndexedDB(item, seen))
+  }
+
+  // Handle objects - convert to plain object
+  // Try JSON round-trip first (handles Dates, Maps, Sets, etc.)
+  try {
+    return JSON.parse(JSON.stringify(value, (key, val) => {
+      // Skip functions during JSON stringify
+      if (typeof val === 'function') {
+        return undefined
+      }
+      // Skip symbols
+      if (typeof val === 'symbol') {
+        return undefined
+      }
+      // Convert BigInt to string
+      if (typeof val === 'bigint') {
+        return val.toString()
+      }
+      // Skip DOM elements
+      if (val instanceof Element) {
+        return undefined
+      }
+      if (val instanceof Window) {
+        return undefined
+      }
+      if (val instanceof Node) {
+        return undefined
+      }
+      // Skip WeakMap/WeakSet (become empty object anyway)
+      if (val instanceof WeakMap || val instanceof WeakSet) {
+        return undefined
+      }
+      // Handle circular references during JSON stringify - skip them
+      if (typeof val === 'object' && val !== null) {
+        if (seen.has(val)) {
+          return undefined
+        }
+        seen.add(val)
+      }
+      return val
+    }))
+  } catch (e) {
+    // If JSON round-trip fails, do manual conversion
+    const result = {}
+    for (const key in value) {
+      if (Object.prototype.hasOwnProperty.call(value, key)) {
+        // Skip Vue internal properties
+        if (key.startsWith('__') && key.endsWith('__')) {
+          continue
+        }
+        const val = value[key]
+        // Skip functions
+        if (typeof val === 'function') {
+          continue
+        }
+        // Skip symbols
+        if (typeof val === 'symbol') {
+          continue
+        }
+        // Convert BigInt to string
+        if (typeof val === 'bigint') {
+          result[key] = val.toString()
+          continue
+        }
+        // Skip DOM elements and nodes
+        if (val instanceof Element || val instanceof Node || val instanceof Window) {
+          continue
+        }
+        // Skip WeakMap/WeakSet
+        if (val instanceof WeakMap || val instanceof WeakSet) {
+          continue
+        }
+        try {
+          result[key] = sanitizeForIndexedDB(val, seen)
+        } catch (e2) {
+          // Skip values that can't be sanitized
+          console.warn(`Skipping property "${key}" due to sanitization error:`, e2)
+        }
+      }
+    }
+    return result
+  }
+}
+
+/**
+ * Load tool instance state from IndexedDB
+ * @param {string} sessionId - The session identifier
+ * @param {string} toolId - The tool identifier
+ * @returns {Promise<Object|null>} The state object or null if not found
+ */
+export const loadToolInstanceState = async (sessionId, toolId) => {
+  try {
+    const db = await getDB()
+    const key = `${sessionId}-${toolId}`
+    const state = await db.get(TOOL_INSTANCES_STORE, key)
+    return state || {}
+  } catch (error) {
+    console.error('Failed to load tool instance state from IndexedDB:', error)
+    return {}
+  }
+}
+
+/**
+ * Delete tool instance state from IndexedDB
+ * @param {string} sessionId - The session identifier
+ * @param {string} toolId - The tool identifier
+ * @returns {Promise<void>}
+ */
+export const deleteToolInstanceState = async (sessionId, toolId) => {
+  try {
+    const db = await getDB()
+    const key = `${sessionId}-${toolId}`
+    await db.delete(TOOL_INSTANCES_STORE, key)
+  } catch (error) {
+    console.error('Failed to delete tool instance state from IndexedDB:', error)
+    throw error
+  }
+}
+
+/**
+ * Get all tool instance keys from IndexedDB
+ * @returns {Promise<string[]>} Array of keys
+ */
+export const getAllToolInstanceKeys = async () => {
+  try {
+    const db = await getDB()
+    const keys = await db.getAllKeys(TOOL_INSTANCES_STORE)
+    return keys
+  } catch (error) {
+    console.error('Failed to get tool instance keys from IndexedDB:', error)
+    return []
+  }
+}
+
+/**
+ * Migrate tool instance data from localStorage to IndexedDB
+ * @returns {Promise<number>} Number of entries migrated
+ */
+export const migrateToolInstancesFromLocalStorage = async () => {
+  const STORAGE_PREFIX = 'tool-instance-'
+
+  try {
+    const keys = Object.keys(localStorage).filter(k => k.startsWith(STORAGE_PREFIX))
+    if (keys.length === 0) {
+      return 0
+    }
+
+    const db = await getDB()
+    let migratedCount = 0
+
+    for (const key of keys) {
+      try {
+        const data = localStorage.getItem(key)
+        if (data) {
+          const parsed = JSON.parse(data)
+          // Extract sessionId and toolId from key (format: tool-instance-{sessionId}-{toolId})
+          const parts = key.replace(STORAGE_PREFIX, '').split('-')
+          if (parts.length >= 2) {
+            const sessionId = parts.slice(0, -1).join('-')
+            const toolId = parts[parts.length - 1]
+            const idbKey = `${sessionId}-${toolId}`
+            await db.put(TOOL_INSTANCES_STORE, parsed, idbKey)
+            localStorage.removeItem(key)
+            migratedCount++
+          }
+        }
+      } catch (e) {
+        console.warn(`Failed to migrate key ${key}:`, e)
+      }
+    }
+
+    console.log(`Migrated ${migratedCount} tool instance entries from localStorage to IndexedDB`)
+    return migratedCount
+  } catch (error) {
+    console.error('Failed to migrate tool instances from localStorage:', error)
+    return 0
+  }
 }

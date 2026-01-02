@@ -146,9 +146,9 @@ export function useDynamicCompiler(options = {}) {
         const wrappedData = originalData
           ? function () {
               const initialData = typeof originalData === 'function' ? originalData.call(this) : originalData
-              // Merge saved data into initial data
+              // Merge saved data into initial data (use sync getter for data() hook)
               const persist = storeFactory(toolName, toolId, sessionId)
-              const savedData = persist.getState()
+              const savedData = persist.getStateSync?.() || {}
               debugLog('[VueToolRenderer] Restoring data for', toolName, toolId)
               return { ...initialData, ...savedData }
             }
@@ -250,8 +250,8 @@ export function useDynamicCompiler(options = {}) {
             // Create persist store for this instance
             const persist = storeFactory(toolName, toolId, sessionId)
 
-            // Get saved data BEFORE running setup
-            const savedData = persist.getState()
+            // Get saved data BEFORE running setup (use sync getter)
+            const savedData = persist.getStateSync?.() || {}
 
             debugLog('[VueToolRenderer] Composition API - saved data keys:', Object.keys(savedData))
 

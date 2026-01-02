@@ -929,11 +929,12 @@ export const saveStudioSessionsToFirestore = async (sessions, activeSessionId) =
       // Collect tool instance data for this session from localStorage
       const toolInstanceData = collectToolInstanceData(session.id)
 
+      // Explicitly copy only the properties we want to save
       let sessionData = {
-        id: session.id,
-        name: session.name,
-        createdAt: session.createdAt,
-        updatedAt: session.updatedAt,
+        id: String(session.id || ''),
+        name: String(session.name || ''),
+        createdAt: session.createdAt || Date.now(),
+        updatedAt: session.updatedAt || Date.now(),
         lastUpdated: serverTimestamp()
       }
 
@@ -948,6 +949,9 @@ export const saveStudioSessionsToFirestore = async (sessions, activeSessionId) =
         // Store directly in Firestore
         sessionData.toolInstanceData = toolInstanceData
       }
+
+      // Sanitize sessionData to remove any Vue internal properties or nested arrays
+      sessionData = sanitizeForFirestore(sessionData)
 
       const sessionRef = doc(db, 'users', user.uid, 'studioSessions', session.id)
       batch.set(sessionRef, sessionData, { merge: true })
@@ -997,14 +1001,15 @@ export const saveSingleSessionToFirestore = async (session, activeSessionId) => 
     const chatStateRaw = localStorage.getItem(chatKey)
     const canvasStateRaw = localStorage.getItem(canvasKey)
 
-    let chatState = chatStateRaw ? JSON.parse(chatStateRaw) : null
-    let canvasState = canvasStateRaw ? JSON.parse(canvasStateRaw) : null
+    let chatState = chatStateRaw ? sanitizeForFirestore(JSON.parse(chatStateRaw)) : null
+    let canvasState = canvasStateRaw ? sanitizeForFirestore(JSON.parse(canvasStateRaw)) : null
 
+    // Explicitly copy only the properties we want to save
     let sessionData = {
-      id: session.id,
-      name: session.name,
-      createdAt: session.createdAt,
-      updatedAt: session.updatedAt,
+      id: String(session.id || ''),
+      name: String(session.name || ''),
+      createdAt: session.createdAt || Date.now(),
+      updatedAt: session.updatedAt || Date.now(),
       lastUpdated: serverTimestamp()
     }
 
@@ -1035,6 +1040,9 @@ export const saveSingleSessionToFirestore = async (session, activeSessionId) => 
     } else {
       sessionData.canvasState = canvasState
     }
+
+    // Sanitize sessionData to remove any Vue internal properties or nested arrays
+    sessionData = sanitizeForFirestore(sessionData)
 
     const sessionRef = doc(db, 'users', user.uid, 'studioSessions', session.id)
     await setDoc(sessionRef, sessionData, { merge: true })
@@ -1147,7 +1155,7 @@ function collectToolInstanceData(sessionId) {
         const toolId = key.slice(toolPrefix.length)
         try {
           const data = JSON.parse(localStorage.getItem(key))
-          result[toolId] = data
+          result[toolId] = sanitizeForFirestore(data)
         } catch (e) {
           console.warn(`Failed to parse tool instance data for ${key}:`, e)
         }
@@ -1159,6 +1167,221 @@ function collectToolInstanceData(sessionId) {
     console.error('Failed to collect tool instance data:', error)
     return {}
   }
+}
+
+/**
+ * Sanitize data for Firestore by removing invalid field names and structures.
+ * - Firestore doesn't allow fields that begin and end with "__" (e.g., Vue internal properties)
+ * - Firestore doesn't support nested arrays (arrays containing arrays)
+ * - Can't store: Functions, Symbols, DOM elements, Window objects
+ * - BigInt converted to string
+ * @param {*} value - The value to sanitize
+ * @param {WeakSet} seen - Set of objects already visited (for circular reference detection)
+ * @returns {*} Sanitized value
+ */
+function sanitizeForFirestore(value, seen = new WeakSet()) {
+  // Handle null/undefined
+  if (value === null || value === undefined) {
+    return value
+  }
+
+  // Skip functions (can't be stored)
+  if (typeof value === 'function') {
+    return null
+  }
+
+  // Skip symbols (can't be stored)
+  if (typeof value === 'symbol') {
+    return null
+  }
+
+  // Convert BigInt to string (can't be stored directly)
+  if (typeof value === 'bigint') {
+    return value.toString()
+  }
+
+  // Handle primitives
+  if (typeof value !== 'object') {
+    return value
+  }
+
+  // Skip DOM elements and Window objects
+  if (value instanceof Element) {
+    return null
+  }
+  if (value instanceof Window) {
+    return null
+  }
+  if (value instanceof Node) {
+    return null
+  }
+
+  // Check for circular references - skip them
+  if (seen.has(value)) {
+    return null
+  }
+  seen.add(value)
+
+  // Handle arrays - check for nested arrays first
+  if (Array.isArray(value)) {
+    // Check if any element is an array (nested array)
+    const hasNestedArray = value.some(item => Array.isArray(item))
+    if (hasNestedArray) {
+      // Convert to JSON string to avoid nested array error
+      return JSON.stringify(value, (key, val) => {
+        // Skip functions
+        if (typeof val === 'function') {
+          return null
+        }
+        // Skip symbols
+        if (typeof val === 'symbol') {
+          return null
+        }
+        // Convert BigInt to string
+        if (typeof val === 'bigint') {
+          return val.toString()
+        }
+        // Skip DOM elements
+        if (val instanceof Element || val instanceof Window || val instanceof Node) {
+          return null
+        }
+        // Skip WeakMap/WeakSet
+        if (val instanceof WeakMap || val instanceof WeakSet) {
+          return null
+        }
+        if (typeof val === 'object' && val !== null) {
+          if (seen.has(val)) {
+            return null
+          }
+          seen.add(val)
+        }
+        return val
+      })
+    }
+    // Simple array - recursively sanitize elements
+    return value.map(item => sanitizeForFirestore(item, seen))
+  }
+
+  // For objects, first try to convert Vue reactive objects using JSON round-trip
+  const isVueReactive = value.__v_isReactive === true ||
+                        value.__v_isRef === true ||
+                        value.__v_isReadonly === true ||
+                        value.__v_isShallow === true
+
+  if (isVueReactive) {
+    // Convert Vue reactive object to plain object
+    return JSON.parse(JSON.stringify(value, (key, val) => {
+      // Skip functions
+      if (typeof val === 'function') {
+        return null
+      }
+      // Skip symbols
+      if (typeof val === 'symbol') {
+        return null
+      }
+      // Convert BigInt to string
+      if (typeof val === 'bigint') {
+        return val.toString()
+      }
+      // Skip DOM elements
+      if (val instanceof Element || val instanceof Window || val instanceof Node) {
+        return null
+      }
+      // Skip WeakMap/WeakSet
+      if (val instanceof WeakMap || val instanceof WeakSet) {
+        return null
+      }
+      if (typeof val === 'object' && val !== null) {
+        if (seen.has(val)) {
+          return null
+        }
+        seen.add(val)
+      }
+      return val
+    }))
+  }
+
+  // Regular object - remove __ properties and recursively sanitize
+  const result = {}
+  for (const key in value) {
+    if (Object.prototype.hasOwnProperty.call(value, key)) {
+      // Skip Vue internal properties
+      if (key.startsWith('__') && key.endsWith('__')) {
+        continue
+      }
+      const val = value[key]
+      // Skip functions
+      if (typeof val === 'function') {
+        continue
+      }
+      // Skip symbols
+      if (typeof val === 'symbol') {
+        continue
+      }
+      // Convert BigInt to string
+      if (typeof val === 'bigint') {
+        result[key] = val.toString()
+        continue
+      }
+      // Skip DOM elements and nodes
+      if (val instanceof Element || val instanceof Node || val instanceof Window) {
+        continue
+      }
+      // Skip WeakMap/WeakSet
+      if (val instanceof WeakMap || val instanceof WeakSet) {
+        continue
+      }
+      try {
+        result[key] = sanitizeForFirestore(val, seen)
+      } catch (e) {
+        console.warn(`Skipping property "${key}" due to sanitization error:`, e)
+      }
+    }
+  }
+  return result
+}
+
+/**
+ * Deserialize data from Firestore by converting JSON strings back to nested arrays.
+ * This is the inverse of sanitizeForFirestore.
+ * @param {*} value - The value to deserialize
+ * @returns {*} Deserialized value
+ */
+function deserializeFromFirestore(value) {
+  if (value === null || value === undefined) {
+    return value
+  }
+
+  // Handle primitives (strings, numbers, booleans)
+  if (typeof value !== 'object') {
+    // Check if this is a JSON string that was a nested array
+    if (typeof value === 'string' && value.trim().startsWith('[') && value.trim().endsWith(']')) {
+      try {
+        const parsed = JSON.parse(value)
+        // Only return the parsed value if it's actually an array
+        if (Array.isArray(parsed)) {
+          return deserializeFromFirestore(parsed)
+        }
+      } catch (e) {
+        // Not valid JSON, return original string
+      }
+    }
+    return value
+  }
+
+  // Handle arrays
+  if (Array.isArray(value)) {
+    return value.map(item => deserializeFromFirestore(item))
+  }
+
+  // Handle objects
+  const result = {}
+  for (const key in value) {
+    if (Object.prototype.hasOwnProperty.call(value, key)) {
+      result[key] = deserializeFromFirestore(value[key])
+    }
+  }
+  return result
 }
 
 /**
@@ -1195,7 +1418,7 @@ export const loadStudioSessionsFromFirestore = async () => {
       if (doc.id === 'metadata') {
         continue
       }
-      const data = doc.data()
+      let data = deserializeFromFirestore(doc.data())
 
       // Extract flags and paths for Storage data
       const toolInstanceDataInStorage = data.toolInstanceDataInStorage

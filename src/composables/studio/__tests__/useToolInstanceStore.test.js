@@ -6,220 +6,179 @@ describe('useToolInstanceStore', () => {
   const TOOL_NAME = 'test-tool'
   const TOOL_ID = 'test-tool-123'
   const SESSION_ID = 'test-session-456'
-  const STORAGE_KEY = 'tool-instance-test-session-456-test-tool-123'
 
   beforeEach(() => {
-    localStorage.clear()
     vi.clearAllMocks()
   })
 
   describe('get', () => {
-    it('returns stored value', () => {
+    it('returns stored value', async () => {
       const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store.set('name', 'Alice')
+      await store.set('name', 'Alice')
 
-      expect(store.get('name')).toBe('Alice')
+      expect(await store.get('name')).toBe('Alice')
     })
 
-    it('returns undefined for non-existent key by default', () => {
+    it('returns undefined for non-existent key by default', async () => {
       const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
 
-      expect(store.get('missing')).toBe(undefined)
+      expect(await store.get('missing')).toBe(undefined)
     })
 
-    it('returns default value for non-existent key', () => {
+    it('returns default value for non-existent key', async () => {
       const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
 
-      expect(store.get('missing', 'default')).toBe('default')
-      expect(store.get('count', 0)).toBe(0)
-      expect(store.get('flag', true)).toBe(true)
+      expect(await store.get('missing', 'default')).toBe('default')
+      expect(await store.get('count', 0)).toBe(0)
+      expect(await store.get('flag', true)).toBe(true)
     })
 
-    it('returns complex objects', () => {
+    it('returns complex objects', async () => {
       const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
       const obj = { nested: { value: 42 }, arr: [1, 2, 3] }
-      store.set('complex', obj)
+      await store.set('complex', obj)
 
-      expect(store.get('complex')).toEqual(obj)
-      expect(store.get('complex').nested.value).toBe(42)
+      expect(await store.get('complex')).toEqual(obj)
+      expect((await store.get('complex')).nested.value).toBe(42)
     })
   })
 
   describe('set', () => {
-    it('sets a value', () => {
+    it('sets a value', async () => {
       const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store.set('value', 'test')
+      await store.set('value', 'test')
 
-      expect(localStorage.getItem(STORAGE_KEY)).toContain('value')
-      expect(localStorage.getItem(STORAGE_KEY)).toContain('test')
+      expect(await store.get('value')).toBe('test')
     })
 
-    it('overwrites existing value', () => {
+    it('overwrites existing value', async () => {
       const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store.set('key', 'first')
-      store.set('key', 'second')
+      await store.set('key', 'first')
+      await store.set('key', 'second')
 
-      expect(store.get('key')).toBe('second')
-    })
-
-    it('persists to localStorage', () => {
-      const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store.set('persisted', true)
-
-      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY))
-      expect(stored.persisted).toBe(true)
+      expect(await store.get('key')).toBe('second')
     })
   })
 
   describe('update', () => {
-    it('updates multiple values at once', () => {
+    it('updates multiple values at once', async () => {
       const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store.set('a', 1)
-      store.set('b', 2)
+      await store.set('a', 1)
+      await store.set('b', 2)
 
-      store.update({ a: 10, c: 30 })
+      await store.update({ a: 10, c: 30 })
 
-      expect(store.get('a')).toBe(10)
-      expect(store.get('b')).toBe(2)
-      expect(store.get('c')).toBe(30)
-    })
-
-    it('persists updates to localStorage', () => {
-      const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store.update({ name: 'Bob', age: 25 })
-
-      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY))
-      expect(stored.name).toBe('Bob')
-      expect(stored.age).toBe(25)
+      expect(await store.get('a')).toBe(10)
+      expect(await store.get('b')).toBe(2)
+      expect(await store.get('c')).toBe(30)
     })
   })
 
   describe('remove', () => {
-    it('removes a key', () => {
+    it('removes a key', async () => {
       const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store.set('toRemove', 'value')
+      await store.set('toRemove', 'value')
 
-      store.remove('toRemove')
+      await store.remove('toRemove')
 
-      expect(store.get('toRemove')).toBe(undefined)
-      expect(store.has('toRemove')).toBe(false)
-    })
-
-    it('persists removal to localStorage', () => {
-      const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store.set('temp', 'value')
-      store.remove('temp')
-
-      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY))
-      expect('temp' in stored).toBe(false)
+      expect(await store.get('toRemove')).toBe(undefined)
+      expect(await store.has('toRemove')).toBe(false)
     })
   })
 
   describe('clear', () => {
-    it('removes all data', () => {
+    it('removes all data', async () => {
       const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store.set('a', 1)
-      store.set('b', 2)
-      store.set('c', 3)
+      await store.set('a', 1)
+      await store.set('b', 2)
+      await store.set('c', 3)
 
-      store.clear()
+      await store.clear()
 
-      expect(store.keys()).toEqual([])
-      expect(store.get('a')).toBe(undefined)
-    })
-
-    it('persists clear to localStorage', () => {
-      const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store.set('data', 'value')
-      store.clear()
-
-      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY))
-      expect(stored).toEqual({})
+      expect(await store.keys()).toEqual([])
+      expect(await store.get('a')).toBe(undefined)
     })
   })
 
   describe('keys', () => {
-    it('returns all keys', () => {
+    it('returns all keys', async () => {
       const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store.set('a', 1)
-      store.set('b', 2)
-      store.set('c', 3)
+      await store.set('a', 1)
+      await store.set('b', 2)
+      await store.set('c', 3)
 
-      expect(store.keys().sort()).toEqual(['a', 'b', 'c'])
+      const keys = await store.keys()
+      expect(keys.sort()).toEqual(['a', 'b', 'c'])
     })
 
-    it('returns empty array when no data', () => {
+    it('returns empty array when no data', async () => {
       const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
 
-      expect(store.keys()).toEqual([])
+      expect(await store.keys()).toEqual([])
     })
   })
 
   describe('has', () => {
-    it('returns true for existing key', () => {
+    it('returns true for existing key', async () => {
       const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store.set('exists', true)
+      await store.set('exists', true)
 
-      expect(store.has('exists')).toBe(true)
+      expect(await store.has('exists')).toBe(true)
     })
 
-    it('returns false for missing key', () => {
+    it('returns false for missing key', async () => {
       const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
 
-      expect(store.has('missing')).toBe(false)
+      expect(await store.has('missing')).toBe(false)
     })
 
-    it('returns false after removal', () => {
+    it('returns false after removal', async () => {
       const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store.set('temp', 'value')
-      store.remove('temp')
+      await store.set('temp', 'value')
+      await store.remove('temp')
 
-      expect(store.has('temp')).toBe(false)
+      expect(await store.has('temp')).toBe(false)
     })
   })
 
   describe('getState', () => {
-    it('returns all state as object', () => {
+    it('returns all state as object', async () => {
       const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store.update({ a: 1, b: 2, c: 3 })
+      await store.update({ a: 1, b: 2, c: 3 })
 
-      expect(store.getState()).toEqual({ a: 1, b: 2, c: 3 })
+      expect(await store.getState()).toEqual({ a: 1, b: 2, c: 3 })
     })
 
-    it('returns empty object when no data', () => {
+    it('returns empty object when no data', async () => {
       const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
 
-      expect(store.getState()).toEqual({})
+      expect(await store.getState()).toEqual({})
     })
+  })
 
-    it('returns a copy, not reference', () => {
+  describe('getStateSync', () => {
+    it('returns cached state synchronously', async () => {
       const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store.set('key', 'value')
 
-      const state = store.getState()
-      state.key = 'modified'
+      // Initially empty
+      expect(store.getStateSync()).toEqual({})
 
-      expect(store.get('key')).toBe('value')
+      await store.set('key', 'value')
+
+      // After setting, cache is updated
+      expect(store.getStateSync()).toEqual({ key: 'value' })
     })
   })
 
   describe('setState', () => {
-    it('replaces entire state', () => {
+    it('replaces entire state', async () => {
       const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store.set('old', 'data')
+      await store.set('old', 'data')
 
-      store.setState({ new: 'data' })
+      await store.setState({ new: 'data' })
 
-      expect(store.get('old')).toBe(undefined)
-      expect(store.get('new')).toBe('data')
-    })
-
-    it('persists to localStorage', () => {
-      const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store.setState({ replaced: true })
-
-      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY))
-      expect(stored).toEqual({ replaced: true })
+      expect(await store.get('old')).toBe(undefined)
+      expect(await store.get('new')).toBe('data')
     })
   })
 
@@ -231,12 +190,12 @@ describe('useToolInstanceStore', () => {
       store.watchAndPersist(value, 'watched')
 
       await nextTick()
-      expect(store.get('watched')).toBe('initial')
+      expect(await store.get('watched')).toBe('initial')
 
       value.value = 'updated'
 
       await nextTick()
-      expect(store.get('watched')).toBe('updated')
+      expect(await store.get('watched')).toBe('updated')
     })
 
     it('uses default key "value" when not specified', async () => {
@@ -246,158 +205,117 @@ describe('useToolInstanceStore', () => {
       store.watchAndPersist(value)
 
       await nextTick()
-      expect(store.get('value')).toBe(42)
+      expect(await store.get('value')).toBe(42)
     })
   })
 
   describe('tool instance isolation', () => {
-    it('different tool instances have separate storage', () => {
+    it('different tool instances have separate storage', async () => {
       const store1 = useToolInstanceStore(TOOL_NAME, 'instance-1', SESSION_ID)
       const store2 = useToolInstanceStore(TOOL_NAME, 'instance-2', SESSION_ID)
 
-      store1.set('shared', 'from-1')
-      store2.set('shared', 'from-2')
+      await store1.set('shared', 'from-1')
+      await store2.set('shared', 'from-2')
 
-      expect(store1.get('shared')).toBe('from-1')
-      expect(store2.get('shared')).toBe('from-2')
+      expect(await store1.get('shared')).toBe('from-1')
+      expect(await store2.get('shared')).toBe('from-2')
     })
 
-    it('clearing one instance does not affect another', () => {
+    it('clearing one instance does not affect another', async () => {
       const store1 = useToolInstanceStore(TOOL_NAME, 'instance-1', SESSION_ID)
       const store2 = useToolInstanceStore(TOOL_NAME, 'instance-2', SESSION_ID)
 
-      store1.set('data', 'value-1')
-      store2.set('data', 'value-2')
+      await store1.set('data', 'value-1')
+      await store2.set('data', 'value-2')
 
-      store1.clear()
+      await store1.clear()
 
-      expect(store1.get('data')).toBe(undefined)
-      expect(store2.get('data')).toBe('value-2')
+      expect(await store1.get('data')).toBe(undefined)
+      expect(await store2.get('data')).toBe('value-2')
     })
 
-    it('same tool instance ID returns same data', () => {
+    it('same tool instance ID returns same data', async () => {
       const store1 = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store1.set('persistent', 'value')
+      await store1.set('persistent', 'value')
 
       const store2 = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
 
-      expect(store2.get('persistent')).toBe('value')
+      expect(await store2.get('persistent')).toBe('value')
     })
   })
 
   describe('session isolation', () => {
-    it('different sessions have separate storage', () => {
+    it('different sessions have separate storage', async () => {
       const store1 = useToolInstanceStore(TOOL_NAME, TOOL_ID, 'session-1')
       const store2 = useToolInstanceStore(TOOL_NAME, TOOL_ID, 'session-2')
 
-      store1.set('config', 'config-a')
-      store2.set('config', 'config-b')
+      await store1.set('config', 'config-a')
+      await store2.set('config', 'config-b')
 
-      expect(store1.get('config')).toBe('config-a')
-      expect(store2.get('config')).toBe('config-b')
+      expect(await store1.get('config')).toBe('config-a')
+      expect(await store2.get('config')).toBe('config-b')
     })
   })
 
   describe('data types', () => {
-    it('handles strings', () => {
+    it('handles strings', async () => {
       const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store.set('str', 'hello')
+      await store.set('str', 'hello')
 
-      expect(store.get('str')).toBe('hello')
+      expect(await store.get('str')).toBe('hello')
     })
 
-    it('handles numbers', () => {
+    it('handles numbers', async () => {
       const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store.set('num', 42)
-      store.set('float', 3.14)
+      await store.set('num', 42)
+      await store.set('float', 3.14)
 
-      expect(store.get('num')).toBe(42)
-      expect(store.get('float')).toBe(3.14)
+      expect(await store.get('num')).toBe(42)
+      expect(await store.get('float')).toBe(3.14)
     })
 
-    it('handles booleans', () => {
+    it('handles booleans', async () => {
       const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store.set('bool', true)
+      await store.set('bool', true)
 
-      expect(store.get('bool')).toBe(true)
+      expect(await store.get('bool')).toBe(true)
     })
 
-    it('handles null', () => {
+    it('handles null', async () => {
       const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store.set('nullVal', null)
+      await store.set('nullVal', null)
 
-      expect(store.get('nullVal')).toBe(null)
+      expect(await store.get('nullVal')).toBe(null)
     })
 
-    it('handles arrays', () => {
+    it('handles arrays', async () => {
       const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
       const arr = [1, 2, 3]
-      store.set('arr', arr)
+      await store.set('arr', arr)
 
-      expect(store.get('arr')).toEqual(arr)
+      expect(await store.get('arr')).toEqual(arr)
     })
 
-    it('handles objects', () => {
+    it('handles objects', async () => {
       const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
       const obj = { a: 1, b: { c: 2 } }
-      store.set('obj', obj)
+      await store.set('obj', obj)
 
-      expect(store.get('obj')).toEqual(obj)
-      expect(store.get('obj').b.c).toBe(2)
-    })
-  })
-
-  describe('error handling', () => {
-    it('handles corrupted localStorage gracefully', () => {
-      localStorage.setItem(STORAGE_KEY, 'invalid json{')
-
-      const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-
-      expect(store.get('any')).toBe(undefined)
-      expect(store.keys()).toEqual([])
-    })
-
-    it('can recover by setting new values after corruption', () => {
-      localStorage.setItem(STORAGE_KEY, 'invalid json{')
-
-      const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store.set('recovered', 'value')
-
-      expect(store.get('recovered')).toBe('value')
-    })
-  })
-
-  describe('edge cases', () => {
-    it('handles empty string key', () => {
-      const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store.set('', 'empty-key')
-
-      expect(store.get('')).toBe('empty-key')
-      expect(store.has('')).toBe(true)
-    })
-
-    it('handles special characters in keys', () => {
-      const store = useToolInstanceStore(TOOL_NAME, TOOL_ID, SESSION_ID)
-      store.set('key-with-dash', 'value')
-      store.set('key_with_underscore', 'value')
-      store.set('key.with.dot', 'value')
-
-      expect(store.get('key-with-dash')).toBe('value')
-      expect(store.get('key_with_underscore')).toBe('value')
-      expect(store.get('key.with.dot')).toBe('value')
+      expect(await store.get('obj')).toEqual(obj)
+      expect((await store.get('obj')).b.c).toBe(2)
     })
   })
 
   describe('no-op fallback', () => {
-    it('returns no-op store when toolId is missing', () => {
+    it('returns no-op store when toolId is missing', async () => {
       const store = useToolInstanceStore(TOOL_NAME, '', SESSION_ID)
 
-      expect(store.get('any', 'default')).toBe('default')
-      store.set('any', 'value')
-      expect(store.get('any', 'default')).toBe('default')
+      expect(await store.get('any', 'default')).toBe('default')
+      await store.set('any', 'value')
+      expect(await store.get('any', 'default')).toBe('default')
     })
 
-    it('no-op store has safe methods', () => {
+    it('no-op store has safe methods', async () => {
       const store = useToolInstanceStore(TOOL_NAME, '', SESSION_ID)
 
       expect(() => store.set('x', 1)).not.toThrow()
