@@ -78,6 +78,14 @@
             />
           </div>
         </div>
+        <!-- Code AI stdout output -->
+        <div v-if="codeAiStdout" class="code-ai-stdout">
+          <div class="stdout-header" @click="toggleStdoutExpand">
+            <span class="stdout-label">Code AI Output</span>
+            <span class="stdout-expand">{{ stdoutExpanded ? '▼' : '▶' }}</span>
+          </div>
+          <pre v-if="stdoutExpanded" class="stdout-content">{{ codeAiStdout }}</pre>
+        </div>
         <pre v-else-if="rawOutput" class="output-content">{{ formatOutput(rawOutput) }}</pre>
       </template>
     </div>
@@ -85,7 +93,7 @@
 </template>
 
 <script setup>
-import { computed, reactive } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import WebSearchProgress from './WebSearchProgress.vue'
 import CodeDisplay from './studio/CodeDisplay.vue'
 
@@ -100,6 +108,21 @@ const expandedBuildSteps = reactive({})
 function toggleBuildStep(idx) {
   expandedBuildSteps[idx] = !expandedBuildSteps[idx]
 }
+
+// Track stdout expansion (collapsed by default)
+const stdoutExpanded = ref(false)
+
+function toggleStdoutExpand() {
+  stdoutExpanded.value = !stdoutExpanded.value
+}
+
+// Extract stdout from tool object for build capability
+const codeAiStdout = computed(() => {
+  if (props.capability === 'build' && typeof props.rawOutput === 'object' && props.rawOutput?.stdout) {
+    return props.rawOutput.stdout
+  }
+  return null
+})
 
 const props = defineProps({
   capability: {
@@ -598,6 +621,54 @@ const hasContent = computed(() => {
   margin-left: 1rem;
   margin-top: 0.15rem;
   margin-bottom: 0.15rem;
+}
+
+/* Code AI stdout */
+.code-ai-stdout {
+  margin-top: 0.5rem;
+}
+
+.stdout-header {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  border-radius: 3px;
+}
+
+.stdout-header:hover {
+  background-color: var(--color-bg-hover);
+  color: var(--color-text-base);
+}
+
+.stdout-label {
+  font-weight: 600;
+}
+
+.stdout-expand {
+  font-size: 0.5rem;
+  opacity: 0.4;
+  margin-left: auto;
+}
+
+.stdout-content {
+  margin: 0;
+  padding: 0.6rem;
+  background-color: var(--color-bg-page);
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 250px;
+  overflow-y: auto;
+  color: var(--color-text-base);
+  border-top: 1px solid var(--color-border-subtle);
 }
 
 </style>

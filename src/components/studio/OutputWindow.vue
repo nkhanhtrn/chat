@@ -124,6 +124,11 @@
           @compile-error="handleCompileError"
         />
         <ToolRenderer v-else :tool="window.content" />
+        <!-- Code AI Output for tools (only shown when edit panel is open) -->
+        <details v-if="window.content.stdout && showEditPanel" class="tool-stdout-details">
+          <summary>Code AI Output</summary>
+          <pre class="tool-stdout-value">{{ window.content.stdout }}</pre>
+        </details>
       </div>
 
       <!-- Code Result -->
@@ -149,9 +154,6 @@
           :model-value="useThinkingMode"
           @update:model-value="toggleThinkingMode"
         />
-        <span v-if="showThinkingWarning" class="thinking-warning">
-          ⚠️ Reasoning AI not configured in Settings
-        </span>
       </div>
       <div class="edit-input-row">
         <input
@@ -206,7 +208,6 @@ import InlineEdit from '../InlineEdit.vue'
 import CodeDisplay from './CodeDisplay.vue'
 import ThinkingModeToggle from './ThinkingModeToggle.vue'
 import { parseChartOption } from '../../utils/chart.js'
-import { isCodeApiConfigured } from '../../services/codeApi.js'
 
 const props = defineProps({
   window: { type: Object, required: true },
@@ -215,7 +216,7 @@ const props = defineProps({
   hasHistory: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['close', 'minimize', 'clone', 'update:position', 'update:size', 'update:title', 'bring-to-front', 'edit-window', 'go-back', 'refresh'])
+const emit = defineEmits(['close', 'minimize', 'clone', 'update:position', 'update:size', 'update:title', 'bring-to-front', 'edit-window', 'go-back', 'refresh', 'tool-error'])
 
 const windowRef = ref(null)
 const isDragging = ref(false)
@@ -245,24 +246,14 @@ const useThinkingMode = ref(false)
 
 const EDIT_THINKING_STORAGE_KEY = 'edit-thinking-mode'
 
-// Check if Reasoning AI is configured (async, so we track it)
-const codeApiConfigured = ref(false)
-
-// Check Reasoning AI configuration when edit panel opens
-watch(showEditPanel, async (isOpen) => {
+// Load thinking mode state from localStorage when edit panel opens
+watch(showEditPanel, (isOpen) => {
   if (isOpen) {
-    codeApiConfigured.value = await isCodeApiConfigured()
-
-    // Load thinking mode state from localStorage
     const stored = localStorage.getItem(EDIT_THINKING_STORAGE_KEY)
     if (stored !== null) {
       useThinkingMode.value = stored === 'true'
     }
   }
-})
-
-const showThinkingWarning = computed(() => {
-  return useThinkingMode.value && !codeApiConfigured.value
 })
 
 function toggleThinkingMode(value) {
@@ -274,16 +265,19 @@ function submitEdit() {
   if (!editPrompt.value.trim() || isEditing.value) return
 
   isEditing.value = true
+  const currentPrompt = editPrompt.value.trim()
+  editPrompt.value = '' // Clear prompt immediately
+
   emit('edit-window', {
     windowId: props.window.id,
     windowType: props.window.type,
     currentContent: props.window.content,
-    prompt: editPrompt.value.trim(),
+    prompt: currentPrompt,
     useThinkingMode: useThinkingMode.value,
     onDone: () => {
-      editPrompt.value = ''
-      showEditPanel.value = false
       isEditing.value = false
+      // Keep edit panel open - don't close it
+      // User must click edit button again to close
       // Don't reset useThinkingMode - keep it for next edit
     }
   })
@@ -409,10 +403,18 @@ function handleWindowClick() {
   emit('bring-to-front')
 }
 
-// Handle compile error from broken tool - log and close the window
-function handleCompileError() {
-  const toolName = props.window.content?.name || props.window.title || 'Unknown tool'
-  console.warn(`[OutputWindow] Removing broken tool: "${toolName}" due to compilation error`)
+// Handle compile error from broken tool - log and emit error event
+function handleCompileError(errorDetails) {
+  const toolName = errorDetails?.toolName || props.window.content?.name || props.window.title || 'Unknown tool'
+  const errorMsg = errorDetails?.error || 'Compilation error'
+  console.warn(`[OutputWindow] Tool error: "${toolName}" - ${errorMsg}`)
+
+  // Emit error event for parent to handle (add to chat, etc.)
+  emit('tool-error', {
+    toolName,
+    error: errorMsg
+  })
+
   emit('close')
 }
 
@@ -1080,5 +1082,58 @@ onUnmounted(() => {
 .refresh-btn:hover {
   background-color: var(--color-info-subtle, #dbeafe);
   color: var(--color-info, #3b82f6);
+}
+
+/* Tool stdout details */
+.tool-stdout-details {
+  flex-shrink: 0;
+  max-height: 200px;
+  overflow: auto;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 6px;
+  margin-top: 0.5rem;
+}
+
+.tool-stdout-details summary {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background-color: var(--color-bg-hover);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.tool-stdout-details summary:hover {
+  background-color: var(--color-bg-elevated);
+}
+
+.tool-stdout-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.tool-stdout-details summary::before {
+  content: '▶ ';
+  font-size: 0.6rem;
+  margin-right: 0.3rem;
+}
+
+.tool-stdout-details[open] summary::before {
+  content: '▼ ';
+}
+
+.tool-stdout-value {
+  margin: 0;
+  padding: 0.75rem;
+  background-color: var(--color-code-block-bg, #1a1a2e);
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #a6e3a1;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-top: 1px solid var(--color-border-subtle);
 }
 </style>

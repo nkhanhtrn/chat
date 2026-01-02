@@ -4,7 +4,7 @@
       <div class="error-content">
         <strong>Tool Error:</strong> {{ error }}
       </div>
-      <button class="remove-broken-btn" @click="emit('compile-error')" title="Remove this broken tool">
+      <button class="remove-broken-btn" @click="emit('compile-error', { toolName: toolName, error: error })" title="Remove this broken tool">
         Remove Tool
       </button>
     </div>
@@ -65,6 +65,17 @@ onErrorCaptured((err) => {
   error.value = err.message
   console.error('Component error:', err)
   return false
+})
+
+// Track compilation errors and emit event
+watch(() => error.value, (newError) => {
+  if (newError) {
+    // Emit error with details
+    emit('compile-error', {
+      toolName: props.toolName,
+      error: newError
+    })
+  }
 })
 
 // Watch for code changes and recompile

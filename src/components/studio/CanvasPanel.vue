@@ -34,6 +34,7 @@
         @edit-window="(data) => $emit('edit-window', data)"
         @go-back="$emit('go-back', window.id)"
         @refresh="$emit('refresh', window.id)"
+        @tool-error="(error) => $emit('tool-error', error)"
       />
     </TransitionGroup>
 
@@ -59,7 +60,7 @@ defineProps({
   hasHistoryFn: { type: Function, default: () => () => false }
 })
 
-defineEmits(['close-window', 'minimize-window', 'clone-window', 'restore-window', 'update-position', 'update-size', 'update-title', 'bring-to-front', 'edit-window', 'open-tool', 'go-back', 'refresh'])
+defineEmits(['close-window', 'minimize-window', 'clone-window', 'restore-window', 'update-position', 'update-size', 'update-title', 'bring-to-front', 'edit-window', 'open-tool', 'go-back', 'refresh', 'tool-error'])
 
 const canvasRef = ref(null)
 const toolLibraryRef = ref(null)

@@ -943,6 +943,76 @@ describe('useStudioCanvas', () => {
 
         expect(canvas.hasHistory(window.id)).toBe(false)
       })
+
+      it('should skip saving to history when saveToHistory is false', () => {
+        const canvas = useStudioCanvas()
+        const window = canvas.addWindow({
+          messageId: 'msg-1',
+          type: 'tool',
+          content: { name: 'Test', code: 'v1' }
+        })
+
+        // Update with saveToHistory=false (like during streaming)
+        canvas.updateWindowContent(window.id, { code: 'v2' }, false)
+
+        expect(canvas.hasHistory(window.id)).toBe(false)
+      })
+
+      it('should save to history when saveToHistory is true (explicit)', () => {
+        const canvas = useStudioCanvas()
+        const window = canvas.addWindow({
+          messageId: 'msg-1',
+          type: 'tool',
+          content: { name: 'Test', code: 'v1' }
+        })
+
+        // Update with saveToHistory=true (explicit)
+        canvas.updateWindowContent(window.id, { code: 'v2' }, true)
+
+        expect(canvas.hasHistory(window.id)).toBe(true)
+        const previous = canvas.popFromHistory(window.id)
+        expect(previous).toEqual({ name: 'Test', code: 'v1' })
+      })
+
+      it('should allow multiple updates without history (streaming scenario)', () => {
+        const canvas = useStudioCanvas()
+        const window = canvas.addWindow({
+          messageId: 'msg-1',
+          type: 'tool',
+          content: { name: 'Test', code: 'v1', stdout: '' }
+        })
+
+        // Simulate streaming - get current content and spread it (like StudioChat.vue does)
+        let currentContent = { ...window.content }
+
+        // Update with stdout accumulation - spreading currentContent preserves all fields
+        currentContent.stdout = 'chunk1'
+        canvas.updateWindowContent(window.id, { ...currentContent }, false)
+
+        currentContent.stdout = 'chunk1chunk2'
+        canvas.updateWindowContent(window.id, { ...currentContent }, false)
+
+        currentContent.stdout = 'chunk1chunk2chunk3'
+        canvas.updateWindowContent(window.id, { ...currentContent }, false)
+
+        // No history should be created during streaming
+        expect(canvas.hasHistory(window.id)).toBe(false)
+
+        // Now save the final version with history (simulating onComplete)
+        // First save to history with the state before the final update
+        canvas.pushToHistory(window.id, currentContent)
+        // Then update with new code
+        currentContent.code = 'v2'
+        canvas.updateWindowContent(window.id, { ...currentContent }, false)
+
+        expect(canvas.hasHistory(window.id)).toBe(true)
+        // Only one history entry, not 4
+        const historyEntry = canvas.popFromHistory(window.id)
+        expect(historyEntry.name).toBe('Test')
+        expect(historyEntry.code).toBe('v1')
+        expect(historyEntry.stdout).toBe('chunk1chunk2chunk3')
+        expect(canvas.hasHistory(window.id)).toBe(false)
+      })
     })
   })
 

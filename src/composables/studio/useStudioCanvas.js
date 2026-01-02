@@ -291,14 +291,14 @@ function updateWindowTitle(windowId, title) {
 /**
  * Update window content (preserves existing name/emoji/id on edit, saves tools to IndexedDB)
  */
-function updateWindowContent(windowId, content) {
+function updateWindowContent(windowId, content, saveToHistory = true) {
   const index = windows.value.findIndex(w => w.id === windowId)
   if (index !== -1) {
     const window = windows.value[index]
     const existingContent = window.content
 
-    // Save current content to history before updating (only for tools)
-    if (window.type === 'tool') {
+    // Save current content to history before updating (only for tools, if requested)
+    if (saveToHistory && window.type === 'tool') {
       pushToHistory(windowId, existingContent)
     }
 

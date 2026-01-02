@@ -7,7 +7,7 @@ import './theme/colors-sepia.css'
 import { createPinia } from 'pinia'
 import { useChatStore } from './stores/chat.js'
 import router from './router'
-import { initializeTheme, applySettings, exposeGlobally } from './services/settings.js'
+import { initializeTheme, applySettings, exposeGlobally, exposeEchartsGlobally } from './services/settings.js'
 import { initializeFirebase } from './services/firebase.js'
 import { loadUserSettings, subscribeToUserSettings, flushSettings } from './services/firestore.js'
 
@@ -46,6 +46,9 @@ initializeTheme()
 
 // Expose theme functions globally for components to use
 exposeGlobally()
+
+// Make echarts available globally for tool components
+exposeEchartsGlobally()
 
 const app = createApp(App)
 const pinia = createPinia()

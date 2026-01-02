@@ -110,6 +110,20 @@ export const exposeGlobally = () => {
   window.__getTheme = getTheme
 }
 
+/**
+ * Make echarts available globally for tool components to use
+ * This allows tools built by Code AI to access echarts without importing
+ */
+export async function exposeEchartsGlobally() {
+  try {
+    const echarts = await import('echarts')
+    window.echarts = echarts
+    console.log('[ECharts] Exposed globally as window.echarts')
+  } catch (e) {
+    console.warn('[ECharts] Failed to expose globally:', e)
+  }
+}
+
 // For testing purposes - reset internal state
 export const _resetForTesting = () => {
   currentTheme = 'light'

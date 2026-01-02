@@ -533,15 +533,34 @@ export function useStudioChat() {
         case 'tool': {
           const buildCapability = new BuildCapability()
           const codeOrSpec = currentContent.type === 'vue-sfc' ? currentContent.code : currentContent
-          result = await buildCapability.editTool(
+
+          // Accumulate stdout for this edit operation
+          let accumulatedStdout = ''
+
+          // Create a wrapper callback for streaming stdout
+          const wrappedStdoutCallback = (chunk) => {
+            accumulatedStdout += chunk
+            if (onStdoutChunk) {
+              onStdoutChunk(chunk)
+            }
+          }
+
+          const toolResult = await buildCapability.editTool(
             codeOrSpec,
             prompt,
             modelId,
             provider,
             config,
             localAbortController.signal,
-            useThinkingMode
+            useThinkingMode,
+            wrappedStdoutCallback
           )
+
+          // Include accumulated stdout in result
+          result = {
+            ...toolResult,
+            stdout: toolResult.stdout || accumulatedStdout
+          }
           break
         }
 

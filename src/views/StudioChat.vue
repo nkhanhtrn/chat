@@ -76,6 +76,7 @@
       @open-tool="canvas.addWindow"
       @go-back="handleGoBack"
       @refresh="handleRefresh"
+      @tool-error="handleToolError"
       />
     </SlideTransition>
   </AppLayout>
@@ -308,17 +309,26 @@ async function handleEditWindow({ windowId, windowType, currentContent, prompt, 
         selectedModel: modelSelection.selectedModel.value
       },
       onStdoutChunk: (chunk) => {
-        // Stream stdout to window in real-time for codeResult type
-        if (windowType === 'codeResult') {
+        // Stream stdout to window in real-time for codeResult and tool types (no history during streaming)
+        if (windowType === 'codeResult' || windowType === 'tool') {
           currentStdout += chunk
           canvas.updateWindowContent(windowId, {
             ...currentContent,
             stdout: currentStdout
-          })
+          }, false) // Skip history during streaming
         }
       },
       onComplete: (updatedContent) => {
-        canvas.updateWindowContent(windowId, updatedContent)
+        // Ensure stdout is preserved from streaming
+        const finalContent = {
+          ...updatedContent,
+          stdout: updatedContent.stdout || currentStdout
+        }
+        // Save to history before final update (only for tools)
+        if (windowType === 'tool') {
+          canvas.pushToHistory(windowId, currentContent)
+        }
+        canvas.updateWindowContent(windowId, finalContent, false) // Already saved history above
         setTimeout(() => {
           canvasPanelRef.value?.reloadToolLibrary()
         }, 100)
@@ -368,6 +378,26 @@ function handleRefresh(windowId) {
       canvasPanelRef.value?.reloadToolLibrary()
     }, 100)
   }
+}
+
+// Handle tool error - add error message to chat
+function handleToolError(errorDetails) {
+  const { toolName, error } = errorDetails
+  console.error('[StudioChat] Tool error:', toolName, error)
+
+  // Add error message to chat
+  chat.messages.value.push({
+    id: `error-${Date.now()}`,
+    role: 'system',
+    content: `❌ Tool Error: "${toolName}"\n\n${error}`,
+    isError: true,
+    timestamp: Date.now()
+  })
+
+  // Scroll to bottom to show the error
+  nextTick(() => {
+    chat.scrollToBottom()
+  })
 }
 
 // Handle send message

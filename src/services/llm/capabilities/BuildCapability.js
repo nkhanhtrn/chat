@@ -4,7 +4,8 @@
 
 import { BaseCapability, createPipeData } from './BaseCapability.js'
 import { saveTool, syncToolsFromCloud } from '../../indexedDB.js'
-import { isCodeApiConfigured, generateCode as callCodeApi } from '../../codeApi.js'
+import { generateCode as callCodeApi } from '../../codeApi.js'
+import { detectUrls, fetchUrlContent, cleanHtml } from '../../urlFetcher.js'
 
 const DESIGN_GUIDE = `DESIGN SYSTEM - These classes are DEFINED GLOBALLY in style.css. Use them directly, DO NOT redefine in your component:
 
@@ -46,6 +47,19 @@ IMPORTANT:
 - Use .content for scrollable areas (it has flex: 1 and overflow: auto)
 - Keep header/footer compact with flex-shrink: 0
 
+CHARTING with ECHARTS (v6.0.0):
+- For charts/graphs, use ECharts library (available globally as 'echarts')
+- ECharts is pre-loaded - DO NOT import it, just use it directly
+- Basic ECharts usage:
+  * Create a ref: chartRef: null
+  * Initialize: onMounted() { this.chartInstance = echarts.init(this.$refs.chartRef) }
+  * Set options: this.chartInstance.setOption({ ...option object... })
+  * Clean up: onUnmounted() { this.chartInstance?.dispose() }
+  * Update: this.chartInstance.setOption(newOption, true) for updates
+- ECharts option structure: { title, tooltip, legend, xAxis, yAxis, series, ... }
+- Series types: 'line', 'bar', 'pie', 'scatter', 'area', etc.
+- Keep charts responsive: this.chartInstance.resize() on container resize
+
 EXAMPLE:
 <template>
   <div class="tool-container">
@@ -79,6 +93,64 @@ export default {
 <style scoped>
 /* Only add custom styles for tool-specific needs, all utility classes already exist */
 </style>
+
+CHART EXAMPLE (using ECharts):
+<template>
+  <div class="tool-container">
+    <div class="header">
+      <h3>Sales Chart</h3>
+      <button class="btn" @click="refresh">Refresh</button>
+    </div>
+    <div class="content">
+      <div ref="chartRef" style="width:100%;height:100%"></div>
+    </div>
+  </div>
+</template>
+
+<script>
+export default {
+  data() {
+    return {
+      chartInstance: null,
+      chartData: [120, 200, 150, 80, 70, 110, 130]
+    }
+  },
+  mounted() {
+    // Initialize ECharts
+    this.chartInstance = echarts.init(this.$refs.chartRef)
+    this.updateChart()
+    // Handle resize
+    window.addEventListener('resize', this.handleResize)
+  },
+  beforeUnmount() {
+    window.removeEventListener('resize', this.handleResize)
+    this.chartInstance?.dispose()
+  },
+  methods: {
+    updateChart() {
+      const option = {
+        title: { text: 'Weekly Sales' },
+        tooltip: { trigger: 'axis' },
+        xAxis: { type: 'category', data: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] },
+        yAxis: { type: 'value' },
+        series: [{
+          data: this.chartData,
+          type: 'line',
+          smooth: true
+        }]
+      }
+      this.chartInstance.setOption(option)
+    },
+    refresh() {
+      this.chartData = this.chartData.map(() => Math.floor(Math.random() * 200))
+      this.updateChart()
+    },
+    handleResize() {
+      this.chartInstance?.resize()
+    }
+  }
+}
+</script>
 `
 
 const SYSTEM_PROMPT = `Build interactive Vue 3 components using Options API (data, methods, computed). Use plain JavaScript (NOT TypeScript). NEVER import or use 'ref' from Vue - only use Options API. Style to fill container.
@@ -173,7 +245,8 @@ ${userMessage}`,
         throw new Error(result.stderr || 'Reasoning AI returned no code')
       }
 
-      return result.code
+      // Return both code and stdout for later display
+      return { code: result.code, stdout: result.stdout || '' }
     } else {
       // Thinking mode OFF - use LLM
       let prompt = `Build: "${userMessage}"`
@@ -190,27 +263,59 @@ ${userMessage}`,
     }
   }
 
-  async editTool(currentCode, request, modelId, provider, config, signal, useThinkingMode = false) {
-    const isCodeApiReady = await isCodeApiConfigured()
+  async editTool(currentCode, request, modelId, provider, config, signal, useThinkingMode = false, onStdoutChunk = null) {
+    // Detect and fetch URLs from the request
+    const urls = detectUrls(request)
+    let urlContent = ''
+    if (urls.length > 0) {
+      try {
+        // Fetch all URLs in parallel
+        const fetchPromises = urls.map(async url => {
+          try {
+            const raw = await fetchUrlContent(url)
+            return { url, content: cleanHtml(raw), success: true }
+          } catch (error) {
+            console.warn(`Failed to fetch URL ${url}:`, error.message)
+            return { url, content: `[Error fetching ${url}: ${error.message}]`, success: false }
+          }
+        })
+        const results = await Promise.all(fetchPromises)
+
+        // Format URL contents for the prompt
+        urlContent = results
+          .map(r => `--- Content from ${r.url} ---\n${r.content}\n--- End of ${r.url} ---`)
+          .join('\n\n')
+      } catch (error) {
+        console.warn('Error fetching URLs:', error)
+        urlContent = `[Error fetching URLs: ${error.message}]`
+      }
+    }
+
+    // Build the enhanced request with URL content
+    const enhancedRequest = urlContent
+      ? `${request}\n\nReferenced content:\n${urlContent}`
+      : request
 
     // Use Reasoning AI if thinking mode is enabled
-    if (useThinkingMode && isCodeApiReady) {
-
+    if (useThinkingMode) {
       const result = await callCodeApi({
         initial_code: currentCode,
         edit_prompt: `Edit this Vue 3 component per the user's request. Use plain JavaScript (NOT TypeScript). NEVER import or use 'ref' from Vue - only use Options API (data, methods, computed, watch, etc.).
 
 ${DESIGN_GUIDE}
 
-User Request: ${request}`,
-        output_path: `tools/${crypto.randomUUID()}.vue`
+User Request: ${enhancedRequest}`,
+        output_path: `tools/${crypto.randomUUID()}.vue`,
+        onStdoutChunk,
+        signal
       })
 
       if (!result.success || !result.code) {
         throw new Error(result.stderr || 'Reasoning AI returned no code')
       }
 
-      return this._parseOutput(result.code)
+      // Pass full result to _parseOutput to preserve stdout
+      return this._parseOutput({ code: result.code, stdout: result.stdout || '' })
     }
 
     const systemPrompt = `Modify the Vue component per the user's request.
@@ -222,7 +327,7 @@ Also consolidate the code:
 - Use CSS variables for colors: --color-bg-base, --color-bg-elevated, --color-text-base, --color-text-muted, --color-border-base, --color-primary, --color-bg-input, --color-border-input, --color-bg-button
 Output only the complete, consolidated code.`
 
-    const userPrompt = `Component:\n${currentCode}\n\nRequest: ${request}`
+    const userPrompt = `Component:\n${currentCode}\n\nRequest: ${enhancedRequest}`
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -234,7 +339,16 @@ Output only the complete, consolidated code.`
   }
 
   _parseOutput(raw) {
-    let code = raw.trim()
+    // Handle both string input and object input with { code, stdout }
+    let stdout = ''
+    let code = raw
+
+    if (typeof raw === 'object' && raw !== null) {
+      stdout = raw.stdout || ''
+      code = raw.code
+    }
+
+    code = code.trim()
 
     // Remove markdown fences
     if (code.startsWith('```')) {
@@ -279,7 +393,7 @@ Output only the complete, consolidated code.`
       name = this._extractComponentName(code)
     }
 
-    return { code, type: 'vue-sfc', name, emoji }
+    return { code, type: 'vue-sfc', name, emoji, stdout }
   }
 
   _extractComponentName(code) {

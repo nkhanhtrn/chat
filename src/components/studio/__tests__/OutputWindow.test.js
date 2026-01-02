@@ -546,8 +546,10 @@ describe('OutputWindow', () => {
       emitted.onDone()
       await wrapper.vm.$nextTick()
 
-      // Panel should be closed and input cleared
-      expect(wrapper.find('.edit-panel').exists()).toBe(false)
+      // Panel should remain open (user must click edit button to close)
+      expect(wrapper.find('.edit-panel').exists()).toBe(true)
+      // Input should be cleared
+      expect(wrapper.vm.editPrompt).toBe('')
     })
 
     it('should not emit when input is whitespace only', async () => {
@@ -675,7 +677,7 @@ describe('OutputWindow', () => {
           expect(typeof emitted.onDone).toBe('function')
         })
 
-        it('should close panel and reset when onDone is called', async () => {
+        it('should keep panel open and reset isEditing when onDone is called', async () => {
           wrapper = mount(OutputWindow, { props })
           await wrapper.find('.edit-btn').trigger('click')
 
@@ -686,7 +688,12 @@ describe('OutputWindow', () => {
           emitted.onDone()
           await wrapper.vm.$nextTick()
 
-          expect(wrapper.find('.edit-panel').exists()).toBe(false)
+          // Panel should remain open (user must click edit button to close)
+          expect(wrapper.find('.edit-panel').exists()).toBe(true)
+          // isEditing should be reset
+          expect(wrapper.vm.isEditing).toBe(false)
+          // Input should be cleared
+          expect(wrapper.vm.editPrompt).toBe('')
         })
       })
     })
@@ -729,11 +736,6 @@ describe('OutputWindow', () => {
     beforeEach(() => {
       // Clear localStorage before each test in this suite
       localStorage.clear()
-
-      // Mock isCodeApiConfigured to return true by default
-      vi.mock('../../../services/codeApi.js', () => ({
-        isCodeApiConfigured: vi.fn(() => Promise.resolve(true))
-      }))
     })
 
     it('should render ThinkingModeToggle in edit panel', async () => {
@@ -811,6 +813,59 @@ describe('OutputWindow', () => {
       await wrapper.find('.edit-btn').trigger('click')
 
       expect(wrapper.vm.useThinkingMode).toBe(false)
+    })
+
+    describe('Code AI stdout visibility', () => {
+      const toolWithStdout = {
+        id: 'window-stdout',
+        type: 'tool',
+        content: {
+          id: 'test-tool',
+          name: 'Test Tool',
+          code: '<template><div>Test</div></template><script>export default {}</script>',
+          stdout: 'Thinking...\nMore output...'
+        },
+        position: { x: 0, y: 0 },
+        size: { width: 400, height: 300 },
+        title: 'Test Tool',
+        minimized: false
+      }
+
+      it('should not show Code AI stdout when edit panel is closed', async () => {
+        wrapper = mount(OutputWindow, {
+          props: { window: toolWithStdout, containerRect: { width: 1000, height: 800 } }
+        })
+
+        expect(wrapper.find('.tool-stdout-details').exists()).toBe(false)
+      })
+
+      it('should show Code AI stdout when edit panel is open', async () => {
+        wrapper = mount(OutputWindow, {
+          props: { window: toolWithStdout, containerRect: { width: 1000, height: 800 } }
+        })
+
+        // Open edit panel
+        await wrapper.find('.edit-btn').trigger('click')
+
+        expect(wrapper.find('.tool-stdout-details').exists()).toBe(true)
+        expect(wrapper.find('.tool-stdout-value').text()).toContain('Thinking...')
+      })
+
+      it('should hide Code AI stdout when edit panel is closed', async () => {
+        wrapper = mount(OutputWindow, {
+          props: { window: toolWithStdout, containerRect: { width: 1000, height: 800 } }
+        })
+
+        // Open edit panel
+        await wrapper.find('.edit-btn').trigger('click')
+        expect(wrapper.find('.tool-stdout-details').exists()).toBe(true)
+
+        // Close edit panel by clicking edit button again
+        await wrapper.find('.edit-btn').trigger('click')
+        await wrapper.vm.$nextTick()
+
+        expect(wrapper.find('.tool-stdout-details').exists()).toBe(false)
+      })
     })
   })
 })

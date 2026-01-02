@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { BuildCapability } from '../BuildCapability.js'
+import * as urlFetcher from '../../../urlFetcher.js'
 
 vi.mock('../../../indexedDB.js', () => ({
   saveTool: vi.fn().mockImplementation(async (tool) => ({
@@ -9,6 +10,16 @@ vi.mock('../../../indexedDB.js', () => ({
     updatedAt: Date.now()
   })),
   syncToolsFromCloud: vi.fn().mockResolvedValue(0)
+}))
+
+// Mock urlFetcher functions
+vi.mock('../../../urlFetcher.js', () => ({
+  detectUrls: vi.fn((text) => {
+    const urls = text.match(/https?:\/\/[^\s<>"{}|\\^`[\]]+/gi) || []
+    return [...new Set(urls)]
+  }),
+  fetchUrlContent: vi.fn(),
+  cleanHtml: vi.fn((html) => html.replace(/<[^>]*>/g, '').trim())
 }))
 
 describe('BuildCapability', () => {
@@ -353,29 +364,6 @@ export default {
       expect(userMessage.content).toContain('simplify')
     })
 
-    it('should log token estimate', async () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
-      const currentCode = '<template><div>Test</div></template>\n<script>export default {}</script>'
-      const newCode = '<template><div>New</div></template>\n<script>export default {}</script>'
-
-      mockProvider.sendMessage.mockResolvedValue(newCode)
-
-      await capability.editTool(
-        currentCode,
-        'update',
-        'test-model',
-        mockProvider,
-        {},
-        new AbortController().signal
-      )
-
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[BuildCapability] Edit tokens:')
-      )
-
-      consoleSpy.mockRestore()
-    })
-
     it('should return parsed Vue component', async () => {
       const newCode = `<template>
   <div>Updated</div>
@@ -401,6 +389,114 @@ export default {
       expect(result.type).toBe('vue-sfc')
       expect(result.code).toContain('Updated')
       expect(result.code).toContain('count')
+    })
+
+    describe('URL fetching in edit requests', () => {
+      it('should detect and fetch URLs from edit request', async () => {
+        const newCode = '<template><div>New</div></template>\n<script>export default {}</script>'
+        mockProvider.sendMessage.mockResolvedValue(newCode)
+
+        const url = 'https://example.com/data'
+        const urlContent = '<div>Sample data from website</div>'
+        urlFetcher.detectUrls.mockReturnValue([url])
+        urlFetcher.fetchUrlContent.mockResolvedValue(urlContent)
+        urlFetcher.cleanHtml.mockReturnValue('Sample data from website')
+
+        await capability.editTool(
+          '<template><div>Old</div></template>\n<script>export default {}</script>',
+          'update based on https://example.com/data',
+          'test-model',
+          mockProvider,
+          {},
+          new AbortController().signal
+        )
+
+        expect(urlFetcher.fetchUrlContent).toHaveBeenCalledWith(url)
+        expect(urlFetcher.cleanHtml).toHaveBeenCalledWith(urlContent)
+
+        const callArgs = mockProvider.sendMessage.mock.calls[0]
+        const userMessage = callArgs[1].find(m => m.role === 'user')
+        expect(userMessage.content).toContain('Referenced content:')
+        expect(userMessage.content).toContain('example.com')
+        expect(userMessage.content).toContain('Sample data from website')
+      })
+
+      it('should fetch multiple URLs in parallel', async () => {
+        const newCode = '<template><div>New</div></template>\n<script>export default {}</script>'
+        mockProvider.sendMessage.mockResolvedValue(newCode)
+
+        const urls = ['https://example.com/data1', 'https://example.com/data2']
+        const contents = ['Content 1', 'Content 2']
+        urlFetcher.detectUrls.mockReturnValue(urls)
+        urlFetcher.fetchUrlContent.mockImplementation((url) => {
+          const index = urls.indexOf(url)
+          return Promise.resolve(contents[index])
+        })
+        urlFetcher.cleanHtml.mockImplementation((html) => html)
+
+        await capability.editTool(
+          '<template><div>Old</div></template>\n<script>export default {}</script>',
+          'combine data from https://example.com/data1 and https://example.com/data2',
+          'test-model',
+          mockProvider,
+          {},
+          new AbortController().signal
+        )
+
+        expect(urlFetcher.fetchUrlContent).toHaveBeenCalledTimes(2)
+        expect(urlFetcher.fetchUrlContent).toHaveBeenCalledWith(urls[0])
+        expect(urlFetcher.fetchUrlContent).toHaveBeenCalledWith(urls[1])
+
+        const callArgs = mockProvider.sendMessage.mock.calls[0]
+        const userMessage = callArgs[1].find(m => m.role === 'user')
+        expect(userMessage.content).toContain('Content 1')
+        expect(userMessage.content).toContain('Content 2')
+      })
+
+      it('should handle URL fetch errors gracefully', async () => {
+        const newCode = '<template><div>New</div></template>\n<script>export default {}</script>'
+        mockProvider.sendMessage.mockResolvedValue(newCode)
+
+        const url = 'https://example.com/data'
+        urlFetcher.detectUrls.mockReturnValue([url])
+        urlFetcher.fetchUrlContent.mockRejectedValue(new Error('Network error'))
+
+        await capability.editTool(
+          '<template><div>Old</div></template>\n<script>export default {}</script>',
+          'use https://example.com/data',
+          'test-model',
+          mockProvider,
+          {},
+          new AbortController().signal
+        )
+
+        const callArgs = mockProvider.sendMessage.mock.calls[0]
+        const userMessage = callArgs[1].find(m => m.role === 'user')
+        expect(userMessage.content).toContain('Error fetching')
+      })
+
+      it('should not modify request when no URLs detected', async () => {
+        const newCode = '<template><div>New</div></template>\n<script>export default {}</script>'
+        mockProvider.sendMessage.mockResolvedValue(newCode)
+
+        urlFetcher.detectUrls.mockReturnValue([])
+
+        await capability.editTool(
+          '<template><div>Old</div></template>\n<script>export default {}</script>',
+          'just add a button',
+          'test-model',
+          mockProvider,
+          {},
+          new AbortController().signal
+        )
+
+        expect(urlFetcher.fetchUrlContent).not.toHaveBeenCalled()
+
+        const callArgs = mockProvider.sendMessage.mock.calls[0]
+        const userMessage = callArgs[1].find(m => m.role === 'user')
+        expect(userMessage.content).toContain('just add a button')
+        expect(userMessage.content).not.toContain('Referenced content:')
+      })
     })
   })
 

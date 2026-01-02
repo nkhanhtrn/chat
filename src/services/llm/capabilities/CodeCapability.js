@@ -13,7 +13,7 @@
  */
 
 import { BaseCapability, createPipeData } from './BaseCapability.js'
-import { isCodeApiConfigured, generateCode as callCodeApi } from '../../codeApi.js'
+import { generateCode as callCodeApi } from '../../codeApi.js'
 
 const EXECUTOR_SYSTEM_PROMPT = `You are a JavaScript code generator. You receive instructions and write clean, executable JavaScript code.
 
@@ -417,7 +417,7 @@ Fix the code to work correctly. Write only the corrected JavaScript code:`
    */
   async editCode(currentCode, request, modelId, provider, config, signal, useThinkingMode = false, onStdoutChunk = null) {
     // Use Code API if thinking mode is enabled
-    if (useThinkingMode && await isCodeApiConfigured()) {
+    if (useThinkingMode) {
       const result = await callCodeApi({
         initial_code: currentCode,
         edit_prompt: `Edit this JavaScript code (NOT TypeScript). ${request}`,
