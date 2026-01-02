@@ -60,6 +60,9 @@
           <span class="cursor"></span>
         </div>
       </div>
+
+      <!-- URL attachments preview -->
+      <UrlAttachmentsPreview :urls="attachments.detectedUrls.value" size="small" />
     </div>
 
     <!-- Input Area -->
@@ -101,13 +104,16 @@
 <script setup>
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import MarkdownRenderer from './MarkdownRenderer.vue'
+import UrlAttachmentsPreview from './UrlAttachmentsPreview.vue'
 import { useStudioChat } from '../composables/studio/useStudioChat.js'
 import { useModelSelection } from '../composables/useModelSelection.js'
+import { useAttachments } from '../composables/useAttachments.js'
 
 const STORAGE_KEY = 'side-playground-model-selection'
 
 const chat = useStudioChat({ storageKey: 'side-playground-chat-history' })
 const modelSelection = useModelSelection()
+const attachments = useAttachments()
 
 const inputText = ref('')
 const messagesContainerRef = ref(null)
@@ -152,6 +158,11 @@ watch(messages, () => {
     }
   })
 }, { deep: true })
+
+// Watch input text for URL detection
+watch(inputText, (newText) => {
+  attachments.watchInputForUrls(inputText)
+})
 
 // Watch model selection changes and save to localStorage
 watch(
@@ -225,11 +236,7 @@ async function handleSend() {
 
   await chat.sendMessage({
     inputText: currentInputText,
-    attachmentSnapshot: {
-      uploadedFiles: [],
-      detectedUrls: [],
-      fetchedContents: []
-    },
+    attachmentSnapshot: attachments.getSnapshot(),
     twoModelMode: false,
     modelSelection: {
       selectedModel: modelSelection.selectedModel.value

@@ -1,11 +1,8 @@
 /**
  * URL Fetcher Service
- * Detects URLs in text and fetches their content via backend proxy
+ * Generic proxy service for fetching URLs through backend
  *
- * Fallback chain:
- * 1. Custom fetch URL (if set in settings)
- * 2. Local server (API_BASE_URL)
- * 3. Public CORS proxy services
+ * Requires a custom fetch URL to be set in settings.
  */
 
 import { loadUserSettings } from './firestore.js'
@@ -13,14 +10,13 @@ import { loadUserSettings } from './firestore.js'
 // URL detection regex - matches http/https URLs
 const URL_REGEX = /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi
 
-// Backend API URL (configure based on environment)
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
-
-
 // Cache for settings to avoid repeated lookups
 let settingsCache = null
 let settingsCacheTimestamp = 0
 const SETTINGS_CACHE_TTL = 30000 // 30 seconds
+
+// Cached proxy base URL (updated when settings change)
+let cachedProxyBaseUrl = null
 
 /**
  * Get the custom fetch URL from settings (cached)
@@ -46,9 +42,198 @@ export async function getCustomFetchUrl() {
 /**
  * Invalidate the settings cache (call when settings change)
  */
-export function invalidateFetchSettingsCache() {
+export async function invalidateFetchSettingsCache() {
   settingsCache = null
   settingsCacheTimestamp = 0
+  // Update cached proxy URL
+  const url = await getCustomFetchUrl()
+  cachedProxyBaseUrl = url
+}
+
+/**
+ * Get the proxy base URL (synchronous, uses cached value)
+ * @returns {string|null} - Proxy URL or null if not configured
+ */
+export function getProxyBaseUrl() {
+  return cachedProxyBaseUrl || null
+}
+
+/**
+ * Initialize the proxy base URL cache on module load
+ * This ensures the cache is populated on app startup, not just when settings change
+ */
+getCustomFetchUrl().then(url => {
+  cachedProxyBaseUrl = url
+}).catch(() => {
+  // Silently fail - proxy is optional for AI services
+})
+
+/**
+ * Get proxied image URL for display
+ * @param {string} imageUrl - Original image URL
+ * @returns {string|null} - Proxied URL or null if proxy not configured
+ */
+export function getProxiedImageUrl(imageUrl) {
+  if (!imageUrl) return null
+  const proxyUrl = getProxyBaseUrl()
+  if (!proxyUrl) return null
+  return `${proxyUrl}/fetchBinaryContent?url=${encodeURIComponent(imageUrl)}`
+}
+
+/**
+ * Get proxied URL for text/HTML content
+ * @param {string} url - Original URL
+ * @returns {string|null} - Proxied URL or null if proxy not configured
+ */
+export function getProxiedTextUrl(url) {
+  const proxyUrl = getProxyBaseUrl()
+  if (!proxyUrl) return null
+  return `${proxyUrl}/fetchWebsiteContent?url=${encodeURIComponent(url)}`
+}
+
+/**
+ * Get proxied URL for browsing
+ * @param {string} url - Original URL
+ * @returns {string|null} - Proxied URL or null if proxy not configured
+ */
+export function getProxiedBrowseUrl(url) {
+  const proxyUrl = getProxyBaseUrl()
+  if (!proxyUrl) return null
+  return `${proxyUrl}/browse?url=${encodeURIComponent(url)}`
+}
+
+/**
+ * Get proxied URL for binary download
+ * @param {string} url - Original URL
+ * @returns {string|null} - Proxied URL or null if proxy not configured
+ */
+export function getProxiedBinaryUrl(url) {
+  const proxyUrl = getProxyBaseUrl()
+  if (!proxyUrl) return null
+  return `${proxyUrl}/browseBinary?url=${encodeURIComponent(url)}`
+}
+
+/**
+ * Fetch text/HTML content through proxy
+ * @param {string} url - URL to fetch
+ * @returns {Promise<string>} - Text content
+ */
+export async function fetchTextContent(url) {
+  const proxyUrl = getProxiedTextUrl(url)
+  if (!proxyUrl) {
+    throw new Error('Proxy URL not configured. Please set a custom fetch URL in settings.')
+  }
+
+  const response = await fetch(proxyUrl)
+
+  if (!response.ok) {
+    throw new Error(`Proxy error: HTTP ${response.status}`)
+  }
+
+  const contentType = response.headers.get('content-type') || ''
+
+  if (contentType.includes('application/json')) {
+    const data = await response.json()
+    return data.content || data.html || data.data || JSON.stringify(data)
+  }
+
+  return await response.text()
+}
+
+/**
+ * Fetch binary content through proxy
+ * @param {string} url - URL to fetch
+ * @param {Function} onProgress - Progress callback (0-100)
+ * @returns {Promise<ArrayBuffer>} - Binary data
+ */
+export async function fetchBinaryContent(url, onProgress = null) {
+  const proxyUrl = getProxiedBinaryUrl(url)
+  if (!proxyUrl) {
+    throw new Error('Proxy URL not configured. Please set a custom fetch URL in settings.')
+  }
+
+  onProgress?.(10)
+
+  const response = await fetch(proxyUrl)
+  onProgress?.(50)
+
+  if (!response.ok) {
+    throw new Error(`Binary proxy error: HTTP ${response.status}`)
+  }
+
+  const contentType = response.headers.get('content-type') || ''
+
+  // Check if we got HTML (might be a download page)
+  if (contentType.includes('text/html') || contentType.includes('html')) {
+    const html = await response.text()
+
+    // Try to find direct download link in the page
+    const actualUrl = findDirectDownloadLink(html, url)
+
+    if (actualUrl) {
+      const fileProxyUrl = getProxiedBinaryUrl(actualUrl)
+      if (!fileProxyUrl) {
+        throw new Error('Proxy URL not configured. Please set a custom fetch URL in settings.')
+      }
+
+      const fileResponse = await fetch(fileProxyUrl)
+      onProgress?.(80)
+
+      if (!fileResponse.ok) {
+        throw new Error(`File download error: HTTP ${fileResponse.status}`)
+      }
+
+      return await fileResponse.arrayBuffer()
+    } else {
+      throw new Error('Could not find direct download link')
+    }
+  }
+
+  onProgress?.(80)
+  const buffer = await response.arrayBuffer()
+  onProgress?.(100)
+
+  return buffer
+}
+
+/**
+ * Find direct download link in a download page HTML
+ * @param {string} html - HTML content
+ * @param {string} pageUrl - Page URL
+ * @returns {string|null} - Direct download URL or null
+ */
+function findDirectDownloadLink(html, pageUrl) {
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(html, 'text/html')
+
+  // Look for direct file links
+  const fileExtensions = ['.epub', '.pdf', '.mobi', '.azw3', '.djvu']
+  for (const ext of fileExtensions) {
+    const links = doc.querySelectorAll(`a[href$="${ext}"]`)
+    if (links.length > 0) {
+      let href = links[0].getAttribute('href')
+      if (href.startsWith('/')) {
+        const origin = new URL(pageUrl).origin
+        return `${origin}${href}`
+      }
+      return href
+    }
+  }
+
+  // Look for links with "download" in text/href
+  const downloadLinks = doc.querySelectorAll('a[href*="download"], a[href*="get"]')
+  for (const link of downloadLinks) {
+    const href = link.getAttribute('href')
+    if (href) {
+      if (href.startsWith('/')) {
+        const origin = new URL(pageUrl).origin
+        return `${origin}${href}`
+      }
+      return href
+    }
+  }
+
+  return null
 }
 
 /**
@@ -68,11 +253,13 @@ export function detectUrls(text) {
  * - Plain text: raw HTML content
  *
  * @param {string} url - URL to fetch
- * @param {string} customFetchUrl - Custom fetch service URL
+ * @param {string} customFetchUrl - Custom fetch service base URL (domain only)
  * @returns {Promise<string>}
  */
 async function fetchViaCustomService(url, customFetchUrl) {
-  const fetchUrl = `${customFetchUrl}?url=${encodeURIComponent(url)}`
+  // Remove trailing slash and append the endpoint path
+  const baseUrl = customFetchUrl.replace(/\/$/, '')
+  const fetchUrl = `${baseUrl}/fetchWebsiteContent?url=${encodeURIComponent(url)}`
   const response = await fetch(fetchUrl)
 
   if (!response.ok) {
@@ -98,31 +285,6 @@ async function fetchViaCustomService(url, customFetchUrl) {
 }
 
 /**
- * Fetch via local server
- * @param {string} url - URL to fetch
- * @returns {Promise<string>}
- */
-async function fetchViaLocalServer(url) {
-  const response = await fetch(`${API_BASE_URL}/api/fetch`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url })
-  })
-
-  if (!response.ok) {
-    throw new Error(`Local server error: HTTP ${response.status}`)
-  }
-
-  const data = await response.json()
-
-  if (!data.success) {
-    throw new Error(data.error || 'Local server fetch failed')
-  }
-
-  return data.content
-}
-
-/**
  * Clean HTML by removing scripts, styles, and other non-content elements
  * @param {string} html - Raw HTML content
  * @returns {string} - Clean text content
@@ -145,44 +307,28 @@ export function cleanHtml(html) {
 }
 
 /**
- * Fetch URL content with fallback chain:
- * 1. Custom fetch URL (if set)
- * 2. Local server
+ * Fetch URL content through custom fetch service.
+ * Requires a custom fetch URL to be configured in settings.
  *
  * @param {string} url - URL to fetch
  * @returns {Promise<string>} - Fetched content (raw HTML)
+ * @throws {Error} If no custom fetch URL is configured or fetch fails
  */
 export async function fetchUrlContent(url) {
-  const errors = []
-  let content = null
-
-  // 1. Try custom fetch URL first (if set)
   const customFetchUrl = await getCustomFetchUrl()
-  if (customFetchUrl) {
-    try {
-      content = await fetchViaCustomService(url, customFetchUrl)
-    } catch (error) {
-      console.warn('Custom fetch service failed:', error.message)
-      errors.push(`Custom service: ${error.message}`)
-    }
+
+  if (!customFetchUrl) {
+    throw new Error(
+      'No custom fetch URL configured. Please set a custom fetch URL in settings to fetch external content.'
+    )
   }
 
-  // 2. Try local server
-  if (!content) {
-    try {
-      content = await fetchViaLocalServer(url)
-    } catch (error) {
-      console.warn('Local server failed:', error.message)
-      errors.push(`Local server: ${error.message}`)
-    }
+  try {
+    return await fetchViaCustomService(url, customFetchUrl)
+  } catch (error) {
+    console.warn('Custom fetch service failed:', error.message)
+    throw new Error(`Failed to fetch ${url}: ${error.message}`)
   }
-
-  // All methods failed
-  if (!content) {
-    throw new Error(`All fetch methods failed for ${url}. Errors: ${errors.join('; ')}`)
-  }
-
-  return content
 }
 
 /**

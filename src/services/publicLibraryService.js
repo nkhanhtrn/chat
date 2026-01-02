@@ -1,35 +1,16 @@
 /**
  * Public Library Service
  * Frontend service for searching and downloading books from Public Library
- * Uses the existing web fetch proxy system for all HTTP requests
+ * Uses the generic urlFetcher proxy system for all HTTP requests
  */
 
-import { getCustomFetchUrl } from './urlFetcher.js'
-import { invalidateFetchSettingsCache as invalidateUrlFetcherCache } from './urlFetcher.js'
+import { getProxyBaseUrl, invalidateFetchSettingsCache as invalidateUrlFetcherCache, getProxiedImageUrl as _getProxiedImageUrl, getProxiedTextUrl, getProxiedBrowseUrl, fetchBinaryContent } from './urlFetcher.js'
 import { loadUserSettings } from './firestore.js'
-
-const DEFAULT_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
 // Cache for public library base URL to avoid repeated lookups
 let publicLibraryBaseUrlCache = null
 let publicLibraryBaseUrlCacheTimestamp = 0
 const SETTINGS_CACHE_TTL = 30000 // 30 seconds
-
-// Cached proxy base URL (updated when settings change)
-let cachedProxyBaseUrl = DEFAULT_API_URL
-
-// Initialize proxy URL from settings
-getCustomFetchUrl().then(url => {
-  if (url) cachedProxyBaseUrl = url
-})
-
-/**
- * Get the proxy base URL (synchronous, uses cached value)
- * @returns {string}
- */
-function getProxyBaseUrl() {
-  return cachedProxyBaseUrl
-}
 
 /**
  * Get the public library base URL from settings (cached)
@@ -56,12 +37,10 @@ export async function getPublicLibraryBaseUrl() {
 }
 
 /**
- * Invalidate the settings cache and update our cached proxy URL
+ * Invalidate the settings cache
  */
 export async function invalidateFetchSettingsCache() {
-  invalidateUrlFetcherCache()
-  const url = await getCustomFetchUrl()
-  cachedProxyBaseUrl = url || DEFAULT_API_URL
+  await invalidateUrlFetcherCache()
   // Also invalidate public library base URL cache
   publicLibraryBaseUrlCache = null
   publicLibraryBaseUrlCacheTimestamp = 0
@@ -87,18 +66,16 @@ export async function getPublicLibraryApiKey() {
  * @returns {string} - Proxied URL
  */
 export function proxyImageUrl(imageUrl) {
-  if (!imageUrl) return null
-  return `${getProxyBaseUrl()}/fetchBinaryContent?url=${encodeURIComponent(imageUrl)}`
+  return _getProxiedImageUrl(imageUrl)
 }
 
 /**
- * Get proxied image URL for display
+ * Get proxied image URL for display (re-export for backward compatibility)
  * @param {string} imageUrl - Original image URL
  * @returns {string|null} - Proxied URL or null
  */
 export function getProxiedImageUrl(imageUrl) {
-  if (!imageUrl) return null
-  return `${getProxyBaseUrl()}/fetchBinaryContent?url=${encodeURIComponent(imageUrl)}`
+  return _getProxiedImageUrl(imageUrl)
 }
 
 /**
@@ -125,7 +102,7 @@ export async function searchBooks(query) {
   try {
     // Add API key to URL if available
     const urlWithKey = apiKey ? `${searchUrl}&key=${encodeURIComponent(apiKey)}` : searchUrl
-    const proxyUrl = `${getProxyBaseUrl()}/fetchWebsiteContent?url=${encodeURIComponent(urlWithKey)}`
+    const proxyUrl = getProxiedTextUrl(urlWithKey)
     const response = await fetch(proxyUrl)
 
     if (!response.ok) {
@@ -358,7 +335,7 @@ export async function getBookDownloadLinks(detailUrl) {
 
   try {
     // Use the browse proxy to fetch the detail page
-    const proxyUrl = `${getProxyBaseUrl()}/browse?url=${encodeURIComponent(detailUrl)}`
+    const proxyUrl = getProxiedBrowseUrl(detailUrl)
     console.log('[PublicLibrary] Browse proxy URL:', proxyUrl)
 
     const response = await fetch(proxyUrl)
@@ -599,158 +576,13 @@ export async function downloadBookFile(downloadUrl, onProgress = null) {
   }
 
   console.log('[PublicLibrary] Starting download:', downloadUrl)
-  onProgress?.(10)
 
   try {
-    // Use the browse binary proxy for downloading EPUB files
-    const proxyUrl = `${getProxyBaseUrl()}/browseBinary?url=${encodeURIComponent(downloadUrl)}`
-    console.log('[PublicLibrary] Browse binary proxy URL:', proxyUrl)
-
-    const response = await fetch(proxyUrl)
-    onProgress?.(50)
-    console.log('[PublicLibrary] Response status:', response.status)
-
-    if (!response.ok) {
-      throw new Error(`Binary proxy error: HTTP ${response.status}`)
-    }
-
-    const contentType = response.headers.get('content-type') || ''
-    console.log('[PublicLibrary] Response content-type:', contentType)
-
-    // Check if we got HTML (might be a download page) or actual file
-    if (contentType.includes('text/html') || contentType.includes('html')) {
-      console.log('[PublicLibrary] Got HTML response, might be a download page')
-      const html = await response.text()
-
-      // Try to find the actual download link in the page
-      const actualUrl = findDirectDownloadLink(html, downloadUrl)
-      console.log('[PublicLibrary] Direct download link found:', actualUrl)
-
-      if (actualUrl) {
-        // Fetch the actual file via browse binary proxy
-        const fileProxyUrl = `${getProxyBaseUrl()}/browseBinary?url=${encodeURIComponent(actualUrl)}`
-        console.log('[PublicLibrary] Fetching actual file via:', fileProxyUrl)
-
-        const fileResponse = await fetch(fileProxyUrl)
-        onProgress?.(80)
-
-        if (!fileResponse.ok) {
-          throw new Error(`File download error: HTTP ${fileResponse.status}`)
-        }
-
-        const buffer = await fileResponse.arrayBuffer()
-        console.log('[PublicLibrary] Downloaded buffer size:', buffer.byteLength)
-        return buffer
-      } else {
-        throw new Error('Could not find direct download link')
-      }
-    } else {
-      // Direct file download
-      onProgress?.(80)
-      const buffer = await response.arrayBuffer()
-      console.log('[PublicLibrary] Direct download buffer size:', buffer.byteLength)
-      return buffer
-    }
+    return await fetchBinaryContent(downloadUrl, onProgress)
   } catch (error) {
     console.error('[PublicLibrary] Download error:', error)
     throw new Error(`Download failed: ${error.message}`)
-  } finally {
-    onProgress?.(100)
   }
-}
-
-/**
- * Fetch a URL through the existing proxy system
- * @param {string} url - URL to fetch
- * @returns {Promise<Response>} - Fetch response
- */
-async function fetchViaProxy(url) {
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
-
-  // Use proxy - Public Library uses JS-based bot detection
-  // so direct browser fetch won't work reliably
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/fetch`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url })
-    })
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`)
-    }
-
-    const data = await response.json()
-
-    if (!data.success) {
-      throw new Error(data.error || 'Proxy fetch failed')
-    }
-
-    // Return a mock Response object with the content
-    return {
-      ok: true,
-      headers: {
-        get: (name) => {
-          if (name === 'content-type') {
-            // Try to determine content type from URL
-            if (url.includes('.epub')) return 'application/epub+zip'
-            return 'text/html'
-          }
-          return null
-        }
-      },
-      arrayBuffer: async () => {
-        // If content is text, we need to convert to ArrayBuffer
-        if (typeof data.content === 'string') {
-          const encoder = new TextEncoder()
-          return encoder.encode(data.content).buffer
-        }
-        throw new Error('Expected text content from proxy')
-      },
-      text: async () => {
-        return data.content || ''
-      }
-    }
-  } catch (error) {
-    throw error
-  }
-}
-
-/**
- * Find direct download link in a download page HTML
- * @param {string} html - HTML content
- * @param {string} pageUrl - Page URL
- * @returns {string|null} - Direct download URL or null
- */
-function findDirectDownloadLink(html, pageUrl) {
-  const parser = new DOMParser()
-  const doc = parser.parseFromString(html, 'text/html')
-
-  // Look for direct .epub links
-  const epubLinks = doc.querySelectorAll('a[href$=".epub"]')
-  if (epubLinks.length > 0) {
-    const href = epubLinks[0].getAttribute('href')
-    if (href.startsWith('/')) {
-      const origin = new URL(pageUrl).origin
-      return `${origin}${href}`
-    }
-    return href
-  }
-
-  // Look for links with "download" in text/href
-  const downloadLinks = doc.querySelectorAll('a[href*="download"], a[href*="get"]')
-  for (const link of downloadLinks) {
-    const href = link.getAttribute('href')
-    if (href) {
-      if (href.startsWith('/')) {
-        const origin = new URL(pageUrl).origin
-        return `${origin}${href}`
-      }
-      return href
-    }
-  }
-
-  return null
 }
 
 /**
@@ -803,7 +635,7 @@ export async function fastDownloadBook(detailUrl, onProgress = null) {
   onProgress?.(10)
 
   // Fetch the fast download info via proxy (only for the API call)
-  const proxyUrl = `${getProxyBaseUrl()}/fetchWebsiteContent?url=${encodeURIComponent(fastDownloadUrl)}`
+  const proxyUrl = getProxiedTextUrl(fastDownloadUrl)
   const response = await fetch(proxyUrl)
 
   // Get response text for parsing

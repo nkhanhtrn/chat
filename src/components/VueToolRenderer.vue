@@ -13,87 +13,53 @@
 </template>
 
 <script setup>
-import { ref, watch, shallowRef, defineComponent, onErrorCaptured, onUnmounted, provide, nextTick, watch as vueWatch, compile as compileTemplate } from 'vue'
+import { watch, onErrorCaptured, onUnmounted } from 'vue'
 import { useToolInstanceStore } from '../composables/studio/useToolInstanceStore.js'
+import { useDynamicCompiler } from '../composables/useDynamicCompiler.js'
+import { createProxiedFetch as createFetchProxy } from '../utils/toolFetch.js'
+import { getProxyBaseUrl } from '../services/urlFetcher.js'
+
+// Debug logging - only in development, not in tests
+const isDev = import.meta.env.DEV
+const isTest = import.meta.env.MODE === 'test' || (typeof process !== 'undefined' && process.env?.VITEST === 'true')
+const shouldLog = isDev && !isTest
+
+function debugLog(...args) {
+  if (shouldLog) {
+    console.log(...args)
+  }
+}
 
 const props = defineProps({
   code: { type: String, required: true },
-  toolId: { type: String, default: () => `inst-${Date.now()}-${Math.random().toString(36).slice(2, 9)}` },  // Falls back to random ID for tests
-  sessionId: { type: String, default: 'default' },  // Session ID for isolation
+  toolId: { type: String, default: () => `inst-${Date.now()}-${Math.random().toString(36).slice(2, 9)}` },
+  sessionId: { type: String, default: 'default' },
   toolName: { type: String, default: 'unknown' }
 })
 
 const emit = defineEmits(['compile-error'])
 
-const compiledComponent = shallowRef(null)
-const error = ref(null)
-const styleEl = ref(null)
-
-// Generate unique scope ID for this instance
-const scopeId = `tool-${Math.random().toString(36).slice(2, 9)}`
-
-/**
- * Validate Vue template syntax before compilation
- * Returns true if valid, throws error with details if invalid
- */
-function validateTemplate(template) {
-  if (!template || !template.trim()) {
-    throw new Error('Empty template')
-  }
-
-  try {
-    // Use Vue's compile to check for syntax errors
-    const result = compileTemplate(template)
-    return true
-  } catch (e) {
-    // Provide helpful error message with the template line number if available
-    let message = `Template syntax error: ${e.message}`
-    if (e.loc) {
-      message += ` (line ${e.loc.start.line}, column ${e.loc.start.column})`
-    }
-    throw new Error(message)
-  }
+// Create proxied fetch factory
+function createProxiedFetch() {
+  return createFetchProxy({
+    getProxyBaseUrl,
+    fetch: window.fetch,
+    debugLog
+  })
 }
 
-// Scope CSS selectors to prevent style leakage
-function scopeStyles(css) {
-  const scopeAttr = `[data-tool-scope="${scopeId}"]`
-
-  // Split by rules while preserving @-rules
-  return css.replace(
-    /([^{}@]+)(\{[^{}]*\})/g,
-    (match, selectors, block) => {
-      // Don't scope @keyframes content or @font-face
-      if (selectors.trim().startsWith('@')) {
-        return match
-      }
-
-      // Scope each selector
-      const scopedSelectors = selectors
-        .split(',')
-        .map(sel => {
-          sel = sel.trim()
-          if (!sel) return sel
-
-          // Handle :root, html, body - scope them to our container
-          if (sel === ':root' || sel === 'html' || sel === 'body') {
-            return scopeAttr
-          }
-
-          // Handle * selector
-          if (sel === '*') {
-            return `${scopeAttr} *`
-          }
-
-          // Prefix other selectors
-          return `${scopeAttr} ${sel}`
-        })
-        .join(', ')
-
-      return scopedSelectors + block
-    }
-  )
-}
+// Use the dynamic compiler composable with injected dependencies
+const {
+  compiledComponent,
+  error,
+  scopeId,
+  compile: compileCode,
+  cleanup: cleanupCompiler
+} = useDynamicCompiler({
+  storeFactory: useToolInstanceStore,
+  fetchFactory: createProxiedFetch,
+  debugLog
+})
 
 onErrorCaptured((err) => {
   error.value = err.message
@@ -101,300 +67,14 @@ onErrorCaptured((err) => {
   return false
 })
 
-function compile(code) {
-  error.value = null
+// Watch for code changes and recompile
+watch(() => props.code, (newCode) => {
+  compileCode(newCode, props.toolName, props.toolId, props.sessionId)
+}, { immediate: true })
 
-  // Clean up old styles
-  if (styleEl.value) {
-    styleEl.value.remove()
-    styleEl.value = null
-  }
-
-  // Don't try to compile empty code
-  if (!code || !code.trim()) {
-    error.value = 'Empty tool code'
-    return
-  }
-
-  try {
-    const { template, script, style } = parse(code)
-
-    if (!template) {
-      error.value = 'No <template> found in tool code'
-      return
-    }
-
-    // Validate template syntax before building component
-    try {
-      validateTemplate(template)
-    } catch (validationErr) {
-      error.value = validationErr.message
-      console.error('Template validation error:', validationErr)
-      compiledComponent.value = null
-      return
-    }
-
-    // Inject scoped styles
-    if (style) {
-      try {
-        styleEl.value = document.createElement('style')
-        styleEl.value.textContent = scopeStyles(style)
-        document.head.appendChild(styleEl.value)
-      } catch (styleErr) {
-        console.warn('Failed to inject styles:', styleErr)
-        // Non-fatal, continue without styles
-      }
-    }
-
-    // Build component from Options API
-    try {
-      compiledComponent.value = buildComponent(template, script)
-    } catch (buildErr) {
-      error.value = `Component build error: ${buildErr.message}`
-      console.error('Component build error:', buildErr)
-      compiledComponent.value = null
-    }
-  } catch (e) {
-    error.value = `Parse error: ${e.message}`
-    console.error('Compile error:', e)
-    compiledComponent.value = null
-  }
-}
-
-function parse(code) {
-  const template = code.match(/<template>([\s\S]*?)<\/template>/)?.[1]?.trim() || ''
-  const script = code.match(/<script[^>]*>([\s\S]*?)<\/script>/)?.[1]?.trim() || ''
-  const style = code.match(/<style[^>]*>([\s\S]*?)<\/style>/)?.[1]?.trim() || ''
-  return { template, script, style }
-}
-
-function buildComponent(template, script) {
-  if (!script) {
-    // Template-only component - wrap in try-catch for template compilation errors
-    try {
-      return defineComponent({ template })
-    } catch (e) {
-      throw new Error(`Template compilation failed: ${e.message}`)
-    }
-  }
-
-  // Extract export default { ... }
-  const match = script.match(/export\s+default\s+(\{[\s\S]*\})/)
-
-  if (match) {
-    try {
-      const options = new Function(`return ${match[1]}`)()
-
-      // Wrap the data() function to merge saved data before initial render
-      const originalData = options.data
-      const wrappedData = originalData
-        ? function () {
-            const initialData = typeof originalData === 'function' ? originalData.call(this) : originalData
-            // Merge saved data into initial data
-            const persist = useToolInstanceStore(props.toolName, props.toolId, props.sessionId)
-            const savedData = persist.getState()
-            console.log('[VueToolRenderer] Restoring data for', props.toolName, props.toolId, { initialData, savedData })
-            return { ...initialData, ...savedData }
-          }
-        : () => ({})
-
-      // Create wrapper component that injects persist API and auto-saves data
-      // Wrap defineComponent in try-catch for template compilation errors
-      try {
-        return defineComponent({
-          ...options,
-          data: wrappedData,
-          template,
-          setup() {
-            // Create persist store for this instance
-            const persist = useToolInstanceStore(props.toolName, props.toolId, props.sessionId)
-
-            console.log('[VueToolRenderer] Options API setup - toolName:', props.toolName, 'toolId:', props.toolId, 'persist:', persist)
-
-            // Run original setup if present
-            const originalResult = options.setup ? options.setup() : {}
-
-            // Inject persist API and instance ID into the component (use non-reserved names)
-            return {
-              ...originalResult,
-              persistApi: persist,
-              toolInstanceId: props.toolId
-            }
-          },
-          mounted() {
-            console.log('[VueToolRenderer] Options API mounted - persistApi:', this.persistApi, 'toolInstanceId:', this.toolInstanceId)
-            // Set up auto-save watchers for all data properties
-            setupAutoSaveWatchers(this, this.persistApi)
-            // Call original mounted if present
-            if (options.mounted) {
-              return options.mounted.call(this)
-            }
-          }
-        })
-      } catch (templateErr) {
-        throw new Error(`Template compilation failed: ${templateErr.message}`)
-      }
-    } catch (e) {
-      console.error('Options parse error:', e)
-      throw new Error(`Script parsing failed: ${e.message}`)
-    }
-  }
-
-  // Fallback: try to evaluate as setup-style code
-  return buildSetupComponent(template, script)
-}
-
-function buildSetupComponent(template, script) {
-  // Strip imports
-  const clean = script.replace(/import\s*\{[^}]*\}\s*from\s*['"]vue['"]\s*;?/g, '')
-
-  // Wrap in setup function - return all declared variables
-  const names = [...script.matchAll(/\b(?:const|let|var|function)\s+([a-zA-Z_$]\w*)/g)].map(m => m[1])
-  const filtered = names.filter(n => !['ref', 'reactive', 'computed', 'watch', 'onMounted'].includes(n))
-
-  const setupCode = `
-    const { ref, reactive, computed, watch, watchEffect, onMounted, onUnmounted } = Vue;
-    ${clean}
-    return { ${filtered.join(', ')} };
-  `
-
-  try {
-    const setupFn = new Function('Vue', setupCode)
-    const Vue = { ref, reactive, computed, watch, watchEffect: () => {}, onMounted: () => {}, onUnmounted: () => {} }
-
-    // Wrap defineComponent in try-catch for template compilation errors
-    try {
-      return defineComponent({
-        setup() {
-          // Create persist store for this instance
-          const persist = useToolInstanceStore(props.toolName, props.toolId, props.sessionId)
-
-          // Get saved data BEFORE running setup
-          const savedData = persist.getState()
-
-          console.log('[VueToolRenderer] Composition API - saved data:', savedData)
-
-          // Run the original setup function
-          const originalResult = setupFn(Vue)
-
-          // Restore saved data into refs/reactive objects BEFORE setting up watchers
-          Object.keys(savedData).forEach(key => {
-            if (key === 'persistApi' || key === 'toolInstanceId') return
-            const value = originalResult[key]
-            if (value && typeof value === 'object') {
-              if ('value' in value) {
-                // It's a ref - restore its value
-                console.log('[VueToolRenderer] Restoring ref', key, '=', savedData[key])
-                value.value = savedData[key]
-              } else {
-                // It's a reactive object - merge saved data
-                console.log('[VueToolRenderer] Restoring reactive object', key, savedData[key])
-                Object.assign(value, savedData[key])
-              }
-            }
-          })
-
-          // Inject persist API and instance ID into the component (use non-reserved names)
-          const result = {
-            ...originalResult,
-            persistApi: persist,
-            toolInstanceId: props.toolId
-          }
-
-          // Set up auto-save watchers AFTER restoration (to avoid race condition)
-          nextTick(() => {
-            setupAutoSaveForReactive(originalResult, persist)
-          })
-
-          return result
-        },
-        template
-      })
-    } catch (templateErr) {
-      throw new Error(`Template compilation failed: ${templateErr.message}`)
-    }
-  } catch (e) {
-    console.error('Setup error:', e)
-    throw new Error(`Script execution failed: ${e.message}`)
-  }
-}
-
-// Need to import these for the setup fallback
-import { reactive, computed, watchEffect } from 'vue'
-
-/**
- * Set up auto-save watchers for Options API component data properties
- */
-function setupAutoSaveWatchers(componentInstance, persist) {
-  if (!componentInstance?.$data || !persist) {
-    console.log('[VueToolRenderer] setupAutoSaveWatchers skipped - no data or persist', { hasData: !!componentInstance?.$data, hasPersist: !!persist })
-    return
-  }
-
-  console.log('[VueToolRenderer] Setting up auto-save watchers for', Object.keys(componentInstance.$data).filter(k => !k.startsWith('$') && !k.startsWith('_')))
-
-  // Watch all data properties and auto-save changes
-  Object.keys(componentInstance.$data).forEach(key => {
-    // Skip internal properties
-    if (key.startsWith('$') || key.startsWith('_')) return
-
-    vueWatch(
-      () => componentInstance.$data[key],
-      (newValue) => {
-        console.log('[VueToolRenderer] Auto-saving', key, '=', newValue)
-        persist?.set?.(key, newValue)
-      },
-      { deep: true }
-    )
-  })
-}
-
-/**
- * Set up auto-save for Composition API reactive state
- */
-function setupAutoSaveForReactive(setupResult, persist) {
-  if (!setupResult || typeof setupResult !== 'object') return
-
-  console.log('[VueToolRenderer] Setting up Composition API watchers for', Object.keys(setupResult).filter(k => k !== 'persistApi' && k !== 'toolInstanceId'))
-
-  // Watch all reactive values from setup
-  Object.keys(setupResult).forEach(key => {
-    const value = setupResult[key]
-
-    // Skip persistApi and toolInstanceId
-    if (key === 'persistApi' || key === 'toolInstanceId') return
-
-    // Check if it's a ref or reactive object
-    if (value && typeof value === 'object') {
-      if ('value' in value) {
-        // It's a ref - watch it
-        vueWatch(
-          () => value.value,
-          (newValue) => {
-            console.log('[VueToolRenderer] Composition API auto-saving', key, '=', newValue)
-            persist.set(key, newValue)
-          },
-          { deep: true }
-        )
-      } else {
-        // It's a reactive object - watch it deeply
-        vueWatch(
-          () => ({ ...value }),
-          (newValue) => {
-            console.log('[VueToolRenderer] Composition API auto-saving object', key, newValue)
-            persist.set(key, newValue)
-          },
-          { deep: true }
-        )
-      }
-    }
-  })
-}
-
-watch(() => props.code, compile, { immediate: true })
-
+// Clean up on unmount
 onUnmounted(() => {
-  if (styleEl.value) styleEl.value.remove()
+  cleanupCompiler()
 })
 </script>
 

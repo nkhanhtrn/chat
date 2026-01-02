@@ -8,10 +8,22 @@ import {
   invalidateFetchSettingsCache
 } from '../publicLibraryService.js'
 
-// Mock the urlFetcher module
+// Mock the urlFetcher module with dynamic proxy URL
+let cachedProxyBaseUrl = 'http://localhost:3001'
+
 vi.mock('../urlFetcher.js', () => ({
-  getCustomFetchUrl: vi.fn(() => Promise.resolve('http://localhost:3001')),
-  invalidateFetchSettingsCache: vi.fn()
+  getCustomFetchUrl: vi.fn(() => Promise.resolve(cachedProxyBaseUrl)),
+  invalidateFetchSettingsCache: vi.fn(async () => {
+    // Will be called by tests - the mock value should be set via beforeEach
+    // We need to await and update cachedProxyBaseUrl based on getCustomFetchUrl mock
+  }),
+  getProxyBaseUrl: vi.fn(() => cachedProxyBaseUrl),
+  getProxiedImageUrl: vi.fn((url) => url ? `${cachedProxyBaseUrl}/fetchBinaryContent?url=${encodeURIComponent(url)}` : null),
+  getProxiedTextUrl: vi.fn((url) => `${cachedProxyBaseUrl}/fetchWebsiteContent?url=${encodeURIComponent(url)}`),
+  getProxiedBrowseUrl: vi.fn((url) => `${cachedProxyBaseUrl}/browse?url=${encodeURIComponent(url)}`),
+  getProxiedBinaryUrl: vi.fn((url) => `${cachedProxyBaseUrl}/fetchBinaryContent?url=${encodeURIComponent(url)}`),
+  fetchTextContent: vi.fn(),
+  fetchBinaryContent: vi.fn()
 }))
 
 // Mock the firestore module
@@ -32,6 +44,7 @@ global.fetch = mockFetch
 describe('publicLibraryService', () => {
   beforeEach(() => {
     // Reset the cached proxy URL before each test
+    cachedProxyBaseUrl = MOCK_PROXY_URL
     invalidateFetchSettingsCache()
     vi.mocked(getCustomFetchUrl).mockResolvedValue(MOCK_PROXY_URL)
     vi.mocked(loadUserSettings).mockResolvedValue({

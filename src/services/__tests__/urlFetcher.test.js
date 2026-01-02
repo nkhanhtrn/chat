@@ -4,7 +4,14 @@ import {
   fetchUrlContent,
   fetchMultipleUrls,
   formatFetchedContentForPrompt,
-  invalidateFetchSettingsCache
+  invalidateFetchSettingsCache,
+  getProxyBaseUrl,
+  getProxiedImageUrl,
+  getProxiedTextUrl,
+  getProxiedBrowseUrl,
+  getProxiedBinaryUrl,
+  fetchTextContent,
+  fetchBinaryContent
 } from '../urlFetcher.js'
 
 // Mock the firestore module
@@ -71,50 +78,34 @@ describe('urlFetcher', () => {
 
   describe('fetchUrlContent', () => {
     let originalFetch
-    let consoleLogSpy
     let consoleWarnSpy
 
-    beforeEach(() => {
+    beforeEach(async () => {
       originalFetch = global.fetch
-      consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
       consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
       // Reset settings cache before each test
-      invalidateFetchSettingsCache()
-      // Default: no custom fetch URL
-      loadUserSettings.mockResolvedValue(null)
+      await invalidateFetchSettingsCache()
     })
 
     afterEach(() => {
       global.fetch = originalFetch
       vi.clearAllMocks()
-      consoleLogSpy.mockRestore()
       consoleWarnSpy.mockRestore()
     })
 
-    it('should fetch content via local server when no custom URL is set', async () => {
+    it('should throw error when no custom fetch URL is configured', async () => {
       loadUserSettings.mockResolvedValue(null)
+      await invalidateFetchSettingsCache()
 
-      global.fetch = vi.fn().mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ success: true, content: 'Hello from backend' })
-      })
-
-      const content = await fetchUrlContent('https://example.com')
-      expect(content).toBe('Hello from backend')
-      expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/fetch'),
-        expect.objectContaining({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: expect.stringContaining('https://example.com')
-        })
-      )
+      await expect(fetchUrlContent('https://example.com'))
+        .rejects.toThrow('No custom fetch URL configured')
     })
 
-    it('should try custom fetch URL first when set', async () => {
-      loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://custom-fetch.example.com/api/fetch' })
+    it('should fetch content via custom fetch URL when set', async () => {
+      loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://custom-fetch.example.com' })
+      await invalidateFetchSettingsCache()
 
-      global.fetch = vi.fn().mockResolvedValueOnce({
+      global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         headers: {
           get: (name) => name === 'content-type' ? 'application/json' : null
@@ -124,85 +115,19 @@ describe('urlFetcher', () => {
 
       const content = await fetchUrlContent('https://example.com')
       expect(content).toBe('Hello from custom service')
-      // Custom service uses GET with URL as query param
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://custom-fetch.example.com/api/fetch?url=https%3A%2F%2Fexample.com'
+        'https://custom-fetch.example.com/fetchWebsiteContent?url=https%3A%2F%2Fexample.com'
       )
     })
 
-    it('should fall back to local server when custom URL fails', async () => {
-      loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://custom-fetch.example.com/api/fetch' })
+    it('should handle custom fetch URL returning non-ok response', async () => {
+      loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://custom.com' })
+      await invalidateFetchSettingsCache()
 
-      global.fetch = vi.fn()
-        .mockRejectedValueOnce(new Error('Custom service down'))
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({ success: true, content: 'Hello from local server' })
-        })
-
-      const content = await fetchUrlContent('https://example.com')
-      expect(content).toBe('Hello from local server')
-      expect(global.fetch).toHaveBeenCalledTimes(2)
-      expect(consoleWarnSpy).toHaveBeenCalledWith('Custom fetch service failed:', 'Custom service down')
-    })
-
-    it('should throw error when all methods fail', async () => {
-      loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://custom.com/fetch' })
-
-      // Fail custom and local server
-      global.fetch = vi.fn().mockRejectedValue(new Error('All failed'))
+      global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500 })
 
       await expect(fetchUrlContent('https://example.com'))
-        .rejects.toThrow('All fetch methods failed for https://example.com')
-
-      // 1 custom + 1 local = 2
-      expect(global.fetch).toHaveBeenCalledTimes(2)
-    })
-
-    it('should cache settings and not reload on subsequent calls', async () => {
-      loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://custom.com/fetch' })
-
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        headers: { get: () => 'application/json' },
-        json: () => Promise.resolve({ success: true, content: 'Content' })
-      })
-
-      await fetchUrlContent('https://example1.com')
-      await fetchUrlContent('https://example2.com')
-
-      // loadUserSettings should only be called once due to caching
-      expect(loadUserSettings).toHaveBeenCalledTimes(1)
-    })
-
-    it('should reload settings after cache is invalidated', async () => {
-      loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://custom.com/fetch' })
-
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        headers: { get: () => 'application/json' },
-        json: () => Promise.resolve({ success: true, content: 'Content' })
-      })
-
-      await fetchUrlContent('https://example1.com')
-      invalidateFetchSettingsCache()
-      await fetchUrlContent('https://example2.com')
-
-      expect(loadUserSettings).toHaveBeenCalledTimes(2)
-    })
-
-    it('should handle custom fetch URL returning non-ok response', async () => {
-      loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://custom.com/fetch' })
-
-      global.fetch = vi.fn()
-        .mockResolvedValueOnce({ ok: false, status: 500 })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({ success: true, content: 'From local server' })
-        })
-
-      const content = await fetchUrlContent('https://example.com')
-      expect(content).toBe('From local server')
+        .rejects.toThrow('Failed to fetch https://example.com')
       expect(consoleWarnSpy).toHaveBeenCalledWith(
         'Custom fetch service failed:',
         'Custom fetch service error: HTTP 500'
@@ -210,31 +135,81 @@ describe('urlFetcher', () => {
     })
 
     it('should handle custom fetch URL returning success: false', async () => {
-      loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://custom.com/fetch' })
+      loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://custom.com' })
+      await invalidateFetchSettingsCache()
 
-      global.fetch = vi.fn()
-        .mockResolvedValueOnce({
-          ok: true,
-          headers: { get: () => 'application/json' },
-          json: () => Promise.resolve({ success: false, error: 'Rate limited' })
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({ success: true, content: 'From local server' })
-        })
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        headers: { get: () => 'application/json' },
+        json: () => Promise.resolve({ success: false, error: 'Rate limited' })
+      })
+
+      await expect(fetchUrlContent('https://example.com'))
+        .rejects.toThrow('Failed to fetch https://example.com')
+    })
+
+    it('should handle plain text response from custom fetch', async () => {
+      loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://custom.com' })
+      await invalidateFetchSettingsCache()
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        headers: { get: () => 'text/html' },
+        text: () => Promise.resolve('<html>Raw content</html>')
+      })
 
       const content = await fetchUrlContent('https://example.com')
-      expect(content).toBe('From local server')
+      expect(content).toBe('<html>Raw content</html>')
+    })
+
+    it('should cache settings and not reload on subsequent calls', async () => {
+      loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://custom.com' })
+      await invalidateFetchSettingsCache()
+
+      // Clear the mock calls after invalidateFetchSettingsCache
+      loadUserSettings.mockClear()
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        headers: { get: () => 'application/json' },
+        json: () => Promise.resolve({ success: true, content: 'Content' })
+      })
+
+      await fetchUrlContent('https://example1.com')
+      await fetchUrlContent('https://example2.com')
+
+      // loadUserSettings should not be called again due to caching
+      expect(loadUserSettings).toHaveBeenCalledTimes(0)
+    })
+
+    it('should reload settings after cache is invalidated', async () => {
+      loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://custom.com' })
+      await invalidateFetchSettingsCache()
+
+      // Clear the mock calls after initial invalidateFetchSettingsCache
+      loadUserSettings.mockClear()
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        headers: { get: () => 'application/json' },
+        json: () => Promise.resolve({ success: true, content: 'Content' })
+      })
+
+      await fetchUrlContent('https://example1.com')
+      await invalidateFetchSettingsCache()
+      await fetchUrlContent('https://example2.com')
+
+      // loadUserSettings called once during the second invalidateFetchSettingsCache
+      expect(loadUserSettings).toHaveBeenCalledTimes(1)
     })
   })
 
   describe('fetchMultipleUrls', () => {
     let originalFetch
 
-    beforeEach(() => {
+    beforeEach(async () => {
       originalFetch = global.fetch
-      invalidateFetchSettingsCache()
-      loadUserSettings.mockResolvedValue(null)
+      await invalidateFetchSettingsCache()
       vi.spyOn(console, 'log').mockImplementation(() => {})
       vi.spyOn(console, 'warn').mockImplementation(() => {})
     })
@@ -245,10 +220,16 @@ describe('urlFetcher', () => {
     })
 
     it('should fetch multiple URLs in parallel', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
+      loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://proxy.example.com' })
+      await invalidateFetchSettingsCache()
+
+      const fetchMock = vi.fn().mockResolvedValue({
         ok: true,
+        headers: { get: () => 'application/json' },
         json: () => Promise.resolve({ success: true, content: 'Content' })
       })
+
+      global.fetch = fetchMock
 
       const results = await fetchMultipleUrls([
         'https://example1.com',
@@ -257,20 +238,32 @@ describe('urlFetcher', () => {
 
       expect(results['https://example1.com'].success).toBe(true)
       expect(results['https://example2.com'].success).toBe(true)
-      expect(global.fetch).toHaveBeenCalledTimes(2)
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('should return error when no custom URL configured', async () => {
+      loadUserSettings.mockResolvedValue(null)
+      await invalidateFetchSettingsCache()
+
+      const results = await fetchMultipleUrls(['https://example.com'])
+      expect(results['https://example.com'].success).toBe(false)
+      expect(results['https://example.com'].error).toContain('No custom fetch URL configured')
     })
 
     it('should handle mixed success and failure', async () => {
+      loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://proxy.example.com' })
+      await invalidateFetchSettingsCache()
+
       let callCount = 0
       global.fetch = vi.fn().mockImplementation(() => {
         callCount++
         if (callCount === 1) {
           return Promise.resolve({
             ok: true,
+            headers: { get: () => 'application/json' },
             json: () => Promise.resolve({ success: true, content: 'Success' })
           })
         }
-        // Second URL fails completely (all fallbacks)
         return Promise.reject(new Error('Failed'))
       })
 
@@ -281,7 +274,7 @@ describe('urlFetcher', () => {
 
       expect(results['https://success.com'].success).toBe(true)
       expect(results['https://failure.com'].success).toBe(false)
-      expect(results['https://failure.com'].error).toContain('All fetch methods failed')
+      expect(results['https://failure.com'].error).toContain('Failed to fetch')
     })
   })
 
@@ -347,7 +340,7 @@ describe('urlFetcher', () => {
       const originalFetch = global.fetch
 
       // First call with one custom URL
-      loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://first-custom.com/fetch' })
+      loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://first-custom.com' })
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         headers: { get: () => 'application/json' },
@@ -356,11 +349,10 @@ describe('urlFetcher', () => {
 
       invalidateFetchSettingsCache()
       await fetchUrlContent('https://example.com')
-      // Custom service uses GET with URL as query param
-      expect(global.fetch).toHaveBeenCalledWith('https://first-custom.com/fetch?url=https%3A%2F%2Fexample.com')
+      expect(global.fetch).toHaveBeenCalledWith('https://first-custom.com/fetchWebsiteContent?url=https%3A%2F%2Fexample.com')
 
       // Change settings and invalidate
-      loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://second-custom.com/fetch' })
+      loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://second-custom.com' })
       invalidateFetchSettingsCache()
 
       global.fetch = vi.fn().mockResolvedValue({
@@ -370,9 +362,221 @@ describe('urlFetcher', () => {
       })
 
       await fetchUrlContent('https://example.com')
-      expect(global.fetch).toHaveBeenCalledWith('https://second-custom.com/fetch?url=https%3A%2F%2Fexample.com')
+      expect(global.fetch).toHaveBeenCalledWith('https://second-custom.com/fetchWebsiteContent?url=https%3A%2F%2Fexample.com')
 
       global.fetch = originalFetch
+    })
+  })
+
+  describe('Generic Proxy Methods', () => {
+    let originalFetch
+    let consoleWarnSpy
+
+    beforeEach(async () => {
+      originalFetch = global.fetch
+      consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      await invalidateFetchSettingsCache()
+    })
+
+    afterEach(() => {
+      global.fetch = originalFetch
+      vi.clearAllMocks()
+      consoleWarnSpy.mockRestore()
+    })
+
+    describe('getProxyBaseUrl', () => {
+      it('should return null when no custom URL is set', async () => {
+        loadUserSettings.mockResolvedValue(null)
+        await invalidateFetchSettingsCache()
+        expect(getProxyBaseUrl()).toBe(null)
+      })
+
+      it('should return custom fetch URL when set', async () => {
+        loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://proxy.example.com' })
+        await invalidateFetchSettingsCache()
+        expect(getProxyBaseUrl()).toBe('https://proxy.example.com')
+      })
+    })
+
+    describe('getProxiedImageUrl', () => {
+      it('should return null for empty input', () => {
+        expect(getProxiedImageUrl(null)).toBe(null)
+        expect(getProxiedImageUrl('')).toBe(null)
+      })
+
+      it('should return proxied URL for image', async () => {
+        loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://proxy.example.com' })
+        await invalidateFetchSettingsCache()
+        const result = getProxiedImageUrl('https://example.com/image.png')
+        expect(result).toBe('https://proxy.example.com/fetchBinaryContent?url=https%3A%2F%2Fexample.com%2Fimage.png')
+      })
+    })
+
+    describe('getProxiedTextUrl', () => {
+      it('should return proxied URL for text content', async () => {
+        loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://proxy.example.com' })
+        await invalidateFetchSettingsCache()
+        const result = getProxiedTextUrl('https://example.com/page')
+        expect(result).toBe('https://proxy.example.com/fetchWebsiteContent?url=https%3A%2F%2Fexample.com%2Fpage')
+      })
+    })
+
+    describe('getProxiedBrowseUrl', () => {
+      it('should return proxied browse URL', async () => {
+        loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://proxy.example.com' })
+        await invalidateFetchSettingsCache()
+        const result = getProxiedBrowseUrl('https://example.com/page')
+        expect(result).toBe('https://proxy.example.com/browse?url=https%3A%2F%2Fexample.com%2Fpage')
+      })
+    })
+
+    describe('getProxiedBinaryUrl', () => {
+      it('should return proxied binary URL', async () => {
+        loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://proxy.example.com' })
+        await invalidateFetchSettingsCache()
+        const result = getProxiedBinaryUrl('https://example.com/file.pdf')
+        expect(result).toBe('https://proxy.example.com/browseBinary?url=https%3A%2F%2Fexample.com%2Ffile.pdf')
+      })
+    })
+
+    describe('fetchTextContent', () => {
+      it('should throw error when no custom URL is set', async () => {
+        loadUserSettings.mockResolvedValue(null)
+        await invalidateFetchSettingsCache()
+
+        await expect(fetchTextContent('https://example.com'))
+          .rejects.toThrow('Proxy URL not configured')
+      })
+
+      it('should fetch text content via proxy', async () => {
+        loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://proxy.example.com' })
+        await invalidateFetchSettingsCache()
+
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          headers: { get: () => 'application/json' },
+          json: () => Promise.resolve({ success: true, content: '<html>Content</html>' })
+        })
+
+        const result = await fetchTextContent('https://example.com')
+        expect(result).toBe('<html>Content</html>')
+      })
+
+      it('should handle plain text response', async () => {
+        loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://proxy.example.com' })
+        await invalidateFetchSettingsCache()
+
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          headers: { get: () => 'text/html' },
+          text: () => Promise.resolve('Raw HTML content')
+        })
+
+        const result = await fetchTextContent('https://example.com')
+        expect(result).toBe('Raw HTML content')
+      })
+
+      it('should throw error on non-ok response', async () => {
+        loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://proxy.example.com' })
+        await invalidateFetchSettingsCache()
+
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 500
+        })
+
+        await expect(fetchTextContent('https://example.com')).rejects.toThrow('Proxy error: HTTP 500')
+      })
+    })
+
+    describe('fetchBinaryContent', () => {
+      it('should throw error when no custom URL is set', async () => {
+        loadUserSettings.mockResolvedValue(null)
+        await invalidateFetchSettingsCache()
+
+        await expect(fetchBinaryContent('https://example.com/file.pdf'))
+          .rejects.toThrow('Proxy URL not configured')
+      })
+
+      it('should fetch binary content via proxy', async () => {
+        loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://proxy.example.com' })
+        await invalidateFetchSettingsCache()
+
+        const mockBuffer = new ArrayBuffer(1024)
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          headers: { get: () => 'application/octet-stream' },
+          arrayBuffer: () => Promise.resolve(mockBuffer)
+        })
+
+        const onProgress = vi.fn()
+        const result = await fetchBinaryContent('https://example.com/file.pdf', onProgress)
+
+        expect(result).toBe(mockBuffer)
+        expect(onProgress).toHaveBeenCalledWith(10)
+        expect(onProgress).toHaveBeenCalledWith(50)
+        expect(onProgress).toHaveBeenCalledWith(80)
+        expect(onProgress).toHaveBeenCalledWith(100)
+      })
+
+      it('should handle HTML response and find direct download link', async () => {
+        loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://proxy.example.com' })
+        await invalidateFetchSettingsCache()
+
+        const htmlWithLink = '<html><body><a href="https://cdn.example.com/file.pdf">Download</a></body></html>'
+        const mockBuffer = new ArrayBuffer(2048)
+
+        let callCount = 0
+        global.fetch = vi.fn(() => {
+          callCount++
+          if (callCount === 1) {
+            return Promise.resolve({
+              ok: true,
+              headers: { get: () => 'text/html' },
+              text: () => Promise.resolve(htmlWithLink)
+            })
+          } else {
+            return Promise.resolve({
+              ok: true,
+              headers: { get: () => 'application/pdf' },
+              arrayBuffer: () => Promise.resolve(mockBuffer)
+            })
+          }
+        })
+
+        const onProgress = vi.fn()
+        const result = await fetchBinaryContent('https://example.com/download', onProgress)
+
+        expect(result).toBe(mockBuffer)
+        expect(global.fetch).toHaveBeenCalledTimes(2)
+      })
+
+      it('should throw error when direct link not found in HTML', async () => {
+        loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://proxy.example.com' })
+        await invalidateFetchSettingsCache()
+
+        const htmlWithoutLink = '<html><body>No download link here</body></html>'
+
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          headers: { get: () => 'text/html' },
+          text: () => Promise.resolve(htmlWithoutLink)
+        })
+
+        await expect(fetchBinaryContent('https://example.com/download')).rejects.toThrow('Could not find direct download link')
+      })
+
+      it('should throw error on non-ok response', async () => {
+        loadUserSettings.mockResolvedValue({ customFetchUrl: 'https://proxy.example.com' })
+        await invalidateFetchSettingsCache()
+
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 404
+        })
+
+        await expect(fetchBinaryContent('https://example.com/file.pdf')).rejects.toThrow('Binary proxy error: HTTP 404')
+      })
     })
   })
 })

@@ -63,3 +63,5 @@ vi.mock('./services/llm/providers/lmstudio.js', () => ({
     testConnection: vi.fn().mockResolvedValue(false)
   }
 }))
+
+// Note: useToolInstanceStore mock removed - the test file tests the real implementation

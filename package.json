@@ -4,8 +4,6 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:all": "concurrently \"npm run dev\" \"npm run server\"",
-    "server": "node server/index.js",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest",
@@ -15,10 +13,8 @@
   },
   "dependencies": {
     "axios": "^1.6.7",
-    "cors": "^2.8.5",
     "echarts": "^6.0.0",
     "epubjs": "^0.3.93",
-    "express": "^4.21.0",
     "firebase": "^12.6.0",
     "idb": "^8.0.3",
     "jsdom": "^25.0.0",
@@ -35,7 +31,6 @@
     "@vitejs/plugin-vue": "^5.0.4",
     "@vitest/coverage-v8": "^4.0.13",
     "@vue/test-utils": "^2.4.6",
-    "concurrently": "^9.0.0",
     "gh-pages": "^6.3.0",
     "happy-dom": "^20.0.10",
     "vite": "^5.1.6",
