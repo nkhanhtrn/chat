@@ -32,7 +32,12 @@ export function createMockResponse(data, contentType = '') {
       get: (name) => name === 'content-type' ? 'text/html' : null
     },
     json: async () => ({ content: text }),
-    text: async () => text
+    text: async () => text,
+    blob: async () => new Blob([text], { type: contentType }),
+    arrayBuffer: async () => {
+      const encoder = new TextEncoder()
+      return encoder.encode(text).buffer
+    }
   }
 }
 

@@ -43,6 +43,17 @@ vi.mock('../providers/cerebras.js', () => ({
   }
 }))
 
+vi.mock('../providers/codeapi.js', () => ({
+  codeApiProvider: {
+    id: 'codeapi',
+    name: 'Code API',
+    requiresApiKey: false,
+    fetchModels: vi.fn(),
+    sendMessage: vi.fn(),
+    testConnection: vi.fn()
+  }
+}))
+
 describe('LLM Provider Manager', () => {
   let llmModule
   let loadUserSettings
@@ -73,10 +84,11 @@ describe('LLM Provider Manager', () => {
     it('should return all available providers', () => {
       const providers = llmModule.listProviders()
 
-      expect(providers).toHaveLength(3)
+      expect(providers).toHaveLength(4)
       expect(providers.map(p => p.id)).toContain('lmstudio')
       expect(providers.map(p => p.id)).toContain('google')
       expect(providers.map(p => p.id)).toContain('cerebras')
+      expect(providers.map(p => p.id)).toContain('codeapi')
     })
 
     it('should include requiresApiKey flag for each provider', () => {
@@ -85,10 +97,12 @@ describe('LLM Provider Manager', () => {
       const lmstudio = providers.find(p => p.id === 'lmstudio')
       const google = providers.find(p => p.id === 'google')
       const cerebras = providers.find(p => p.id === 'cerebras')
+      const codeapi = providers.find(p => p.id === 'codeapi')
 
       expect(lmstudio.requiresApiKey).toBe(false)
       expect(google.requiresApiKey).toBe(true)
       expect(cerebras.requiresApiKey).toBe(true)
+      expect(codeapi.requiresApiKey).toBe(false)
     })
   })
 
@@ -532,6 +546,7 @@ describe('LLM Provider Manager', () => {
       const lmstudioModule = await import('../providers/lmstudio.js')
       const googleModule = await import('../providers/google.js')
       const cerebrasModule = await import('../providers/cerebras.js')
+      const codeapiModule = await import('../providers/codeapi.js')
       const firestoreModule = await import('../../firestore.js')
 
       vi.mocked(firestoreModule.loadUserSettings).mockResolvedValue({
@@ -552,17 +567,21 @@ describe('LLM Provider Manager', () => {
       vi.mocked(cerebrasModule.cerebrasProvider.fetchModels).mockResolvedValue([
         { id: 'gpt-oss-20b', name: 'GPT OSS 20B' }
       ])
+      vi.mocked(codeapiModule.codeApiProvider.fetchModels).mockResolvedValue([
+        { id: 'codeapi-model', name: 'Reasoning AI' }
+      ])
 
       const freshModule = await import('../index.js')
       await freshModule.initProvider()
 
       const allModels = await freshModule.fetchAllModels()
 
-      expect(allModels).toHaveLength(4)
+      expect(allModels).toHaveLength(5)
       expect(allModels.map(m => m.id)).toContain('local-model-1')
       expect(allModels.map(m => m.id)).toContain('local-model-2')
       expect(allModels.map(m => m.id)).toContain('gemini-pro')
       expect(allModels.map(m => m.id)).toContain('gpt-oss-20b')
+      expect(allModels.map(m => m.id)).toContain('codeapi-model')
     })
 
     it('should include provider info in model name', async () => {
@@ -571,6 +590,7 @@ describe('LLM Provider Manager', () => {
       const lmstudioModule = await import('../providers/lmstudio.js')
       const googleModule = await import('../providers/google.js')
       const cerebrasModule = await import('../providers/cerebras.js')
+      const codeapiModule = await import('../providers/codeapi.js')
       const firestoreModule = await import('../../firestore.js')
 
       vi.mocked(firestoreModule.loadUserSettings).mockResolvedValue(null)
@@ -584,6 +604,9 @@ describe('LLM Provider Manager', () => {
       vi.mocked(cerebrasModule.cerebrasProvider.fetchModels).mockResolvedValue([
         { id: 'gpt-oss-20b', name: 'GPT OSS 20B' }
       ])
+      vi.mocked(codeapiModule.codeApiProvider.fetchModels).mockResolvedValue([
+        { id: 'codeapi-model', name: 'Reasoning AI' }
+      ])
 
       const freshModule = await import('../index.js')
 
@@ -592,6 +615,7 @@ describe('LLM Provider Manager', () => {
       const lmModel = allModels.find(m => m.id === 'local-model')
       const googleModel = allModels.find(m => m.id === 'gemini-pro')
       const cerebrasModel = allModels.find(m => m.id === 'gpt-oss-20b')
+      const codeapiModel = allModels.find(m => m.id === 'codeapi-model')
 
       expect(lmModel.name).toBe('Local Model (LM Studio)')
       expect(lmModel.providerId).toBe('lmstudio')
@@ -599,6 +623,8 @@ describe('LLM Provider Manager', () => {
       expect(googleModel.providerId).toBe('google')
       expect(cerebrasModel.name).toBe('GPT OSS 20B (Cerebras)')
       expect(cerebrasModel.providerId).toBe('cerebras')
+      expect(codeapiModel.name).toBe('Reasoning AI (Code API)')
+      expect(codeapiModel.providerId).toBe('codeapi')
     })
 
     it('should continue fetching from other providers if one fails', async () => {
@@ -607,6 +633,7 @@ describe('LLM Provider Manager', () => {
       const lmstudioModule = await import('../providers/lmstudio.js')
       const googleModule = await import('../providers/google.js')
       const cerebrasModule = await import('../providers/cerebras.js')
+      const codeapiModule = await import('../providers/codeapi.js')
       const firestoreModule = await import('../../firestore.js')
 
       vi.mocked(firestoreModule.loadUserSettings).mockResolvedValue(null)
@@ -620,15 +647,19 @@ describe('LLM Provider Manager', () => {
       vi.mocked(cerebrasModule.cerebrasProvider.fetchModels).mockResolvedValue([
         { id: 'gpt-oss-20b', name: 'GPT OSS 20B' }
       ])
+      vi.mocked(codeapiModule.codeApiProvider.fetchModels).mockResolvedValue([
+        { id: 'codeapi-model', name: 'Reasoning AI' }
+      ])
 
       const freshModule = await import('../index.js')
 
       const allModels = await freshModule.fetchAllModels()
 
-      // Should have models from lmstudio and cerebras, but not google
-      expect(allModels).toHaveLength(2)
+      // Should have models from lmstudio, cerebras, and codeapi, but not google
+      expect(allModels).toHaveLength(3)
       expect(allModels.map(m => m.id)).toContain('local-model')
       expect(allModels.map(m => m.id)).toContain('gpt-oss-20b')
+      expect(allModels.map(m => m.id)).toContain('codeapi-model')
       expect(allModels.map(m => m.id)).not.toContain('gemini-pro')
     })
 
@@ -638,6 +669,7 @@ describe('LLM Provider Manager', () => {
       const lmstudioModule = await import('../providers/lmstudio.js')
       const googleModule = await import('../providers/google.js')
       const cerebrasModule = await import('../providers/cerebras.js')
+      const codeapiModule = await import('../providers/codeapi.js')
       const firestoreModule = await import('../../firestore.js')
 
       vi.mocked(firestoreModule.loadUserSettings).mockResolvedValue(null)
@@ -650,6 +682,9 @@ describe('LLM Provider Manager', () => {
       )
       vi.mocked(cerebrasModule.cerebrasProvider.fetchModels).mockRejectedValue(
         new Error('Service unavailable')
+      )
+      vi.mocked(codeapiModule.codeApiProvider.fetchModels).mockRejectedValue(
+        new Error('Not configured')
       )
 
       const freshModule = await import('../index.js')

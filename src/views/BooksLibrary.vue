@@ -12,12 +12,12 @@
           @click="toggleViewMode"
           :title="viewMode === 'grid' ? 'Switch to list view' : 'Switch to grid view'"
         >
-          <svg v-if="viewMode === 'grid'" class="view-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg v-show="viewMode === 'grid'" class="view-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="3" y1="6" x2="21" y2="6" />
             <line x1="3" y1="12" x2="21" y2="12" />
             <line x1="3" y1="18" x2="21" y2="18" />
           </svg>
-          <svg v-else class="view-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg v-show="viewMode === 'list'" class="view-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="3" width="7" height="7" rx="1" />
             <rect x="14" y="3" width="7" height="7" rx="1" />
             <rect x="3" y="14" width="7" height="7" rx="1" />
@@ -31,12 +31,12 @@
             @click="toggleViewMode"
             :title="viewMode === 'grid' ? 'Switch to list view' : 'Switch to grid view'"
           >
-            <svg v-if="viewMode === 'grid'" class="view-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg v-show="viewMode === 'grid'" class="view-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="3" y1="6" x2="21" y2="6" />
               <line x1="3" y1="12" x2="21" y2="12" />
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
-            <svg v-else class="view-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg v-show="viewMode === 'list'" class="view-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="3" width="7" height="7" rx="1" />
               <rect x="14" y="3" width="7" height="7" rx="1" />
               <rect x="3" y="14" width="7" height="7" rx="1" />
@@ -45,7 +45,7 @@
           </button>
           <button
             class="view-toggle sort-btn"
-            @click="sortMode === 'color' ? toggleSortMode() : calculateColorsAndSort()"
+            @click="toggleSortMode()"
             :disabled="isCalculatingColors"
             :title="isCalculatingColors ? 'Calculating colors...' : sortMode === 'color' ? 'Sort by name' : 'Sort by color'"
           >
@@ -76,7 +76,7 @@
         </div>
         <button
           class="view-toggle mobile-only-btn sort-btn"
-          @click="sortMode === 'color' ? toggleSortMode() : calculateColorsAndSort()"
+          @click="toggleSortMode()"
           :disabled="isCalculatingColors"
           :title="isCalculatingColors ? 'Calculating colors...' : sortMode === 'color' ? 'Sort by name' : 'Sort by color'"
         >
@@ -216,8 +216,8 @@ const booksStore = useBooksStore()
 
 // View mode state (grid or list)
 const viewMode = ref(localStorage.getItem('books-view-mode') || 'grid')
-// Sort mode: 'name' or 'color'
-const sortMode = ref('name')
+// Sort mode: 'name' or 'color' - default to name for faster load
+const sortMode = ref(localStorage.getItem('books-sort-mode') || 'name')
 // Store calculated colors for books: { bookId: {h, s, l} }
 const bookColors = ref({})
 // Color calculation in progress
@@ -229,7 +229,14 @@ const toggleViewMode = () => {
 }
 
 const toggleSortMode = () => {
-  sortMode.value = sortMode.value === 'date' ? 'color' : 'date'
+  const newMode = sortMode.value === 'color' ? 'name' : 'color'
+  sortMode.value = newMode
+  localStorage.setItem('books-sort-mode', newMode)
+
+  // Calculate colors when switching to color mode
+  if (newMode === 'color') {
+    calculateColorsAndSort()
+  }
 }
 
 const isLoading = ref(false)

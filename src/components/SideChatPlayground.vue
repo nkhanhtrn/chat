@@ -384,15 +384,13 @@ async function handleSend() {
 }
 
 .message.user .user-message {
-  background: var(--color-primary);
-  color: white;
-  padding: 0.6rem 0.8rem;
-  border-radius: 8px 8px 2px 8px;
   font-size: 0.9rem;
-  line-height: 1.5;
-  max-width: 85%;
-  align-self: flex-end;
-  word-break: break-word;
+  line-height: 1.6;
+  color: var(--color-text-base);
+  padding: 0.5rem 0.65rem;
+  background: var(--color-bg-hover);
+  border-radius: 6px;
+  font-weight: 500;
 }
 
 .message.assistant .ai-message {

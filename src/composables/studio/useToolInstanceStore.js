@@ -14,6 +14,35 @@ const STORAGE_PREFIX = 'tool-instance-'
 const syncTimers = new Map()
 
 /**
+ * Safely stringify a value, handling circular references
+ * @param {*} value - The value to stringify
+ * @returns {string} JSON string or empty object on error
+ */
+function safeStringify(value) {
+  try {
+    return JSON.stringify(value)
+  } catch (e) {
+    // Handle circular references by using a replacer
+    const seen = new WeakSet()
+    try {
+      return JSON.stringify(value, (key, val) => {
+        if (typeof val === 'object' && val !== null) {
+          if (seen.has(val)) {
+            return '[Circular]'
+          }
+          seen.add(val)
+        }
+        return val
+      })
+    } catch (e2) {
+      // If still fails, return empty object
+      console.warn('Failed to stringify state with circular reference handler:', e2)
+      return '{}'
+    }
+  }
+}
+
+/**
  * Create a per-instance storage for a tool.
  * @param {string} toolName - The name/identifier of the tool type (for logging only)
  * @param {string} toolId - The unique tool identifier
@@ -44,7 +73,7 @@ export function useToolInstanceStore(toolName, toolId, sessionId) {
 
   function setState(state) {
     try {
-      localStorage.setItem(storageKey, JSON.stringify(state))
+      localStorage.setItem(storageKey, safeStringify(state))
     } catch (e) {
       console.error('Error saving tool instance state:', e)
     }

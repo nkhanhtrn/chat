@@ -182,7 +182,10 @@ describe('BooksLibrary', () => {
 
     it('renders book card with default cover when no cover', () => {
       wrapper = mountBooksLibrary()
-      const secondCard = wrapper.findAll('.book-card')[1]
+      const cards = wrapper.findAll('.book-card')
+      // Second card is "The Great Gatsby" which has a cover, so it doesn't have default-cover class
+      // Third card is "To Kill a Mockingbird" which has no cover
+      const secondCard = cards[2]
       const coverImg = secondCard.find('.book-cover img.default-cover')
       expect(coverImg.exists()).toBe(true)
       expect(coverImg.attributes('src')).toContain('blob:default-cover-To Kill a Mockingbird-Harper Lee')
@@ -191,22 +194,24 @@ describe('BooksLibrary', () => {
     it('renders book title', () => {
       wrapper = mountBooksLibrary()
       const firstCard = wrapper.findAll('.book-card')[0]
-      expect(firstCard.find('.book-title').text()).toBe('The Great Gatsby')
+      // Books are sorted alphabetically: 1984, The Great Gatsby, To Kill a Mockingbird
+      expect(firstCard.find('.book-title').text()).toBe('1984')
     })
 
     it('renders book author', () => {
       wrapper = mountBooksLibrary()
       const firstCard = wrapper.findAll('.book-card')[0]
-      expect(firstCard.find('.book-author').text()).toBe('F. Scott Fitzgerald')
+      // Books are sorted alphabetically: 1984, The Great Gatsby, To Kill a Mockingbird
+      expect(firstCard.find('.book-author').text()).toBe('George Orwell')
     })
 
     it('renders reading progress', () => {
       wrapper = mountBooksLibrary()
       const cards = wrapper.findAll('.book-card')
-
-      expect(cards[0].find('.progress-text').text()).toBe('50%')
-      expect(cards[1].find('.progress-text').text()).toBe('0%')
-      expect(cards[2].find('.progress-text').text()).toBe('75%')
+      // Books are sorted alphabetically: 1984 (75%), The Great Gatsby (50%), To Kill a Mockingbird (0%)
+      expect(cards[0].find('.progress-text').text()).toBe('75%')
+      expect(cards[1].find('.progress-text').text()).toBe('50%')
+      expect(cards[2].find('.progress-text').text()).toBe('0%')
     })
 
     it('renders menu button on book card', () => {
@@ -258,9 +263,10 @@ describe('BooksLibrary', () => {
       await firstCard.trigger('click')
       await wrapper.vm.$nextTick()
 
+      // First card is now "1984" (book-3) due to alphabetical sorting
       expect(mockPush).toHaveBeenCalledWith({
         name: 'current-content',
-        params: { type: 'book', id: 'book-1' }
+        params: { type: 'book', id: 'book-3' }
       })
 
       vi.restoreAllMocks()
@@ -512,16 +518,17 @@ describe('BooksLibrary', () => {
   })
 
   describe('Book Sorting', () => {
-    it('displays books sorted by lastReadAt (most recent first)', () => {
+    it('displays books sorted alphabetically by title (default sort mode)', () => {
       wrapper = mountBooksLibrary()
       const bookCards = wrapper.findAll('.book-card')
 
-      // Books should be sorted by lastReadAt descending - verify by count
+      // Books should be sorted alphabetically by title
+      // 1984 -> The Great Gatsby -> To Kill a Mockingbird
       expect(bookCards.length).toBe(3)
       // Verify the correct progress percentages for each book
-      expect(bookCards[0].find('.progress-text').text()).toBe('50%')
-      expect(bookCards[1].find('.progress-text').text()).toBe('0%')
-      expect(bookCards[2].find('.progress-text').text()).toBe('75%')
+      expect(bookCards[0].find('.progress-text').text()).toBe('75%')  // 1984
+      expect(bookCards[1].find('.progress-text').text()).toBe('50%')  // The Great Gatsby
+      expect(bookCards[2].find('.progress-text').text()).toBe('0%')   // To Kill a Mockingbird
     })
   })
 

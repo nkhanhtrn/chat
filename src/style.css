@@ -152,7 +152,9 @@ select:focus,
 .header h3 {
   margin: 0;
   font-size: 1.1rem;
-  font-family: 'Georgia', serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
   color: var(--color-text-base);
 }
 
@@ -177,20 +179,19 @@ select:focus,
 /* Card */
 .card {
   background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border-base);
-  border-radius: 6px;
-  overflow: hidden;
+  border-radius: 4px;
 }
 
 .card-header {
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--color-border-subtle);
-  font-weight: 600;
-  font-family: 'Georgia', serif;
+  padding: 0.5rem 0.75rem;
+  font-weight: 500;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
 }
 
 .card-body {
-  padding: 1rem;
+  padding: 0.75rem;
 }
 
 /* Form Helper Classes */

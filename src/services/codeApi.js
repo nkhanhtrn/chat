@@ -202,10 +202,14 @@ async function generateCode({ initial_code, edit_prompt, output_path, onStdoutCh
 // Legacy exports for backward compatibility
 export {
   getReasoningAiUrl as getCodeApiUrl,
-  generateCode
+  getReasoningAiUrl,
+  generateCode,
+  isReasoningAiConfigured
 }
 
 export default {
   getCodeApiUrl: getReasoningAiUrl,
-  generateCode
+  getReasoningAiUrl,
+  generateCode,
+  isReasoningAiConfigured
 }

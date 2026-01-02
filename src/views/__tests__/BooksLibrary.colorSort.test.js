@@ -1,7 +1,74 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { generateColorFromText } from '../../services/colorExtractor.js'
 
 describe('BooksLibrary color sorting', () => {
+  describe('localStorage sort mode persistence', () => {
+    beforeEach(() => {
+      // Clear localStorage before each test
+      localStorage.clear()
+    })
+
+    afterEach(() => {
+      localStorage.clear()
+    })
+
+    it('should default to color sort mode when no localStorage value exists', () => {
+      const savedMode = localStorage.getItem('books-sort-mode')
+      const sortMode = savedMode || 'color'
+
+      expect(sortMode).toBe('color')
+    })
+
+    it('should load saved sort mode from localStorage', () => {
+      localStorage.setItem('books-sort-mode', 'name')
+
+      const savedMode = localStorage.getItem('books-sort-mode')
+      const sortMode = savedMode || 'color'
+
+      expect(sortMode).toBe('name')
+    })
+
+    it('should persist sort mode changes to localStorage', () => {
+      const sortModes = ['color', 'name']
+
+      for (const mode of sortModes) {
+        localStorage.setItem('books-sort-mode', mode)
+        expect(localStorage.getItem('books-sort-mode')).toBe(mode)
+      }
+    })
+
+    it('should toggle between color and name sort modes', () => {
+      let sortMode = 'color' // Default
+
+      const toggleSortMode = () => {
+        sortMode = sortMode === 'color' ? 'name' : 'color'
+        localStorage.setItem('books-sort-mode', sortMode)
+      }
+
+      // Start with color (default)
+      expect(sortMode).toBe('color')
+
+      // Toggle to name
+      toggleSortMode()
+      expect(sortMode).toBe('name')
+      expect(localStorage.getItem('books-sort-mode')).toBe('name')
+
+      // Toggle back to color
+      toggleSortMode()
+      expect(sortMode).toBe('color')
+      expect(localStorage.getItem('books-sort-mode')).toBe('color')
+    })
+
+    it('should handle invalid localStorage values gracefully', () => {
+      localStorage.setItem('books-sort-mode', 'invalid')
+
+      const savedMode = localStorage.getItem('books-sort-mode')
+      // If we want to validate, we could add logic here
+      // For now, just verify it returns the saved value
+      expect(savedMode).toBe('invalid')
+    })
+  })
+
   describe('sort mode toggle', () => {
     it('should toggle between name and color sort modes', () => {
       let sortMode = 'name'

@@ -1295,6 +1295,7 @@ export const loadStudioSessionsFromFirestore = async () => {
 
 /**
  * Upload merged tool instance data where local was newer
+ * Falls back to Firebase Storage if Firestore size limit is exceeded
  * @param {Map} toolDataToUpload - Map of sessionId -> { toolId -> data }
  */
 async function uploadMergedToolInstanceData(toolDataToUpload) {
@@ -1309,15 +1310,34 @@ async function uploadMergedToolInstanceData(toolDataToUpload) {
     for (const [sessionId, toolData] of toolDataToUpload.entries()) {
       const sessionRef = doc(db, 'users', user.uid, 'studioSessions', sessionId)
 
-      // Upload each tool instance data item
-      for (const [toolId, data] of Object.entries(toolData)) {
+      // First, collect ALL tool instance data (existing + new) to check total size
+      const allToolData = collectToolInstanceData(sessionId)
+
+      // Check if the total data would exceed Firestore limit
+      if (isDataTooLarge(allToolData)) {
+        // Move to Firebase Storage
+        const storagePath = `users/${user.uid}/studioSessions/${sessionId}/toolInstanceData.json`
+        await saveToStorage(storagePath, allToolData)
+
+        // Update document to indicate data is in Storage
         await setDoc(sessionRef, {
-          [`toolInstanceData.${toolId}`]: data,
+          toolInstanceData: null, // Clear old data
+          toolInstanceDataInStorage: true,
+          toolInstanceDataStoragePath: storagePath,
           lastUpdated: serverTimestamp()
         }, { merge: true })
-      }
 
-      console.log(`Uploaded ${Object.keys(toolData).length} merged tool instances for session ${sessionId}`)
+        console.log(`Merged tool data moved to Firebase Storage for session ${sessionId}`)
+      } else {
+        // Upload each tool instance data item to Firestore
+        for (const [toolId, data] of Object.entries(toolData)) {
+          await setDoc(sessionRef, {
+            [`toolInstanceData.${toolId}`]: data,
+            lastUpdated: serverTimestamp()
+          }, { merge: true })
+        }
+        console.log(`Uploaded ${Object.keys(toolData).length} merged tool instances for session ${sessionId}`)
+      }
     }
   } catch (error) {
     console.error('Failed to upload merged tool instance data:', error)

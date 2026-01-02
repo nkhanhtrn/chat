@@ -5,13 +5,15 @@
 import { lmstudioProvider } from './providers/lmstudio.js'
 import { googleProvider } from './providers/google.js'
 import { cerebrasProvider } from './providers/cerebras.js'
+import { codeApiProvider } from './providers/codeapi.js'
 import { saveUserSettings, loadUserSettings } from '../firestore.js'
 
 // Registry of available providers
 const providers = {
   lmstudio: lmstudioProvider,
   google: googleProvider,
-  cerebras: cerebrasProvider
+  cerebras: cerebrasProvider,
+  codeapi: codeApiProvider
 }
 
 // Feature types for provider preference
@@ -217,8 +219,8 @@ export const fetchAllModels = async () => {
     }
   }
 
-  // Sort: local (lmstudio) first, then cerebras, then google, then others
-  const providerOrder = { lmstudio: 0, cerebras: 1, google: 2 }
+  // Sort: local (lmstudio) first, then cerebras, then codeapi, then google, then others
+  const providerOrder = { lmstudio: 0, cerebras: 1, codeapi: 2, google: 3 }
   allModels.sort((a, b) => {
     const orderA = providerOrder[a.providerId] ?? 99
     const orderB = providerOrder[b.providerId] ?? 99
