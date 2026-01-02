@@ -1,7 +1,8 @@
 // Firestore service for syncing chat data
 import { doc, setDoc, getDoc, getDocs, deleteDoc, onSnapshot, serverTimestamp, collection, writeBatch } from 'firebase/firestore'
 import { onAuthStateChanged } from 'firebase/auth'
-import { getFirebaseDb, getFirebaseAuth } from './firebase.js'
+import { ref, uploadString, getBytes, getDownloadURL, deleteObject } from 'firebase/storage'
+import { getFirebaseDb, getFirebaseAuth, getFirebaseStorage } from './firebase.js'
 
 // ============================================
 // Settings Cache & Debouncing
@@ -822,6 +823,79 @@ export const mergeCloudLocal = (cloudItems, localItems) => {
 }
 
 // ============================================
+// Firebase Storage Helpers for Large Data
+// ============================================
+
+const FIRESTORE_MAX_SIZE = 900000 // 900KB safe threshold for Firestore
+
+/**
+ * Check if data size exceeds Firestore limit
+ * @param {*} data - Data to check
+ * @returns {boolean} True if data is too large for Firestore
+ */
+function isDataTooLarge(data) {
+  try {
+    return JSON.stringify(data).length > FIRESTORE_MAX_SIZE
+  } catch {
+    return true // If we can't stringify, it's definitely too large
+  }
+}
+
+/**
+ * Save data to Firebase Storage
+ * @param {string} path - Storage path (e.g., 'users/uid/sessions/sessionId/chatState.json')
+ * @param {*} data - Data to save (will be JSON stringified)
+ * @returns {Promise<void>}
+ */
+async function saveToStorage(path, data) {
+  try {
+    const auth = getFirebaseAuth()
+    const user = auth.currentUser
+    if (!user) {
+      throw new Error('No authenticated user')
+    }
+
+    const storage = getFirebaseStorage()
+    const storageRef = ref(storage, path)
+
+    const jsonString = JSON.stringify(data)
+    await uploadString(storageRef, jsonString, 'raw')
+
+    console.log(`Saved large data to Firebase Storage: ${path}`)
+  } catch (error) {
+    console.error(`Failed to save to Firebase Storage (${path}):`, error)
+    throw error
+  }
+}
+
+/**
+ * Load data from Firebase Storage
+ * @param {string} path - Storage path
+ * @returns {Promise<*>} Parsed JSON data or null if not found
+ */
+async function loadFromStorage(path) {
+  try {
+    const storage = getFirebaseStorage()
+    const storageRef = ref(storage, path)
+
+    const url = await getDownloadURL(storageRef)
+    const response = await fetch(url)
+    if (!response.ok) {
+      return null
+    }
+
+    const text = await response.text()
+    return JSON.parse(text)
+  } catch (error) {
+    if (error.code === 'storage/object-not-found') {
+      return null
+    }
+    console.error(`Failed to load from Firebase Storage (${path}):`, error)
+    return null
+  }
+}
+
+// ============================================
 // Studio Sessions (Cloud Sync)
 // ============================================
 
@@ -830,6 +904,7 @@ import { debugLog } from '../utils/debug.js'
 /**
  * Save studio sessions to Firestore
  * Structure: users/{uid}/studioSessions/{sessionId}
+ * Large data (toolInstanceData) is stored in Firebase Storage
  * @param {Array} sessions - Array of session objects
  * @param {string} activeSessionId - Currently active session ID
  * @returns {Promise<void>}
@@ -849,24 +924,36 @@ export const saveStudioSessionsToFirestore = async (sessions, activeSessionId) =
     // Use batch to write all sessions
     const batch = writeBatch(db)
 
-    // Add each session to batch (including tool instance data)
+    // Process each session
     for (const session of sessions) {
       // Collect tool instance data for this session from localStorage
       const toolInstanceData = collectToolInstanceData(session.id)
 
-      const sessionRef = doc(db, 'users', user.uid, 'studioSessions', session.id)
-      batch.set(sessionRef, {
+      let sessionData = {
         id: session.id,
         name: session.name,
         createdAt: session.createdAt,
         updatedAt: session.updatedAt,
-        toolInstanceData, // Include tool instance data in session document
         lastUpdated: serverTimestamp()
-        // Note: showInTabs is NOT synced to cloud (local-only preference)
-      }, { merge: true })
+      }
+
+      // Check if toolInstanceData is too large for Firestore
+      if (isDataTooLarge(toolInstanceData)) {
+        // Save to Firebase Storage instead
+        const storagePath = `users/${user.uid}/studioSessions/${session.id}/toolInstanceData.json`
+        await saveToStorage(storagePath, toolInstanceData)
+        sessionData.toolInstanceDataInStorage = true // Flag that data is in Storage
+        sessionData.toolInstanceDataStoragePath = storagePath
+      } else {
+        // Store directly in Firestore
+        sessionData.toolInstanceData = toolInstanceData
+      }
+
+      const sessionRef = doc(db, 'users', user.uid, 'studioSessions', session.id)
+      batch.set(sessionRef, sessionData, { merge: true })
     }
 
-    // Also save metadata (active session ID, next session number)
+    // Also save metadata (active session ID)
     const metadataRef = doc(db, 'users', user.uid, 'studioSessions', 'metadata')
     batch.set(metadataRef, {
       activeSessionId,
@@ -884,6 +971,7 @@ export const saveStudioSessionsToFirestore = async (sessions, activeSessionId) =
 /**
  * Save a single studio session to Firestore (more efficient than syncing all sessions)
  * Structure: users/{uid}/studioSessions/{sessionId}
+ * Large data (chatState, canvasState, toolInstanceData) is stored in Firebase Storage
  * @param {Object} session - Single session object
  * @param {string} activeSessionId - Currently active session ID (for metadata)
  * @returns {Promise<void>}
@@ -906,21 +994,50 @@ export const saveSingleSessionToFirestore = async (session, activeSessionId) => 
     // Load chat and canvas state from localStorage to include in sync
     const chatKey = `studio-chat-${session.id}`
     const canvasKey = `studio-canvas-windows-${session.id}`
-    const chatState = localStorage.getItem(chatKey)
-    const canvasState = localStorage.getItem(canvasKey)
+    const chatStateRaw = localStorage.getItem(chatKey)
+    const canvasStateRaw = localStorage.getItem(canvasKey)
 
-    const sessionRef = doc(db, 'users', user.uid, 'studioSessions', session.id)
-    await setDoc(sessionRef, {
+    let chatState = chatStateRaw ? JSON.parse(chatStateRaw) : null
+    let canvasState = canvasStateRaw ? JSON.parse(canvasStateRaw) : null
+
+    let sessionData = {
       id: session.id,
       name: session.name,
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
-      chatState: chatState ? JSON.parse(chatState) : null,
-      canvasState: canvasState ? JSON.parse(canvasState) : null,
-      toolInstanceData,
       lastUpdated: serverTimestamp()
-      // Note: showInTabs is NOT synced to cloud (local-only preference)
-    }, { merge: true })
+    }
+
+    // Check each data type and move large ones to Firebase Storage
+    if (isDataTooLarge(toolInstanceData)) {
+      const storagePath = `users/${user.uid}/studioSessions/${session.id}/toolInstanceData.json`
+      await saveToStorage(storagePath, toolInstanceData)
+      sessionData.toolInstanceDataInStorage = true
+      sessionData.toolInstanceDataStoragePath = storagePath
+    } else {
+      sessionData.toolInstanceData = toolInstanceData
+    }
+
+    if (chatState && isDataTooLarge(chatState)) {
+      const storagePath = `users/${user.uid}/studioSessions/${session.id}/chatState.json`
+      await saveToStorage(storagePath, chatState)
+      sessionData.chatStateInStorage = true
+      sessionData.chatStateStoragePath = storagePath
+    } else {
+      sessionData.chatState = chatState
+    }
+
+    if (canvasState && isDataTooLarge(canvasState)) {
+      const storagePath = `users/${user.uid}/studioSessions/${session.id}/canvasState.json`
+      await saveToStorage(storagePath, canvasState)
+      sessionData.canvasStateInStorage = true
+      sessionData.canvasStateStoragePath = storagePath
+    } else {
+      sessionData.canvasState = canvasState
+    }
+
+    const sessionRef = doc(db, 'users', user.uid, 'studioSessions', session.id)
+    await setDoc(sessionRef, sessionData, { merge: true })
 
     // Also update metadata if active session changed
     const metadataRef = doc(db, 'users', user.uid, 'studioSessions', 'metadata')
@@ -1002,6 +1119,7 @@ function collectToolInstanceData(sessionId) {
 
 /**
  * Load studio sessions from Firestore
+ * Handles data stored both in Firestore and Firebase Storage
  * @returns {Promise<Object|null>} Object with { sessions, activeSessionId } or null
  */
 export const loadStudioSessionsFromFirestore = async () => {
@@ -1029,16 +1147,56 @@ export const loadStudioSessionsFromFirestore = async () => {
     // Collect tool instance data that needs to be uploaded (local is newer)
     const toolDataToUpload = new Map() // sessionId -> { toolId -> data }
 
-    sessionsSnap.forEach(doc => {
+    for (const doc of sessionsSnap.docs) {
       if (doc.id === 'metadata') {
-        // Skip metadata document
-        return
+        continue
       }
       const data = doc.data()
 
+      // Extract flags and paths for Storage data
+      const toolInstanceDataInStorage = data.toolInstanceDataInStorage
+      const toolInstanceDataStoragePath = data.toolInstanceDataStoragePath
+      const chatStateInStorage = data.chatStateInStorage
+      const chatStateStoragePath = data.chatStateStoragePath
+      const canvasStateInStorage = data.canvasStateInStorage
+      const canvasStateStoragePath = data.canvasStateStoragePath
+
+      // Clean up flags and paths from the data
+      delete data.toolInstanceDataInStorage
+      delete data.toolInstanceDataStoragePath
+      delete data.chatStateInStorage
+      delete data.chatStateStoragePath
+      delete data.canvasStateInStorage
+      delete data.canvasStateStoragePath
+
       // Extract and restore tool instance data (with merge)
-      const toolInstanceData = data.toolInstanceData
+      let toolInstanceData = data.toolInstanceData
+
+      // Load from Firebase Storage if flag is set
+      if (toolInstanceDataInStorage && toolInstanceDataStoragePath) {
+        const storageData = await loadFromStorage(toolInstanceDataStoragePath)
+        if (storageData) {
+          toolInstanceData = storageData
+        }
+      }
+
       delete data.toolInstanceData
+
+      // Load chatState from Storage if needed
+      if (chatStateInStorage && chatStateStoragePath) {
+        const storageData = await loadFromStorage(chatStateStoragePath)
+        if (storageData) {
+          data.chatState = storageData
+        }
+      }
+
+      // Load canvasState from Storage if needed
+      if (canvasStateInStorage && canvasStateStoragePath) {
+        const storageData = await loadFromStorage(canvasStateStoragePath)
+        if (storageData) {
+          data.canvasState = storageData
+        }
+      }
 
       // Merge and restore tool instance data to localStorage, collect items needing upload
       if (toolInstanceData) {
@@ -1048,10 +1206,29 @@ export const loadStudioSessionsFromFirestore = async () => {
         }
       }
 
+      // Restore chat and canvas state to localStorage
+      if (data.chatState) {
+        try {
+          localStorage.setItem(`studio-chat-${doc.id}`, JSON.stringify(data.chatState))
+        } catch (e) {
+          console.warn('Failed to restore chat state to localStorage:', e)
+        }
+        delete data.chatState
+      }
+
+      if (data.canvasState) {
+        try {
+          localStorage.setItem(`studio-canvas-windows-${doc.id}`, JSON.stringify(data.canvasState))
+        } catch (e) {
+          console.warn('Failed to restore canvas state to localStorage:', e)
+        }
+        delete data.canvasState
+      }
+
       delete data.lastUpdated
       delete data._computed
       sessions.push({ id: doc.id, ...data })
-    })
+    }
 
     if (metadataSnap.exists()) {
       activeSessionId = metadataSnap.data().activeSessionId
@@ -1178,7 +1355,7 @@ function restoreToolInstanceData(sessionId, cloudToolData) {
 }
 
 /**
- * Delete a studio session from Firestore
+ * Delete a studio session from Firestore and Firebase Storage
  * @param {string} sessionId - Session ID to delete
  * @returns {Promise<void>}
  */
@@ -1190,9 +1367,34 @@ export const deleteStudioSessionFromFirestore = async (sessionId) => {
     if (!user) return
 
     const db = getFirebaseDb()
-    const sessionRef = doc(db, 'users', user.uid, 'studioSessions', sessionId)
+    const storage = getFirebaseStorage()
 
+    // Delete from Firestore
+    const sessionRef = doc(db, 'users', user.uid, 'studioSessions', sessionId)
     await deleteDoc(sessionRef)
+
+    // Also delete from Firebase Storage (all files for this session)
+    const storageBasePath = `users/${user.uid}/studioSessions/${sessionId}`
+
+    // Delete individual files (since we don't have a function to delete a folder)
+    const filesToDelete = [
+      `${storageBasePath}/toolInstanceData.json`,
+      `${storageBasePath}/chatState.json`,
+      `${storageBasePath}/canvasState.json`
+    ]
+
+    await Promise.allSettled(
+      filesToDelete.map(path => {
+        const storageRef = ref(storage, path)
+        return deleteObject(storageRef).catch(err => {
+          // Ignore "not found" errors
+          if (err.code !== 'storage/object-not-found') {
+            console.warn(`Failed to delete ${path}:`, err)
+          }
+        })
+      })
+    )
+
     console.log(`Studio session ${sessionId} deleted from cloud`)
   } catch (error) {
     console.error('Failed to delete studio session from Firestore:', error)
