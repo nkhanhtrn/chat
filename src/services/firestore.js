@@ -1056,6 +1056,7 @@ export const saveSingleSessionToFirestore = async (session, activeSessionId) => 
 /**
  * Save tool instance data to Firestore (immediate sync when tool data changes)
  * Uses dot notation to update only the specific tool's nested field
+ * Falls back to Firebase Storage if the document size exceeds Firestore limit
  * @param {string} sessionId - The session ID
  * @param {string} toolId - The tool ID
  * @param {Object} data - The tool instance data
@@ -1074,14 +1075,57 @@ export const saveToolInstanceDataImmediate = async (sessionId, toolId, data) => 
     const db = getFirebaseDb()
     const sessionRef = doc(db, 'users', user.uid, 'studioSessions', sessionId)
 
-    // Use dot notation to update only the specific tool's data
-    // This prevents overwriting other tools' data
-    await setDoc(sessionRef, {
-      [`toolInstanceData.${toolId}`]: data,
-      lastUpdated: serverTimestamp()
-    }, { merge: true })
+    // First, check if data is already in Firebase Storage
+    const sessionSnap = await getDoc(sessionRef)
+    const isInStorage = sessionSnap.get('toolInstanceDataInStorage') === true
 
-    console.log(`Tool instance data synced to cloud: ${sessionId}/${toolId}`)
+    if (isInStorage) {
+      // Update the data in localStorage, then sync all to Firebase Storage
+      const storagePath = `users/${user.uid}/studioSessions/${sessionId}/toolInstanceData.json`
+      const allToolData = collectToolInstanceData(sessionId)
+      await saveToStorage(storagePath, allToolData)
+
+      // Update the lastUpdated timestamp in Firestore
+      await setDoc(sessionRef, {
+        lastUpdated: serverTimestamp()
+      }, { merge: true })
+
+      console.log(`Tool instance data synced to Firebase Storage: ${sessionId}/${toolId}`)
+      return
+    }
+
+    // Try to save directly to Firestore first
+    try {
+      await setDoc(sessionRef, {
+        [`toolInstanceData.${toolId}`]: data,
+        lastUpdated: serverTimestamp()
+      }, { merge: true })
+      console.log(`Tool instance data synced to cloud: ${sessionId}/${toolId}`)
+    } catch (error) {
+      // Check if this is a size limit error
+      if (error.message?.includes('size') || error.message?.includes('exceeds')) {
+        console.warn(`Firestore size limit exceeded for session ${sessionId}, moving toolInstanceData to Firebase Storage`)
+
+        // Collect all tool instance data from localStorage
+        const allToolData = collectToolInstanceData(sessionId)
+
+        // Save all tool data to Firebase Storage
+        const storagePath = `users/${user.uid}/studioSessions/${sessionId}/toolInstanceData.json`
+        await saveToStorage(storagePath, allToolData)
+
+        // Update the document to indicate data is in Storage and clear the old toolInstanceData
+        await setDoc(sessionRef, {
+          toolInstanceData: null, // Clear old data
+          toolInstanceDataInStorage: true,
+          toolInstanceDataStoragePath: storagePath,
+          lastUpdated: serverTimestamp()
+        }, { merge: true })
+
+        console.log(`Tool instance data moved to Firebase Storage: ${sessionId}/${toolId}`)
+      } else {
+        throw error // Re-throw if it's not a size error
+      }
+    }
   } catch (error) {
     console.error('Failed to save tool instance data to Firestore:', error)
   }

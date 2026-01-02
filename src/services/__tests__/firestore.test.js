@@ -1168,10 +1168,20 @@ describe('firestore.js', () => {
     it('should save tool instance data immediately using dot notation', async () => {
       const { saveToolInstanceDataImmediate } = await import('../firestore.js')
 
+      // Mock getDoc to return a snapshot indicating data is NOT in storage
+      const mockSnapshot = {
+        exists: true,
+        get: (field) => field === 'toolInstanceDataInStorage' ? false : null
+      }
+      vi.mocked(getDoc).mockResolvedValue(mockSnapshot)
+
       await saveToolInstanceDataImmediate('session-123', 'tool-abc', { count: 5, items: [] })
 
-      // Verify dot notation is used for nested field update
+      // Verify getDoc is called first to check if data is in storage
       expect(doc).toHaveBeenCalledWith(mockDb, 'users', mockUser.uid, 'studioSessions', 'session-123')
+      expect(getDoc).toHaveBeenCalledWith(mockDocRef)
+
+      // Verify dot notation is used for nested field update
       expect(setDoc).toHaveBeenCalledWith(
         mockDocRef,
         expect.objectContaining({

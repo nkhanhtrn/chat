@@ -43,10 +43,64 @@
               <rect x="14" y="14" width="7" height="7" rx="1" />
             </svg>
           </button>
+          <button
+            class="view-toggle sort-btn"
+            @click="sortMode === 'color' ? toggleSortMode() : calculateColorsAndSort()"
+            :disabled="isCalculatingColors"
+            :title="isCalculatingColors ? 'Calculating colors...' : sortMode === 'color' ? 'Sort by name' : 'Sort by color'"
+          >
+            <svg v-show="isCalculatingColors" class="view-icon spinning" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="32" />
+            </svg>
+            <svg v-show="sortMode === 'color' && !isCalculatingColors" class="view-icon" viewBox="0 0 24 24" fill="none" stroke="none">
+              <defs>
+                <linearGradient id="colorGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color:#ef4444" />
+                  <stop offset="25%" style="stop-color:#f97316" />
+                  <stop offset="50%" style="stop-color:#eab308" />
+                  <stop offset="75%" style="stop-color:#22c55e" />
+                  <stop offset="100%" style="stop-color:#3b82f6" />
+                </linearGradient>
+              </defs>
+              <circle cx="12" cy="12" r="9" fill="url(#colorGradient)" opacity="0.9" />
+              <circle cx="8" cy="8" r="3" fill="#ef4444" opacity="0.8" />
+              <circle cx="16" cy="8" r="3" fill="#eab308" opacity="0.8" />
+              <circle cx="12" cy="16" r="3" fill="#22c55e" opacity="0.8" />
+              <circle cx="12" cy="10" r="4" fill="#ffffff" opacity="0.3" />
+            </svg>
+            <span v-show="sortMode !== 'color' && !isCalculatingColors" class="sort-text">Az</span>
+          </button>
           <Button variant="primary" @click="openBookModal('upload')" :disabled="isUploading" class="add-book-btn">
             + New Book
           </Button>
         </div>
+        <button
+          class="view-toggle mobile-only-btn sort-btn"
+          @click="sortMode === 'color' ? toggleSortMode() : calculateColorsAndSort()"
+          :disabled="isCalculatingColors"
+          :title="isCalculatingColors ? 'Calculating colors...' : sortMode === 'color' ? 'Sort by name' : 'Sort by color'"
+        >
+          <svg v-show="isCalculatingColors" class="view-icon spinning" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="32" />
+          </svg>
+          <svg v-show="sortMode === 'color' && !isCalculatingColors" class="view-icon" viewBox="0 0 24 24" fill="none" stroke="none">
+            <defs>
+              <linearGradient id="colorGradientMobile" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#ef4444" />
+                <stop offset="25%" style="stop-color:#f97316" />
+                <stop offset="50%" style="stop-color:#eab308" />
+                <stop offset="75%" style="stop-color:#22c55e" />
+                <stop offset="100%" style="stop-color:#3b82f6" />
+              </linearGradient>
+            </defs>
+            <circle cx="12" cy="12" r="9" fill="url(#colorGradientMobile)" opacity="0.9" />
+            <circle cx="8" cy="8" r="3" fill="#ef4444" opacity="0.8" />
+            <circle cx="16" cy="8" r="3" fill="#eab308" opacity="0.8" />
+            <circle cx="12" cy="16" r="3" fill="#22c55e" opacity="0.8" />
+            <circle cx="12" cy="10" r="4" fill="#ffffff" opacity="0.3" />
+          </svg>
+          <span v-show="sortMode !== 'color' && !isCalculatingColors" class="sort-text">Az</span>
+        </button>
         <Button variant="primary" @click="openBookModal('upload')" :disabled="isUploading" class="add-book-btn mobile-only-btn">
           +
         </Button>
@@ -155,16 +209,27 @@ import BookSearchModal from '../components/Modal/BookSearchModal.vue'
 import { extractEpubMetadata, coverUrlToDataUrl } from '../services/epubRenderer.js'
 import { uploadBookToStorage, saveBookFileToIDB } from '../services/bookStorage.js'
 import { generateDefaultCover } from '../services/bookCoverGenerator.js'
+import { extractDominantColor, generateColorFromText } from '../services/colorExtractor.js'
 
 const router = useRouter()
 const booksStore = useBooksStore()
 
 // View mode state (grid or list)
 const viewMode = ref(localStorage.getItem('books-view-mode') || 'grid')
+// Sort mode: 'name' or 'color'
+const sortMode = ref('name')
+// Store calculated colors for books: { bookId: {h, s, l} }
+const bookColors = ref({})
+// Color calculation in progress
+const isCalculatingColors = ref(false)
 
 const toggleViewMode = () => {
   viewMode.value = viewMode.value === 'grid' ? 'list' : 'grid'
   localStorage.setItem('books-view-mode', viewMode.value)
+}
+
+const toggleSortMode = () => {
+  sortMode.value = sortMode.value === 'date' ? 'color' : 'date'
 }
 
 const isLoading = ref(false)
@@ -178,25 +243,37 @@ const searchQuery = ref('')
 const showSearchModal = ref(false)
 const modalDefaultTab = ref('search')
 
-// Filtered books based on search query
+// Filtered books based on search query and sort mode
 const filteredBooks = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
-  if (!query) {
-    return booksStore.booksSortedByDate
+  let books = booksStore.books
+
+  // Apply search filter
+  if (query) {
+    const searchWords = query.split(/\s+/).filter(w => w.length > 0)
+    books = books.filter(book => {
+      const title = (book.title || '').toLowerCase()
+      const author = (book.author || '').toLowerCase()
+      return searchWords.every(word =>
+        title.includes(word) || author.includes(word)
+      )
+    })
   }
 
-  // Split query into individual words for multi-word search
-  const searchWords = query.split(/\s+/).filter(w => w.length > 0)
-
-  return booksStore.booksSortedByDate.filter(book => {
-    const title = (book.title || '').toLowerCase()
-    const author = (book.author || '').toLowerCase()
-
-    // Match if ALL search words are found in either title or author
-    return searchWords.every(word =>
-      title.includes(word) || author.includes(word)
-    )
-  })
+  // Apply sorting
+  if (sortMode.value === 'color') {
+    // Sort by hue, then saturation, then lightness
+    return [...books].sort((a, b) => {
+      const colorA = bookColors.value[a.id] || { h: 0, s: 0, l: 100 }
+      const colorB = bookColors.value[b.id] || { h: 0, s: 0, l: 100 }
+      if (colorA.h !== colorB.h) return colorA.h - colorB.h
+      if (colorA.s !== colorB.s) return colorA.s - colorB.s
+      return colorA.l - colorB.l
+    })
+  } else {
+    // Sort by title alphabetically
+    return [...books].sort((a, b) => (a.title || '').localeCompare(b.title || ''))
+  }
 })
 
 // Cache for generated default covers
@@ -208,6 +285,43 @@ function getDefaultCover(title, author) {
     defaultCoverCache.set(key, generateDefaultCover(title, author))
   }
   return defaultCoverCache.get(key)
+}
+
+// Calculate colors for all books and sort by color
+async function calculateColorsAndSort() {
+  if (isCalculatingColors.value) return
+
+  isCalculatingColors.value = true
+  const colors = {}
+
+  try {
+    const books = booksStore.books
+
+    for (const book of books) {
+      try {
+        let color
+
+        if (book.coverUrl) {
+          // Extract color from cover image
+          color = await extractDominantColor(book.coverUrl)
+        } else {
+          // Generate color from title for default covers
+          color = generateColorFromText(book.title || book.id)
+        }
+
+        colors[book.id] = color
+      } catch (err) {
+        console.warn(`Failed to extract color for book "${book.title}":`, err)
+        // Fallback to generated color from title
+        colors[book.id] = generateColorFromText(book.title || book.id)
+      }
+    }
+
+    bookColors.value = colors
+    sortMode.value = 'color'
+  } finally {
+    isCalculatingColors.value = false
+  }
 }
 
 // Edit modal state
@@ -507,6 +621,12 @@ async function handleDownloadedBook(bookData) {
   transition: all 0.2s;
 }
 
+.view-toggle.sort-btn {
+  width: auto;
+  padding: 0 8px;
+  min-width: 36px;
+}
+
 .view-toggle:hover {
   background-color: var(--color-bg-page);
   border-color: var(--color-border-accent);
@@ -516,6 +636,27 @@ async function handleDownloadedBook(bookData) {
 .view-icon {
   width: 18px;
   height: 18px;
+}
+
+.sort-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.view-icon.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+    stroke-dashoffset: 32;
+  }
+  to {
+    transform: rotate(360deg);
+    stroke-dashoffset: 0;
+  }
 }
 
 .loading,
