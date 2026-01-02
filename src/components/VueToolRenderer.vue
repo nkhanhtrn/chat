@@ -82,7 +82,7 @@ onUnmounted(() => {
 .vue-tool-renderer {
   width: 100%;
   height: 100%;
-  overflow: auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   background: var(--color-bg-base);
@@ -97,6 +97,7 @@ onUnmounted(() => {
   height: 100%;
   box-sizing: border-box;
   background: var(--color-bg-base) !important;
+  overflow: hidden;
 }
 
 .error-message {
@@ -132,55 +133,157 @@ onUnmounted(() => {
   background: var(--color-error-hover, #dc2626);
 }
 
-/* Theme base styles for generated components */
-.themed-tool :deep(button) {
-  background: var(--color-bg-button);
-  color: var(--color-text-base);
-  border: 1px solid var(--color-border-button);
-  padding: 0.5rem 1rem;
+/* Apply utility classes to generated tool content */
+.themed-tool :deep(.btn) {
+  padding: 0.4rem 1rem;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-base);
+  border-radius: 4px;
+  color: var(--color-text-muted);
   cursor: pointer;
-  font: inherit;
+  font-size: 0.9rem;
+  font-family: system-ui, -apple-system, sans-serif;
   transition: all 0.15s ease;
 }
 
-.themed-tool :deep(button:hover) {
-  background: var(--color-bg-button-hover);
-  border-color: var(--color-border-button-hover);
+.themed-tool :deep(.btn:hover) {
+  background: var(--color-bg-hover);
+  color: var(--color-text-base);
 }
 
-.themed-tool :deep(button:active) {
-  background: var(--color-bg-button-active);
-}
-
-.themed-tool :deep(button.primary) {
+.themed-tool :deep(.btn.primary) {
   background: var(--color-primary);
-  color: var(--color-text-inverse);
+  color: white;
   border-color: var(--color-primary);
 }
 
-.themed-tool :deep(button.primary:hover) {
+.themed-tool :deep(.btn.primary:hover) {
   background: var(--color-primary-hover);
 }
 
-.themed-tool :deep(input),
-.themed-tool :deep(textarea),
-.themed-tool :deep(select) {
-  background: var(--color-bg-input);
-  color: var(--color-text-base);
-  border: 1px solid var(--color-border-input);
+.themed-tool :deep(.btn.active) {
+  background: var(--color-bg-active);
+  color: var(--color-text-strong);
+}
+
+.themed-tool :deep(.input),
+.themed-tool :deep(.select),
+.themed-tool :deep(.textarea) {
   padding: 0.5rem 0.75rem;
-  font: inherit;
+  border: 1px solid var(--color-border-base);
+  border-radius: 4px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-base);
+  font-size: 0.9rem;
+  font-family: inherit;
 }
 
-.themed-tool :deep(input:focus),
-.themed-tool :deep(textarea:focus),
-.themed-tool :deep(select:focus) {
+.themed-tool :deep(.input:focus),
+.themed-tool :deep(.select:focus),
+.themed-tool :deep(.textarea:focus) {
   outline: none;
-  border-color: var(--color-primary);
+  border-color: var(--color-border-strong);
 }
 
-.themed-tool :deep(input::placeholder),
-.themed-tool :deep(textarea::placeholder) {
-  color: var(--color-text-placeholder);
+.themed-tool :deep(.input::placeholder),
+.themed-tool :deep(.textarea::placeholder) {
+  color: var(--color-text-muted);
+}
+
+/* Layout utilities */
+.themed-tool :deep(.row) {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.themed-tool :deep(.col) {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.themed-tool :deep(.container) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.themed-tool :deep(.tool-container) {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  height: 100%;
+  padding: 1rem;
+  overflow: hidden;
+}
+
+.themed-tool :deep(.header) {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+}
+
+.themed-tool :deep(.content) {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.themed-tool :deep(.form-group) {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.themed-tool :deep(.card) {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-base);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/* Fallback for unstyled buttons/inputs in generated tools */
+.themed-tool :deep(button:not(.btn)) {
+  padding: 0.4rem 1rem;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-base);
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-family: system-ui, -apple-system, sans-serif;
+  transition: all 0.15s ease;
+}
+
+.themed-tool :deep(button:not(.btn):hover) {
+  background: var(--color-bg-hover);
+  color: var(--color-text-base);
+}
+
+.themed-tool :deep(input:not(.input)),
+.themed-tool :deep(textarea:not(.textarea)),
+.themed-tool :deep(select:not(.select)) {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border-base);
+  border-radius: 4px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-base);
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.themed-tool :deep(input:not(.input):focus),
+.themed-tool :deep(textarea:not(.textarea):focus),
+.themed-tool :deep(select:not(.select):focus) {
+  outline: none;
+  border-color: var(--color-border-strong);
 }
 </style>

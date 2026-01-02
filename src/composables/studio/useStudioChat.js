@@ -225,7 +225,8 @@ export function useStudioChat() {
       tool: null,
       buildSteps: null,
       attempts: 0,
-      webSearchResults: null
+      webSearchResults: null,
+      stdout: ''
     }
     messages.value.push(msg)
     return msg
@@ -260,6 +261,7 @@ export function useStudioChat() {
       executorId,
       executorProviderId,
       rawAttachments,
+      useThinkingMode,
       searchCallbacks,
       planningCallbacks
     } = options
@@ -280,6 +282,7 @@ export function useStudioChat() {
       },
       abortController.signal,
       {
+        useThinkingMode: useThinkingMode || false,
         attachments: rawAttachments,
         verifyMode: true,
         maxRetries: 3,
@@ -449,6 +452,7 @@ export function useStudioChat() {
           executorId: modelSelection.executorModel,
           executorProviderId: modelSelection.executorProviderId,
           rawAttachments: preparedMessage.rawAttachments,
+          useThinkingMode: modelSelection.useThinkingMode || false,
           searchCallbacks,
           planningCallbacks
         })
@@ -507,10 +511,13 @@ export function useStudioChat() {
    * @param {Object|string} options.currentContent - Current window content
    * @param {string} options.prompt - Edit request
    * @param {Object} options.modelSelection - Model selection config
+   * @param {boolean} options.useThinkingMode - Whether to use Code API (thinking mode)
    * @param {Function} options.onComplete - Callback with updated content
+   * @param {Function} options.onStdoutChunk - Callback for streaming stdout chunks (displayed in chat)
    */
   async function editWindow(options) {
-    const { windowType, currentContent, prompt, modelSelection, onComplete } = options
+    const { windowType, currentContent, prompt, modelSelection, useThinkingMode = false, onComplete, onStdoutChunk } = options
+    console.log('[useStudioChat] editWindow - useThinkingMode:', useThinkingMode)
 
     const localAbortController = new AbortController()
 
@@ -532,7 +539,8 @@ export function useStudioChat() {
             modelId,
             provider,
             config,
-            localAbortController.signal
+            localAbortController.signal,
+            useThinkingMode
           )
           break
         }
@@ -568,17 +576,37 @@ export function useStudioChat() {
 
         case 'codeResult': {
           const codeCapability = new CodeCapability()
+
+          // Accumulate stdout for this edit operation
+          let accumulatedStdout = ''
+
+          // Create a wrapper callback that updates the last message's stdout field
+          const wrappedStdoutCallback = (chunk) => {
+            accumulatedStdout += chunk
+            if (onStdoutChunk) {
+              onStdoutChunk(chunk)
+            }
+            // Also update the last message's stdout field for persistence
+            const lastMsg = getLastMessage()
+            if (lastMsg) {
+              lastMsg.stdout = (lastMsg.stdout || '') + chunk
+            }
+          }
+
           const codeResult = await codeCapability.editCode(
             currentContent.code || '',
             prompt,
             modelId,
             provider,
             config,
-            localAbortController.signal
+            localAbortController.signal,
+            useThinkingMode,
+            wrappedStdoutCallback
           )
           result = {
             code: codeResult.code,
-            result: codeResult.result
+            result: codeResult.result,
+            stdout: accumulatedStdout
           }
           break
         }

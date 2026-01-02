@@ -128,6 +128,10 @@
 
       <!-- Code Result -->
       <div v-else-if="window.type === 'codeResult'" class="code-result">
+        <div v-if="window.content.stdout" class="stdout-output">
+          <div class="stdout-header">Output</div>
+          <pre class="stdout-value">{{ window.content.stdout }}</pre>
+        </div>
         <div class="result-output">
           <pre class="result-value">{{ formatResult(window.content.result) }}</pre>
         </div>
@@ -140,6 +144,15 @@
 
     <!-- Edit Panel -->
     <div v-if="showEditPanel" class="edit-panel">
+      <div class="edit-options-row">
+        <ThinkingModeToggle
+          :model-value="useThinkingMode"
+          @update:model-value="toggleThinkingMode"
+        />
+        <span v-if="showThinkingWarning" class="thinking-warning">
+          ⚠️ Reasoning AI not configured in Settings
+        </span>
+      </div>
       <div class="edit-input-row">
         <input
           v-model="editPrompt"
@@ -191,7 +204,9 @@ import ToolRenderer from '../ToolRenderer.vue'
 import VueToolRenderer from '../VueToolRenderer.vue'
 import InlineEdit from '../InlineEdit.vue'
 import CodeDisplay from './CodeDisplay.vue'
+import ThinkingModeToggle from './ThinkingModeToggle.vue'
 import { parseChartOption } from '../../utils/chart.js'
+import { isCodeApiConfigured } from '../../services/codeApi.js'
 
 const props = defineProps({
   window: { type: Object, required: true },
@@ -226,6 +241,34 @@ watch(() => props.window.content?.code, (newCode, oldCode) => {
 const showEditPanel = ref(false)
 const editPrompt = ref('')
 const isEditing = ref(false)
+const useThinkingMode = ref(false)
+
+const EDIT_THINKING_STORAGE_KEY = 'edit-thinking-mode'
+
+// Check if Reasoning AI is configured (async, so we track it)
+const codeApiConfigured = ref(false)
+
+// Check Reasoning AI configuration when edit panel opens
+watch(showEditPanel, async (isOpen) => {
+  if (isOpen) {
+    codeApiConfigured.value = await isCodeApiConfigured()
+
+    // Load thinking mode state from localStorage
+    const stored = localStorage.getItem(EDIT_THINKING_STORAGE_KEY)
+    if (stored !== null) {
+      useThinkingMode.value = stored === 'true'
+    }
+  }
+})
+
+const showThinkingWarning = computed(() => {
+  return useThinkingMode.value && !codeApiConfigured.value
+})
+
+function toggleThinkingMode(value) {
+  useThinkingMode.value = value
+  localStorage.setItem(EDIT_THINKING_STORAGE_KEY, value.toString())
+}
 
 function submitEdit() {
   if (!editPrompt.value.trim() || isEditing.value) return
@@ -236,10 +279,12 @@ function submitEdit() {
     windowType: props.window.type,
     currentContent: props.window.content,
     prompt: editPrompt.value.trim(),
+    useThinkingMode: useThinkingMode.value,
     onDone: () => {
       editPrompt.value = ''
       showEditPanel.value = false
       isEditing.value = false
+      // Don't reset useThinkingMode - keep it for next edit
     }
   })
 }
@@ -800,6 +845,38 @@ onUnmounted(() => {
   gap: 0.5rem;
 }
 
+.stdout-output {
+  flex-shrink: 0;
+  max-height: 200px;
+  overflow: auto;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 6px;
+}
+
+.stdout-header {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background-color: var(--color-bg-hover);
+  border-bottom: 1px solid var(--color-border-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stdout-value {
+  margin: 0;
+  padding: 0.75rem;
+  background-color: var(--color-code-block-bg, #1a1a2e);
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #a6e3a1; /* Green color for terminal output */
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .result-output {
   flex: 1;
   min-height: 0;
@@ -935,6 +1012,20 @@ onUnmounted(() => {
 
 .edit-input::placeholder {
   color: var(--color-text-muted);
+}
+
+.edit-options-row {
+  display: flex;
+  align-items: center;
+  padding: 0.25rem 0;
+  margin-bottom: 0.25rem;
+  gap: 0.5rem;
+}
+
+.thinking-warning {
+  font-size: 0.7rem;
+  color: #d97706;
+  font-family: system-ui, -apple-system, sans-serif;
 }
 
 .edit-submit-btn {

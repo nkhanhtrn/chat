@@ -25,6 +25,15 @@ vi.mock('../MessageInput.vue', () => ({
   }
 }))
 
+// Mock localStorage
+const localStorageMock = {
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn()
+}
+global.localStorage = localStorageMock
+
 describe('ChatPanel', () => {
   let wrapper
 
@@ -266,6 +275,90 @@ describe('ChatPanel', () => {
       expect(messageList.props('isSearching')).toBe(false)
       expect(messageList.props('searchQuery')).toBe('')
       expect(messageList.props('currentPlanningStep')).toBe(-1)
+    })
+  })
+
+  describe('ThinkingModeToggle Integration', () => {
+    beforeEach(() => {
+      localStorageMock.getItem.mockReturnValue(null)
+    })
+
+    afterEach(() => {
+      localStorageMock.getItem.mockReset()
+      localStorageMock.setItem.mockReset()
+    })
+
+    it('should render ThinkingModeToggle component', () => {
+      wrapper = mount(ChatPanel, { props: defaultProps })
+      expect(wrapper.findComponent({ name: 'ThinkingModeToggle' }).exists()).toBe(true)
+    })
+
+    it('should load thinking mode from localStorage on mount', () => {
+      localStorageMock.getItem.mockReturnValue('true')
+      wrapper = mount(ChatPanel, { props: defaultProps })
+
+      // After mount, thinking mode should be loaded from localStorage
+      expect(localStorageMock.getItem).toHaveBeenCalledWith('studio-thinking-mode')
+    })
+
+    it('should save thinking mode to localStorage when toggled', async () => {
+      wrapper = mount(ChatPanel, {
+        props: { ...defaultProps, thinkingMode: false }
+      })
+
+      const toggle = wrapper.findComponent({ name: 'ThinkingModeToggle' })
+      await toggle.vm.$emit('update:modelValue', true)
+
+      // Check that localStorage was called
+      expect(localStorageMock.setItem).toHaveBeenCalledWith('studio-thinking-mode', 'true')
+    })
+
+    it('should emit update:thinkingMode when toggle changes', async () => {
+      wrapper = mount(ChatPanel, {
+        props: { ...defaultProps, thinkingMode: false }
+      })
+
+      const toggle = wrapper.findComponent({ name: 'ThinkingModeToggle' })
+      await toggle.vm.$emit('update:modelValue', true)
+
+      expect(wrapper.emitted('update:thinkingMode')).toBeTruthy()
+      expect(wrapper.emitted('update:thinkingMode')[0]).toEqual([true])
+    })
+
+    it('should have ThinkingModeToggle with false value by default', () => {
+      wrapper = mount(ChatPanel, {
+        props: { ...defaultProps }
+      })
+
+      const toggle = wrapper.findComponent({ name: 'ThinkingModeToggle' })
+      // Component initializes to false from localStorage (null return)
+      expect(toggle.props('modelValue')).toBe(false)
+    })
+  })
+
+  describe('Model Selection Toggle', () => {
+    beforeEach(() => {
+      localStorageMock.getItem.mockReturnValue(null)
+    })
+
+    afterEach(() => {
+      localStorageMock.getItem.mockReset()
+      localStorageMock.setItem.mockReset()
+    })
+
+    it('should load showModelSelection from localStorage on mount', () => {
+      localStorageMock.getItem.mockReturnValue('false')
+      wrapper = mount(ChatPanel, { props: defaultProps })
+
+      expect(localStorageMock.getItem).toHaveBeenCalledWith('studio-show-model-selection')
+    })
+
+    it('should save showModelSelection to localStorage when toggled', async () => {
+      wrapper = mount(ChatPanel, { props: defaultProps })
+
+      await wrapper.find('.toggle-models-btn').trigger('click')
+
+      expect(localStorageMock.setItem).toHaveBeenCalledWith('studio-show-model-selection', 'false')
     })
   })
 })

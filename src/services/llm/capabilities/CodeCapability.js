@@ -13,6 +13,7 @@
  */
 
 import { BaseCapability, createPipeData } from './BaseCapability.js'
+import { isCodeApiConfigured, generateCode as callCodeApi } from '../../codeApi.js'
 
 const EXECUTOR_SYSTEM_PROMPT = `You are a JavaScript code generator. You receive instructions and write clean, executable JavaScript code.
 
@@ -410,9 +411,36 @@ Fix the code to work correctly. Write only the corrected JavaScript code:`
    * @param {Object} provider - LLM provider
    * @param {Object} config - Provider config
    * @param {AbortSignal} signal - Abort signal
+   * @param {boolean} useThinkingMode - Whether to use Code API (thinking mode)
+   * @param {Function} onStdoutChunk - Callback for streaming stdout chunks
    * @returns {Object} { code, result, success, error }
    */
-  async editCode(currentCode, request, modelId, provider, config, signal) {
+  async editCode(currentCode, request, modelId, provider, config, signal, useThinkingMode = false, onStdoutChunk = null) {
+    // Use Code API if thinking mode is enabled
+    if (useThinkingMode && await isCodeApiConfigured()) {
+      const result = await callCodeApi({
+        initial_code: currentCode,
+        edit_prompt: `Edit this JavaScript code (NOT TypeScript). ${request}`,
+        output_path: `code/${crypto.randomUUID()}.js`,
+        onStdoutChunk,
+        signal
+      })
+
+      if (!result.success || !result.code) {
+        throw new Error(result.stderr || 'Code API returned no code')
+      }
+
+      const cleanedCode = this.cleanOutput(result.code)
+      const execution = this._executeCode(cleanedCode)
+
+      return {
+        code: cleanedCode,
+        result: execution.result,
+        success: execution.success,
+        error: execution.error
+      }
+    }
+
     const systemPrompt = `You are editing existing JavaScript code per the user's request.
 
 CRITICAL RULES:

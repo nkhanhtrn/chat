@@ -31,6 +31,7 @@
         v-model="inputText"
         v-model:router-model="modelSelection.routerModel.value"
         v-model:executor-model="modelSelection.executorModel.value"
+        v-model:thinking-mode="thinkingMode"
         :messages="chat.messages.value"
         :is-streaming="chat.isStreaming.value"
         :is-searching="webSearch.isSearching.value"
@@ -113,6 +114,29 @@ const chatPanelRef = ref(null)
 const appLayoutRef = ref(null)
 const canvasPanelRef = ref(null)
 const isBrowsingSessions = ref(false)
+const thinkingMode = ref(false)
+
+// Load thinking mode from localStorage on mount
+onMounted(() => {
+  const stored = localStorage.getItem('studio-thinking-mode')
+  if (stored !== null) {
+    thinkingMode.value = stored === 'true'
+  }
+})
+
+// Function to get executor model based on thinking mode
+function getExecutorModel() {
+  if (thinkingMode.value) {
+    // Thinking mode ON - use selected executor
+    return modelSelection.executorModel.value
+  } else {
+    // Thinking mode OFF - use Cerebras
+    const cerebrasModel = modelSelection.allModels.value.find(m =>
+      m.providerId === 'cerebras' || m.id.toLowerCase().includes('cerebras')
+    )
+    return cerebrasModel?.id || modelSelection.executorModel.value
+  }
+}
 
 // Set up session manager integration
 chat.setSessionManager(sessions)
@@ -257,22 +281,41 @@ async function handleEdit(messageIndex, newContent) {
 }
 
 // Handle window edit request
-async function handleEditWindow({ windowId, windowType, currentContent, prompt, onDone }) {
+async function handleEditWindow({ windowId, windowType, currentContent, prompt, useThinkingMode, onDone }) {
   if (!modelSelection.isModelReady.value || chat.isStreaming.value) {
     onDone?.()
     return
   }
 
+  // Global thinking OFF forces everything to not use Code API
+  // Global thinking ON allows OutputWindow to override locally
+  const effectiveThinkingMode = thinkingMode.value ? (useThinkingMode ?? true) : false
+
   try {
+    // Find the window to get current content for merging
+    const currentWindow = canvas.windows.value.find(w => w.id === windowId)
+    let currentStdout = currentWindow?.content?.stdout || ''
+
     await chat.editWindow({
       windowType,
       currentContent,
       prompt,
+      useThinkingMode: effectiveThinkingMode,
       modelSelection: {
-        executorModel: modelSelection.executorModel.value,
+        executorModel: getExecutorModel(),
         executorProviderId: modelSelection.executorModelData.value?.providerId || 'lmstudio',
         routerProviderId: modelSelection.routerModelData.value?.providerId || 'lmstudio',
         selectedModel: modelSelection.selectedModel.value
+      },
+      onStdoutChunk: (chunk) => {
+        // Stream stdout to window in real-time for codeResult type
+        if (windowType === 'codeResult') {
+          currentStdout += chunk
+          canvas.updateWindowContent(windowId, {
+            ...currentContent,
+            stdout: currentStdout
+          })
+        }
       },
       onComplete: (updatedContent) => {
         canvas.updateWindowContent(windowId, updatedContent)
@@ -361,8 +404,9 @@ async function handleSend() {
     modelSelection: {
       routerModel: modelSelection.routerModel.value,
       routerProviderId: modelSelection.routerModelData.value?.providerId || 'lmstudio',
-      executorModel: modelSelection.executorModel.value,
-      executorProviderId: modelSelection.executorModelData.value?.providerId || 'lmstudio'
+      executorModel: getExecutorModel(),
+      executorProviderId: modelSelection.executorModelData.value?.providerId || 'lmstudio',
+      useThinkingMode: thinkingMode.value
     },
     searchCallbacks,
     planningCallbacks

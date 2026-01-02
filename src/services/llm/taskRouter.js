@@ -250,6 +250,8 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
   // Add usage tracking callback to executor config
   const executorConfig = {
     ...baseExecutorConfig,
+    providerId: executorProviderId,
+    useThinkingMode: options.useThinkingMode || false,
     onUsage: (usage) => {
       executorUsage = mergeUsage(executorUsage, usage)
     }

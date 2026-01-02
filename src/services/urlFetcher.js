@@ -10,6 +10,34 @@ import { loadUserSettings } from './firestore.js'
 // URL detection regex - matches http/https URLs
 const URL_REGEX = /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi
 
+// Domains that should never be proxied (internal services, APIs)
+const NO_PROXY_DOMAINS = [
+  'firestore.googleapis.com',
+  'firebaseio.com',
+  'firebase.googleapis.com',
+  'gstatic.com',
+  'googleapis.com',
+  'us-central1-nk-cloud-323802.cloudfunctions.net'
+]
+
+/**
+ * Check if a URL should bypass the proxy
+ * @param {string} url - URL to check
+ * @returns {boolean} - True if URL should bypass proxy
+ */
+export function shouldBypassProxy(url) {
+  if (!url) return false
+  try {
+    const hostname = new URL(url).hostname.toLowerCase()
+    // Check exact matches and subdomains
+    return NO_PROXY_DOMAINS.some(domain => {
+      return hostname === domain || hostname.endsWith(`.${domain}`)
+    })
+  } catch {
+    return false
+  }
+}
+
 // Cache for settings to avoid repeated lookups
 let settingsCache = null
 let settingsCacheTimestamp = 0
@@ -71,10 +99,11 @@ getCustomFetchUrl().then(url => {
 /**
  * Get proxied image URL for display
  * @param {string} imageUrl - Original image URL
- * @returns {string|null} - Proxied URL or null if proxy not configured
+ * @returns {string|null} - Proxied URL or null if proxy not configured or should bypass
  */
 export function getProxiedImageUrl(imageUrl) {
   if (!imageUrl) return null
+  if (shouldBypassProxy(imageUrl)) return null
   const proxyUrl = getProxyBaseUrl()
   if (!proxyUrl) return null
   return `${proxyUrl}/fetchBinaryContent?url=${encodeURIComponent(imageUrl)}`
@@ -83,9 +112,10 @@ export function getProxiedImageUrl(imageUrl) {
 /**
  * Get proxied URL for text/HTML content
  * @param {string} url - Original URL
- * @returns {string|null} - Proxied URL or null if proxy not configured
+ * @returns {string|null} - Proxied URL or null if proxy not configured or should bypass
  */
 export function getProxiedTextUrl(url) {
+  if (shouldBypassProxy(url)) return null
   const proxyUrl = getProxyBaseUrl()
   if (!proxyUrl) return null
   return `${proxyUrl}/fetchWebsiteContent?url=${encodeURIComponent(url)}`
@@ -94,9 +124,10 @@ export function getProxiedTextUrl(url) {
 /**
  * Get proxied URL for browsing
  * @param {string} url - Original URL
- * @returns {string|null} - Proxied URL or null if proxy not configured
+ * @returns {string|null} - Proxied URL or null if proxy not configured or should bypass
  */
 export function getProxiedBrowseUrl(url) {
+  if (shouldBypassProxy(url)) return null
   const proxyUrl = getProxyBaseUrl()
   if (!proxyUrl) return null
   return `${proxyUrl}/browse?url=${encodeURIComponent(url)}`
@@ -105,9 +136,10 @@ export function getProxiedBrowseUrl(url) {
 /**
  * Get proxied URL for binary download
  * @param {string} url - Original URL
- * @returns {string|null} - Proxied URL or null if proxy not configured
+ * @returns {string|null} - Proxied URL or null if proxy not configured or should bypass
  */
 export function getProxiedBinaryUrl(url) {
+  if (shouldBypassProxy(url)) return null
   const proxyUrl = getProxyBaseUrl()
   if (!proxyUrl) return null
   return `${proxyUrl}/browseBinary?url=${encodeURIComponent(url)}`
@@ -119,6 +151,20 @@ export function getProxiedBinaryUrl(url) {
  * @returns {Promise<string>} - Text content
  */
 export async function fetchTextContent(url) {
+  // Check if should bypass proxy
+  if (shouldBypassProxy(url)) {
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+    const contentType = response.headers.get('content-type') || ''
+    if (contentType.includes('application/json')) {
+      const data = await response.json()
+      return data.content || data.html || data.data || JSON.stringify(data)
+    }
+    return await response.text()
+  }
+
   const proxyUrl = getProxiedTextUrl(url)
   if (!proxyUrl) {
     throw new Error('Proxy URL not configured. Please set a custom fetch URL in settings.')
@@ -147,6 +193,20 @@ export async function fetchTextContent(url) {
  * @returns {Promise<ArrayBuffer>} - Binary data
  */
 export async function fetchBinaryContent(url, onProgress = null) {
+  // Check if should bypass proxy
+  if (shouldBypassProxy(url)) {
+    onProgress?.(10)
+    const response = await fetch(url)
+    onProgress?.(50)
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+    onProgress?.(80)
+    const buffer = await response.arrayBuffer()
+    onProgress?.(100)
+    return buffer
+  }
+
   const proxyUrl = getProxiedBinaryUrl(url)
   if (!proxyUrl) {
     throw new Error('Proxy URL not configured. Please set a custom fetch URL in settings.')
@@ -310,11 +370,22 @@ export function cleanHtml(html) {
  * Fetch URL content through custom fetch service.
  * Requires a custom fetch URL to be configured in settings.
  *
+ * URLs in NO_PROXY_DOMAINS will be fetched directly without proxy.
+ *
  * @param {string} url - URL to fetch
  * @returns {Promise<string>} - Fetched content (raw HTML)
  * @throws {Error} If no custom fetch URL is configured or fetch fails
  */
 export async function fetchUrlContent(url) {
+  // Bypass proxy for certain domains (Firebase, Google APIs, etc.)
+  if (shouldBypassProxy(url)) {
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+    return await response.text()
+  }
+
   const customFetchUrl = await getCustomFetchUrl()
 
   if (!customFetchUrl) {

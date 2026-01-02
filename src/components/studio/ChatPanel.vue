@@ -39,8 +39,15 @@
       @edit="(index, content) => $emit('edit', index, content)"
     />
 
-    <!-- Input -->
-    <MessageInput
+    <!-- Input with Thinking Mode -->
+    <div class="input-wrapper">
+      <div class="thinking-bar">
+        <ThinkingModeToggle
+          :model-value="thinkingMode"
+          @update:model-value="toggleThinkingMode"
+        />
+      </div>
+      <MessageInput
       ref="messageInputRef"
       :model-value="modelValue"
       @update:model-value="$emit('update:modelValue', $event)"
@@ -61,7 +68,8 @@
       @trigger-upload="$emit('trigger-upload')"
       @file-upload="$emit('file-upload', $event)"
       @remove-file="$emit('remove-file', $event)"
-    />
+      />
+    </div>
   </div>
 </template>
 
@@ -70,8 +78,10 @@ import { ref, onMounted } from 'vue'
 import StudioHeader from './StudioHeader.vue'
 import MessageList from './MessageList.vue'
 import MessageInput from './MessageInput.vue'
+import ThinkingModeToggle from './ThinkingModeToggle.vue'
 
 const STORAGE_KEY = 'studio-show-model-selection'
+const THINKING_STORAGE_KEY = 'studio-thinking-mode'
 
 const showModelSelection = ref(true)
 
@@ -85,6 +95,22 @@ onMounted(() => {
 function toggleModelSelection() {
   showModelSelection.value = !showModelSelection.value
   localStorage.setItem(STORAGE_KEY, showModelSelection.value.toString())
+}
+
+// Thinking mode with localStorage persistence
+const thinkingMode = ref(false)
+
+onMounted(() => {
+  const stored = localStorage.getItem(THINKING_STORAGE_KEY)
+  if (stored !== null) {
+    thinkingMode.value = stored === 'true'
+  }
+})
+
+function toggleThinkingMode(value) {
+  thinkingMode.value = value
+  localStorage.setItem(THINKING_STORAGE_KEY, thinkingMode.value.toString())
+  emit('update:thinkingMode', thinkingMode.value)
 }
 
 defineProps({
@@ -105,13 +131,16 @@ defineProps({
   // Model selection (always 2-model mode)
   allModels: { type: Array, default: () => [] },
   routerModel: { type: String, default: '' },
-  executorModel: { type: String, default: '' }
+  executorModel: { type: String, default: '' },
+  // Thinking mode
+  thinkingMode: { type: Boolean, default: false }
 })
 
 const emit = defineEmits([
   'update:modelValue',
   'update:routerModel',
   'update:executorModel',
+  'update:thinkingMode',
   'send',
   'stop',
   'clear',
@@ -207,5 +236,19 @@ defineExpose({
 .toggle-models-btn:hover {
   background: var(--color-bg-hover);
   color: var(--color-text-base);
+}
+
+/* Input Wrapper */
+.input-wrapper {
+  display: flex;
+  flex-direction: column;
+  padding: 0 1rem 0.5rem 1rem;
+  background: var(--color-bg-base);
+}
+
+.thinking-bar {
+  display: flex;
+  align-items: center;
+  padding-bottom: 0.25rem;
 }
 </style>

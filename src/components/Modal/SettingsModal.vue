@@ -177,19 +177,25 @@
           <label class="setting-label">Extra Services</label>
           <div class="button-group provider-group">
             <button
-              :class="['toggle-button', { active: bookSource === 'public-library' }]"
-              @click="bookSource = 'public-library'; onBookSourceChange()"
+              :class="['toggle-button', { active: extraService === 'public-library' }]"
+              @click="setExtraService('public-library')"
             >
-              Public Library
+              Bookstore
             </button>
             <button
-              :class="['toggle-button', { active: bookSource === 'custom' }]"
-              @click="bookSource = 'custom'; onBookSourceChange()"
+              :class="['toggle-button', { active: extraService === 'web-proxy' }]"
+              @click="setExtraService('web-proxy')"
             >
-              Browser Proxy
+              Web Proxy
+            </button>
+            <button
+              :class="['toggle-button', { active: extraService === 'reasoning-ai' }]"
+              @click="setExtraService('reasoning-ai')"
+            >
+              Reasoning AI
             </button>
           </div>
-          <div v-if="bookSource === 'public-library'" class="api-key-section">
+          <div v-if="extraService === 'public-library'" class="api-key-section">
             <input
               type="text"
               v-model="bookApiUrl"
@@ -205,7 +211,7 @@
               @input="onBookApiKeyChange"
             />
           </div>
-          <div v-if="bookSource === 'custom'" class="api-key-section">
+          <div v-if="extraService === 'web-proxy'" class="api-key-section">
             <input
               type="text"
               v-model="customFetchUrl"
@@ -213,6 +219,16 @@
               class="api-key-input"
               @input="onCustomFetchUrlChange"
             />
+          </div>
+          <div v-if="extraService === 'reasoning-ai'" class="api-key-section">
+            <input
+              type="password"
+              v-model="codeApiUrl"
+              placeholder="https://your-reasoning-ai.com/api"
+              class="api-key-input"
+              @input="onCodeApiUrlChange"
+            />
+            <span class="setting-hint">Used when Thinking Mode is ON for enhanced reasoning</span>
           </div>
         </div>
           </div>
@@ -343,7 +359,8 @@ const selectedModel = ref('')
 const customFetchUrl = ref('')
 const bookApiUrl = ref('')
 const bookApiKey = ref('')
-const bookSource = ref('public-library')
+const extraService = ref('public-library')
+const codeApiUrl = ref('')
 const chatStore = useChatStore()
 
 // Computed properties for current provider's config
@@ -595,8 +612,13 @@ const onBookApiKeyChange = () => {
   saveUserSettings({ bookApiKey: bookApiKey.value.trim() })
 }
 
-const onBookSourceChange = () => {
-  saveUserSettings({ bookSource: bookSource.value })
+const setExtraService = (service) => {
+  extraService.value = service
+  saveUserSettings({ extraService: service })
+}
+
+const onCodeApiUrlChange = () => {
+  saveUserSettings({ codeApiUrl: codeApiUrl.value.trim() })
 }
 
 // API key change handlers
@@ -694,8 +716,12 @@ onMounted(async () => {
       bookApiKey.value = settings.bookApiKey
     }
 
-    if (settings.bookSource) {
-      bookSource.value = settings.bookSource
+    if (settings.extraService) {
+      extraService.value = settings.extraService
+    }
+
+    if (settings.codeApiUrl) {
+      codeApiUrl.value = settings.codeApiUrl
     }
   } else {
     currentTheme.value = window.__getTheme?.() || 'light'
@@ -1000,10 +1026,23 @@ const restoreNotebooks = async (event) => {
   border-color: var(--color-border-strong);
 }
 
+.setting-hint {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-family: system-ui, -apple-system, sans-serif;
+  margin-top: 0.25rem;
+}
+
 .model-section {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+}
+
+.code-api-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .model-label {

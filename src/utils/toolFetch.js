@@ -3,7 +3,7 @@
  * Provides a proxied fetch function that routes HTTP/HTTPS requests through a proxy.
  */
 
-import { getProxyBaseUrl } from '../services/urlFetcher.js'
+import { getProxyBaseUrl, shouldBypassProxy } from '../services/urlFetcher.js'
 
 /**
  * Build a proxy URL for fetching external content.
@@ -81,6 +81,11 @@ export function createProxiedFetch(options = {}) {
   function isLikelyAPI(url) {
     try {
       const urlObj = new URL(url)
+
+      // Check for domains that should bypass proxy (Firebase, Google APIs, etc.)
+      if (shouldBypassProxy(url)) {
+        return true
+      }
 
       // Check for known API domains
       if (apiDomains.has(urlObj.hostname)) {

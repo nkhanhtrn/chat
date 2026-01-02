@@ -711,4 +711,106 @@ describe('OutputWindow', () => {
       expect(wrapper.find('.spec-details summary').text()).toBe('Current Specification')
     })
   })
+
+  describe('ThinkingModeToggle in Edit Panel', () => {
+    const toolProps = {
+      window: {
+        id: 'window-1',
+        type: 'tool',
+        content: { name: 'test-tool', state: {}, elements: [] },
+        position: { x: 100, y: 50 },
+        size: { width: 400, height: 300 },
+        zIndex: 100,
+        title: 'Test Tool'
+      },
+      containerRect: { width: 1000, height: 800 }
+    }
+
+    beforeEach(() => {
+      // Clear localStorage before each test in this suite
+      localStorage.clear()
+
+      // Mock isCodeApiConfigured to return true by default
+      vi.mock('../../../services/codeApi.js', () => ({
+        isCodeApiConfigured: vi.fn(() => Promise.resolve(true))
+      }))
+    })
+
+    it('should render ThinkingModeToggle in edit panel', async () => {
+      wrapper = mount(OutputWindow, { props: toolProps })
+      await wrapper.find('.edit-btn').trigger('click')
+
+      expect(wrapper.findComponent({ name: 'ThinkingModeToggle' }).exists()).toBe(true)
+    })
+
+    it('should update useThinkingMode when toggle changes', async () => {
+      wrapper = mount(OutputWindow, { props: toolProps })
+      await wrapper.find('.edit-btn').trigger('click')
+
+      const toggle = wrapper.findComponent({ name: 'ThinkingModeToggle' })
+
+      // Initially should be false
+      expect(wrapper.vm.useThinkingMode).toBe(false)
+
+      // Emit update event
+      await toggle.vm.$emit('update:modelValue', true)
+
+      // Should update internal state
+      expect(wrapper.vm.useThinkingMode).toBe(true)
+    })
+
+    it('should pass useThinkingMode value to ThinkingModeToggle', async () => {
+      wrapper = mount(OutputWindow, { props: toolProps })
+      await wrapper.find('.edit-btn').trigger('click')
+
+      const toggle = wrapper.findComponent({ name: 'ThinkingModeToggle' })
+      expect(toggle.props('modelValue')).toBe(false)
+    })
+
+    it('should include useThinkingMode in edit-window event', async () => {
+      wrapper = mount(OutputWindow, { props: toolProps })
+      await wrapper.find('.edit-btn').trigger('click')
+
+      // Turn on thinking mode
+      const toggle = wrapper.findComponent({ name: 'ThinkingModeToggle' })
+      await toggle.vm.$emit('update:modelValue', true)
+
+      // Submit edit
+      await wrapper.find('.edit-input').setValue('Add feature')
+      await wrapper.find('.edit-submit-btn').trigger('click')
+
+      expect(wrapper.emitted('edit-window')).toBeTruthy()
+      const emitted = wrapper.emitted('edit-window')[0][0]
+      expect(emitted.useThinkingMode).toBe(true)
+    })
+
+    it('should keep useThinkingMode state after edit completes', async () => {
+      wrapper = mount(OutputWindow, { props: toolProps })
+      await wrapper.find('.edit-btn').trigger('click')
+
+      // Turn on thinking mode
+      const toggle = wrapper.findComponent({ name: 'ThinkingModeToggle' })
+      await toggle.vm.$emit('update:modelValue', true)
+      expect(wrapper.vm.useThinkingMode).toBe(true)
+
+      // Submit edit
+      await wrapper.find('.edit-input').setValue('Add feature')
+      await wrapper.find('.edit-submit-btn').trigger('click')
+
+      // Call onDone callback
+      const emitted = wrapper.emitted('edit-window')[0][0]
+      emitted.onDone()
+      await wrapper.vm.$nextTick()
+
+      // Should keep the thinking mode state (not reset)
+      expect(wrapper.vm.useThinkingMode).toBe(true)
+    })
+
+    it('should have false useThinkingMode by default when edit panel opens', async () => {
+      wrapper = mount(OutputWindow, { props: toolProps })
+      await wrapper.find('.edit-btn').trigger('click')
+
+      expect(wrapper.vm.useThinkingMode).toBe(false)
+    })
+  })
 })
