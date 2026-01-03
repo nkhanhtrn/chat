@@ -16,7 +16,7 @@ import { useStudioChat } from '../useStudioChat.js'
 
 // Mock the LLM service
 vi.mock('../../../services/llm/index.js', () => ({
-  sendChatMessage: vi.fn(async (model, messages, onChunk) => {
+  sendChatMessage: vi.fn(async (providerId, model, messages, onChunk) => {
     onChunk('Hello ')
     onChunk('World!')
   })

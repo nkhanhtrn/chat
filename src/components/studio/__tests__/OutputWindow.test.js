@@ -19,11 +19,11 @@ vi.mock('../../markdown/MermaidBlock.vue', () => ({
   }
 }))
 
-vi.mock('../../ToolRenderer.vue', () => ({
+vi.mock('../../VueToolRenderer.vue', () => ({
   default: {
-    name: 'ToolRenderer',
-    props: ['tool'],
-    template: '<div class="mock-tool-renderer">Tool</div>'
+    name: 'VueToolRenderer',
+    props: ['code', 'toolId', 'sessionId', 'toolName'],
+    template: '<div class="mock-vue-tool-renderer">Vue Tool</div>'
   }
 }))
 
@@ -204,7 +204,7 @@ describe('OutputWindow', () => {
         }
       })
       expect(wrapper.find('.tool-wrapper').exists()).toBe(true)
-      expect(wrapper.find('.mock-tool-renderer').exists()).toBe(true)
+      expect(wrapper.find('.mock-vue-tool-renderer').exists()).toBe(true)
     })
 
     it('should render code result with output and collapsible code', () => {

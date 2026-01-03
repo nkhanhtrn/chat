@@ -1,20 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { ref } from 'vue'
 
-// Mock the storage module
-vi.mock('../../services/storage.js', () => ({
-  setReadOnlyMode: vi.fn()
+// Mock ChatStorage
+vi.mock('../../services/ChatStorage.js', () => ({
+  ChatStorage: {
+    setReadOnlyMode: vi.fn(),
+    isReadOnlyMode: vi.fn(() => false)
+  }
 }))
 
-// Mock the firestore module (dynamic import)
-vi.mock('../../services/firestore.js', () => ({
-  loadChatStateFromFirestore: vi.fn()
-}))
-
-describe('useStaleDataDetection', () => {
+describe('useStaleDataDetection (local-only mode)', () => {
   let useStaleDataDetection
   let setReadOnlyMode
-  let loadChatStateFromFirestore
 
   const mockLocalStorage = {
     store: {},
@@ -52,15 +49,11 @@ describe('useStaleDataDetection', () => {
     }
 
     // Import fresh modules
-    const storageModule = await import('../../services/storage.js')
-    setReadOnlyMode = storageModule.setReadOnlyMode
-
-    const firestoreModule = await import('../../services/firestore.js')
-    loadChatStateFromFirestore = firestoreModule.loadChatStateFromFirestore
+    const { ChatStorage } = await import('../../services/ChatStorage.js')
+    setReadOnlyMode = ChatStorage.setReadOnlyMode
 
     // Reset mocks
     vi.mocked(setReadOnlyMode).mockClear()
-    vi.mocked(loadChatStateFromFirestore).mockClear()
 
     // Import the composable fresh
     const module = await import('../useStaleDataDetection.js')
@@ -134,6 +127,14 @@ describe('useStaleDataDetection', () => {
       refresh()
 
       expect(window.location.reload).toHaveBeenCalled()
+    })
+
+    it('should disable read-only mode before refresh', () => {
+      const { refresh } = useStaleDataDetection()
+
+      refresh()
+
+      expect(setReadOnlyMode).toHaveBeenCalledWith(false)
     })
   })
 

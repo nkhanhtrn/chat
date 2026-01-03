@@ -2,15 +2,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 // Mock the codeApi module
 vi.mock('../../codeApi.js', () => ({
-  generateCode: vi.fn(),
-  getReasoningAiUrl: vi.fn(),
-  isReasoningAiConfigured: vi.fn()
+  generateCode: vi.fn()
 }))
 
 describe('Code API Provider', () => {
   let codeApiProvider
   let generateCode
-  let isReasoningAiConfigured
 
   beforeEach(async () => {
     vi.clearAllMocks()
@@ -18,7 +15,6 @@ describe('Code API Provider', () => {
 
     const codeApiModule = await import('../../codeApi.js')
     generateCode = codeApiModule.generateCode
-    isReasoningAiConfigured = codeApiModule.isReasoningAiConfigured
 
     const providerModule = await import('../providers/codeapi.js')
     codeApiProvider = providerModule.codeApiProvider
@@ -43,22 +39,12 @@ describe('Code API Provider', () => {
   })
 
   describe('fetchModels', () => {
-    it('should return Reasoning AI model when configured', async () => {
-      vi.mocked(isReasoningAiConfigured).mockResolvedValue(true)
-
+    it('should return Reasoning AI model', async () => {
       const models = await codeApiProvider.fetchModels()
 
       expect(models).toHaveLength(1)
       expect(models[0].id).toBe('codeapi-model')
       expect(models[0].name).toBe('Reasoning AI')
-    })
-
-    it('should return empty array when not configured', async () => {
-      vi.mocked(isReasoningAiConfigured).mockResolvedValue(false)
-
-      const models = await codeApiProvider.fetchModels()
-
-      expect(models).toHaveLength(0)
     })
   })
 
@@ -143,17 +129,7 @@ describe('Code API Provider', () => {
       expect(result).toBe('Done')
     })
 
-    it('should return null on abort', async () => {
-      vi.mocked(generateCode).mockRejectedValue({ name: 'AbortError' })
-
-      const messages = [{ role: 'user', content: 'test' }]
-
-      const result = await codeApiProvider.sendMessage('codeapi-model', messages)
-
-      expect(result).toBeNull()
-    })
-
-    it('should throw other errors', async () => {
+    it('should throw errors from generateCode', async () => {
       vi.mocked(generateCode).mockRejectedValue(new Error('API error'))
 
       const messages = [{ role: 'user', content: 'test' }]
@@ -218,24 +194,6 @@ describe('Code API Provider', () => {
           initial_code: ''
         })
       )
-    })
-  })
-
-  describe('testConnection', () => {
-    it('should return true when configured', async () => {
-      vi.mocked(isReasoningAiConfigured).mockResolvedValue(true)
-
-      const result = await codeApiProvider.testConnection()
-
-      expect(result).toBe(true)
-    })
-
-    it('should return false when not configured', async () => {
-      vi.mocked(isReasoningAiConfigured).mockResolvedValue(false)
-
-      const result = await codeApiProvider.testConnection()
-
-      expect(result).toBe(false)
     })
   })
 

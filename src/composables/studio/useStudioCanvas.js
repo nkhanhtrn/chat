@@ -1,50 +1,21 @@
-import { ref, watch, computed } from 'vue'
-import { saveTool } from '../../services/indexedDB.js'
+import { ref, computed, watch } from 'vue'
+import StudioStorage from '../../services/StudioStorage.js'
 
-const STORAGE_KEY = 'studio-canvas-windows'
-let sessionManager = null
-
-// Shared state (singleton pattern)
-const windows = ref([])
-const nextWindowId = ref(1)
-const cascadeOffset = ref({ x: 0, y: 0 })
+// UI-only state (not persisted, for smooth UX)
 const maxZIndex = ref(100)
 
 // History stack for tool windows (Map of windowId -> Array of previous content states)
+// This is runtime-only, not persisted
 const toolHistory = new Map()
 
-// Debounce timer for saving layout changes (position, size, z-index)
-let saveLayoutTimer = null
+// Reactive canvas state for the active session (loaded async from IndexedDB)
+const activeCanvasState = ref(null)
 
-// Window type categories for grouping minimized windows
-const TYPE_CATEGORIES = {
-  chart: { name: 'Charts', icon: '📊', order: 1 },
-  mermaid: { name: 'Diagrams', icon: '📐', order: 2 },
-  svg: { name: 'Graphics', icon: '🎨', order: 3 },
-  tool: { name: 'Tools', icon: '🔧', order: 4 },
-  codeResult: { name: 'Code', icon: '💻', order: 5 }
-}
-
-// Constants
-const CASCADE_STEP = 30
-const CASCADE_RESET_THRESHOLD = 300
-
-/**
- * Clean an object by removing undefined values (for Firestore compatibility)
- * @param {Object} obj - Object to clean
- * @returns {Object} Cleaned object
- */
-function cleanObject(obj) {
-  if (!obj || typeof obj !== 'object') return obj
-  if (Array.isArray(obj)) return obj.map(cleanObject)
-
-  const cleaned = {}
-  for (const [key, value] of Object.entries(obj)) {
-    if (value !== undefined) {
-      cleaned[key] = typeof value === 'object' ? cleanObject(value) : value
-    }
-  }
-  return cleaned
+// Window display states
+export const DISPLAY_STATES = {
+  OPEN: 'open',
+  MINIMIZED: 'minimized',
+  CLOSED: 'closed'
 }
 
 // Default sizes by type
@@ -65,96 +36,24 @@ const MIN_SIZES = {
   codeResult: { width: 300, height: 150 }
 }
 
-/**
- * Set the session manager (called by parent component)
- */
-function setSessionManager(manager) {
-  sessionManager = manager
-}
+// ============================================================
+// UI Helpers
+// ============================================================
 
 /**
- * Load state from session data (for session switching)
+ * Clean an object by removing undefined values (for Firestore compatibility)
  */
-function loadState(canvasState) {
-  if (canvasState) {
-    windows.value = canvasState.windows || []
-    nextWindowId.value = canvasState.nextWindowId || 1
-    cascadeOffset.value = canvasState.cascadeOffset || { x: 0, y: 0 }
-    maxZIndex.value = canvasState.maxZIndex || 100
-  } else {
-    windows.value = []
-    nextWindowId.value = 1
-    cascadeOffset.value = { x: 0, y: 0 }
-    maxZIndex.value = 100
+function cleanObject(obj) {
+  if (!obj || typeof obj !== 'object') return obj
+  if (Array.isArray(obj)) return obj.map(cleanObject)
+
+  const cleaned = {}
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      cleaned[key] = typeof value === 'object' ? cleanObject(value) : value
+    }
   }
-}
-
-/**
- * Get current state (for session switching)
- */
-function getState() {
-  return {
-    windows: windows.value,
-    nextWindowId: nextWindowId.value,
-    cascadeOffset: cascadeOffset.value,
-    maxZIndex: maxZIndex.value
-  }
-}
-
-/**
- * Save state to session (via session manager or localStorage)
- */
-function saveToStorage() {
-  const state = {
-    windows: windows.value.map(w => ({
-      ...w,
-      content: cleanObject(w.content)
-    })),
-    nextWindowId: nextWindowId.value,
-    cascadeOffset: cascadeOffset.value,
-    maxZIndex: maxZIndex.value
-  }
-
-  // If session manager is available, use it
-  if (sessionManager) {
-    sessionManager.updateCanvasState(state)
-    return
-  }
-
-  // Fall back to localStorage for backwards compatibility
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-  } catch (e) {
-    console.warn('Failed to save canvas state:', e)
-  }
-}
-
-/**
- * Load state from storage (no longer used, kept for compatibility)
- */
-function loadFromStorage() {
-  // State is now loaded via loadState() when sessions are initialized
-  return false
-}
-
-// Don't auto-load from storage on module load - sessions will handle this
-
-/**
- * Get next cascade position
- */
-function getNextCascadePosition() {
-  const pos = { ...cascadeOffset.value }
-
-  // Advance cascade
-  cascadeOffset.value.x += CASCADE_STEP
-  cascadeOffset.value.y += CASCADE_STEP
-
-  // Reset if too far
-  if (cascadeOffset.value.x > CASCADE_RESET_THRESHOLD) {
-    cascadeOffset.value = { x: 0, y: 0 }
-  }
-
-  return pos
+  return cleaned
 }
 
 /**
@@ -178,449 +77,246 @@ function generateTitle(type, content) {
 }
 
 /**
- * Add a new window to the canvas
- * @param {Object} options - Window options
- * @param {string} options.messageId - Message ID
- * @param {string} options.type - Window type
- * @param {Object} options.content - Window content
- * @param {boolean} options.preserveExisting - If true, don't close existing tool windows (for cloning)
+ * Get next z-index (UI-only state)
  */
-function addWindow({ messageId, type, content, preserveExisting }) {
-  const id = `window-${nextWindowId.value++}`
-  const position = getNextCascadePosition()
-  const size = DEFAULT_SIZES[type] || { width: 400, height: 300 }
-
-  maxZIndex.value++
-
-  const window = {
-    id,
-    messageId,
-    type,
-    content: cleanObject(content),
-    position,
-    size: { ...size },
-    zIndex: maxZIndex.value,
-    title: generateTitle(type, content),
-    minimized: false
-  }
-
-  windows.value.push(window)
-  saveToStorage()
-  return window
+function getNextZIndex() {
+  return ++maxZIndex.value
 }
 
 /**
- * Remove a window from the canvas
+ * Get default size for window type
  */
-function removeWindow(windowId) {
-  const index = windows.value.findIndex(w => w.id === windowId)
-  if (index !== -1) {
-    windows.value.splice(index, 1)
-    saveToStorage()
-  }
+function getDefaultSize(type) {
+  return DEFAULT_SIZES[type] || { width: 400, height: 300 }
 }
 
 /**
- * Update window position (debounced save)
- */
-function updateWindowPosition(windowId, position) {
-  const window = windows.value.find(w => w.id === windowId)
-  if (window) {
-    window.position = { ...position }
-    // Debounce save to avoid excessive storage writes during drag
-    clearTimeout(saveLayoutTimer)
-    saveLayoutTimer = setTimeout(() => saveToStorage(), 500)
-  }
-}
-
-/**
- * Update window size (debounced save)
- */
-function updateWindowSize(windowId, size) {
-  const window = windows.value.find(w => w.id === windowId)
-  if (window) {
-    const minSize = MIN_SIZES[window.type] || { width: 200, height: 150 }
-    window.size = {
-      width: Math.max(size.width, minSize.width),
-      height: Math.max(size.height, minSize.height)
-    }
-    // Debounce save to avoid excessive storage writes during resize
-    clearTimeout(saveLayoutTimer)
-    saveLayoutTimer = setTimeout(() => saveToStorage(), 500)
-  }
-}
-
-/**
- * Bring window to front (debounced save)
- */
-function bringToFront(windowId) {
-  const window = windows.value.find(w => w.id === windowId)
-  if (window) {
-    maxZIndex.value++
-    window.zIndex = maxZIndex.value
-    // Debounce save to avoid excessive storage writes
-    clearTimeout(saveLayoutTimer)
-    saveLayoutTimer = setTimeout(() => saveToStorage(), 500)
-  }
-}
-
-/**
- * Update window title (also updates tool name and saves to IndexedDB)
- */
-function updateWindowTitle(windowId, title) {
-  const window = windows.value.find(w => w.id === windowId)
-  if (window) {
-    window.title = title
-    // Also update content.name for tools and save to IndexedDB
-    if (window.type === 'tool' && window.content) {
-      window.content = { ...window.content, name: title }
-      if (window.content.code) {
-        saveTool({
-          id: window.content.id, // Use id to support renaming
-          name: title,
-          emoji: window.content.emoji,
-          type: window.content.type,
-          code: window.content.code
-        }).catch(console.error)
-      }
-    }
-    saveToStorage()
-  }
-}
-
-/**
- * Update window content (preserves existing name/emoji/id on edit, saves tools to IndexedDB)
- */
-function updateWindowContent(windowId, content, saveToHistory = true) {
-  const index = windows.value.findIndex(w => w.id === windowId)
-  if (index !== -1) {
-    const window = windows.value[index]
-    const existingContent = window.content
-
-    // Save current content to history before updating (only for tools, if requested)
-    if (saveToHistory && window.type === 'tool') {
-      pushToHistory(windowId, existingContent)
-    }
-
-    // Preserve existing id, name and emoji when editing (don't regenerate) - only if they exist
-    const mergedContent = cleanObject({
-      ...content,
-      ...(existingContent?.id && { id: existingContent.id }),
-      ...(existingContent?.name && { name: existingContent.name }),
-      ...(existingContent?.emoji && { emoji: existingContent.emoji })
-    })
-    // Replace the window object to ensure reactivity
-    windows.value[index] = { ...window, content: mergedContent }
-    saveToStorage()
-
-    // Save tool to IndexedDB
-    if (window.type === 'tool' && mergedContent.name && mergedContent.code) {
-      saveTool({
-        id: mergedContent.id,
-        name: mergedContent.name,
-        emoji: mergedContent.emoji,
-        type: mergedContent.type,
-        code: mergedContent.code
-      }).catch(console.error)
-    }
-  }
-}
-
-/**
- * Minimize a window
- */
-function minimizeWindow(windowId) {
-  const window = windows.value.find(w => w.id === windowId)
-  if (window) {
-    window.minimized = true
-    saveToStorage()
-  }
-}
-
-/**
- * Restore a minimized window
- */
-function restoreWindow(windowId) {
-  const window = windows.value.find(w => w.id === windowId)
-  if (window) {
-    window.minimized = false
-    bringToFront(windowId)
-  }
-}
-
-/**
- * Computed: visible windows (not minimized)
- */
-const visibleWindows = computed(() =>
-  windows.value.filter(w => !w.minimized)
-)
-
-/**
- * Computed: minimized windows grouped by category
- */
-const minimizedWindowsByCategory = computed(() => {
-  const minimized = windows.value.filter(w => w.minimized)
-  const grouped = {}
-
-  for (const win of minimized) {
-    const category = TYPE_CATEGORIES[win.type] || { name: 'Other', icon: '📋', order: 99 }
-    if (!grouped[win.type]) {
-      grouped[win.type] = {
-        type: win.type,
-        ...category,
-        windows: []
-      }
-    }
-    grouped[win.type].windows.push(win)
-  }
-
-  // Sort by category order
-  return Object.values(grouped).sort((a, b) => a.order - b.order)
-})
-
-/**
- * Get window by message ID
- */
-function getWindowByMessageId(messageId) {
-  return windows.value.find(w => w.messageId === messageId)
-}
-
-/**
- * Clone a window (creates a new window with same content, cascade position)
- */
-function cloneWindow(window) {
-  // Only copy essential fields, NOT id or runtime data
-  // This ensures the clone gets a fresh id and doesn't inherit old data
-  const baseContent = window.content
-  const clonedContent = {
-    name: baseContent.name,
-    emoji: baseContent.emoji,
-    type: baseContent.type,
-    code: baseContent.code
-    // Note: NO id, sourcePrompt, scope, sessionId, etc.
-    // saveTool will create a new id when saving
-  }
-
-  // Generate unique name for cloned tool
-  if (clonedContent.name) {
-    const baseName = clonedContent.name.replace(/ \(Copy( \d+)?\)$/, '')
-    const existingNames = windows.value
-      .filter(w => w.type === 'tool' && w.content?.name)
-      .map(w => w.content.name)
-
-    let copyNum = 1
-    let newName = `${baseName} (Copy)`
-    while (existingNames.includes(newName)) {
-      copyNum++
-      newName = `${baseName} (Copy ${copyNum})`
-    }
-    clonedContent.name = newName
-  }
-
-  const newWindow = addWindow({
-    type: window.type,
-    content: clonedContent,
-    preserveExisting: true  // Keep the original window when cloning
-  })
-
-  // Save cloned tool to IndexedDB
-  if (window.type === 'tool' && clonedContent.name) {
-    saveTool({
-      name: clonedContent.name,
-      emoji: clonedContent.emoji,
-      type: clonedContent.type,
-      code: clonedContent.code
-    }).catch(console.error)
-  }
-
-  return newWindow
-}
-
-/**
- * Clear all windows
- */
-function clearWindows() {
-  windows.value = []
-  cascadeOffset.value = { x: 0, y: 0 }
-  saveToStorage()
-}
-
-/**
- * Remove the last window added
- * @returns {Object|null} The removed window or null if no windows
- */
-function removeLastWindow() {
-  if (windows.value.length === 0) return null
-  const removed = windows.value.pop()
-  saveToStorage()
-  return removed
-}
-
-/**
- * Get minimum size for a window type
+ * Get minimum size for window type
  */
 function getMinSize(type) {
   return MIN_SIZES[type] || { width: 200, height: 150 }
 }
 
+// ============================================================
+// Canvas State Storage (delegates to StudioStorage)
+// ============================================================
+
 /**
- * Reset all state to defaults (for testing)
+ * Save canvas state (windows) for a specific session
  */
-function resetState() {
-  windows.value = []
-  nextWindowId.value = 1
-  cascadeOffset.value = { x: 0, y: 0 }
-  maxZIndex.value = 100
-  toolHistory.clear()
+async function saveCanvasState(sessionId, canvasState) {
+  return StudioStorage.saveCanvasState(sessionId, canvasState)
 }
 
 /**
- * Push current content to history before updating
- * @param {string} windowId - Window ID
- * @param {Object} content - Current content to save to history
+ * Load canvas state (windows) for a specific session
  */
-function pushToHistory(windowId, content) {
-  const window = windows.value.find(w => w.id === windowId)
-  if (!window || window.type !== 'tool') return
+async function loadCanvasState(sessionId) {
+  return StudioStorage.loadCanvasState(sessionId)
+}
 
+// ============================================================
+// History Management (Runtime-only, not persisted)
+// ============================================================
+
+/**
+ * Push current content to history before updating
+ */
+export function pushToHistory(windowId, content) {
   if (!toolHistory.has(windowId)) {
     toolHistory.set(windowId, [])
   }
-
-  const history = toolHistory.get(windowId)
   // Deep clone content to store in history
-  history.push(JSON.parse(JSON.stringify(content)))
+  toolHistory.get(windowId).push(JSON.parse(JSON.stringify(content)))
 }
 
 /**
  * Check if window has history
- * @param {string} windowId - Window ID
- * @returns {boolean} True if history exists
  */
-function hasHistory(windowId) {
+export function hasHistory(windowId) {
   const history = toolHistory.get(windowId)
   return !!(history && history.length > 0)
 }
 
 /**
  * Pop and restore previous content from history
- * @param {string} windowId - Window ID
- * @returns {Object|null} Previous content or null if no history
  */
-function popFromHistory(windowId) {
+export function popFromHistory(windowId) {
   const history = toolHistory.get(windowId)
   if (!history || history.length === 0) return null
-
-  const previousContent = history.pop()
-  return previousContent
+  return history.pop()
 }
 
 /**
  * Clear history for a window
- * @param {string} windowId - Window ID
  */
-function clearHistory(windowId) {
+export function clearHistory(windowId) {
   toolHistory.delete(windowId)
 }
 
-/**
- * Get current content (for reload functionality)
- * @param {string} windowId - Window ID
- * @returns {Object|null} Current content or null
- */
-function getCurrentContent(windowId) {
-  const window = windows.value.find(w => w.id === windowId)
-  return window?.content || null
-}
+// ============================================================
+// Export the composable
+// ============================================================
 
-/**
- * Restore window content from history or current content
- * @param {string} windowId - Window ID
- * @param {Object} content - Content to restore
- * @param {boolean} saveToHistory - Whether to save current to history before restoring
- * @param {boolean} saveToIndexedDB - Whether to save to IndexedDB (cloud sync)
- */
-function restoreContent(windowId, content, saveToHistory = false, saveToIndexedDB = true) {
-  const index = windows.value.findIndex(w => w.id === windowId)
-  if (index === -1) return
+export function useStudioCanvas(activeSessionId) {
+  // Watch activeSessionId to load canvas data
+  watch(activeSessionId, async (newSessionId) => {
+    if (newSessionId) {
+      activeCanvasState.value = await loadCanvasState(newSessionId)
+    } else {
+      activeCanvasState.value = null
+    }
+  }, { immediate: true })
 
-  const window = windows.value[index]
-  if (window.type !== 'tool') return
-
-  // Optionally save current content to history before restoring
-  if (saveToHistory) {
-    pushToHistory(windowId, window.content)
-  }
-
-  // Restore content and preserve existing id, name, emoji (only if they exist)
-  const mergedContent = cleanObject({
-    ...content,
-    ...(window.content?.id && { id: window.content.id }),
-    ...(window.content?.name && { name: window.content.name }),
-    ...(window.content?.emoji && { emoji: window.content.emoji })
+  // Computed: all windows for active session
+  const windows = computed(() => {
+    if (!activeSessionId?.value) return []
+    return activeCanvasState.value?.windows || []
   })
 
-  windows.value[index] = { ...window, content: mergedContent }
-  saveToStorage()
+  // Computed: visible windows (not closed)
+  const visibleWindows = computed(() =>
+    windows.value.filter(w => w.displayState !== 'closed')
+  )
 
-  // Save to IndexedDB (only if saveToIndexedDB is true)
-  if (saveToIndexedDB && mergedContent.name && mergedContent.code) {
-    saveTool({
-      id: mergedContent.id,
-      name: mergedContent.name,
-      emoji: mergedContent.emoji,
-      type: mergedContent.type,
-      code: mergedContent.code
-    }).catch(console.error)
+  // Window type categories for grouping minimized windows
+  const TYPE_CATEGORIES = {
+    chart: { name: 'Charts', icon: '📊', order: 1 },
+    mermaid: { name: 'Diagrams', icon: '📐', order: 2 },
+    svg: { name: 'Graphics', icon: '🎨', order: 3 },
+    tool: { name: 'Tools', icon: '🔧', order: 4 },
+    codeResult: { name: 'Code', icon: '💻', order: 5 }
   }
-}
 
-/**
- * Composable for managing output windows in the Studio canvas
- */
-export function useStudioCanvas() {
-  // Watcher removed - saveToStorage is now called explicitly with debouncing where needed
+  // Computed: minimized windows grouped by category
+  const minimizedWindowsByCategory = computed(() => {
+    const minimized = windows.value.filter(w => w.displayState === 'minimized')
+    const grouped = {}
+
+    for (const win of minimized) {
+      const category = TYPE_CATEGORIES[win.type] || { name: 'Other', icon: '📋', order: 99 }
+      if (!grouped[win.type]) {
+        grouped[win.type] = { type: win.type, ...category, windows: [] }
+      }
+      grouped[win.type].windows.push(win)
+    }
+
+    return Object.values(grouped).sort((a, b) => a.order - b.order)
+  })
+
+  // ============================================================
+  // Window CRUD Operations (inside composable to access activeSessionId)
+  // ============================================================
+
+  /**
+   * Add a window to a session
+   */
+  async function addWindow(sessionId, window) {
+    const canvasState = await loadCanvasState(sessionId)
+
+    // Ensure window has required properties
+    const completeWindow = {
+      id: window.id || crypto.randomUUID(),
+      type: window.type || 'text',
+      content: window.content || null,
+      title: window.title || '',
+      position: window.position || { x: 100, y: 100 },
+      size: window.size || { width: 400, height: 300 },
+      zIndex: window.zIndex || (canvasState.maxZIndex || 100) + 1,
+      displayState: window.displayState || 'open'
+    }
+
+    canvasState.windows.push(completeWindow)
+    canvasState.nextWindowId = (canvasState.nextWindowId || 1) + 1
+    canvasState.maxZIndex = Math.max(canvasState.maxZIndex || 100, completeWindow.zIndex)
+    await saveCanvasState(sessionId, canvasState)
+
+    // Update reactive ref if this is the active session
+    if (sessionId === activeSessionId.value) {
+      activeCanvasState.value = canvasState
+    }
+  }
+
+  /**
+   * Remove a window from a session
+   */
+  async function removeWindow(sessionId, windowId) {
+    const canvasState = await loadCanvasState(sessionId)
+    canvasState.windows = canvasState.windows.filter(w => w.id !== windowId)
+    await saveCanvasState(sessionId, canvasState)
+
+    // Update reactive ref if this is the active session
+    if (sessionId === activeSessionId.value) {
+      activeCanvasState.value = canvasState
+    }
+  }
+
+  /**
+   * Update a window in a session
+   */
+  async function updateWindow(sessionId, windowId, updates) {
+    const canvasState = await loadCanvasState(sessionId)
+    const window = canvasState.windows.find(w => w.id === windowId)
+    if (window) {
+      Object.assign(window, updates)
+      // Update maxZIndex if provided
+      if (updates.zIndex !== undefined) {
+        canvasState.maxZIndex = Math.max(canvasState.maxZIndex || 100, updates.zIndex)
+      }
+      await saveCanvasState(sessionId, canvasState)
+
+      // Update reactive ref if this is the active session
+      if (sessionId === activeSessionId.value) {
+        activeCanvasState.value = canvasState
+      }
+    }
+  }
+
+  /**
+   * Get all windows for a session (synchronous - uses activeCanvasState if matches)
+   */
+  function getWindows(sessionId) {
+    if (sessionId === activeSessionId.value && activeCanvasState.value) {
+      return activeCanvasState.value.windows || []
+    }
+    // For non-active sessions, we'd need to load from IndexedDB
+    // For now, return empty and let the caller load the session first
+    return []
+  }
 
   return {
-    // State
+    // === State ===
+    activeCanvasState,
+
+    // === Computed ===
     windows,
     visibleWindows,
     minimizedWindowsByCategory,
 
-    // Actions
+    // === UI Helpers ===
+    getNextZIndex,
+    getDefaultSize,
+    getMinSize,
+    generateTitle,
+    cleanObject,
+
+    // === Canvas Storage ===
+    saveCanvasState,
+    loadCanvasState,
+
+    // === Window CRUD ===
+    getWindows,
     addWindow,
     removeWindow,
-    removeLastWindow,
-    cloneWindow,
-    updateWindowPosition,
-    updateWindowSize,
-    updateWindowTitle,
-    updateWindowContent,
-    bringToFront,
-    minimizeWindow,
-    restoreWindow,
-    getWindowByMessageId,
-    clearWindows,
-    getMinSize,
+    updateWindow,
 
-    // History
+    // === History (Runtime-only) ===
     pushToHistory,
     hasHistory,
     popFromHistory,
     clearHistory,
-    getCurrentContent,
-    restoreContent,
 
-    // Storage
-    saveToStorage,
-    loadFromStorage,
-
-    // Session support
-    setSessionManager,
-    loadState,
-    getState,
-
-    // Testing
-    resetState
+    // === Constants ===
+    DISPLAY_STATES
   }
 }

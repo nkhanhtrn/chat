@@ -2,20 +2,11 @@
  * Per-instance persistence for generated tools using IndexedDB.
  * Each tool instance gets its own isolated storage.
  * Storage key is based on sessionId + toolId to isolate data between sessions.
- * Tool instance data syncs immediately to Firestore when changed.
  */
 
+import { debugLog } from '../../utils/debug.js'
 import { watchEffect } from 'vue'
-import { saveToolInstanceDataImmediate } from '../../services/firestore.js'
-import {
-  saveToolInstanceState,
-  loadToolInstanceState,
-  deleteToolInstanceState,
-  migrateToolInstancesFromLocalStorage
-} from '../../services/indexedDB.js'
-
-// Track pending sync timers to avoid excessive Firestore writes
-const syncTimers = new Map()
+import StudioStorage from '../../services/StudioStorage.js'
 
 // Track migration state
 let migrationPromise = null
@@ -28,7 +19,7 @@ async function ensureMigration() {
   if (migrationComplete) return
   if (migrationPromise) return migrationPromise
 
-  migrationPromise = migrateToolInstancesFromLocalStorage()
+  migrationPromise = StudioStorage.migrateToolInstances()
   await migrationPromise
   migrationComplete = true
   return migrationPromise
@@ -105,8 +96,10 @@ export function useToolInstanceStore(toolName, toolId, sessionId) {
 
     statePromise = (async () => {
       try {
-        const stored = await loadToolInstanceState(sessionSuffix, toolId)
+        debugLog('[useToolInstanceStore.getState] Loading from StudioStorage:', { toolName, toolId, sessionId: sessionSuffix })
+        const stored = await StudioStorage.loadToolState(sessionSuffix, toolId)
         cachedState = stored || {}
+        debugLog('[useToolInstanceStore.getState] Loaded state:', { keys: Object.keys(cachedState) })
         return cachedState
       } catch (e) {
         console.error('Error loading tool instance state:', e)
@@ -130,36 +123,12 @@ export function useToolInstanceStore(toolName, toolId, sessionId) {
   async function setState(state) {
     try {
       cachedState = state
-      await saveToolInstanceState(sessionSuffix, toolId, state)
+      debugLog('[useToolInstanceStore.setState] Saving to StudioStorage:', { toolName, toolId, sessionId: sessionSuffix, keys: Object.keys(state) })
+      await StudioStorage.saveToolState(sessionSuffix, toolId, state)
     } catch (e) {
       console.error('Error saving tool instance state:', e)
       throw e
     }
-
-    // Sync to Firestore (debounced to avoid excessive writes)
-    scheduleSync()
-  }
-
-  /**
-   * Schedule a debounced Firestore sync
-   */
-  function scheduleSync() {
-    const key = `${sessionSuffix}-${toolId}`
-
-    // Clear existing timer
-    if (syncTimers.has(key)) {
-      clearTimeout(syncTimers.get(key))
-    }
-
-    // Schedule new sync (1 second debounce)
-    const timer = setTimeout(async () => {
-      const state = await getState()
-      saveToolInstanceDataImmediate(sessionSuffix, toolId, state)
-        .catch(err => console.error('Tool instance sync failed:', err))
-      syncTimers.delete(key)
-    }, 1000)
-
-    syncTimers.set(key, timer)
   }
 
   /**
@@ -248,7 +217,7 @@ export function useToolInstanceStore(toolName, toolId, sessionId) {
   async function deleteInstance() {
     try {
       cachedState = null
-      await deleteToolInstanceState(sessionSuffix, toolId)
+      await StudioStorage.deleteToolState(sessionSuffix, toolId)
     } catch (e) {
       console.error('Error deleting tool instance state:', e)
       throw e

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import SettingsModal from '../SettingsModal.vue'
-import * as firestoreModule from '../../../services/firestore.js'
+import { Category } from '../../../services/llm/LMService.js'
 
 // Mock the LLM API module
 vi.mock('../../../services/api.js', () => ({
@@ -21,36 +21,22 @@ vi.mock('../../../services/api.js', () => ({
   initProvider: vi.fn(() => Promise.resolve()),
   sendChatMessage: vi.fn(),
   sendChatMessageForFeature: vi.fn(),
-  FeatureType: {
-    QUESTION: 'question',
-    DEEP_DIVE: 'deep_dive',
-    SUMMARY: 'summary',
-    EXPLAIN: 'explain',
-    DICTIONARY: 'dictionary',
-    SR_SUMMARY: 'sr_summary'
-  }
+  Category
 }))
 
 // Mock firestore to prevent real network calls
-vi.mock('../../../services/firestore.js', () => ({
-  loadUserSettings: vi.fn(() => Promise.resolve(null)),
-  saveUserSettings: vi.fn(() => Promise.resolve()),
-  syncChatStateToFirestore: vi.fn(() => Promise.resolve()),
+vi.mock('../../../services/firestore/firestore-chat.js', () => ({
   loadChatStateFromFirestore: vi.fn(() => Promise.resolve(null)),
-  subscribeToChatState: vi.fn(() => () => {}),
-  deleteChatStateFromFirestore: vi.fn(() => Promise.resolve()),
-  subscribeToUserSettings: vi.fn(() => () => {}),
-  invalidateSettingsCache: vi.fn(),
-  flushSettings: vi.fn(),
-  unsubscribeAll: vi.fn()
+  subscribeToChatState: vi.fn(() => () => {})
 }))
 
-// Helper to mock user settings from Firestore
-const mockUserSettings = (settings) => {
-  vi.mocked(firestoreModule.loadUserSettings).mockResolvedValue(settings)
-}
-
 // Mock the chat store
+
+// Simple mock for user settings (settings sync not currently implemented in modules)
+let mockSettings = null
+const mockUserSettings = (settings) => {
+  mockSettings = settings
+}
 const mockChatStore = {
   currentModel: 'model-1',
   setCurrentModel: vi.fn(),

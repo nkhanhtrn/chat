@@ -3,31 +3,6 @@
     <!-- Header -->
     <StudioHeader />
 
-    <!-- Model Bar -->
-    <div class="model-bar-wrapper">
-      <div class="model-bar" v-if="showModelSelection">
-        <div class="model-selector">
-          <span class="model-label">Router</span>
-          <select :value="routerModel" @change="$emit('update:routerModel', $event.target.value)" class="model-select" :disabled="allModels.length === 0">
-            <option v-if="allModels.length === 0" value="">...</option>
-            <option v-for="m in allModels" :key="m.id" :value="m.id">{{ m.name }}</option>
-          </select>
-        </div>
-        <div class="model-selector">
-          <span class="model-label">Executor</span>
-          <select :value="executorModel" @change="$emit('update:executorModel', $event.target.value)" class="model-select" :disabled="allModels.length === 0">
-            <option v-if="allModels.length === 0" value="">...</option>
-            <option v-for="m in allModels" :key="m.id" :value="m.id">{{ m.name }}</option>
-          </select>
-        </div>
-      </div>
-      <button class="toggle-models-btn" @click="toggleModelSelection" :title="showModelSelection ? 'Hide' : 'Show'">
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline :points="showModelSelection ? '18 15 12 9 6 15' : '6 9 12 15 18 9'"></polyline>
-        </svg>
-      </button>
-    </div>
-
     <!-- Messages -->
     <MessageList
       ref="messageListRef"
@@ -58,7 +33,6 @@
       :search-status="searchStatus"
       :has-loading-urls="hasLoadingUrls"
       :has-loading-files="hasLoadingFiles"
-      :is-model-ready="isModelReady"
       :messages-empty="messages.length === 0"
       :detected-urls="detectedUrls"
       :uploaded-files="uploadedFiles"
@@ -80,22 +54,7 @@ import MessageList from './MessageList.vue'
 import MessageInput from './MessageInput.vue'
 import ThinkingModeToggle from './ThinkingModeToggle.vue'
 
-const STORAGE_KEY = 'studio-show-model-selection'
 const THINKING_STORAGE_KEY = 'studio-thinking-mode'
-
-const showModelSelection = ref(true)
-
-onMounted(() => {
-  const stored = localStorage.getItem(STORAGE_KEY)
-  if (stored !== null) {
-    showModelSelection.value = stored === 'true'
-  }
-})
-
-function toggleModelSelection() {
-  showModelSelection.value = !showModelSelection.value
-  localStorage.setItem(STORAGE_KEY, showModelSelection.value.toString())
-}
 
 // Thinking mode with localStorage persistence
 const thinkingMode = ref(false)
@@ -110,7 +69,6 @@ onMounted(() => {
 function toggleThinkingMode(value) {
   thinkingMode.value = value
   localStorage.setItem(THINKING_STORAGE_KEY, thinkingMode.value.toString())
-  emit('update:thinkingMode', thinkingMode.value)
 }
 
 defineProps({
@@ -125,21 +83,14 @@ defineProps({
   searchStatus: { type: String, default: '' },
   hasLoadingUrls: { type: Boolean, default: false },
   hasLoadingFiles: { type: Boolean, default: false },
-  isModelReady: { type: Boolean, default: false },
   detectedUrls: { type: Array, default: () => [] },
   uploadedFiles: { type: Array, default: () => [] },
-  // Model selection (always 2-model mode)
-  allModels: { type: Array, default: () => [] },
-  routerModel: { type: String, default: '' },
-  executorModel: { type: String, default: '' },
   // Thinking mode
   thinkingMode: { type: Boolean, default: false }
 })
 
 const emit = defineEmits([
   'update:modelValue',
-  'update:routerModel',
-  'update:executorModel',
   'update:thinkingMode',
   'send',
   'stop',
@@ -165,77 +116,6 @@ defineExpose({
   flex-direction: column;
   flex: 1;
   min-height: 0;
-}
-
-.model-bar-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  background: var(--color-bg-base);
-}
-
-.model-bar {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  width: 100%;
-  padding: 0.5rem 1rem;
-  border-bottom: 1px solid var(--color-border-base);
-}
-
-.model-selector {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  width: 100%;
-}
-
-.model-label {
-  font-size: 0.7rem;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  flex-shrink: 0;
-  width: 55px;
-}
-
-.model-select {
-  padding: 0.25rem 0.5rem;
-  border: 1px solid var(--color-border-input);
-  border-radius: 3px;
-  background: var(--color-bg-input);
-  color: var(--color-text-base);
-  font-size: 0.8rem;
-  flex: 1;
-  min-width: 0;
-  width: 100%;
-}
-
-.model-select:focus {
-  outline: none;
-  border-color: var(--color-border-strong);
-}
-
-.toggle-models-btn {
-  align-self: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 12px;
-  padding: 0;
-  border: 1px solid var(--color-border-base);
-  border-top: none;
-  border-radius: 0 0 4px 4px;
-  background: var(--color-bg-base);
-  color: var(--color-text-muted);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.toggle-models-btn:hover {
-  background: var(--color-bg-hover);
-  color: var(--color-text-base);
 }
 
 /* Input Wrapper */

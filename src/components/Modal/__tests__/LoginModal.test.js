@@ -77,7 +77,7 @@ describe('LoginModal', () => {
     it('displays sync note', () => {
       const wrapper = mountComponent()
 
-      expect(wrapper.find('.sync-note').text()).toContain('synced securely')
+      expect(wrapper.find('.sync-note').text()).toContain('stored locally')
     })
 
     it('has correct modal title', () => {

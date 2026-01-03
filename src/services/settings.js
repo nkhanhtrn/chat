@@ -1,3 +1,5 @@
+import { debugLog } from '../utils/debug.js'
+
 /**
  * Settings service for managing theme and user preferences
  */
@@ -21,6 +23,7 @@ export const setTheme = (theme) => {
   document.documentElement.setAttribute('data-theme', theme)
   // Cache theme in localStorage for instant loading
   try {
+    debugLog('[settings.setTheme] Writing to localStorage:', THEME_STORAGE_KEY, theme)
     localStorage.setItem(THEME_STORAGE_KEY, theme)
   } catch (e) {
     // localStorage may be unavailable
@@ -47,6 +50,7 @@ export const getValidThemes = () => [...VALID_THEMES]
 export const loadCachedTheme = () => {
   try {
     const cachedTheme = localStorage.getItem(THEME_STORAGE_KEY)
+    debugLog('[settings.loadCachedTheme] Reading from localStorage:', THEME_STORAGE_KEY, cachedTheme)
     if (cachedTheme && VALID_THEMES.includes(cachedTheme)) {
       return cachedTheme
     }

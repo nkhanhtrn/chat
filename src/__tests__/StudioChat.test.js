@@ -11,27 +11,12 @@ vi.mock('../components/SlideTransition.vue', () => ({
   }
 }))
 
-vi.mock('../components/studio/StudioHeader.vue', () => ({
-  default: {
-    name: 'StudioHeader',
-    template: '<div class="studio-header"></div>',
-    props: ['twoModelMode', 'selectedProvider', 'selectedModel', 'routerModel', 'executorModel', 'providers', 'models', 'allModels']
-  }
-}))
-
-vi.mock('../components/studio/StudioLayout.vue', () => ({
-  default: {
-    name: 'StudioLayout',
-    template: '<div class="studio-layout"><slot name="chat" /><slot name="canvas" /></div>'
-  }
-}))
-
 vi.mock('../components/studio/ChatPanel.vue', () => ({
   default: {
     name: 'ChatPanel',
     template: '<div class="chat-panel"></div>',
-    props: ['modelValue', 'messages', 'isStreaming', 'isSearching', 'searchQuery', 'currentPlanningStep', 'isRouting', 'currentVerifyAttempt', 'searchStatus', 'hasLoadingUrls', 'hasLoadingFiles', 'isModelReady', 'detectedUrls', 'uploadedFiles'],
-    emits: ['update:modelValue', 'send', 'stop', 'clear', 'trigger-upload', 'file-upload', 'remove-file'],
+    props: ['modelValue', 'routerProviderId', 'executorProviderId', 'thinkingMode', 'messages', 'isStreaming', 'isSearching', 'searchQuery', 'currentPlanningStep', 'isRouting', 'currentVerifyAttempt', 'searchStatus', 'hasLoadingUrls', 'hasLoadingFiles', 'isModelReady', 'detectedUrls', 'uploadedFiles', 'providers'],
+    emits: ['update:modelValue', 'update:routerProviderId', 'update:executorProviderId', 'update:thinkingMode', 'send', 'stop', 'clear', 'trigger-upload', 'file-upload', 'remove-file', 'edit'],
     setup() {
       return {
         messageListRef: { containerRef: ref(null) },
@@ -45,7 +30,7 @@ vi.mock('../components/studio/CanvasPanel.vue', () => ({
   default: {
     name: 'CanvasPanel',
     template: '<div class="canvas-panel"></div>',
-    props: ['visibleWindows', 'minimizedCategories'],
+    props: ['windows', 'sessionId', 'hasHistoryFn'],
     emits: ['close-window', 'minimize-window', 'restore-window', 'update-position', 'update-size', 'bring-to-front']
   }
 }))
@@ -76,23 +61,37 @@ vi.mock('../components/studio/SessionBrowser.vue', () => ({
   }
 }))
 
-// Mock composables
-const mockModelSelection = {
-  twoModelMode: ref(false),
-  selectedProvider: ref('lmstudio'),
-  selectedModel: ref('model-1'),
-  routerModel: ref('router-model'),
-  executorModel: ref('executor-model'),
-  providers: ref([{ id: 'lmstudio', name: 'LM Studio' }]),
-  models: ref([{ id: 'model-1', name: 'Model 1' }]),
-  allModels: ref([{ id: 'model-1', name: 'Model 1' }]),
-  isModelReady: ref(true),
-  routerModelData: ref({ providerId: 'lmstudio' }),
-  executorModelData: ref({ providerId: 'lmstudio' }),
-  initialize: vi.fn(() => Promise.resolve()),
-  onProviderChange: vi.fn()
-}
+// Mock LMService
+vi.mock('../services/llm/LMService.js', () => ({
+  Category: {
+    FREE: 'free',
+    QUICK: 'quick',
+    DETAILS: 'details',
+    REASONING: 'reasoning'
+  },
+  default: {
+    listProviders: vi.fn(() => [
+      { id: 'lmstudio', name: 'LM Studio', requiresApiKey: false },
+      { id: 'cerebras', name: 'Cerebras', requiresApiKey: true },
+      { id: 'google', name: 'Google AI', requiresApiKey: true }
+    ])
+  }
+}))
 
+// Mock Settings
+vi.mock('../services/Settings.js', () => ({
+  Settings: {
+    getAll: vi.fn(() => ({
+      currentModels: {
+        lmstudio: 'local-model',
+        cerebras: 'cerebras-model',
+        google: 'gemini-model'
+      }
+    }))
+  }
+}))
+
+// Mock composables
 const mockAttachments = {
   detectedUrls: ref([]),
   uploadedFiles: ref([]),
@@ -140,33 +139,26 @@ const mockChat = {
   setSessionManager: vi.fn(),
   loadState: vi.fn(),
   getState: vi.fn(() => ({ messages: [], nextMessageId: 1 })),
-  deleteMessagePair: vi.fn(),
-  editWindow: vi.fn()
+  deleteMessagePair: vi.fn()
 }
 
 const mockCanvas = {
-  windows: ref([]),
-  visibleWindows: ref([]),
-  minimizedWindowsByCategory: ref([]),
-  addWindow: vi.fn(),
-  removeWindow: vi.fn(),
-  updateWindowPosition: vi.fn(),
-  updateWindowSize: vi.fn(),
-  bringToFront: vi.fn(),
-  minimizeWindow: vi.fn(),
-  restoreWindow: vi.fn(),
-  clearWindows: vi.fn(),
-  setSessionManager: vi.fn(),
-  loadState: vi.fn(),
-  getState: vi.fn(() => ({ windows: [], nextWindowId: 1, cascadeOffset: { x: 0, y: 0 }, maxZIndex: 100 })),
-  updateWindowContent: vi.fn(),
-  updateWindowTitle: vi.fn(),
-  cloneWindow: vi.fn()
+  getNextCascadePosition: vi.fn(() => ({ x: 0, y: 0 })),
+  getNextZIndex: vi.fn(() => 100),
+  getDefaultSize: vi.fn(() => ({ width: 400, height: 300 })),
+  getMinSize: vi.fn(() => ({ width: 200, height: 150 })),
+  generateTitle: vi.fn(() => 'Tool'),
+  cleanObject: vi.fn((obj) => obj),
+  pushToHistory: vi.fn(),
+  hasHistory: vi.fn(() => false),
+  popFromHistory: vi.fn(),
+  clearHistory: vi.fn(),
+  DISPLAY_STATES: {
+    OPEN: 'open',
+    MINIMIZED: 'minimized',
+    CLOSED: 'closed'
+  }
 }
-
-vi.mock('../composables/useModelSelection.js', () => ({
-  useModelSelection: () => mockModelSelection
-}))
 
 vi.mock('../composables/useAttachments.js', () => ({
   useAttachments: () => mockAttachments
@@ -184,8 +176,15 @@ vi.mock('../composables/studio/useStudioChat.js', () => ({
   useStudioChat: () => mockChat
 }))
 
+vi.mock('../composables/studio/useContentEditor.js', () => ({
+  useContentEditor: () => ({
+    editContent: vi.fn()
+  })
+}))
+
 vi.mock('../composables/studio/useStudioCanvas.js', () => ({
-  useStudioCanvas: () => mockCanvas
+  useStudioCanvas: () => mockCanvas,
+  hasHistory: vi.fn(() => false)
 }))
 
 const mockSessions = {
@@ -196,6 +195,10 @@ const mockSessions = {
   allSessions: ref([]),
   activeChatState: ref({ messages: [], nextMessageId: 1 }),
   activeCanvasState: ref({ windows: [], nextWindowId: 1, cascadeOffset: { x: 0, y: 0 }, maxZIndex: 100 }),
+  activeTools: ref({}),
+  windows: ref([]),
+  visibleWindows: ref([]),
+  minimizedWindowsByCategory: ref([]),
   initializeSessions: vi.fn(() => Promise.resolve()),
   createNewSession: vi.fn(),
   switchToSession: vi.fn(),
@@ -205,10 +208,15 @@ const mockSessions = {
   deleteSession: vi.fn(),
   updateChatState: vi.fn(),
   updateCanvasState: vi.fn(),
+  syncSessionData: vi.fn(() => Promise.resolve()),
   forceSyncToCloud: vi.fn(() => Promise.resolve()),
   resetStateForTesting: vi.fn(),
   enableSkipWatch: vi.fn(),
-  disableSkipWatch: vi.fn()
+  disableSkipWatch: vi.fn(),
+  addWindow: vi.fn(),
+  removeWindow: vi.fn(),
+  updateWindow: vi.fn(),
+  getWindows: vi.fn(() => [])
 }
 
 vi.mock('../composables/studio/useStudioSessions.js', () => ({
@@ -218,14 +226,12 @@ vi.mock('../composables/studio/useStudioSessions.js', () => ({
 describe('StudioChat', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockModelSelection.twoModelMode.value = false
-    mockModelSelection.isModelReady.value = true
     mockAttachments.hasLoadingAttachments.value = false
     mockChat.messages.value = []
     mockChat.isStreaming.value = false
-    mockCanvas.windows.value = []
-    mockCanvas.visibleWindows.value = []
-    mockCanvas.minimizedWindowsByCategory.value = []
+    mockSessions.windows.value = []
+    mockSessions.visibleWindows.value = []
+    mockSessions.minimizedWindowsByCategory.value = []
     mockSessions.sessions.value = []
     mockSessions.sortedSessions.value = []
     mockSessions.allSessions.value = []
@@ -242,7 +248,6 @@ describe('StudioChat', () => {
     it('should render child components', () => {
       const wrapper = mount(StudioChat)
 
-      // StudioHeader is now nested inside ChatPanel
       expect(wrapper.findComponent({ name: 'ChatPanel' }).exists()).toBe(true)
       expect(wrapper.findComponent({ name: 'CanvasPanel' }).exists()).toBe(true)
     })
@@ -258,7 +263,6 @@ describe('StudioChat', () => {
       mockWebSearch.searchStatus.value = 'Searching...'
       mockAttachments.hasLoadingUrls.value = true
       mockAttachments.hasLoadingFiles.value = true
-      mockModelSelection.isModelReady.value = false
 
       const wrapper = mount(StudioChat)
       const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
@@ -273,16 +277,16 @@ describe('StudioChat', () => {
       expect(chatPanel.props('searchStatus')).toBe('Searching...')
       expect(chatPanel.props('hasLoadingUrls')).toBe(true)
       expect(chatPanel.props('hasLoadingFiles')).toBe(true)
-      expect(chatPanel.props('isModelReady')).toBe(false)
+      expect(chatPanel.props('isModelReady')).toBe(true) // Both lmstudio providers have models
     })
   })
 
   describe('initialization', () => {
-    it('should initialize model selection on mount', async () => {
+    it('should initialize sessions on mount', async () => {
       mount(StudioChat)
       await flushPromises()
 
-      expect(mockModelSelection.initialize).toHaveBeenCalled()
+      expect(mockSessions.initializeSessions).toHaveBeenCalled()
     })
 
     it('should watch input for URLs', () => {
@@ -303,12 +307,13 @@ describe('StudioChat', () => {
     })
 
     it('should not send when model is not ready', async () => {
-      mockModelSelection.isModelReady.value = false
+      // Mock settings without currentModels
+      const { Settings } = require('../services/Settings.js')
+      Settings.getAll.mockReturnValueOnce({ currentModels: {} })
 
       const wrapper = mount(StudioChat)
       const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
 
-      // Simulate typing via v-model update
       await chatPanel.vm.$emit('update:modelValue', 'Hello')
       await chatPanel.vm.$emit('send')
 
@@ -362,10 +367,10 @@ describe('StudioChat', () => {
         },
         twoModelMode: true,
         modelSelection: expect.objectContaining({
-          routerModel: 'router-model',
-          executorModel: 'executor-model',
-          routerProviderId: expect.any(String),
-          executorProviderId: expect.any(String)
+          routerModel: 'local-model',
+          executorModel: expect.any(String),
+          routerProviderId: 'lmstudio',
+          executorProviderId: 'lmstudio'
         }),
         searchCallbacks: expect.any(Object),
         planningCallbacks: expect.any(Object)
@@ -380,7 +385,6 @@ describe('StudioChat', () => {
       await chatPanel.vm.$emit('send')
       await flushPromises()
 
-      // Check that input was cleared by checking the prop passed to ChatPanel
       expect(chatPanel.props('modelValue')).toBe('')
     })
 
@@ -415,35 +419,6 @@ describe('StudioChat', () => {
       await flushPromises()
 
       expect(mockPlanning.reset).toHaveBeenCalled()
-    })
-
-    it('should create search callbacks with correct handlers', async () => {
-      const wrapper = mount(StudioChat)
-      const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
-
-      await chatPanel.vm.$emit('update:modelValue', 'Hello')
-      await chatPanel.vm.$emit('send')
-      await flushPromises()
-
-      expect(mockWebSearch.createSearchCallbacks).toHaveBeenCalledWith({
-        updateMessage: expect.any(Function),
-        scrollToBottom: expect.any(Function)
-      })
-    })
-
-    it('should create planning callbacks with correct handlers', async () => {
-      const wrapper = mount(StudioChat)
-      const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
-
-      await chatPanel.vm.$emit('update:modelValue', 'Hello')
-      await chatPanel.vm.$emit('send')
-      await flushPromises()
-
-      expect(mockPlanning.createPlanningCallbacks).toHaveBeenCalledWith({
-        updateMessage: expect.any(Function),
-        getMessage: expect.any(Function),
-        scrollToBottom: expect.any(Function)
-      })
     })
   })
 
@@ -487,25 +462,6 @@ describe('StudioChat', () => {
     })
   })
 
-  describe('two model mode', () => {
-    it('should send with twoModelMode true when enabled', async () => {
-      mockModelSelection.twoModelMode.value = true
-
-      const wrapper = mount(StudioChat)
-      const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
-
-      await chatPanel.vm.$emit('update:modelValue', 'Hello')
-      await chatPanel.vm.$emit('send')
-      await flushPromises()
-
-      expect(mockChat.sendMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          twoModelMode: true
-        })
-      )
-    })
-  })
-
   describe('messages state', () => {
     it('should have empty messages initially', () => {
       mockChat.messages.value = []
@@ -523,6 +479,19 @@ describe('StudioChat', () => {
       const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
 
       expect(chatPanel.props('messages')).toEqual([{ role: 'user', content: 'Hello' }])
+    })
+  })
+
+  describe('provider selection', () => {
+    it('should pass providers to ChatPanel', () => {
+      const wrapper = mount(StudioChat)
+      const chatPanel = wrapper.findComponent({ name: 'ChatPanel' })
+
+      expect(chatPanel.props('providers')).toEqual([
+        { id: 'lmstudio', name: 'LM Studio', requiresApiKey: false },
+        { id: 'cerebras', name: 'Cerebras', requiresApiKey: true },
+        { id: 'google', name: 'Google AI', requiresApiKey: true }
+      ])
     })
   })
 })

@@ -7,12 +7,16 @@
 
 /**
  * Try to extract and parse JSON from a response that may contain extra text
- * @param {string} response - Raw response text
+ * @param {string|Object} response - Raw response text or object with content
  * @returns {Object|null} Parsed JSON or null
  */
 export const tryParseJson = (response) => {
+  // Handle object response (from provider.send)
+  const text = typeof response === 'object' ? response?.content || '' : response
+  if (!text || typeof text !== 'string') return null
+
   // Try to extract JSON from the response
-  const jsonMatch = response.match(/\{[\s\S]*\}/)
+  const jsonMatch = text.match(/\{[\s\S]*\}/)
   if (!jsonMatch) return null
 
   let jsonStr = jsonMatch[0]
@@ -195,11 +199,14 @@ export const parseSingleStep = (lines) => {
 /**
  * Parse router's response into structured data
  * Tries JSON first, then falls back to line-based parsing
- * @param {string} response - Raw response from router model
+ * @param {string|Object} response - Raw response from router model
  * @returns {Object} Parsed analysis object
  */
 export const parseAnalysisResponse = (response) => {
-  console.log('[Router] Raw response:\n', response)
+  // Handle object response (from provider.send)
+  const text = typeof response === 'object' ? response?.content || '' : response
+
+  console.log('[Router] Raw response:\n', text)
 
   // Try JSON parsing first
   const jsonResult = tryParseJson(response)
@@ -209,16 +216,16 @@ export const parseAnalysisResponse = (response) => {
   }
 
   // Fall back to line-based parsing
-  const lines = response.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('---'))
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('---'))
 
   // Try line-based parsing
   const result = parseSingleStep(lines)
 
   // Also try to extract fields from malformed JSON in the response
-  extractFieldsFromText(response, result)
+  extractFieldsFromText(text, result)
 
   // Detect language/text tasks from fallback text content
-  const lowerResponse = response.toLowerCase()
+  const lowerResponse = text.toLowerCase()
   if (lowerResponse.includes('language task') ||
       lowerResponse.includes('text task') ||
       lowerResponse.includes('not code') ||

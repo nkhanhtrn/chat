@@ -1,0 +1,30 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ============================================
+    // Books Storage Rules
+    // ============================================
+
+    match /users/{userId}/books/{bookId}/{allPaths=**} {
+      // Users can only read/write their own book files
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ============================================
+    // Studio Storage Rules (existing)
+    // ============================================
+
+    match /users/{userId}/studiosessions/{sessionId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ============================================
+    // Chat Storage Rules (if any)
+    // ============================================
+
+    match /users/{userId}/chats/{chatId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

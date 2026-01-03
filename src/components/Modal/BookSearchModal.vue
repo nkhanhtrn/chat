@@ -215,7 +215,7 @@ import Modal from './Modal.vue'
 import Button from '../Button.vue'
 import { searchBooks, getProxiedImageUrl, fastDownloadBook } from '../../services/publicLibraryService.js'
 import { extractEpubMetadata, coverUrlToDataUrl } from '../../services/epubRenderer.js'
-import { uploadBookToStorage } from '../../services/bookStorage.js'
+import { BookStorage } from '../../services/BookStorage.js'
 
 const props = defineProps({
   visible: {
@@ -399,10 +399,7 @@ async function processFile(file) {
       coverDataUrl = await coverUrlToDataUrl(metadata.coverUrl)
     }
 
-    // Upload to Firebase Storage
-    uploadProgress.value = 70
-    const downloadUrl = await uploadBookToStorage(file, `temp-${Date.now()}`)
-
+    // File will be saved to IndexedDB when book is added to store
     uploadProgress.value = 100
 
     // Emit upload event with book data
@@ -411,8 +408,7 @@ async function processFile(file) {
       author: metadata.author,
       coverUrl: coverDataUrl,
       fileData: arrayBuffer,
-      fileSize: file.size,
-      storagePath: downloadUrl
+      fileSize: file.size
     })
 
     // Reset after a delay
@@ -445,23 +441,8 @@ async function handleDownload(book) {
       downloadProgress.value = progress
     })
 
-    // Create a File object from the ArrayBuffer
-    const file = new File([arrayBuffer], `${book.title}.epub`, { type: 'application/epub+zip' })
-
-    // Extract metadata from EPUB to get cover
-    const metadata = await extractEpubMetadata(file)
-
-    // Convert cover to data URL if available
-    let coverDataUrl = book.coverUrl
-    if (metadata.coverUrl) {
-      coverDataUrl = await coverUrlToDataUrl(metadata.coverUrl)
-    } else if (book.coverUrl) {
-      // Use the cover URL from search results if no cover in EPUB
-      coverDataUrl = getProxiedImageUrl(book.coverUrl)
-    }
-
-    // Upload to Firebase Storage
-    const downloadUrl = await uploadBookToStorage(file, `temp-${Date.now()}`)
+    // Use API cover URL for now (faster download, EPUB extraction happens later)
+    const coverDataUrl = book.coverUrl ? getProxiedImageUrl(book.coverUrl) : null
 
     downloadProgress.value = 100
 
@@ -471,8 +452,7 @@ async function handleDownload(book) {
       author: book.author,
       coverUrl: coverDataUrl,
       fileData: arrayBuffer,
-      fileSize: file.size,
-      storagePath: downloadUrl
+      fileSize: arrayBuffer.byteLength
     })
 
     // Reset after a delay

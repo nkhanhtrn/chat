@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import NotebooksPage from '../NotebooksPage.vue'
 import Button from '../../components/Button.vue'
 import { useChatStore } from '../../stores/chat.js'
+import { Category } from '../../services/llm/LMService.js'
 
 // Mock vue-router
 const mockPush = vi.fn()
@@ -32,14 +33,7 @@ vi.mock('../../services/api.js', () => ({
   initProvider: vi.fn(() => Promise.resolve()),
   sendChatMessage: vi.fn(),
   sendChatMessageForFeature: vi.fn(),
-  FeatureType: {
-    QUESTION: 'question',
-    DEEP_DIVE: 'deep_dive',
-    SUMMARY: 'summary',
-    EXPLAIN: 'explain',
-    DICTIONARY: 'dictionary',
-    SR_SUMMARY: 'sr_summary'
-  }
+  Category
 }))
 
 // Mock firestore to prevent real network calls

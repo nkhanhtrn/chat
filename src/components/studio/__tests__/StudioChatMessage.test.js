@@ -35,14 +35,6 @@ vi.mock('../../markdown/MermaidBlock.vue', () => ({
   }
 }))
 
-vi.mock('../../ToolRenderer.vue', () => ({
-  default: {
-    name: 'ToolRenderer',
-    props: ['tool'],
-    template: '<div class="mock-tool"></div>'
-  }
-}))
-
 vi.mock('../../CapabilityProgress.vue', () => ({
   default: {
     name: 'CapabilityProgress',

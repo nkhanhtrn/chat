@@ -1,21 +1,17 @@
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { debugLog } from '../../utils/debug.js'
-import {
-  saveStudioSessionsToFirestore,
-  saveSingleSessionToFirestore,
-  loadStudioSessionsFromFirestore,
-  deleteStudioSessionFromFirestore,
-  mergeCloudLocal
-} from '../../services/firestore.js'
-
-const STORAGE_KEY = 'studio-sessions'
-const CHAT_STORAGE_KEY = 'studio-chat'
-const CANVAS_STORAGE_KEY = 'studio-canvas-windows'
+import StudioStorage from '../../services/StudioStorage.js'
 
 // Session state
 const sessions = ref([])
 const activeSessionId = ref(null)
 const nextSessionNumber = ref(1)
+
+// Reactive ref for active session tools (loaded async from IndexedDB)
+const activeTools = ref({})
+
+// Watch flag to prevent save loops
+let skipWatch = false
 
 /**
  * Generate a unique session ID
@@ -25,7 +21,18 @@ function generateSessionId() {
 }
 
 /**
- * Save sessions to localStorage
+ * Generate a unique tool instance ID
+ */
+function generateToolInstanceId() {
+  return `tool-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+}
+
+// ============================================================
+// Session Metadata Storage (delegates to StudioStorage)
+// ============================================================
+
+/**
+ * Save session metadata to localStorage
  */
 async function saveToStorage() {
   try {
@@ -41,174 +48,102 @@ async function saveToStorage() {
       activeSessionId: activeSessionId.value,
       nextSessionNumber: nextSessionNumber.value
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-
-    // Also sync to Firestore
-    await saveStudioSessionsToFirestore(sessions.value, activeSessionId.value)
+    StudioStorage.saveSessions(state)
   } catch (e) {
     console.warn('Failed to save sessions:', e)
   }
 }
 
+// ============================================================
+// Tools Storage (delegates to StudioStorage)
+// ============================================================
+
 /**
- * Save per-session data (chat and canvas state)
+ * Save all tools for a specific session
  */
-function saveSessionData(sessionId) {
-  const session = sessions.value.find(s => s.id === sessionId)
-  if (!session) return
+async function saveTools(sessionId, tools) {
+  return StudioStorage.saveTools(sessionId, tools)
+}
 
-  try {
-    // Save chat state for this session
-    const chatKey = `${CHAT_STORAGE_KEY}-${sessionId}`
-    const chatState = {
-      messages: session.chatMessages || [],
-      nextMessageId: session.nextMessageId || 1
-    }
-    localStorage.setItem(chatKey, JSON.stringify(chatState))
+/**
+ * Load all tools for a specific session
+ */
+async function loadTools(sessionId) {
+  return StudioStorage.loadTools(sessionId)
+}
 
-    // Save canvas state for this session
-    const canvasKey = `${CANVAS_STORAGE_KEY}-${sessionId}`
-    const canvasState = {
-      windows: session.canvasWindows || [],
-      nextWindowId: session.nextWindowId || 1,
-      cascadeOffset: session.cascadeOffset || { x: 0, y: 0 },
-      maxZIndex: session.maxZIndex || 100
-    }
-    localStorage.setItem(canvasKey, JSON.stringify(canvasState))
-  } catch (e) {
-    console.warn('Failed to save session data:', e)
+/**
+ * Get a specific tool instance from a session
+ */
+async function getTool(sessionId, instanceId) {
+  const tools = await loadTools(sessionId)
+  return tools[instanceId] || null
+}
+
+/**
+ * Save a specific tool instance to a session
+ */
+async function saveTool(sessionId, instanceId, tool) {
+  const tools = await loadTools(sessionId)
+  tools[instanceId] = tool
+  await saveTools(sessionId, tools)
+
+  // Update reactive ref if this is the active session
+  if (sessionId === activeSessionId.value) {
+    activeTools.value = tools
   }
 }
 
 /**
- * Load per-session data
+ * Delete a specific tool instance from a session
  */
-function loadSessionData(sessionId) {
-  const session = sessions.value.find(s => s.id === sessionId)
-  if (!session) return { chat: null, canvas: null }
+async function deleteTool(sessionId, instanceId) {
+  const tools = await loadTools(sessionId)
+  delete tools[instanceId]
+  await saveTools(sessionId, tools)
 
-  try {
-    // Load chat state
-    const chatKey = `${CHAT_STORAGE_KEY}-${sessionId}`
-    const chatStored = localStorage.getItem(chatKey)
-    const chatState = chatStored ? JSON.parse(chatStored) : { messages: [], nextMessageId: 1 }
-
-    // Load canvas state
-    const canvasKey = `${CANVAS_STORAGE_KEY}-${sessionId}`
-    const canvasStored = localStorage.getItem(canvasKey)
-    const canvasState = canvasStored ? JSON.parse(canvasStored) : {
-      windows: [],
-      nextWindowId: 1,
-      cascadeOffset: { x: 0, y: 0 },
-      maxZIndex: 100
-    }
-
-    return { chat: chatState, canvas: canvasState }
-  } catch (e) {
-    console.warn('Failed to load session data:', e)
-    return { chat: null, canvas: null }
+  // Update reactive ref if this is the active session
+  if (sessionId === activeSessionId.value) {
+    activeTools.value = tools
   }
 }
 
-/**
- * Migrate legacy data to first session (for backwards compatibility)
- */
-function migrateLegacyData() {
-  try {
-    // Check if we have legacy chat data
-    const legacyChat = localStorage.getItem(CHAT_STORAGE_KEY)
-    const legacyCanvas = localStorage.getItem(CANVAS_STORAGE_KEY)
-
-    if (!legacyChat && !legacyCanvas) return
-
-    // Create first session with legacy data
-    const sessionId = generateSessionId()
-    const session = {
-      id: sessionId,
-      name: 'Session',
-      showInTabs: true,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    }
-
-    sessions.value.push(session)
-
-    // Migrate chat data
-    if (legacyChat) {
-      const chatKey = `${CHAT_STORAGE_KEY}-${sessionId}`
-      localStorage.setItem(chatKey, legacyChat)
-      localStorage.removeItem(CHAT_STORAGE_KEY)
-    }
-
-    // Migrate canvas data
-    if (legacyCanvas) {
-      const canvasKey = `${CANVAS_STORAGE_KEY}-${sessionId}`
-      localStorage.setItem(canvasKey, legacyCanvas)
-      localStorage.removeItem(CANVAS_STORAGE_KEY)
-    }
-
-    activeSessionId.value = sessionId
-    saveToStorage()
-  } catch (e) {
-    console.warn('Failed to migrate legacy data:', e)
-  }
-}
+// ============================================================
+// Session Initialization
+// ============================================================
 
 /**
- * Initialize sessions from Firestore with bidirectional merge (same as tools/notebooks)
- * Uses generic mergeCloudLocal utility
+ * Initialize sessions from localStorage
  */
 async function initializeSessions() {
   skipWatch = true
   try {
-    // Load both cloud and local sessions
-    const cloudData = await loadStudioSessionsFromFirestore()
-    const localStored = localStorage.getItem(STORAGE_KEY)
-    const localState = localStored ? JSON.parse(localStored) : { sessions: [], activeSessionId: null, nextSessionNumber: 1 }
+    // Load from localStorage via StudioStorage
+    const localState = StudioStorage.loadSessions()
+    const state = localState || { sessions: [], activeSessionId: null, nextSessionNumber: 1 }
 
-    const cloudSessions = cloudData?.sessions || []
-    const localSessions = localState.sessions || []
-
-    // Use generic merge utility
-    const { merged: mergedSessions, toUpload: sessionsToUpload, fromCloud, toCloud } =
-      mergeCloudLocal(cloudSessions, localSessions)
+    const localSessions = state.sessions || []
 
     // Sort by createdAt to maintain order
-    mergedSessions.sort((a, b) => a.createdAt - b.createdAt)
+    localSessions.sort((a, b) => a.createdAt - b.createdAt)
 
-    sessions.value = mergedSessions
+    sessions.value = localSessions
 
     // Calculate nextSessionNumber from all sessions
-    nextSessionNumber.value = Math.max(...mergedSessions.map(s => {
+    nextSessionNumber.value = Math.max(...localSessions.map(s => {
       const match = s.name.match(/Session (\d+)/)
       return match ? parseInt(match[1]) + 1 : 1
-    }), localState.nextSessionNumber || 1)
+    }), state.nextSessionNumber || 1)
 
-    // Active session: prefer cloud's active, fall back to local's, then first session
-    activeSessionId.value = cloudData?.activeSessionId || localState.activeSessionId || sessions.value[0]?.id || null
+    // Active session: use local's active, or first session
+    activeSessionId.value = state.activeSessionId || sessions.value[0]?.id || null
 
-    // Don't sync sessions to cloud during initialization
-    // Sessions will be synced when explicitly opened
-
-    // Save merged state to localStorage
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      sessions: sessions.value,
-      activeSessionId: activeSessionId.value,
-      nextSessionNumber: nextSessionNumber.value
-    }))
-
-    if (fromCloud > 0 || toCloud > 0) {
-      console.log(`Sessions merge: ${fromCloud} from cloud, ${toCloud} to cloud`)
-    }
-
-    // If no sessions exist, migrate legacy data or create default session
+    // If no sessions exist, create a default one
     if (sessions.value.length === 0) {
-      migrateLegacyData()
-    }
+      const newSession = createNewSession()
 
-    // If still no sessions, create a default one
-    if (sessions.value.length === 0) {
-      createNewSession()
+      // Migrate legacy data to the new session if exists
+      StudioStorage.migrateLegacyData(newSession.id)
     }
 
     // Ensure we have an active session
@@ -223,6 +158,10 @@ async function initializeSessions() {
     skipWatch = false
   }
 }
+
+// ============================================================
+// Session Metadata Operations
+// ============================================================
 
 /**
  * Create a new session
@@ -254,367 +193,210 @@ function getActiveSession() {
 }
 
 /**
- * Switch to a different session
- * Returns the session data that should be loaded into chat/canvas
- * Note: Caller is responsible for saving current state before calling this
- */
-function switchToSession(sessionId) {
-  const session = sessions.value.find(s => s.id === sessionId)
-  if (!session) return null
-
-  // Update the active session and save session metadata
-  activeSessionId.value = sessionId
-  session.updatedAt = Date.now()
-  saveToStorage()
-
-  // Return the new session's data to be loaded
-  return loadSessionData(sessionId)
-}
-
-/**
  * Rename a session
  */
-function renameSession(sessionId, newName) {
+async function renameSession(sessionId, newName) {
   const session = sessions.value.find(s => s.id === sessionId)
   if (session && newName.trim()) {
     session.name = newName.trim()
     session.updatedAt = Date.now()
-    saveToStorage()
+    await saveToStorage()
   }
 }
 
 /**
  * Hide a session (remove from tabs)
  */
-function hideSession(sessionId) {
+async function hideSession(sessionId) {
   const session = sessions.value.find(s => s.id === sessionId)
   if (session) {
     session.showInTabs = false
     session.updatedAt = Date.now()
-    saveToStorage()
+    await saveToStorage()
   }
 }
 
 /**
  * Show a session (add to tabs)
  */
-function showSession(sessionId) {
+async function showSession(sessionId) {
   const session = sessions.value.find(s => s.id === sessionId)
   if (session) {
     session.showInTabs = true
     session.updatedAt = Date.now()
-    saveToStorage()
+    await saveToStorage()
   }
 }
 
 /**
  * Delete a session (cannot delete the only session or active session)
- * Returns the ID of the session that should become active, or null
  */
 async function deleteSession(sessionId) {
   const sessionIndex = sessions.value.findIndex(s => s.id === sessionId)
   if (sessionIndex === -1) return null
 
-  // Cannot delete if it's the only session
   if (sessions.value.length === 1) {
     return null
   }
 
-  // Cannot delete if it's the active session
   if (sessionId === activeSessionId.value) {
     return null
   }
 
   const session = sessions.value[sessionIndex]
 
-  // Clean up per-session storage
-  try {
-    localStorage.removeItem(`${CHAT_STORAGE_KEY}-${sessionId}`)
-    localStorage.removeItem(`${CANVAS_STORAGE_KEY}-${sessionId}`)
-
-    // Clean up tool instance data for this session
-    // Tool instance keys are stored as: tool-instance-${sessionId}-${toolId}
-    const toolPrefix = `tool-instance-${sessionId}-`
-    const keysToRemove = []
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (key && key.startsWith(toolPrefix)) {
-        keysToRemove.push(key)
-      }
-    }
-    keysToRemove.forEach(key => localStorage.removeItem(key))
-
-    console.log(`Deleted ${keysToRemove.length} tool instance data entries for session ${sessionId}`)
-  } catch (e) {
-    console.warn('Failed to clean up session storage:', e)
-  }
+  // Clean up per-session storage via StudioStorage
+  await StudioStorage.deleteSession(sessionId)
 
   sessions.value.splice(sessionIndex, 1)
-  saveToStorage()
-
-  // Also delete from Firestore
-  await deleteStudioSessionFromFirestore(sessionId)
+  await saveToStorage()
 
   return session
 }
 
+// ============================================================
+// Tool Operations (Session owns tools with code+data)
+// ============================================================
+
 /**
- * Update chat state for active session (called by useStudioChat)
+ * Create a new tool instance in a session
  */
-function updateChatState(chatState) {
-  const session = getActiveSession()
-  if (session) {
-    debugLog('[Session Sync] updateChatState called for session:', session.id)
+async function createTool(sessionId, tool) {
+  const instanceId = generateToolInstanceId()
+  const toolWithId = {
+    id: instanceId,
+    createdAt: Date.now(),
+    ...tool
+  }
+  await saveTool(sessionId, instanceId, toolWithId)
+  return instanceId
+}
 
-    // Set skipWatch at the START to prevent watcher from triggering during this entire operation
-    skipWatch = true
+/**
+ * Get a tool from a session
+ */
+async function getToolInstance(sessionId, instanceId) {
+  return await getTool(sessionId, instanceId)
+}
 
-    session.updatedAt = Date.now()
-
-    // Persist to localStorage
-    const chatKey = `${CHAT_STORAGE_KEY}-${session.id}`
-    try {
-      localStorage.setItem(chatKey, JSON.stringify(chatState))
-    } catch (e) {
-      console.warn('Failed to save chat state:', e)
-    }
-
-    debugLog('[Session Sync] Syncing single session to Firestore:', session.id)
-    // Sync only this session to Firestore (not all sessions)
-    saveSingleSessionToFirestore(session, activeSessionId.value)
-      .then(() => {
-        debugLog('[Session Sync] ✅ Single session sync complete')
-      })
-      .catch(err => {
-        console.warn('Failed to sync session chat state to cloud:', err)
-      })
-      .finally(() => {
-        // Clear skipWatch AFTER sync is complete
-        skipWatch = false
-        debugLog('[Session Sync] skipWatch flag cleared')
-      })
+/**
+ * Update a tool in a session
+ */
+async function updateTool(sessionId, instanceId, updates) {
+  const tool = await getTool(sessionId, instanceId)
+  if (tool) {
+    const updatedTool = { ...tool, ...updates, updatedAt: Date.now() }
+    await saveTool(sessionId, instanceId, updatedTool)
   }
 }
 
 /**
- * Update canvas state for active session (called by useStudioCanvas)
+ * Delete a tool from a session
  */
-function updateCanvasState(canvasState) {
-  const session = getActiveSession()
-  if (session) {
-    debugLog('[Session Sync] updateCanvasState called for session:', session.id, 'windows:', canvasState.windows.length)
-
-    // Set skipWatch at the START to prevent watcher from triggering during this entire operation
-    skipWatch = true
-
-    session.updatedAt = Date.now()
-
-    // Persist to localStorage
-    const canvasKey = `${CANVAS_STORAGE_KEY}-${session.id}`
-    try {
-      localStorage.setItem(canvasKey, JSON.stringify(canvasState))
-    } catch (e) {
-      console.warn('Failed to save canvas state:', e)
-    }
-
-    debugLog('[Session Sync] Syncing single session to Firestore:', session.id)
-    // Sync only this session to Firestore (not all sessions)
-    saveSingleSessionToFirestore(session, activeSessionId.value)
-      .then(() => {
-        debugLog('[Session Sync] ✅ Single session sync complete')
-      })
-      .catch(err => {
-        console.warn('Failed to sync session canvas state to cloud:', err)
-      })
-      .finally(() => {
-        // Clear skipWatch AFTER sync is complete
-        skipWatch = false
-        debugLog('[Session Sync] skipWatch flag cleared')
-      })
-  }
+async function deleteToolFromSession(sessionId, instanceId) {
+  await deleteTool(sessionId, instanceId)
 }
 
 /**
- * Force sync to cloud - immediately sync all sessions to Firestore
+ * Get all tools for a session (synchronous - uses activeTools if matches)
  */
-async function forceSyncToCloud() {
-  await saveStudioSessionsToFirestore(sessions.value, activeSessionId.value)
+function getAllTools(sessionId) {
+  if (sessionId === activeSessionId.value) {
+    return activeTools.value
+  }
+  // For non-active sessions, return empty object
+  return {}
+}
+
+// ============================================================
+// Chat State (delegates to StudioStorage)
+// ============================================================
+
+/**
+ * Save chat state for a specific session
+ */
+async function saveChatState(sessionId, chatState) {
+  return StudioStorage.saveChatState(sessionId, chatState)
 }
 
 /**
- * Sync a session's complete state (chat, canvas windows, positions) to Firestore
- * This is called when explicitly opening a session
- * @param {string} sessionId - The session ID to sync
+ * Load chat state for a specific session
  */
-async function syncSessionData(sessionId) {
-  const session = sessions.value.find(s => s.id === sessionId)
-  if (!session) {
-    console.warn('Session not found:', sessionId)
-    return
-  }
-
-  try {
-    debugLog('[Session Sync] Syncing session data on open:', sessionId)
-
-    // Collect all data for this session from localStorage
-    const chatKey = `${CHAT_STORAGE_KEY}-${sessionId}`
-    const canvasKey = `${CANVAS_STORAGE_KEY}-${sessionId}`
-    const chatState = localStorage.getItem(chatKey)
-    const canvasState = localStorage.getItem(canvasKey)
-
-    // Collect tool instance data for this session
-    const toolInstanceData = {}
-    const toolPrefix = `tool-instance-${sessionId}-`
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (key && key.startsWith(toolPrefix)) {
-        const toolId = key.slice(toolPrefix.length)
-        try {
-          toolInstanceData[toolId] = JSON.parse(localStorage.getItem(key))
-        } catch (e) {
-          console.warn(`Failed to parse tool instance data for ${key}:`, e)
-        }
-      }
-    }
-
-    // Save to Firestore with all current state
-    await saveSingleSessionToFirestore({
-      ...session,
-      chatState: chatState ? JSON.parse(chatState) : null,
-      canvasState: canvasState ? JSON.parse(canvasState) : null,
-      toolInstanceData
-    }, activeSessionId.value)
-
-    debugLog('[Session Sync] ✅ Session data synced:', sessionId)
-  } catch (error) {
-    console.error('Failed to sync session data:', error)
-  }
+async function loadChatState(sessionId) {
+  return StudioStorage.loadChatState(sessionId)
 }
 
-/**
- * Computed: active session
- */
-const activeSession = computed(() => getActiveSession())
+// ============================================================
+// Watch for changes and auto-save
+// ============================================================
 
-/**
- * Computed: visible sessions (showInTabs = true, in original order)
- */
-const sortedSessions = computed(() => {
-  return sessions.value.filter(s => s.showInTabs)
-})
-
-/**
- * Computed: all sessions (for session browser, in original order)
- */
-const allSessions = computed(() => [...sessions.value])
-
-/**
- * Computed: active session's chat state
- */
-const activeChatState = computed(() => {
-  const session = getActiveSession()
-  if (!session) return { messages: [], nextMessageId: 1 }
-  const data = loadSessionData(session.id)
-  return data.chat || { messages: [], nextMessageId: 1 }
-})
-
-/**
- * Computed: active session's canvas state
- */
-const activeCanvasState = computed(() => {
-  const session = getActiveSession()
-  if (!session) {
-    return {
-      windows: [],
-      nextWindowId: 1,
-      cascadeOffset: { x: 0, y: 0 },
-      maxZIndex: 100
-    }
-  }
-  const data = loadSessionData(session.id)
-  return data.canvas || {
-    windows: [],
-    nextWindowId: 1,
-    cascadeOffset: { x: 0, y: 0 },
-    maxZIndex: 100
-  }
-})
-
-// Flag to skip watch during reset and initialization
-let skipWatch = false
-
-// Watch sessions for changes and save
-watch(sessions, () => {
-  debugLog('[Session Sync] Deep watcher triggered, skipWatch:', skipWatch)
+watch(sessions, async () => {
   if (!skipWatch) {
-    saveToStorage()
-  } else {
-    debugLog('[Session Sync] ⏭️ Skipping full sync - skipWatch flag is set')
+    await saveToStorage()
   }
 }, { deep: true })
 
-/**
- * Reset all state to defaults (for testing only)
- * Note: Caller is responsible for setting skipWatch flag appropriately
- */
-function resetStateForTesting() {
-  sessions.value = []
-  activeSessionId.value = null
-  nextSessionNumber.value = 1
-}
+watch(activeSessionId, () => {
+  if (!skipWatch) {
+    saveToStorage()
+  }
+})
 
-/**
- * Enable watch skipping (for testing)
- */
-function enableSkipWatch() {
-  skipWatch = true
-}
+// ============================================================
+// Export the composable
+// ============================================================
 
-/**
- * Disable watch skipping (for testing)
- */
-function disableSkipWatch() {
-  skipWatch = false
-}
-
-/**
- * Session management composable for AI Studio
- */
 export function useStudioSessions() {
+  // Get the active session
+  const activeSession = computed(() => getActiveSession())
+
+  // Computed: active session's chat state
+  const activeChatState = computed(() => {
+    if (!activeSession.value) return null
+    return loadChatState(activeSession.value.id)
+  })
+
   return {
     // State
     sessions,
     activeSessionId,
+    nextSessionNumber,
+
+    // Computed
     activeSession,
-    sortedSessions,
-    allSessions,
-
-    // Active session data
     activeChatState,
-    activeCanvasState,
+    // activeTools is a module-level ref (updated by watch below)
+    activeTools,
+    sortedSessions: computed(() => sessions.value.filter(s => s.showInTabs)),
+    allSessions: computed(() => sessions.value),
 
-    // Initialization
+    // Session metadata methods
     initializeSessions,
-
-    // Session CRUD
     createNewSession,
-    switchToSession,
     renameSession,
     hideSession,
     showSession,
     deleteSession,
 
-    // State updating
-    updateChatState,
-    updateCanvasState,
+    // Chat state methods
+    saveChatState,
+    loadChatState,
 
-    // Cloud sync
-    forceSyncToCloud,
-    syncSessionData,
+    // Tool methods
+    createTool,
+    getToolInstance,
+    updateTool,
+    deleteTool: deleteToolFromSession,
+    getAllTools,
+    saveTools,
+    loadTools,
 
-    // Testing
-    resetStateForTesting,
-    enableSkipWatch,
-    disableSkipWatch
+    // Utility
+    saveToStorage,
+    resetStateForTesting: () => {
+      sessions.value = []
+      activeSessionId.value = null
+      nextSessionNumber.value = 1
+    }
   }
 }

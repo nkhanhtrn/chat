@@ -9,6 +9,7 @@ import NotebookOverview from '../components/NotebookOverview.vue'
 import Scratchpad from '../components/Scratchpad.vue'
 import { useChatStore } from '../stores/chat.js'
 import Message from '../stores/Message.js'
+import { Category } from '../services/llm/LMService.js'
 
 // Mock vue-router
 const mockPush = vi.fn()
@@ -37,14 +38,7 @@ vi.mock('../services/api.js', () => ({
     onChunk('Test response')
     return Promise.resolve()
   }),
-  FeatureType: {
-    QUESTION: 'question',
-    DEEP_DIVE: 'deep_dive',
-    SUMMARY: 'summary',
-    EXPLAIN: 'explain',
-    DICTIONARY: 'dictionary',
-    SR_SUMMARY: 'sr_summary'
-  },
+  Category,
   fetchModels: vi.fn(() => Promise.resolve([
     { id: 'test-model', name: 'Test Model' }
   ])),

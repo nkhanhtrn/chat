@@ -1,6 +1,15 @@
 import { defineStore } from 'pinia'
-import { loadBooksFromStorage, saveBookToStorage, deleteBookFromStorage, getOrDownloadBookFile, loadBookNotebooksFromFirestore, saveBookNotebooksToFirestore } from '../services/bookStorage.js'
+import { debugLog } from '../utils/debug.js'
+import { BookStorage } from '../services/BookStorage.js'
 import { EpubRenderer } from '../services/epubRenderer.js'
+import { Book } from '../models/Book.js'
+import { getFirebaseAuth } from '../services/firebase.js'
+import {
+  syncBooksWithCloud,
+  saveBookToFirestore,
+  deleteBookFromFirestore,
+  uploadBookFileToStorage
+} from '../services/firestore/firestore-books.js'
 
 export const useBooksStore = defineStore('books', {
   state: () => ({
@@ -29,11 +38,13 @@ export const useBooksStore = defineStore('books', {
     // Books currently being preloaded
     preloadingIds: new Set(),
 
-    // Book highlights: { bookId: [{ id, cfiRange, text, colorIndex, note, noteContent, createdAt }] }
-    highlights: {},
-
     // Book to notebook mapping: { bookId: notebookId }
-    bookNotebooks: {}
+    bookNotebooks: {},
+
+    // Cloud sync state
+    lastCloudSyncAt: null,
+    isCloudSyncing: false,
+    syncConflicts: []
   }),
 
   getters: {
@@ -79,17 +90,6 @@ export const useBooksStore = defineStore('books', {
       return state.preloadProgress[id] || 0
     },
 
-    // Get highlights for a book
-    getBookHighlights: (state) => (bookId) => {
-      return state.highlights[bookId] || []
-    },
-
-    // Get current book highlights
-    currentBookHighlights: (state) => {
-      if (!state.currentBookId) return []
-      return state.highlights[state.currentBookId] || []
-    },
-
     // Get notebook ID for a book
     getBookNotebook: (state) => (bookId) => {
       return state.bookNotebooks[bookId] || null
@@ -99,13 +99,30 @@ export const useBooksStore = defineStore('books', {
     currentBookNotebook: (state) => {
       if (!state.currentBookId) return null
       return state.bookNotebooks[state.currentBookId] || null
+    },
+
+    // Check if any books need sync
+    needsCloudSync: (state) => {
+      if (!state.lastCloudSyncAt) return false
+      return state.books.some(book =>
+        !state.lastCloudSyncAt || book.updatedAt > state.lastCloudSyncAt
+      )
+    },
+
+    // Get books with sync status badges
+    booksWithSyncStatus: (state) => {
+      return state.books.map(book => ({
+        ...book,
+        needsSync: !state.lastCloudSyncAt || book.updatedAt > state.lastCloudSyncAt,
+        isSynced: state.lastCloudSyncAt && book.updatedAt <= state.lastCloudSyncAt
+      }))
     }
   },
 
   actions: {
     /**
-     * Initialize store from IndexedDB/Firestore
-     * @returns {Promise<{hasConflict: boolean, state?: object}>}
+     * Initialize store from IndexedDB
+     * @returns {Promise<{hasConflict: boolean, conflicts?: Array}>}
      */
     async initializeStore() {
       if (this.isInitialized) {
@@ -116,46 +133,32 @@ export const useBooksStore = defineStore('books', {
       this.error = null
 
       try {
-        const result = await loadBooksFromStorage()
+        // Load from IndexedDB (fast, local)
+        const books = await BookStorage.loadBooks()
+        this.books = books
 
-        if (result.hasConflict) {
-          // Conflict detected - caller should handle
-          return result
-        }
-
-        if (result.state && result.state.books) {
-          this.books = result.state.books
-        }
-
-        // Load book-notebook mapping from Firestore and localStorage
+        // Load book-notebook mapping from localStorage
         try {
-          // Try Firestore first for cloud sync
-          const firestoreData = await loadBookNotebooksFromFirestore()
-          if (Object.keys(firestoreData).length > 0) {
-            this.bookNotebooks = firestoreData
-            // Also save to localStorage as backup
-            localStorage.setItem('bookNotebooks', JSON.stringify(firestoreData))
-          } else {
-            // Fall back to localStorage
-            const localSaved = localStorage.getItem('bookNotebooks')
-            if (localSaved) {
-              this.bookNotebooks = JSON.parse(localSaved)
-            }
+          const localSaved = localStorage.getItem('bookNotebooks')
+          debugLog('[books.initialize] Reading bookNotebooks from localStorage:', localSaved ? 'found' : 'not found')
+          if (localSaved) {
+            this.bookNotebooks = JSON.parse(localSaved)
           }
         } catch (e) {
-          console.warn('Failed to load bookNotebooks, trying localStorage:', e)
-          try {
-            const saved = localStorage.getItem('bookNotebooks')
-            if (saved) {
-              this.bookNotebooks = JSON.parse(saved)
-            }
-          } catch (localError) {
-            console.warn('Failed to load bookNotebooks from localStorage:', localError)
-          }
+          console.warn('Failed to load bookNotebooks from localStorage:', e)
         }
 
         this.isInitialized = true
-        return { hasConflict: false }
+
+        // Sync with cloud in background (don't block UI)
+        this.syncToCloud().catch(syncError => {
+          console.warn('Background cloud sync failed:', syncError)
+        })
+
+        return {
+          hasConflict: false,
+          conflicts: []
+        }
       } catch (error) {
         console.error('Failed to initialize books store:', error)
         this.error = error.message
@@ -171,21 +174,83 @@ export const useBooksStore = defineStore('books', {
      * @returns {Promise<Object>} The created book
      */
     async addBook(bookData) {
+      const bookId = crypto.randomUUID()
+
+      // Set storage path before upload (so sync knows upload is in progress)
+      const auth = getFirebaseAuth()
+      const user = auth?.currentUser
+      const storagePath = user ? `users/${user.uid}/books/${bookId}/book.epub` : ''
+
       const book = {
-        id: crypto.randomUUID(),
+        id: bookId,
         createdAt: Date.now(),
         updatedAt: Date.now(),
         lastReadAt: Date.now(),
         lastReadCfi: null,
         totalProgress: 0,
         deletedAt: null,
+        fileInStorage: false,
+        fileStoragePath: storagePath,
         ...bookData
       }
 
+      console.log('[addBook] Creating book:', {
+        id: book.id,
+        title: book.title,
+        hasFileData: !!book.fileData,
+        fileSize: book.fileData?.byteLength
+      })
+
       this.books.push(book)
-      await saveBookToStorage(book)
+
+      // Extract fileData from metadata for separate storage
+      const { fileData, ...bookMetadata } = book
+
+      // Save to IndexedDB - convert to plain object (no Proxy)
+      console.log('[addBook] Saving to IndexedDB...')
+      await BookStorage.saveBook(Book.toPlain(bookMetadata))
+
+      console.log('[addBook] Saving file to IndexedDB...')
+      await BookStorage.saveBookFile(book.id, fileData)
+
+      console.log('[addBook] ✓ Book saved locally')
+
+      // Upload file to Firebase Storage and update metadata
+      this.uploadBookFileToCloud(book.id, fileData, storagePath).catch(err => {
+        console.warn('Failed to upload book file to cloud:', err)
+        // Still save metadata to Firestore even if file upload fails
+        saveBookToFirestore(Book.toPlain(bookMetadata))
+      })
 
       return book
+    },
+
+    /**
+     * Upload book file to Firebase Storage and update metadata
+     * @param {string} bookId - Book ID
+     * @param {ArrayBuffer} fileData - File data to upload
+     * @param {string} storagePath - Storage path (pre-generated)
+     * @returns {Promise<void>}
+     */
+    async uploadBookFileToCloud(bookId, fileData, storagePath) {
+      try {
+        await uploadBookFileToStorage(bookId, fileData)
+
+        // Update book with fileInStorage=true and save to Firestore
+        const book = this.books.find(b => b.id === bookId)
+        if (book) {
+          book.fileInStorage = true
+          book.updatedAt = Date.now()
+
+          await BookStorage.saveBook(Book.toPlain(book))
+          await saveBookToFirestore(Book.toPlain(book))
+        }
+
+        debugLog('[uploadBookFileToCloud] Upload complete:', storagePath)
+      } catch (error) {
+        console.error('[uploadBookFileToCloud] Failed to upload file:', error)
+        throw error
+      }
     },
 
     /**
@@ -202,7 +267,12 @@ export const useBooksStore = defineStore('books', {
         book.lastReadAt = Date.now()
         book.updatedAt = Date.now()
 
-        await saveBookToStorage(book)
+        await BookStorage.saveBook(Book.toPlain(book))
+
+        // Upload to cloud (page turn is discrete action, no debounce needed)
+        saveBookToFirestore(Book.toPlain(book)).catch(err => {
+          console.warn('Failed to upload reading position:', err)
+        })
       }
     },
 
@@ -213,14 +283,23 @@ export const useBooksStore = defineStore('books', {
     async deleteBook(bookId) {
       const index = this.books.findIndex(b => b.id === bookId)
       if (index !== -1) {
+        const book = this.books[index]
+
+        // Mark as deleted in cloud first (before removing from local)
+        await deleteBookFromFirestore(bookId)
+
+        // Then delete locally
         this.books.splice(index, 1)
-        await deleteBookFromStorage(bookId)
+        await BookStorage.deleteBook(bookId)
 
         // Clear current book if it was the deleted one
         if (this.currentBookId === bookId) {
           this.currentBookId = null
           this.currentCfi = null
         }
+
+        // Clear preloaded book
+        delete this.preloadedBooks[bookId]
       }
     },
 
@@ -241,7 +320,12 @@ export const useBooksStore = defineStore('books', {
       const book = this.books.find(b => b.id === bookId)
       if (book) {
         Object.assign(book, updates, { updatedAt: Date.now() })
-        await saveBookToStorage(book)
+        await BookStorage.saveBook(Book.toPlain(book))
+
+        // Upload to cloud directly (not bidirectional sync)
+        saveBookToFirestore(Book.toPlain(book)).catch(err => {
+          console.warn('Failed to upload book update to cloud:', err)
+        })
       }
     },
 
@@ -270,7 +354,7 @@ export const useBooksStore = defineStore('books', {
         onProgress?.(10)
 
         // Get or download book file
-        const fileData = await getOrDownloadBookFile(bookId, book.storagePath)
+        const fileData = await BookStorage.getBookFile(bookId)
         onProgress?.(60)
 
         // Create a temporary container for TOC extraction
@@ -324,105 +408,19 @@ export const useBooksStore = defineStore('books', {
     },
 
     /**
-     * Add a highlight to a book
-     * @param {string} bookId - Book ID
-     * @param {Object} highlight - Highlight data { cfiRange, text, colorIndex, note, noteContent }
-     * @returns {string} Highlight ID
-     */
-    addHighlight(bookId, highlight) {
-      const highlightData = {
-        id: crypto.randomUUID(),
-        createdAt: Date.now(),
-        colorIndex: 0,
-        ...highlight
-      }
-
-      if (!this.highlights[bookId]) {
-        this.highlights[bookId] = []
-      }
-
-      this.highlights[bookId].push(highlightData)
-      this.saveHighlights(bookId)
-
-      return highlightData.id
-    },
-
-    /**
-     * Remove a highlight from a book
-     * @param {string} bookId - Book ID
-     * @param {string} highlightId - Highlight ID
-     */
-    removeHighlight(bookId, highlightId) {
-      if (!this.highlights[bookId]) return
-
-      const index = this.highlights[bookId].findIndex(h => h.id === highlightId)
-      if (index !== -1) {
-        this.highlights[bookId].splice(index, 1)
-        this.saveHighlights(bookId)
-      }
-    },
-
-    /**
-     * Update a highlight
-     * @param {string} bookId - Book ID
-     * @param {string} highlightId - Highlight ID
-     * @param {Object} updates - Fields to update
-     */
-    updateHighlight(bookId, highlightId, updates) {
-      if (!this.highlights[bookId]) return
-
-      const highlight = this.highlights[bookId].find(h => h.id === highlightId)
-      if (highlight) {
-        Object.assign(highlight, updates)
-        this.saveHighlights(bookId)
-      }
-    },
-
-    /**
-     * Save highlights to storage
-     * @param {string} bookId - Book ID
-     */
-    async saveHighlights(bookId) {
-      const book = this.books.find(b => b.id === bookId)
-      if (!book) return
-
-      // Save highlights as part of book metadata
-      book.highlights = this.highlights[bookId] || []
-      book.updatedAt = Date.now()
-
-      await saveBookToStorage(book)
-    },
-
-    /**
-     * Load highlights from book data
-     * @param {string} bookId - Book ID
-     */
-    loadHighlights(bookId) {
-      const book = this.books.find(b => b.id === bookId)
-      if (book?.highlights) {
-        this.highlights[bookId] = book.highlights
-      } else {
-        this.highlights[bookId] = []
-      }
-    },
-
-    /**
      * Set or update the notebook associated with a book
      * @param {string} bookId - Book ID
      * @param {string} notebookId - Notebook/Chat ID
      */
     setBookNotebook(bookId, notebookId) {
       this.bookNotebooks[bookId] = notebookId
-      // Persist to localStorage immediately
+      // Persist to localStorage
       try {
+        debugLog('[books.setBookNotebook] Writing bookNotebooks to localStorage:', { bookId, notebookId })
         localStorage.setItem('bookNotebooks', JSON.stringify(this.bookNotebooks))
       } catch (e) {
         console.warn('Failed to save bookNotebooks to localStorage:', e)
       }
-      // Save to Firestore (async, don't wait)
-      saveBookNotebooksToFirestore(this.bookNotebooks).catch(e => {
-        console.warn('Failed to save bookNotebooks to Firestore:', e)
-      })
     },
 
     /**
@@ -432,14 +430,68 @@ export const useBooksStore = defineStore('books', {
     removeBookNotebook(bookId) {
       delete this.bookNotebooks[bookId]
       try {
+        debugLog('[books.removeBookNotebook] Writing bookNotebooks to localStorage:', { bookId })
         localStorage.setItem('bookNotebooks', JSON.stringify(this.bookNotebooks))
       } catch (e) {
         console.warn('Failed to save bookNotebooks to localStorage:', e)
       }
-      // Save to Firestore (async, don't wait)
-      saveBookNotebooksToFirestore(this.bookNotebooks).catch(e => {
-        console.warn('Failed to save bookNotebooks to Firestore:', e)
-      })
+    },
+
+    // ============================================
+    // Cloud Sync Actions
+    // ============================================
+
+    /**
+     * Sync to cloud
+     * @param {boolean} force - If true, sync immediately
+     * @returns {Promise<Object>} Sync result
+     */
+    async syncToCloud(force = false) {
+      this.isCloudSyncing = true
+
+      try {
+        const result = await syncBooksWithCloud(this.books)
+
+        // Save merged state to IndexedDB BEFORE making reactive
+        for (const book of result.mergedBooks) {
+          await BookStorage.saveBook(Book.toPlain(book))
+        }
+
+        // Update with merged books (after saving)
+        this.books = result.mergedBooks
+
+        this.lastCloudSyncAt = Date.now()
+        this.syncConflicts = result.conflicts || []
+
+        debugLog('[books.syncToCloud] Sync complete:', result)
+        return result
+      } catch (error) {
+        console.error('Cloud sync failed:', error)
+        this.error = error.message
+        throw error
+      } finally {
+        this.isCloudSyncing = false
+      }
+    },
+
+    /**
+     * Clear all sync conflicts
+     */
+    clearConflicts() {
+      this.syncConflicts = []
+    },
+
+    /**
+     * Resolve a specific sync conflict
+     * @param {string} bookId - Book ID with conflict
+     * @param {string} choice - 'local' | 'cloud' | 'merge'
+     */
+    async resolveConflict(bookId, choice) {
+      // Placeholder for conflict resolution
+      this.syncConflicts = this.syncConflicts.filter(c => c.bookId !== bookId)
+
+      // Re-sync after resolution
+      await this.syncToCloud(true)
     }
   }
 })

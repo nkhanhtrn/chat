@@ -15,7 +15,7 @@
       <div class="window-title">
         <span class="window-type-icon">{{ typeIcon }}</span>
         <InlineEdit
-          :modelValue="window.title"
+          :modelValue="window.title || ''"
           textClass="window-title-text"
           inputClass="window-title-input"
           @save="(title) => emit('update:title', title)"
@@ -30,22 +30,11 @@
           class="window-control-btn back-btn"
           :class="{ 'is-disabled': !hasHistory }"
           :disabled="!hasHistory"
-          @click.stop="$emit('go-back')"
+          @click.stop="emit('go-back')"
           title="Back to previous version"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="15 18 9 12 15 6"></polyline>
-          </svg>
-        </button>
-        <button
-          v-if="window.type === 'tool'"
-          class="window-control-btn refresh-btn"
-          @click.stop="$emit('refresh')"
-          title="Reload current version"
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M23 4v6h-6"></path>
-            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
           </svg>
         </button>
         <button
@@ -61,7 +50,7 @@
         <button
           v-if="window.type === 'tool'"
           class="window-control-btn clone-btn"
-          @click.stop="$emit('clone')"
+          @click.stop="emit('clone')"
           title="Clone"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -71,7 +60,7 @@
         </button>
         <button
           class="window-control-btn minimize-btn"
-          @click.stop="$emit('minimize')"
+          @click.stop="emit('minimize')"
           title="Minimize"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -80,7 +69,7 @@
         </button>
         <button
           class="window-control-btn close-btn"
-          @click.stop="$emit('close')"
+          @click.stop="emit('close')"
           title="Close"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -91,59 +80,19 @@
       </div>
     </div>
 
-    <!-- Window Content -->
+    <!-- Window Content - Dynamic Renderer -->
     <div class="window-content">
-      <!-- Chart -->
-      <ChartRenderer
-        v-if="window.type === 'chart'"
-        :option="parseChartOption(window.content)"
-        height="100%"
+      <component
+        :is="rendererComponent"
+        v-if="rendererComponent"
+        :content="window.content"
+        :windowId="window.id"
+        :sessionId="sessionId"
+        :showEditPanel="showEditPanel"
+        @error="handleRendererError"
       />
-
-      <!-- Mermaid -->
-      <MermaidBlock
-        v-else-if="window.type === 'mermaid'"
-        :code="window.content"
-      />
-
-      <!-- SVG -->
-      <div
-        v-else-if="window.type === 'svg'"
-        class="svg-wrapper"
-        v-html="window.content"
-      ></div>
-
-      <!-- Tool -->
-      <div v-else-if="window.type === 'tool'" class="tool-wrapper" :class="{ 'is-reloading': isReloading }">
-        <VueToolRenderer
-          v-if="isVueSfcTool"
-          :code="window.content.code"
-          :toolId="window.content.id"
-          :sessionId="sessionId"
-          :toolName="window.content.name || 'unnamed-tool'"
-          @compile-error="handleCompileError"
-        />
-        <ToolRenderer v-else :tool="window.content" />
-        <!-- Code AI Output for tools (only shown when edit panel is open) -->
-        <details v-if="window.content.stdout && showEditPanel" class="tool-stdout-details">
-          <summary>Code AI Output</summary>
-          <pre class="tool-stdout-value">{{ window.content.stdout }}</pre>
-        </details>
-      </div>
-
-      <!-- Code Result -->
-      <div v-else-if="window.type === 'codeResult'" class="code-result">
-        <div v-if="window.content.stdout" class="stdout-output">
-          <div class="stdout-header">Output</div>
-          <pre class="stdout-value">{{ window.content.stdout }}</pre>
-        </div>
-        <div class="result-output">
-          <pre class="result-value">{{ formatResult(window.content.result) }}</pre>
-        </div>
-        <details v-if="window.content.code" class="code-details">
-          <summary>View code</summary>
-          <pre class="code-source"><code>{{ window.content.code }}</code></pre>
-        </details>
+      <div v-else class="no-renderer">
+        <p>Unknown window type: {{ window.type }}</p>
       </div>
     </div>
 
@@ -199,15 +148,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import ChartRenderer from '../ChartRenderer.vue'
-import MermaidBlock from '../markdown/MermaidBlock.vue'
-import ToolRenderer from '../ToolRenderer.vue'
-import VueToolRenderer from '../VueToolRenderer.vue'
+import { ref, computed, onUnmounted } from 'vue'
 import InlineEdit from '../InlineEdit.vue'
 import CodeDisplay from './CodeDisplay.vue'
 import ThinkingModeToggle from './ThinkingModeToggle.vue'
-import { parseChartOption } from '../../utils/chart.js'
+import { getRenderer } from './renderers/WindowRendererRegistry.js'
 
 const props = defineProps({
   window: { type: Object, required: true },
@@ -216,7 +161,7 @@ const props = defineProps({
   hasHistory: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['close', 'minimize', 'clone', 'update:position', 'update:size', 'update:title', 'bring-to-front', 'edit-window', 'go-back', 'refresh', 'tool-error'])
+const emit = defineEmits(['close', 'minimize', 'clone', 'update:position', 'update:size', 'update:title', 'bring-to-front', 'edit-window', 'go-back', 'tool-error'])
 
 const windowRef = ref(null)
 const isDragging = ref(false)
@@ -224,19 +169,6 @@ const isResizing = ref(false)
 const resizeDirection = ref('')
 const dragStart = ref({ x: 0, y: 0 })
 const resizeStart = ref({ x: 0, y: 0, width: 0, height: 0, posX: 0, posY: 0 })
-
-// Reload animation state
-const isReloading = ref(false)
-
-// Watch for content changes to trigger reload animation
-watch(() => props.window.content?.code, (newCode, oldCode) => {
-  if (oldCode !== undefined && newCode !== oldCode) {
-    isReloading.value = true
-    setTimeout(() => {
-      isReloading.value = false
-    }, 1000)
-  }
-}, { deep: true })
 
 // Edit panel state
 const showEditPanel = ref(false)
@@ -247,14 +179,23 @@ const useThinkingMode = ref(false)
 const EDIT_THINKING_STORAGE_KEY = 'edit-thinking-mode'
 
 // Load thinking mode state from localStorage when edit panel opens
-watch(showEditPanel, (isOpen) => {
-  if (isOpen) {
-    const stored = localStorage.getItem(EDIT_THINKING_STORAGE_KEY)
-    if (stored !== null) {
-      useThinkingMode.value = stored === 'true'
-    }
+function loadThinkingMode() {
+  const stored = localStorage.getItem(EDIT_THINKING_STORAGE_KEY)
+  if (stored !== null) {
+    useThinkingMode.value = stored === 'true'
   }
-})
+}
+
+// Watch edit panel opening to load thinking mode
+function toggleEditPanel() {
+  showEditPanel.value = !showEditPanel.value
+  if (showEditPanel.value) {
+    loadThinkingMode()
+  }
+}
+
+// Expose method to parent to toggle edit panel
+defineExpose({ toggleEditPanel })
 
 function toggleThinkingMode(value) {
   useThinkingMode.value = value
@@ -276,12 +217,14 @@ function submitEdit() {
     useThinkingMode: useThinkingMode.value,
     onDone: () => {
       isEditing.value = false
-      // Keep edit panel open - don't close it
-      // User must click edit button again to close
+      // Keep edit panel open - user must click edit button again to close
       // Don't reset useThinkingMode - keep it for next edit
     }
   })
 }
+
+// Get renderer component for this window type
+const rendererComponent = computed(() => getRenderer(props.window.type))
 
 // Computed properties for edit panel content display
 const contentLabel = computed(() => {
@@ -304,6 +247,12 @@ const contentLanguage = computed(() => {
     case 'codeResult': return 'javascript'
     default: return 'text'
   }
+})
+
+const isVueSfcTool = computed(() => {
+  return props.window.type === 'tool' &&
+         props.window.content?.type === 'vue-sfc' &&
+         props.window.content?.code
 })
 
 const contentForDisplay = computed(() => {
@@ -348,13 +297,6 @@ const typeIcon = computed(() => {
   }
 })
 
-// Check if tool is Vue SFC type
-const isVueSfcTool = computed(() => {
-  return props.window.type === 'tool' &&
-         props.window.content?.type === 'vue-sfc' &&
-         props.window.content?.code
-})
-
 // Estimate token count from window content
 const tokenCount = computed(() => {
   const content = props.window.content
@@ -387,35 +329,14 @@ function formatTokenCount(count) {
   return count.toString()
 }
 
-// Format result to ensure it's a string
-function formatResult(result) {
-  if (typeof result === 'string') return result
-  if (result === null || result === undefined) return ''
-  try {
-    return JSON.stringify(result, null, 2)
-  } catch {
-    return String(result)
-  }
-}
-
 // Bring to front on click
 function handleWindowClick() {
   emit('bring-to-front')
 }
 
-// Handle compile error from broken tool - log and emit error event
-function handleCompileError(errorDetails) {
-  const toolName = errorDetails?.toolName || props.window.content?.name || props.window.title || 'Unknown tool'
-  const errorMsg = errorDetails?.error || 'Compilation error'
-  console.warn(`[OutputWindow] Tool error: "${toolName}" - ${errorMsg}`)
-
-  // Emit error event for parent to handle (add to chat, etc.)
-  emit('tool-error', {
-    toolName,
-    error: errorMsg
-  })
-
-  emit('close')
+// Handle error from renderer
+function handleRendererError(errorDetails) {
+  emit('tool-error', errorDetails)
 }
 
 // Helper to get clientX/clientY from mouse or touch event
@@ -430,7 +351,11 @@ function getEventCoords(event) {
 function startDrag(event) {
   // Don't start drag if clicking on buttons or controls
   const target = event.target
-  if (target.closest('button') || target.closest('.window-controls')) {
+  if (
+    target.closest('button') ||
+    target.closest('.window-controls') ||
+    target.closest('.inline-edit-input')
+  ) {
     return
   }
 
@@ -616,6 +541,12 @@ onUnmounted(() => {
   opacity: 0.95;
 }
 
+.no-renderer {
+  padding: 1rem;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
 /* Header */
 .window-header {
   display: flex;
@@ -724,48 +655,6 @@ onUnmounted(() => {
   min-height: 0;
 }
 
-.svg-wrapper {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-}
-
-.svg-wrapper :deep(svg) {
-  max-width: 100%;
-  max-height: 100%;
-}
-
-/* Tool Wrapper */
-.tool-wrapper {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  margin: -0.5rem; /* Negate window-content padding */
-  background: var(--color-bg-base);
-  transition: background 1s ease;
-}
-
-.tool-wrapper.is-reloading {
-  animation: tool-reload 1s ease-out;
-}
-
-@keyframes tool-reload {
-  0% {
-    background: var(--color-bg-base);
-  }
-  50% {
-    background: linear-gradient(135deg, var(--color-primary-subtle, #dbeafe) 0%, var(--color-bg-base) 100%);
-  }
-  100% {
-    background: var(--color-bg-base);
-  }
-}
-
-
 /* Resize Handles */
 .resize-handle {
   position: absolute;
@@ -837,99 +726,6 @@ onUnmounted(() => {
   width: 12px;
   height: 12px;
   cursor: nesw-resize;
-}
-
-/* Code Result */
-.code-result {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  gap: 0.5rem;
-}
-
-.stdout-output {
-  flex-shrink: 0;
-  max-height: 200px;
-  overflow: auto;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 6px;
-}
-
-.stdout-header {
-  padding: 0.4rem 0.75rem;
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  background-color: var(--color-bg-hover);
-  border-bottom: 1px solid var(--color-border-subtle);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.stdout-value {
-  margin: 0;
-  padding: 0.75rem;
-  background-color: var(--color-code-block-bg, #1a1a2e);
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: 0.8rem;
-  line-height: 1.4;
-  color: #a6e3a1; /* Green color for terminal output */
-  overflow-x: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.result-output {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-}
-
-.result-value {
-  margin: 0;
-  padding: 0.75rem;
-  background-color: var(--color-bg-base);
-  border-radius: 6px;
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: 0.85rem;
-  line-height: 1.5;
-  color: var(--color-text-base);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.code-details {
-  flex-shrink: 0;
-  border-top: 1px solid var(--color-border-subtle);
-}
-
-.code-details summary {
-  padding: 0.5rem 0.75rem;
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  user-select: none;
-}
-
-.code-details summary:hover {
-  color: var(--color-text-base);
-}
-
-.code-source {
-  margin: 0;
-  padding: 0.75rem;
-  background-color: var(--color-code-block-bg, #1e1e1e);
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: 0.8rem;
-  line-height: 1.5;
-  color: var(--color-code-block-text, #d4d4d4);
-  overflow-x: auto;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.code-source code {
-  font-family: inherit;
 }
 
 /* Edit Panel */
@@ -1077,63 +873,5 @@ onUnmounted(() => {
 .back-btn:hover {
   background-color: var(--color-warning-subtle, #fef3c7);
   color: var(--color-warning, #f59e0b);
-}
-
-.refresh-btn:hover {
-  background-color: var(--color-info-subtle, #dbeafe);
-  color: var(--color-info, #3b82f6);
-}
-
-/* Tool stdout details */
-.tool-stdout-details {
-  flex-shrink: 0;
-  max-height: 200px;
-  overflow: auto;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 6px;
-  margin-top: 0.5rem;
-}
-
-.tool-stdout-details summary {
-  padding: 0.4rem 0.75rem;
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  background-color: var(--color-bg-hover);
-  cursor: pointer;
-  user-select: none;
-  list-style: none;
-}
-
-.tool-stdout-details summary:hover {
-  background-color: var(--color-bg-elevated);
-}
-
-.tool-stdout-details summary::-webkit-details-marker {
-  display: none;
-}
-
-.tool-stdout-details summary::before {
-  content: '▶ ';
-  font-size: 0.6rem;
-  margin-right: 0.3rem;
-}
-
-.tool-stdout-details[open] summary::before {
-  content: '▼ ';
-}
-
-.tool-stdout-value {
-  margin: 0;
-  padding: 0.75rem;
-  background-color: var(--color-code-block-bg, #1a1a2e);
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: 0.8rem;
-  line-height: 1.4;
-  color: #a6e3a1;
-  overflow-x: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
-  border-top: 1px solid var(--color-border-subtle);
 }
 </style>

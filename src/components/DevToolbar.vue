@@ -6,8 +6,8 @@
     <Button @click="handleClearDB" class="dev-button" title="Delete and recreate IndexedDB" variant="secondary">
       Reset IndexedDB
     </Button>
-    <Button @click="handleDeleteAllBookFiles" class="dev-button" title="Delete all cached EPUB files from IndexedDB" variant="secondary">
-      Delete Book Files ({{ bookFileCount }})
+    <Button @click="handleDeleteAllBookFiles" class="dev-button" title="Delete cached EPUB files only (metadata preserved, will download from cloud when opened)" variant="secondary">
+      Clear Book Cache ({{ bookFileCount }})
     </Button>
     <Button @click="handleCloudTools" class="dev-button" title="Manage tools in cloud storage" variant="secondary">
       Cloud Tools ({{ cloudToolCount }})
@@ -97,12 +97,12 @@
 
 <script setup>
 import { ref, inject, computed, onMounted } from 'vue'
-import { clearAllStorage } from '../services/storage.js'
-import { saveTool, deleteDatabase, deleteAllBookFilesFromIDB, loadBooksFromIDB, permanentlyDeleteTool, getAllTools } from '../services/indexedDB.js'
-import { loadToolsFromFirestore, permanentlyDeleteToolFromFirestore } from '../services/firestore.js'
-import { getFirebaseAuth } from '../services/firebase.js'
+import { ChatStorage } from '../services/ChatStorage.js'
+import { saveTool, deleteDatabase, permanentlyDeleteTool, getSessionTools } from '../services/indexedDB.js'
+import { BookStorage } from '../services/BookStorage.js'
 import { useChatStore } from '../stores/chat.js'
 import { useBooksStore } from '../stores/books.js'
+import { useStudioSessions } from '../composables/studio/useStudioSessions.js'
 import { useStudioCanvas } from '../composables/studio/useStudioCanvas.js'
 import Button from './Button.vue'
 
@@ -124,10 +124,11 @@ const isLoading = ref(false)
 const isAuthChecked = ref(false)
 const isAuthenticated = ref(false)
 
-// Studio canvas
-const { windows, removeLastWindow } = useStudioCanvas()
-const canvasWindowCount = computed(() => windows.value.length)
-const toolWindows = computed(() => windows.value.filter(w => w.type === 'tool'))
+// Sessions (for window operations)
+const sessions = useStudioSessions()
+const canvas = useStudioCanvas(sessions.activeSessionId)
+const canvasWindowCount = computed(() => canvas.windows.value.length)
+const toolWindows = computed(() => canvas.windows.value.filter(w => w.type === 'tool'))
 const toolWindowCount = computed(() => toolWindows.value.length)
 
 const chatStore = useChatStore()
@@ -160,78 +161,27 @@ function formatDate(timestamp) {
   return date.toLocaleDateString() + ' ' + date.toLocaleTimeString()
 }
 
-// Load tools from cloud and display in modal
+// Load tools from cloud and display in modal (disabled - local storage only)
 async function handleCloudTools() {
   showCloudToolsModal.value = true
-  isLoading.value = true
+  isLoading.value = false
   cloudTools.value = []
-  isAuthChecked.value = false
+  isAuthChecked.value = true
   isAuthenticated.value = false
-
-  try {
-    // Check authentication status first
-    const auth = getFirebaseAuth()
-    isAuthenticated.value = !!auth.currentUser
-    isAuthChecked.value = true
-
-    if (!isAuthenticated.value) {
-      // Not authenticated - show empty state with message
-      cloudTools.value = []
-      cloudToolCount.value = 0
-      return
-    }
-
-    // Load tools from cloud
-    const tools = await loadToolsFromFirestore()
-    // Filter out deleted tools (those with deletedAt)
-    cloudTools.value = tools.filter(t => !t.deletedAt).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-    cloudToolCount.value = cloudTools.value.length
-  } catch (err) {
-    console.error('Failed to load cloud tools:', err)
-    alert('Failed to load tools from cloud: ' + err.message)
-  } finally {
-    isLoading.value = false
-  }
+  cloudToolCount.value = 0
+  // Cloud sync is disabled - show message
 }
 
-// Delete a tool from both cloud and local storage
+// Delete a tool from cloud (disabled - local storage only)
 async function handleDeleteCloudTool(tool) {
-  if (!confirm(`Delete "${tool.name}" from both cloud and local storage?\n\nThis action cannot be undone.`)) {
-    return
-  }
-
-  try {
-    // Delete from cloud (Firestore)
-    await permanentlyDeleteToolFromFirestore(tool.id)
-    console.log(`Deleted tool "${tool.name}" from cloud`)
-
-    // Delete from local (IndexedDB) - check if it exists first
-    const localTools = await getAllTools()
-    const localTool = localTools.find(t => t.id === tool.id)
-    if (localTool) {
-      await permanentlyDeleteTool(tool.id)
-      console.log(`Deleted tool "${tool.name}" from local storage`)
-    }
-
-    // Remove from the list
-    cloudTools.value = cloudTools.value.filter(t => t.id !== tool.id)
-    cloudToolCount.value = cloudTools.value.length
-
-    // Refresh the tool library if it exists in the DOM
-    const toolLibrary = document.querySelector('.tool-library')
-    if (toolLibrary && toolLibrary.__vueParentComponent?.ctx?.loadTools) {
-      toolLibrary.__vueParentComponent.ctx.loadTools()
-    }
-  } catch (err) {
-    console.error('Failed to delete tool:', err)
-    alert('Failed to delete tool: ' + err.message)
-  }
+  // Cloud sync is disabled
+  alert('Cloud sync is disabled. Tools are managed locally only.')
 }
 
 
 const handleClearCache = () => {
   if (confirm('Are you sure you want to clear all localStorage cache? This will delete all your chat history.')) {
-    clearAllStorage()
+    ChatStorage.clearState()
     window.location.reload()
   }
 }
@@ -305,9 +255,11 @@ const handleAddHighlightsToVocab = () => {
 
 const handleRemoveLastTool = () => {
   if (canvasWindowCount.value === 0) return
-  const removed = removeLastWindow()
-  if (removed) {
-    console.log(`Removed tool: ${removed.title}`)
+  const windows = canvas.windows.value
+  const lastWindow = windows[windows.length - 1]
+  if (lastWindow) {
+    canvas.removeWindow(sessions.activeSessionId.value, lastWindow.id)
+    console.log(`Removed tool: ${lastWindow.title || lastWindow.id}`)
   }
 }
 
@@ -336,7 +288,7 @@ const handleSaveAllTools = async () => {
 // Count book files on mount
 onMounted(async () => {
   try {
-    const books = await loadBooksFromIDB()
+    const books = await BookStorage.loadBooks()
     bookFileCount.value = books.filter(b => b.fileData).length
   } catch (err) {
     console.error('Failed to count book files:', err)
@@ -350,13 +302,14 @@ const handleDeleteAllBookFiles = async () => {
   }
 
   try {
-    const result = await deleteAllBookFilesFromIDB()
+    const result = await BookStorage.deleteAllBookFiles()
     bookFileCount.value = 0
     // Clear preloaded books data from store
     booksStore.preloadedBooks = {}
     booksStore.preloadProgress = {}
     booksStore.preloadingIds.clear()
-    console.log(`Deleted ${result.deletedCount} book files from IndexedDB`)
+    console.log(`✓ Deleted ${result.deletedCount} book files (metadata preserved - books will download from cloud when opened)`)
+    console.log(`  Freed up ${(result.totalSize / 1024 / 1024).toFixed(2)} MB`)
   } catch (err) {
     console.error('Failed to delete book files:', err)
   }

@@ -1,36 +1,24 @@
 <template>
   <div class="side-chat-playground">
-    <!-- Model Selection Header -->
+    <!-- Header -->
     <div class="playground-header">
       <div class="header-left">
-        <span class="title">Chat</span>
+        <span class="title">Quick Chat</span>
       </div>
       <div class="header-center">
         <!-- Provider Selection -->
         <div class="model-select">
           <select
-            v-model="modelSelection.selectedProvider.value"
-            @change="modelSelection.onProviderChange()"
+            v-model="selectedProviderId"
+            @change="onProviderChange"
             class="select-control provider"
-            :disabled="modelSelection.providers.value.length === 0"
           >
-            <option v-for="p in modelSelection.providers.value" :key="p.id" :value="p.id">{{ p.name }}</option>
-          </select>
-        </div>
-        <!-- Model Selection -->
-        <div class="model-select">
-          <select
-            v-model="modelSelection.selectedModel.value"
-            class="select-control model"
-            :disabled="modelSelection.models.value.length === 0"
-          >
-            <option v-if="modelSelection.models.value.length === 0" value="">...</option>
-            <option v-for="m in modelSelection.models.value" :key="m.id" :value="m.id">{{ m.name }}</option>
+            <option v-for="p in providers" :key="p.id" :value="p.id">{{ p.name }}</option>
           </select>
         </div>
       </div>
       <div class="header-right">
-        <button @click="chat.clearChat" class="clear-btn" title="Clear Chat">
+        <button @click="clearChat" class="clear-btn" title="Clear Chat">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="3 6 5 6 21 6"></polyline>
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -62,7 +50,7 @@
       </div>
 
       <!-- URL attachments preview -->
-      <UrlAttachmentsPreview :urls="attachments.detectedUrls.value" size="small" />
+      <UrlAttachmentsPreview :urls="detectedUrls" size="small" />
     </div>
 
     <!-- Input Area -->
@@ -78,7 +66,7 @@
       <button
         v-if="!isStreaming"
         @click="handleSend"
-        :disabled="!inputText.trim() || !modelSelection.isModelReady.value"
+        :disabled="!inputText.trim() || !isModelReady"
         class="send-btn"
         title="Send"
       >
@@ -89,7 +77,7 @@
       </button>
       <button
         v-else
-        @click="chat.stopStreaming"
+        @click="stopStreaming"
         class="stop-btn"
         title="Stop"
       >
@@ -105,50 +93,30 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import UrlAttachmentsPreview from './UrlAttachmentsPreview.vue'
-import { useStudioChat } from '../composables/studio/useStudioChat.js'
-import { useModelSelection } from '../composables/useModelSelection.js'
-import { useAttachments } from '../composables/useAttachments.js'
+import lmService from '../services/llm/LMService.js'
+import { Settings } from '../services/Settings.js'
 
-const STORAGE_KEY = 'side-playground-model-selection'
-
-const chat = useStudioChat({ storageKey: 'side-playground-chat-history' })
-const modelSelection = useModelSelection()
-const attachments = useAttachments()
+const STORAGE_KEY = 'side-playground-chat-history'
+const PROVIDER_KEY = 'side-playground-provider-id'
 
 const inputText = ref('')
+const messages = ref([])
+const isStreaming = ref(false)
 const messagesContainerRef = ref(null)
 const inputRef = ref(null)
+const detectedUrls = ref([])
+const selectedProviderId = ref('lmstudio')
+const providers = ref([])
+let abortController = null
 
-// Use computed to access reactive values
-const messages = computed(() => chat.messages.value)
-const isStreaming = computed(() => chat.isStreaming.value)
+// Get providers from LMService
+providers.value = lmService.listProviders()
 
-// Load saved selection from localStorage
-function loadSavedSelection() {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    console.log('Loading from localStorage:', STORAGE_KEY, saved)
-    if (saved) {
-      const { provider, model } = JSON.parse(saved)
-      console.log('Parsed saved selection:', { provider, model })
-      return { provider, model }
-    }
-  } catch (e) {
-    console.warn('Failed to load saved model selection:', e)
-  }
-  return null
-}
-
-// Save selection to localStorage
-function saveSelection(provider, model) {
-  try {
-    const data = JSON.stringify({ provider, model })
-    console.log('Saving to localStorage:', STORAGE_KEY, data)
-    localStorage.setItem(STORAGE_KEY, data)
-  } catch (e) {
-    console.warn('Failed to save model selection:', e)
-  }
-}
+// Check if model is ready (provider has a model selected in currentModels)
+const isModelReady = computed(() => {
+  const currentModels = Settings.getAll().currentModels || {}
+  return !!currentModels[selectedProviderId.value]
+})
 
 // Scroll to bottom when messages change
 watch(messages, () => {
@@ -159,91 +127,100 @@ watch(messages, () => {
   })
 }, { deep: true })
 
+// Save messages to localStorage
+watch(messages, () => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(messages.value))
+  } catch (e) {
+    console.warn('Failed to save chat messages:', e)
+  }
+}, { deep: true })
+
+// Watch provider changes and save to localStorage
+watch(selectedProviderId, (newValue) => {
+  if (newValue) {
+    localStorage.setItem(PROVIDER_KEY, newValue)
+  }
+})
+
 // Watch input text for URL detection
 watch(inputText, (newText) => {
-  attachments.watchInputForUrls(inputText)
+  const urlPattern = /(https?:\/\/[^\s]+)/g
+  detectedUrls.value = newText.match(urlPattern) || []
 })
 
-// Watch model selection changes and save to localStorage
-watch(
-  () => [modelSelection.selectedProvider.value, modelSelection.selectedModel.value],
-  ([provider, model]) => {
-    if (provider && model) {
-      saveSelection(provider, model)
+// Load saved messages and provider on mount
+onMounted(() => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved) {
+      messages.value = JSON.parse(saved)
     }
+  } catch (e) {
+    console.warn('Failed to load chat messages:', e)
   }
-)
 
-// Initialize model selection on mount
-onMounted(async () => {
-  // Load saved selection first
-  const saved = loadSavedSelection()
-  console.log('onMounted - saved selection:', saved)
-
-  // Initialize models
-  await modelSelection.initialize()
-  console.log('After initialize - providers:', modelSelection.providers.value.length)
-  console.log('After initialize - models:', modelSelection.models.value.length)
-
-  // Wait a bit for models to be fully loaded
-  await nextTick()
-  await new Promise(resolve => setTimeout(resolve, 100))
-
-  // Restore saved selection if available
-  if (saved) {
-    console.log('Restoring selection...')
-
-    // Check if saved provider still exists
-    const providerExists = modelSelection.providers.value.some(p => p.id === saved.provider)
-    console.log('Provider exists?', providerExists, 'looking for:', saved.provider)
-
-    if (providerExists) {
-      modelSelection.selectedProvider.value = saved.provider
-      console.log('Set provider to:', saved.provider)
-
-      await modelSelection.onProviderChange()
-      console.log('After onProviderChange - models:', modelSelection.models.value.length)
-      console.log('Models:', modelSelection.models.value.map(m => m.id))
-
-      // Wait for models to load
-      await nextTick()
-      await new Promise(resolve => setTimeout(resolve, 100))
-
-      // Check if saved model exists in the provider's models
-      const modelExists = modelSelection.models.value.some(m => m.id === saved.model)
-      console.log('Model exists?', modelExists, 'looking for:', saved.model)
-
-      if (modelExists) {
-        modelSelection.selectedModel.value = saved.model
-        console.log('Set model to:', saved.model)
-      } else {
-        console.log('Model not found in available models')
-      }
-    } else {
-      console.log('Provider not found')
-    }
-  } else {
-    console.log('No saved selection found')
+  // Load saved provider
+  const savedProvider = localStorage.getItem(PROVIDER_KEY)
+  if (savedProvider && providers.value.some(p => p.id === savedProvider)) {
+    selectedProviderId.value = savedProvider
   }
 })
+
+function onProviderChange() {
+  // Provider change is automatically saved via the watch above
+}
 
 async function handleSend() {
   if (!inputText.value.trim() || isStreaming.value) return
-  if (!modelSelection.isModelReady.value) return
+  if (!isModelReady.value) return
 
-  const currentInputText = inputText.value
+  const userMessage = inputText.value.trim()
   inputText.value = ''
 
-  await chat.sendMessage({
-    inputText: currentInputText,
-    attachmentSnapshot: attachments.getSnapshot(),
-    twoModelMode: false,
-    modelSelection: {
-      selectedModel: modelSelection.selectedModel.value
-    },
-    searchCallbacks: null,
-    planningCallbacks: null
-  })
+  // Add user message
+  messages.value.push({ role: 'user', content: userMessage })
+
+  // Add empty assistant message for streaming
+  const assistantMsgIndex = messages.value.length
+  messages.value.push({ role: 'assistant', content: '' })
+  isStreaming.value = true
+  abortController = new AbortController()
+
+  try {
+    // Build messages array (exclude the empty assistant message we just added)
+    const apiMessages = messages.value
+      .slice(0, -1)
+      .map(m => ({ role: m.role, content: m.content }))
+
+    // Use LMService directly with selected provider
+    await lmService.sendStream(
+      selectedProviderId.value,
+      apiMessages,
+      (chunk) => {
+        messages.value[assistantMsgIndex].content += chunk
+      },
+      abortController.signal
+    )
+  } catch (error) {
+    if (error.name !== 'AbortError') {
+      messages.value[assistantMsgIndex].content = `Error: ${error.message}`
+    }
+  } finally {
+    isStreaming.value = false
+    abortController = null
+  }
+}
+
+function stopStreaming() {
+  if (abortController) {
+    abortController.abort()
+  }
+}
+
+function clearChat() {
+  messages.value = []
+  localStorage.removeItem(STORAGE_KEY)
 }
 </script>
 
@@ -305,17 +282,8 @@ async function handleSend() {
   border-color: var(--color-primary);
 }
 
-.select-control:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .select-control.provider {
   width: 100px;
-}
-
-.select-control.model {
-  width: 150px;
 }
 
 .header-right {

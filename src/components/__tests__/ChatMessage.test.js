@@ -6,9 +6,8 @@ import { createPinia } from 'pinia'
 import ChatMessage from '../ChatMessage.vue'
 import MarkdownRenderer from '../MarkdownRenderer.vue'
 
-// Mock Message and sendChatMessage modules for handleHighlight tests
+// Mock Message module for handleHighlight tests
 import * as MessageModule from '../../stores/Message.js'
-import * as ApiModule from '../../services/api.js'
 
 // Mock vue-router
 const mockPush = vi.fn()

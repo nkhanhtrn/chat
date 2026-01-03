@@ -29,8 +29,6 @@
         v-else
         ref="chatPanelRef"
         v-model="inputText"
-        v-model:router-model="modelSelection.routerModel.value"
-        v-model:executor-model="modelSelection.executorModel.value"
         v-model:thinking-mode="thinkingMode"
         :messages="chat.messages.value"
         :is-streaming="chat.isStreaming.value"
@@ -42,10 +40,8 @@
         :search-status="webSearch.searchStatus.value"
         :has-loading-urls="attachments.hasLoadingUrls.value"
         :has-loading-files="attachments.hasLoadingFiles.value"
-        :is-model-ready="modelSelection.isModelReady.value"
         :detected-urls="attachments.detectedUrls.value"
         :uploaded-files="attachments.uploadedFiles.value"
-        :all-models="modelSelection.allModels.value"
         @send="handleSend"
         @stop="chat.stopStreaming"
         @clear="handleClearChat"
@@ -56,92 +52,92 @@
       />
     </template>
 
-    <!-- Main Panel: Canvas -->
-    <SlideTransition appear direction="vertical">
-      <CanvasPanel
-      ref="canvasPanelRef"
-      :visible-windows="canvas.visibleWindows.value"
-      :minimized-categories="canvas.minimizedWindowsByCategory.value"
-      :sessionId="sessions.activeSessionId.value || 'default'"
-      :hasHistoryFn="canvas.hasHistory"
-      @close-window="canvas.removeWindow"
-      @minimize-window="canvas.minimizeWindow"
-      @restore-window="canvas.restoreWindow"
-      @update-position="canvas.updateWindowPosition"
-      @update-size="canvas.updateWindowSize"
-      @update-title="handleUpdateTitle"
-      @bring-to-front="canvas.bringToFront"
-      @edit-window="handleEditWindow"
-      @clone-window="handleCloneWindow"
-      @open-tool="canvas.addWindow"
-      @go-back="handleGoBack"
-      @refresh="handleRefresh"
-      @tool-error="handleToolError"
+    <!-- Main Panel: Canvas with Window Browser Overlay -->
+    <div class="canvas-wrapper" @click="handleCanvasClick">
+      <SlideTransition appear direction="vertical">
+        <CanvasPanel
+        ref="canvasPanelRef"
+        :windows="canvas.windows.value"
+        :sessionId="sessions.activeSessionId.value || 'default'"
+        :hasHistoryFn="hasHistory"
+        @close-window="handleCloseWindow"
+        @minimize-window="handleMinimizeWindow"
+        @restore-window="handleRestoreWindow"
+        @update-position="handleUpdateWindowPosition"
+        @update-size="handleUpdateWindowSize"
+        @update-title="handleUpdateTitle"
+        @bring-to-front="handleBringToFront"
+        @edit-window="handleEditWindow"
+        @clone-window="handleCloneWindow"
+        @go-back="handleGoBack"
+        @tool-error="handleToolError"
+        @browse-windows="isBrowsingWindows = !isBrowsingWindows"
+        />
+      </SlideTransition>
+
+      <!-- Window Browser Overlay -->
+      <WindowBrowser
+        v-if="isBrowsingWindows"
+        :windows="canvas.windows.value"
+        @close="isBrowsingWindows = false"
+        @restore="handleRestoreWindow"
+        @delete="handleDeleteWindow"
+        @rename="handleUpdateTitle"
+        @click.stop
       />
-    </SlideTransition>
+    </div>
   </AppLayout>
 </template>
 
 <script setup>
+import { debugLog } from '../utils/debug.js'
 import { ref, onMounted, watch, nextTick } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 import ChatPanel from '../components/studio/ChatPanel.vue'
 import CanvasPanel from '../components/studio/CanvasPanel.vue'
 import SessionTabs from '../components/studio/SessionTabs.vue'
 import SessionBrowser from '../components/studio/SessionBrowser.vue'
+import WindowBrowser from '../components/studio/WindowBrowser.vue'
 import SlideTransition from '../components/SlideTransition.vue'
-import { useModelSelection } from '../composables/useModelSelection.js'
 import { useAttachments } from '../composables/useAttachments.js'
 import { useWebSearch } from '../composables/studio/useWebSearch.js'
 import { usePlanning } from '../composables/studio/usePlanning.js'
 import { useStudioChat } from '../composables/studio/useStudioChat.js'
-import { useStudioCanvas } from '../composables/studio/useStudioCanvas.js'
+import { useStudioCanvas, hasHistory } from '../composables/studio/useStudioCanvas.js'
 import { useStudioSessions } from '../composables/studio/useStudioSessions.js'
+import { useContentEditor } from '../composables/studio/useContentEditor.js'
 
-// Initialize sessions (simplified - single session mode)
+// Initialize sessions
 const sessions = useStudioSessions()
 
 // Initialize composables
-const modelSelection = useModelSelection()
 const attachments = useAttachments()
 const webSearch = useWebSearch()
 const planning = usePlanning()
-const chat = useStudioChat()
-const canvas = useStudioCanvas()
+const chat = useStudioChat(sessions)
+const canvas = useStudioCanvas(sessions.activeSessionId)
+const contentEditor = useContentEditor()
 
 // Local state
 const inputText = ref('')
 const chatPanelRef = ref(null)
-const appLayoutRef = ref(null)
-const canvasPanelRef = ref(null)
 const isBrowsingSessions = ref(false)
+const isBrowsingWindows = ref(false)
 const thinkingMode = ref(false)
 
-// Load thinking mode from localStorage on mount
+// Load thinking mode from localStorage
 onMounted(() => {
-  const stored = localStorage.getItem('studio-thinking-mode')
-  if (stored !== null) {
-    thinkingMode.value = stored === 'true'
+  const storedThinking = localStorage.getItem('studio-thinking-mode')
+  debugLog('[StudioChat.onMounted] Reading studio-thinking-mode from localStorage:', storedThinking)
+  if (storedThinking !== null) {
+    thinkingMode.value = storedThinking === 'true'
   }
 })
 
-// Function to get executor model based on thinking mode
-function getExecutorModel() {
-  if (thinkingMode.value) {
-    // Thinking mode ON - use selected executor
-    return modelSelection.executorModel.value
-  } else {
-    // Thinking mode OFF - use Cerebras
-    const cerebrasModel = modelSelection.allModels.value.find(m =>
-      m.providerId === 'cerebras' || m.id.toLowerCase().includes('cerebras')
-    )
-    return cerebrasModel?.id || modelSelection.executorModel.value
-  }
-}
-
-// Set up session manager integration
-chat.setSessionManager(sessions)
-canvas.setSessionManager(sessions)
+watch(thinkingMode, (newValue) => {
+  debugLog('[StudioChat.thinkingMode] Writing studio-thinking-mode to localStorage:', String(newValue))
+  localStorage.setItem('studio-thinking-mode', String(newValue))
+})
 
 // Session handlers
 async function handleSelectSession(sessionId) {
@@ -154,40 +150,15 @@ async function handleSelectSession(sessionId) {
   // Show the session in tabs (in case it was hidden)
   sessions.showSession(sessionId)
 
-  // Explicitly save current chat and canvas state before switching
-  sessions.updateChatState(chat.getState())
-  sessions.updateCanvasState(canvas.getState())
-
-  // Switch to the selected session
-  const sessionData = sessions.switchToSession(sessionId)
-  if (sessionData) {
-    // Load the new session's data into chat and canvas
-    chat.loadState(sessionData.chat)
-    canvas.loadState(sessionData.canvas)
-    isBrowsingSessions.value = false
-
-    // Sync the newly opened session's data to cloud
-    // This syncs all current open windows, their positions, and chats
-    await sessions.syncSessionData(sessionId)
-  }
+  // Switch active session - chat and canvas auto-load via reactive computed
+  sessions.activeSessionId.value = sessionId
+  isBrowsingSessions.value = false
 }
 
 async function handleNewSession() {
   const newSession = sessions.createNewSession()
-  // New session starts with empty state
-  chat.loadState({ messages: [], nextMessageId: 1 })
-  canvas.loadState({
-    windows: [],
-    nextWindowId: 1,
-    cascadeOffset: { x: 0, y: 0 },
-    maxZIndex: 100
-  })
+  // New session's data auto-loads via reactive computed
   isBrowsingSessions.value = false
-
-  // Sync the new session to cloud
-  if (newSession?.id) {
-    await sessions.syncSessionData(newSession.id)
-  }
 }
 
 function handleCloseTab(sessionId) {
@@ -195,18 +166,11 @@ function handleCloseTab(sessionId) {
   if (sessionId === sessions.activeSessionId.value) {
     const visibleSessions = sessions.sortedSessions.value
     if (visibleSessions.length > 0) {
-      // Explicitly save current state before switching
-      sessions.updateChatState(chat.getState())
-      sessions.updateCanvasState(canvas.getState())
-
       // Switch to the first visible session (usually the previous one)
       const targetSessionId = visibleSessions[0].id
       sessions.showSession(targetSessionId)
-      const sessionData = sessions.switchToSession(targetSessionId)
-      if (sessionData) {
-        chat.loadState(sessionData.chat)
-        canvas.loadState(sessionData.canvas)
-      }
+      sessions.activeSessionId.value = targetSessionId
+      // Chat and canvas auto-load via watch
     }
   }
 
@@ -234,18 +198,6 @@ function handleBrowserNewSession() {
 // Initialize on mount
 onMounted(async () => {
   await sessions.initializeSessions()
-  await modelSelection.initialize()
-
-  // Load the initial session's data into chat and canvas
-  const initialChatState = sessions.activeChatState.value
-  const initialCanvasState = sessions.activeCanvasState.value
-  chat.loadState(initialChatState)
-  canvas.loadState(initialCanvasState)
-
-  // Sync the initial session to cloud
-  if (sessions.activeSessionId.value) {
-    await sessions.syncSessionData(sessions.activeSessionId.value)
-  }
 })
 
 // Watch input for URL detection
@@ -258,9 +210,12 @@ watch(() => chatPanelRef.value?.messageListRef?.containerRef, (newRef) => {
   }
 })
 
-// Listen for output events and add windows to canvas
+// Listen for output events and add windows to session
 chat.onOutput((output) => {
-  canvas.addWindow(output)
+  const sessionId = sessions.activeSessionId.value
+  if (sessionId) {
+    canvas.addWindow(sessionId, output)
+  }
 })
 
 // Trigger file upload
@@ -283,7 +238,7 @@ async function handleEdit(messageIndex, newContent) {
 
 // Handle window edit request
 async function handleEditWindow({ windowId, windowType, currentContent, prompt, useThinkingMode, onDone }) {
-  if (!modelSelection.isModelReady.value || chat.isStreaming.value) {
+  if (chat.isStreaming.value) {
     onDone?.()
     return
   }
@@ -297,25 +252,24 @@ async function handleEditWindow({ windowId, windowType, currentContent, prompt, 
     const currentWindow = canvas.windows.value.find(w => w.id === windowId)
     let currentStdout = currentWindow?.content?.stdout || ''
 
-    await chat.editWindow({
+    await contentEditor.editContent({
       windowType,
       currentContent,
       prompt,
       useThinkingMode: effectiveThinkingMode,
-      modelSelection: {
-        executorModel: getExecutorModel(),
-        executorProviderId: modelSelection.executorModelData.value?.providerId || 'lmstudio',
-        routerProviderId: modelSelection.routerModelData.value?.providerId || 'lmstudio',
-        selectedModel: modelSelection.selectedModel.value
-      },
       onStdoutChunk: (chunk) => {
         // Stream stdout to window in real-time for codeResult and tool types (no history during streaming)
         if (windowType === 'codeResult' || windowType === 'tool') {
           currentStdout += chunk
-          canvas.updateWindowContent(windowId, {
-            ...currentContent,
-            stdout: currentStdout
-          }, false) // Skip history during streaming
+          const sessionId = sessions.activeSessionId.value
+          if (sessionId) {
+            canvas.updateWindow(sessionId, windowId, {
+              content: {
+                ...currentContent,
+                stdout: currentStdout
+              }
+            })
+          }
         }
       },
       onComplete: (updatedContent) => {
@@ -328,10 +282,10 @@ async function handleEditWindow({ windowId, windowType, currentContent, prompt, 
         if (windowType === 'tool') {
           canvas.pushToHistory(windowId, currentContent)
         }
-        canvas.updateWindowContent(windowId, finalContent, false) // Already saved history above
-        setTimeout(() => {
-          canvasPanelRef.value?.reloadToolLibrary()
-        }, 100)
+        const sessionId = sessions.activeSessionId.value
+        if (sessionId) {
+          canvas.updateWindow(sessionId, windowId, { content: finalContent })
+        }
       }
     })
   } catch (error) {
@@ -343,40 +297,94 @@ async function handleEditWindow({ windowId, windowType, currentContent, prompt, 
 
 // Handle clone window
 function handleCloneWindow(window) {
-  canvas.cloneWindow(window)
-  setTimeout(() => {
-    canvasPanelRef.value?.reloadToolLibrary()
-  }, 100)
+  const sessionId = sessions.activeSessionId.value
+  if (sessionId) {
+    const newWindow = {
+      ...window,
+      id: crypto.randomUUID(),
+      position: { ...window.position, x: window.position.x + 30, y: window.position.y + 30 },
+      zIndex: canvas.getNextZIndex()
+    }
+    canvas.addWindow(sessionId, newWindow)
+  }
+}
+
+// Window operation wrappers - delegate to session manager
+function handleCloseWindow(windowId) {
+  const sessionId = sessions.activeSessionId.value
+  if (sessionId) {
+    // Set displayState to 'closed' - window won't be rendered anywhere
+    canvas.updateWindow(sessionId, windowId, { displayState: canvas.DISPLAY_STATES.CLOSED })
+  }
+}
+
+function handleMinimizeWindow(windowId) {
+  const sessionId = sessions.activeSessionId.value
+  if (sessionId) {
+    // Set displayState to 'minimized' - window shows in minimized bar
+    canvas.updateWindow(sessionId, windowId, { displayState: canvas.DISPLAY_STATES.MINIMIZED })
+  }
+}
+
+function handleRestoreWindow(windowId) {
+  const sessionId = sessions.activeSessionId.value
+  if (sessionId) {
+    // Set displayState to 'open' - window renders on canvas
+    canvas.updateWindow(sessionId, windowId, { displayState: canvas.DISPLAY_STATES.OPEN })
+  }
+}
+
+function handleDeleteWindow(windowId) {
+  const sessionId = sessions.activeSessionId.value
+  if (sessionId) {
+    canvas.removeWindow(sessionId, windowId)
+  }
+}
+
+function handleCanvasClick() {
+  // Close the window browser when clicking outside of it
+  if (isBrowsingWindows.value) {
+    isBrowsingWindows.value = false
+  }
+}
+
+function handleUpdateWindowPosition(windowId, position) {
+  const sessionId = sessions.activeSessionId.value
+  if (sessionId) {
+    canvas.updateWindow(sessionId, windowId, { position })
+  }
+}
+
+function handleUpdateWindowSize(windowId, size) {
+  const sessionId = sessions.activeSessionId.value
+  if (sessionId) {
+    canvas.updateWindow(sessionId, windowId, { size })
+  }
+}
+
+function handleBringToFront(windowId) {
+  const sessionId = sessions.activeSessionId.value
+  if (sessionId) {
+    canvas.updateWindow(sessionId, windowId, { zIndex: canvas.getNextZIndex() })
+  }
 }
 
 // Handle title update
 function handleUpdateTitle(windowId, title) {
-  canvas.updateWindowTitle(windowId, title)
-  setTimeout(() => {
-    canvasPanelRef.value?.reloadToolLibrary()
-  }, 100)
+  const sessionId = sessions.activeSessionId.value
+  if (sessionId) {
+    canvas.updateWindow(sessionId, windowId, { title })
+  }
 }
 
 // Handle go back to previous version
 function handleGoBack(windowId) {
   const previousContent = canvas.popFromHistory(windowId)
   if (previousContent) {
-    canvas.restoreContent(windowId, previousContent, false)
-    setTimeout(() => {
-      canvasPanelRef.value?.reloadToolLibrary()
-    }, 100)
-  }
-}
-
-// Handle refresh (reload current version)
-function handleRefresh(windowId) {
-  const currentContent = canvas.getCurrentContent(windowId)
-  if (currentContent) {
-    // Force re-render by restoring the same content, but don't sync to cloud since nothing changed
-    canvas.restoreContent(windowId, currentContent, false, false)
-    setTimeout(() => {
-      canvasPanelRef.value?.reloadToolLibrary()
-    }, 100)
+    const sessionId = sessions.activeSessionId.value
+    if (sessionId) {
+      canvas.updateWindow(sessionId, windowId, { content: previousContent })
+    }
   }
 }
 
@@ -402,7 +410,7 @@ function handleToolError(errorDetails) {
 
 // Handle send message
 async function handleSend() {
-  if (!inputText.value.trim() || !modelSelection.isModelReady.value || chat.isStreaming.value) {
+  if (!inputText.value.trim() || chat.isStreaming.value) {
     return
   }
   if (attachments.hasLoadingAttachments.value) {
@@ -430,14 +438,7 @@ async function handleSend() {
   await chat.sendMessage({
     inputText: currentInputText,
     attachmentSnapshot,
-    twoModelMode: true,
-    modelSelection: {
-      routerModel: modelSelection.routerModel.value,
-      routerProviderId: modelSelection.routerModelData.value?.providerId || 'lmstudio',
-      executorModel: getExecutorModel(),
-      executorProviderId: modelSelection.executorModelData.value?.providerId || 'lmstudio',
-      useThinkingMode: thinkingMode.value
-    },
+    useThinkingMode: thinkingMode.value,
     searchCallbacks,
     planningCallbacks
   })
@@ -459,5 +460,11 @@ async function handleSend() {
   display: flex;
   flex: 1;
   min-height: 0;
+}
+
+.canvas-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
 }
 </style>

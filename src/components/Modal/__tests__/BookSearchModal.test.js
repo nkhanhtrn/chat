@@ -23,14 +23,16 @@ vi.mock('../../../services/epubRenderer.js', () => ({
   coverUrlToDataUrl: vi.fn(() => Promise.resolve(null))
 }))
 
-// Mock bookStorage module
-vi.mock('../../../services/bookStorage.js', () => ({
-  uploadBookToStorage: vi.fn(() => Promise.resolve('https://storage.url/book.epub'))
+// Mock BookStorage
+vi.mock('../../../services/BookStorage.js', () => ({
+  BookStorage: {
+    saveBook: vi.fn(() => Promise.resolve()),
+    saveBookFile: vi.fn(() => Promise.resolve())
+  }
 }))
 
 const { searchBooks, getProxiedImageUrl } = publicLibraryService
 const { extractEpubMetadata, coverUrlToDataUrl } = epubRenderer
-const { uploadBookToStorage } = bookStorage
 
 describe('BookSearchModal', () => {
   const mockSearchResults = [

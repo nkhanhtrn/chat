@@ -12,8 +12,7 @@
  * 3. The router prompt and execution are handled automatically
  */
 
-import { getProvider, getProviderConfigById } from './providers.js'
-import { fetchAvailableModels, findRouterAndExecutorModels } from './modelFinder.js'
+import lmService, { Category } from './LMService.js'
 import { parseAnalysisResponse } from './responseParser.js'
 import { readAttachments, formatAttachmentsForPrompt } from '../attachmentReader.js'
 import { registry } from './capabilities/index.js'
@@ -23,72 +22,10 @@ import { createEmptyUsage, mergeUsage } from '../../utils/tokenUsage.js'
 // Public API
 // ============================================================================
 
-// Re-export from modules for backwards compatibility
-export { getProvider } from './providers.js'
-export { fetchAvailableModels, findRouterAndExecutorModels } from './modelFinder.js'
-
 /**
- * Analyze user request with the router model
- * @param {string} userMessage - The user message to analyze
- * @param {string} routerModelId - The model ID to use
- * @param {string} routerProviderId - The provider ID (lmstudio, google, cerebras)
- * @param {Object} config - Provider config (optional, will be fetched if not provided)
- * @returns {Promise<Object>} Analysis result with optional usage data
+ * Format code execution result for display
  */
-export const analyzeRequest = async (userMessage, routerModelId, routerProviderId = 'lmstudio', config = null) => {
-  const provider = getProvider(routerProviderId)
-  const baseConfig = config || getProviderConfigById(routerProviderId)
-
-  // Track usage if onUsage callback provided
-  let routerUsage = null
-  const providerConfig = {
-    ...baseConfig,
-    onUsage: (usage) => {
-      routerUsage = usage
-    }
-  }
-
-  const messages = [
-    { role: 'system', content: registry.buildRouterPrompt() },
-    { role: 'user', content: userMessage }
-  ]
-
-  const response = await provider.sendMessage(
-    routerModelId,
-    messages,
-    null,
-    null,
-    providerConfig
-  )
-
-  const analysis = parseAnalysisResponse(response)
-  // Attach router usage to analysis for aggregation
-  analysis._routerUsage = routerUsage
-  return analysis
-}
-
-/**
- * Execute JavaScript code safely (kept for backwards compatibility)
- */
-export const executeCode = (code) => {
-  const codeCapability = registry.get('code')
-  if (codeCapability) {
-    return codeCapability._executeCode(code)
-  }
-
-  // Fallback implementation
-  try {
-    const sandbox = new Function(`"use strict"; return (${code.trim()});`)
-    return { success: true, result: sandbox(), error: null }
-  } catch (e) {
-    return { success: false, result: null, error: e.message }
-  }
-}
-
-/**
- * Format execution result for display (kept for backwards compatibility)
- */
-export const formatResult = (result) => {
+function formatCodeResult(result) {
   if (result === undefined) return 'undefined'
   if (result === null) return 'null'
   if (typeof result === 'string') return result
@@ -99,66 +36,34 @@ export const formatResult = (result) => {
 }
 
 /**
- * Generate code with executor model (kept for backwards compatibility)
+ * Analyze user request with the router model (uses QUICK category)
+ * @param {string} userMessage - The user message to analyze
+ * @returns {Promise<Object>} Analysis result with optional usage data
  */
-export const generateCode = async (analysis, originalRequest, executorModelId, onChunk = null, signal = null, config = {}) => {
-  const codeCapability = registry.get('code')
-  if (!codeCapability) {
-    throw new Error('Code capability not registered')
-  }
+export const analyzeRequest = async (userMessage) => {
+  const provider = lmService.getProviderByCategory(Category.QUICK)
 
-  const provider = getProvider('lmstudio')
-  const providerConfig = config || getProviderConfigById('lmstudio')
-  return codeCapability._generateCode(analysis, originalRequest, executorModelId, provider, providerConfig, signal)
-}
+  const messages = [
+    { role: 'system', content: registry.buildRouterPrompt() },
+    { role: 'user', content: userMessage }
+  ]
 
-/**
- * Regenerate code with error feedback (kept for backwards compatibility)
- */
-export const regenerateCodeWithError = async (analysis, originalRequest, previousCode, errorMessage, executorModelId, signal = null, config = {}) => {
-  const codeCapability = registry.get('code')
-  if (!codeCapability) {
-    throw new Error('Code capability not registered')
-  }
+  const response = await provider.send(messages)
 
-  const provider = getProvider('lmstudio')
-  const providerConfig = config || getProviderConfigById('lmstudio')
-  return codeCapability._regenerateWithError(analysis, originalRequest, previousCode, errorMessage, executorModelId, provider, providerConfig, signal)
-}
-
-/**
- * Generate visualization content (kept for backwards compatibility)
- */
-export const generateVisualization = async (analysis, originalRequest, executorModelId, signal = null, config = {}) => {
-  const vizCapability = registry.get('visualization')
-  if (!vizCapability) {
-    throw new Error('Visualization capability not registered')
-  }
-
-  const result = await vizCapability.execute({
-    analysis,
-    fullContext: originalRequest,
-    models: { executorId: executorModelId },
-    config: config || getProviderConfigById('lmstudio'),
-    provider: getProvider('lmstudio'),
-    signal,
-    callbacks: {}
-  })
-
-  return result.result
+  const analysis = parseAnalysisResponse(response)
+  return analysis
 }
 
 /**
  * Full pipeline: Parse Attachments → Analyze → Web Search → Execute Capability
  *
  * @param {Array<{role: string, content: string}>} messages - Conversation messages
- * @param {Object} models - { routerId: string, routerProviderId?: string, executorId: string, executorProviderId?: string }
  * @param {Function|null} onChunk - Streaming callback for final result only
  * @param {AbortSignal|null} signal - Abort signal
  * @param {Object} options - Additional options
  * @returns {Promise<Object>}
  */
-export const analyzeGenerateAndExecute = async (messages, models, onChunk = null, signal = null, options = {}) => {
+export const analyzeGenerateAndExecute = async (messages, onChunk = null, signal = null, options = {}) => {
   const {
     attachments = [],
     onAttachmentsParsed,
@@ -180,7 +85,6 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
     onPlanComplete,
     verifyMode = false,
     maxRetries = 3,
-    config = {},
     sessionId = null
   } = options
 
@@ -190,8 +94,7 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
     throw new Error('No user message to process')
   }
 
-  // Track token usage separately for router and executor
-  let routerUsage = null
+  // Track token usage
   let executorUsage = createEmptyUsage()
 
   // Step 1: Parse attachments
@@ -212,14 +115,8 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
     messageForAnalysis += `\n\n${attachmentContent}`
   }
 
-  // Step 2: Analyze with router model (uses dynamic prompt from registry)
-  const routerProviderId = models.routerProviderId || 'lmstudio'
-  const analysis = await analyzeRequest(messageForAnalysis, models.routerId, routerProviderId)
-
-  // Capture router usage
-  if (analysis._routerUsage) {
-    routerUsage = analysis._routerUsage
-  }
+  // Step 2: Analyze with router model (uses QUICK category)
+  const analysis = await analyzeRequest(messageForAnalysis)
 
   if (onAnalysis) {
     onAnalysis(analysis)
@@ -242,32 +139,21 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
     throw new Error('No capability available to handle this request')
   }
 
-  // Get the executor provider
-  const executorProviderId = models.executorProviderId || 'lmstudio'
-  const executorProvider = getProvider(executorProviderId)
-  const baseExecutorConfig = getProviderConfigById(executorProviderId)
-
-  // Add usage tracking callback to executor config
-  const executorConfig = {
-    ...baseExecutorConfig,
-    providerId: executorProviderId,
-    useThinkingMode: options.useThinkingMode || false,
-    onUsage: (usage) => {
-      executorUsage = mergeUsage(executorUsage, usage)
-    }
-  }
+  // Get the executor provider - QUICK normally, REASONING if thinking mode enabled
+  const useThinkingMode = options.useThinkingMode || false
+  const executorCategory = useThinkingMode ? Category.REASONING : Category.QUICK
+  const executorProvider = lmService.getProviderByCategory(executorCategory)
 
   // Track web search results across chain
   let webSearchResults = []
 
-  // Build execution context
+  // Build execution context (providers handle their own config internally)
   let executionContext = {
     analysis,
     userMessage: lastUserMessage.content,
     fullContext,
     messages,
-    models,
-    config: executorConfig,
+    useThinkingMode,
     provider: executorProvider,
     signal,
     onChunk: null,  // Only stream on final capability
@@ -333,8 +219,7 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
     webSearchResults: executionContext.webSearchResults,
     attempts: result.metadata?.attempts || 0,
     pipe: result.pipe,
-    usage: executorUsage.totalTokens > 0 || routerUsage ? {
-      router: routerUsage,
+    usage: executorUsage.totalTokens > 0 ? {
       executor: executorUsage.totalTokens > 0 ? executorUsage : null
     } : null
   }
@@ -348,7 +233,7 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
     response.execution = result.metadata?.executionDetails || null
     response.visualization = null
     response.tool = null
-    response.finalResponse = result.success ? formatResult(result.result) : `Error: ${result.error}`
+    response.finalResponse = result.success ? formatCodeResult(result.result) : `Error: ${result.error}`
 
     if (onChunk && response.finalResponse) {
       onChunk(response.finalResponse)
@@ -381,14 +266,7 @@ export const analyzeGenerateAndExecute = async (messages, models, onChunk = null
 export { registry }
 
 export default {
-  fetchAvailableModels,
-  findRouterAndExecutorModels,
   analyzeRequest,
-  generateCode,
-  regenerateCodeWithError,
-  generateVisualization,
-  executeCode,
-  formatResult,
   analyzeGenerateAndExecute,
   registry
 }

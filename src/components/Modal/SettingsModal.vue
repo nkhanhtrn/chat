@@ -119,20 +119,39 @@
 
           <!-- LLM Tab Content -->
           <div v-else-if="activeTab === 'llm'" key="llm" class="settings-body">
-        <!-- Provider -->
+        <!-- Provider tabs -->
+        <div class="provider-tabs">
+          <button
+            v-for="provider in providers"
+            :key="provider.id"
+            :class="['provider-tab', { active: currentProvider === provider.id }]"
+            @click="selectProvider(provider.id)"
+          >
+            {{ provider.name }}
+          </button>
+        </div>
+
+        <!-- Provider Configuration -->
         <div class="setting-item setting-item-vertical">
-          <label class="setting-label">Provider</label>
-          <div class="button-group provider-group">
-            <button
-              v-for="provider in providers"
-              :key="provider.id"
-              :class="['toggle-button', { active: currentProvider === provider.id }]"
-              @click="selectProvider(provider.id)"
+          <!-- Model Selection -->
+          <div>
+            <label class="setting-label">Model</label>
+            <select
+              v-model="currentModels[currentProvider]"
+              @change="onModelChange"
+              class="model-select"
+              :disabled="isLoadingModels"
             >
-              {{ provider.name }}
-            </button>
+              <option v-if="providerModels[currentProvider]?.length === 0" value="">
+                {{ isLoadingModels ? 'Loading...' : 'No models available' }}
+              </option>
+              <option v-for="model in providerModels[currentProvider] || []" :key="model.id" :value="model.id">
+                {{ model.name }}
+              </option>
+            </select>
           </div>
-          <!-- API Key inputs -->
+
+          <!-- API Key inputs for providers that require it -->
           <div v-if="selectedProviderRequiresKey">
             <ApiKeyInput
               v-if="currentProvider === 'google'"
@@ -147,7 +166,8 @@
               @update:model-value="onCerebrasApiKeysChange"
             />
           </div>
-          <!-- LM Studio URL -->
+
+          <!-- Base URL for providers that don't require API key -->
           <div v-if="!selectedProviderRequiresKey && currentProvider === 'lmstudio'" class="api-key-section">
             <input
               type="text"
@@ -157,15 +177,7 @@
               @input="onBaseUrlChange"
             />
           </div>
-          <!-- Model selector -->
-          <div v-if="availableModels.length > 0" class="model-section">
-            <label class="model-label">Model</label>
-            <select v-model="selectedModel" class="model-select" @change="onModelChange">
-              <option v-for="model in availableModels" :key="model.id" :value="model.id">
-                {{ model.name }}
-              </option>
-            </select>
-          </div>
+
           <!-- Connection status -->
           <div v-if="connectionStatus" :class="['connection-status', connectionStatus.type]">
             {{ connectionStatus.message }}
@@ -305,17 +317,9 @@ import LoginModal from './LoginModal.vue'
 import Button from '../Button.vue'
 import ApiKeyInput from '../ApiKeyInput.vue'
 import { onAuthChange, signOutUser } from '../../services/auth.js'
-import {
-  listProviders,
-  getCurrentProviderId,
-  getCurrentConfig,
-  setProvider,
-  testConnection,
-  fetchModels,
-  initProvider
-} from '../../services/api.js'
+import lmService from '../../services/llm/LMService.js'
 import { useChatStore } from '../../stores/chat.js'
-import { saveUserSettings, loadUserSettings } from '../../services/firestore.js'
+import { Settings } from '../../services/Settings.js'
 import { invalidateFetchSettingsCache } from '../../services/urlFetcher.js'
 
 const props = defineProps({
@@ -325,7 +329,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update:modelValue', 'provider-changed'])
+const emit = defineEmits(['update:modelValue'])
 
 // Dev toolbar (injected from App.vue)
 const showDevToolbar = inject('showDevToolbar', ref(false))
@@ -349,13 +353,16 @@ const providerConfigs = ref({
   lmstudio: { baseUrl: 'http://localhost:1234' }
 })
 
+// Model loading state
+const providerModels = ref({})
+const currentModels = ref({})
+const isLoadingModels = ref(false)
+
 // API keys arrays for multi-key input
 const googleApiKeys = ref([''])
 const cerebrasApiKeys = ref([''])
 const connectionStatus = ref(null)
 const restoreStatus = ref(null)
-const availableModels = ref([])
-const selectedModel = ref('')
 const customFetchUrl = ref('')
 const bookApiUrl = ref('')
 const bookApiKey = ref('')
@@ -410,12 +417,11 @@ watch(() => props.modelValue, (visible) => {
 })
 
 const loadProviderSettings = async () => {
-  providers.value = listProviders()
-  currentProvider.value = getCurrentProviderId()
+  providers.value = lmService.listProviders()
 
-  // Load all provider configs from settings (uses cache, no Firestore read)
-  const settings = await loadUserSettings()
-  if (settings?.providerConfigs) {
+  // Load all provider configs from settings
+  const settings = Settings.getAll()
+  if (settings.providerConfigs) {
     // Merge saved configs with defaults
     providerConfigs.value = {
       ...providerConfigs.value,
@@ -423,29 +429,9 @@ const loadProviderSettings = async () => {
     }
   }
 
-  // Also load current provider's config from the active config
-  // But only load relevant keys for the current provider type
-  const config = getCurrentConfig()
-  const provider = providers.value.find(p => p.id === currentProvider.value)
-
-  if (provider?.requiresApiKey) {
-    if (config.apiKeys) {
-      providerConfigs.value[currentProvider.value] = {
-        ...providerConfigs.value[currentProvider.value],
-        apiKeys: config.apiKeys
-      }
-    } else if (config.apiKey) {
-      providerConfigs.value[currentProvider.value] = {
-        ...providerConfigs.value[currentProvider.value],
-        apiKey: config.apiKey
-      }
-    }
-  }
-  if (!provider?.requiresApiKey && config.baseUrl) {
-    providerConfigs.value[currentProvider.value] = {
-      ...providerConfigs.value[currentProvider.value],
-      baseUrl: config.baseUrl
-    }
+  // Load current models for each provider
+  if (settings.currentModels) {
+    currentModels.value = { ...settings.currentModels }
   }
 
   // Load Google API keys into the reactive array
@@ -472,62 +458,8 @@ const loadProviderSettings = async () => {
 
   connectionStatus.value = null
 
-  // Load available models and current selection
-  // Prefer Firestore settings for cross-device sync, fallback to store
-  const currentModels = settings?.currentModels || {}
-  selectedModel.value = currentModels[currentProvider.value] || chatStore.currentModel || ''
-  await loadModels()
-}
-
-const loadModels = async () => {
-  try {
-    availableModels.value = await fetchModels()
-
-    // Get saved models per provider
-    const settings = await loadUserSettings()
-    const currentModels = settings?.currentModels || {}
-    const savedModel = currentModels[currentProvider.value]
-
-    // Validate selected model exists in available models
-    const modelExists = availableModels.value.some(m => m.id === selectedModel.value)
-
-    // If saved model exists and is valid, use it
-    if (savedModel && availableModels.value.some(m => m.id === savedModel)) {
-      selectedModel.value = savedModel
-      chatStore.setCurrentModel(selectedModel.value)
-    } else if (!selectedModel.value || !modelExists) {
-      // If no model selected or selected model not available, select the first one
-      if (availableModels.value.length > 0) {
-        selectedModel.value = availableModels.value[0].id
-        chatStore.setCurrentModel(selectedModel.value)
-        // Save the initial selection for this provider
-        const updatedModels = { ...currentModels, [currentProvider.value]: selectedModel.value }
-        saveUserSettings({ currentModels: updatedModels })
-      }
-    } else if (selectedModel.value && modelExists) {
-      // Sync Firestore model selection to store
-      chatStore.setCurrentModel(selectedModel.value)
-    }
-  } catch (error) {
-    // Don't clear models if we already have some - just show error
-    if (availableModels.value.length === 0) {
-      availableModels.value = []
-    }
-    // Show connection error for model loading failures
-    connectionStatus.value = { type: 'error', message: `Failed to load models: ${error.message}` }
-    console.warn('Failed to load models:', error.message)
-  }
-}
-
-const onModelChange = async () => {
-  if (selectedModel.value) {
-    chatStore.setCurrentModel(selectedModel.value)
-    // Save to Firestore per provider for cross-device sync
-    const settings = await loadUserSettings()
-    const currentModels = settings?.currentModels || {}
-    currentModels[currentProvider.value] = selectedModel.value
-    saveUserSettings({ currentModels })
-  }
+  // Load models for the current provider
+  await loadModelsForProvider(currentProvider.value)
 }
 
 /**
@@ -557,68 +489,75 @@ const buildCleanProviderConfigs = () => {
 
 const selectProvider = async (providerId) => {
   currentProvider.value = providerId
-  connectionStatus.value = null
+  await loadModelsForProvider(providerId)
+}
 
-  // Get config for the selected provider
-  const providerConfig = providerConfigs.value[providerId] || {}
-  const config = {}
+/**
+ * Load models for a specific provider
+ */
+const loadModelsForProvider = async (providerId) => {
+  const provider = lmService.getProvider(providerId)
+  if (!provider) return
 
-  const provider = providers.value.find(p => p.id === providerId)
-  if (provider?.requiresApiKey) {
-    if (providerId === 'google') {
-      const keys = googleApiKeys.value.filter(k => k.trim() !== '')
-      config.apiKeys = keys
-    } else if (providerId === 'cerebras') {
-      const keys = cerebrasApiKeys.value.filter(k => k.trim() !== '')
-      config.apiKeys = keys
-    } else {
-      config.apiKey = providerConfig.apiKey || ''
+  isLoadingModels.value = true
+
+  try {
+    const models = await provider.listModels()
+    providerModels.value[providerId] = models
+
+    // If no model is selected for this provider, select the first one
+    if (!currentModels.value[providerId] && models.length > 0) {
+      currentModels.value[providerId] = models[0].id
+      await saveCurrentModels()
     }
-  } else {
-    config.baseUrl = providerConfig.baseUrl || 'http://localhost:1234'
+  } catch (error) {
+    console.warn(`Failed to load models for ${providerId}:`, error.message)
+    providerModels.value[providerId] = []
+  } finally {
+    isLoadingModels.value = false
   }
+}
 
-  // Set provider config BEFORE loading models
-  setProvider(providerId, config)
-  emit('provider-changed', providerId)
+/**
+ * Save the current model selection for all providers
+ */
+const saveCurrentModels = () => {
+  Settings.set({ currentModels: { ...currentModels.value } })
+}
 
-  // Save cleaned provider configs (only relevant keys per provider)
-  saveUserSettings({ providerConfigs: buildCleanProviderConfigs() })
-
-  // Test connection and load models
-  await testProviderConnection()
-  await loadModels()
+/**
+ * Handle model change
+ */
+const onModelChange = () => {
+  saveCurrentModels()
 }
 
 const onBaseUrlChange = () => {
-  const config = { baseUrl: baseUrl.value }
-  setProvider(currentProvider.value, config)
   connectionStatus.value = null
-
   // Save cleaned provider configs
-  saveUserSettings({ providerConfigs: buildCleanProviderConfigs() })
+  Settings.set({ providerConfigs: buildCleanProviderConfigs() })
 }
 
 const onCustomFetchUrlChange = () => {
-  saveUserSettings({ customFetchUrl: customFetchUrl.value.trim() })
+  Settings.set({ customFetchUrl: customFetchUrl.value })
   invalidateFetchSettingsCache()
 }
 
 const onBookApiUrlChange = () => {
-  saveUserSettings({ bookApiUrl: bookApiUrl.value.trim() })
+  Settings.set({ bookApiUrl: bookApiUrl.value })
 }
 
 const onBookApiKeyChange = () => {
-  saveUserSettings({ bookApiKey: bookApiKey.value.trim() })
+  Settings.set({ bookApiKey: bookApiKey.value })
 }
 
 const setExtraService = (service) => {
   extraService.value = service
-  saveUserSettings({ extraService: service })
+  Settings.set({ extraService: service })
 }
 
 const onCodeApiUrlChange = () => {
-  saveUserSettings({ codeApiUrl: codeApiUrl.value.trim() })
+  Settings.set({ codeApiUrl: codeApiUrl.value })
 }
 
 // API key change handlers
@@ -626,45 +565,16 @@ const onGoogleApiKeysChange = async (keys) => {
   googleApiKeys.value = keys
   const filteredKeys = keys.filter(k => k.trim() !== '')
   providerConfigs.value.google = { apiKeys: filteredKeys }
-  setProvider('google', { apiKeys: filteredKeys })
-  connectionStatus.value = null
-
-  saveUserSettings({ providerConfigs: buildCleanProviderConfigs() })
-
-  if (filteredKeys.some(k => k.length > 10)) {
-    await testProviderConnection()
-    await loadModels()
-  }
+  Settings.set({ providerConfigs: buildCleanProviderConfigs() })
 }
 
 const onCerebrasApiKeysChange = async (keys) => {
   cerebrasApiKeys.value = keys
   const filteredKeys = keys.filter(k => k.trim() !== '')
   providerConfigs.value.cerebras = { apiKeys: filteredKeys }
-  setProvider('cerebras', { apiKeys: filteredKeys })
-  connectionStatus.value = null
-
-  saveUserSettings({ providerConfigs: buildCleanProviderConfigs() })
-
-  if (filteredKeys.some(k => k.length > 10)) {
-    await testProviderConnection()
-    await loadModels()
-  }
+  Settings.set({ providerConfigs: buildCleanProviderConfigs() })
 }
 
-const testProviderConnection = async () => {
-  connectionStatus.value = { type: 'pending', message: 'Testing connection...' }
-  try {
-    const success = await testConnection()
-    if (success) {
-      connectionStatus.value = { type: 'success', message: 'Connected successfully' }
-    } else {
-      connectionStatus.value = { type: 'error', message: 'Connection failed' }
-    }
-  } catch (error) {
-    connectionStatus.value = { type: 'error', message: error.message || 'Connection failed' }
-  }
-}
 
 onMounted(async () => {
   // Listen for auth state changes
@@ -672,63 +582,58 @@ onMounted(async () => {
     currentUser.value = user
   })
 
-  // Load settings from cache (no Firestore read - already loaded in main.js)
-  const settings = await loadUserSettings()
+  // Load settings from localStorage
+  const settings = Settings.getAll()
 
-  if (settings) {
-    // Sync local state with cached settings and apply them
-    if (settings.theme) {
-      currentTheme.value = settings.theme
-      window.__setTheme?.(settings.theme)
-    } else {
-      currentTheme.value = window.__getTheme?.() || 'light'
-    }
-
-    if (settings.fontSize) {
-      fontSize.value = settings.fontSize
-      applyFontSize(settings.fontSize)
-    }
-
-    if (settings.fontFamily) {
-      fontFamily.value = settings.fontFamily
-      applyFontFamily(settings.fontFamily)
-    }
-
-    if (settings.lineHeight) {
-      lineHeight.value = settings.lineHeight
-      applyLineHeight(settings.lineHeight)
-    }
-
-    if (settings.contentWidth) {
-      contentWidth.value = settings.contentWidth
-      applyContentWidth(settings.contentWidth)
-    }
-
-    if (settings.customFetchUrl) {
-      customFetchUrl.value = settings.customFetchUrl
-    }
-
-    if (settings.bookApiUrl) {
-      bookApiUrl.value = settings.bookApiUrl
-    }
-
-    if (settings.bookApiKey) {
-      bookApiKey.value = settings.bookApiKey
-    }
-
-    if (settings.extraService) {
-      extraService.value = settings.extraService
-    }
-
-    if (settings.codeApiUrl) {
-      codeApiUrl.value = settings.codeApiUrl
-    }
+  // Sync local state with settings and apply them
+  if (settings.theme) {
+    currentTheme.value = settings.theme
+    window.__setTheme?.(settings.theme)
   } else {
     currentTheme.value = window.__getTheme?.() || 'light'
   }
 
-  // Initialize LLM provider (uses cache)
-  await initProvider()
+  if (settings.fontSize) {
+    fontSize.value = settings.fontSize
+    applyFontSize(settings.fontSize)
+  }
+
+  if (settings.fontFamily) {
+    fontFamily.value = settings.fontFamily
+    applyFontFamily(settings.fontFamily)
+  }
+
+  if (settings.lineHeight) {
+    lineHeight.value = settings.lineHeight
+    applyLineHeight(settings.lineHeight)
+  }
+
+  if (settings.contentWidth) {
+    contentWidth.value = settings.contentWidth
+    applyContentWidth(settings.contentWidth)
+  }
+
+  if (settings.customFetchUrl) {
+    customFetchUrl.value = settings.customFetchUrl
+  }
+
+  if (settings.bookApiUrl) {
+    bookApiUrl.value = settings.bookApiUrl
+  }
+
+  if (settings.bookApiKey) {
+    bookApiKey.value = settings.bookApiKey
+  }
+
+  if (settings.extraService) {
+    extraService.value = settings.extraService
+  }
+
+  if (settings.codeApiUrl) {
+    codeApiUrl.value = settings.codeApiUrl
+  }
+
+  // Initialize LLM provider
   loadProviderSettings()
 })
 
@@ -754,7 +659,7 @@ const handleLoginSuccess = () => {
 const setTheme = (theme) => {
   currentTheme.value = theme
   window.__setTheme?.(theme)
-  saveUserSettings({ theme })
+  Settings.set({ theme })
 }
 
 const applyFontSize = (size) => {
@@ -763,7 +668,7 @@ const applyFontSize = (size) => {
 
 const updateFontSize = () => {
   applyFontSize(fontSize.value)
-  saveUserSettings({ fontSize: fontSize.value })
+  Settings.set({ fontSize: fontSize.value })
 }
 
 const applyFontFamily = (family) => {
@@ -773,7 +678,7 @@ const applyFontFamily = (family) => {
 const setFontFamily = (family) => {
   fontFamily.value = family
   applyFontFamily(family)
-  saveUserSettings({ fontFamily: family })
+  Settings.set({ fontFamily: family })
 }
 
 const applyLineHeight = (height) => {
@@ -782,7 +687,7 @@ const applyLineHeight = (height) => {
 
 const updateLineHeight = () => {
   applyLineHeight(lineHeight.value)
-  saveUserSettings({ lineHeight: lineHeight.value })
+  Settings.set({ lineHeight: lineHeight.value })
 }
 
 const applyContentWidth = (width) => {
@@ -797,7 +702,7 @@ const applyContentWidth = (width) => {
 const setContentWidth = (width) => {
   contentWidth.value = width
   applyContentWidth(width)
-  saveUserSettings({ contentWidth: width })
+  Settings.set({ contentWidth: width })
 }
 
 const close = () => {
@@ -1037,6 +942,34 @@ const restoreNotebooks = async (event) => {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+}
+
+.provider-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--color-border-base);
+}
+
+.provider-tab {
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-family: system-ui, -apple-system, sans-serif;
+  color: var(--color-text-muted);
+  transition: all 0.15s ease;
+}
+
+.provider-tab:hover {
+  color: var(--color-text-base);
+}
+
+.provider-tab.active {
+  color: var(--color-text-strong);
+  border-bottom-color: var(--color-text-strong);
 }
 
 .code-api-section {

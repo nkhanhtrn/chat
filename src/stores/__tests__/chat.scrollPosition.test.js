@@ -1,7 +1,14 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useChatStore } from '../chat.js'
-import * as storage from '../../services/storage.js'
+import { ChatStorage } from '../../services/ChatStorage.js'
+
+// Mock ChatStorage
+vi.mock('../../services/ChatStorage.js', () => ({
+  ChatStorage: {
+    saveState: vi.fn(() => Promise.resolve())
+  }
+}))
 
 describe('scroll position', () => {
   let chatStore

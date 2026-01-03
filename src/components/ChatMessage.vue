@@ -94,8 +94,7 @@ import SlideTransition from './SlideTransition.vue'
 import Note from './Note.vue'
 import QuestionSearchModal from './Modal/QuestionSearchModal.vue'
 import DictionaryModal from './Modal/DictionaryModal.vue'
-import { sendChatMessage, sendChatMessageForFeature, FeatureType } from '../services/api.js'
-import { getMainPrompts, getQuickExplainPrompts, getDictionaryPrompts } from '../services/extraPrompt.js'
+import lmService, { Category } from '../services/llm/LMService.js'
 import Message from '../stores/Message.js'
 import { getSelectedTextAndPosition as getSelectionWithOffsets } from '../services/DOMSelectionHelper.js'
 import { usePopupState } from '../composables/usePopupState.js'
@@ -133,8 +132,16 @@ const chatStore = props.store || useChatStore()
 
 // Use injected chat service or default to real API
 const chatServiceImpl = props.chatService || {
-  sendMessage: sendChatMessage,
-  sendMessageForFeature: sendChatMessageForFeature
+  sendMessage: async (providerId, model, messages, onChunk) => {
+    const provider = lmService.getProvider(providerId)
+    if (onChunk && provider.supportsStreaming) {
+      return await lmService.sendStream(providerId, messages, onChunk)
+    }
+    const result = await lmService.send(providerId, messages)
+    return result?.content || null
+  },
+  sendMessageForFeature: async (messages, onChunk) => lmService.sendByCategory(Category.DETAILS, messages, onChunk),
+  sendMessageForQuick: async (messages, onChunk) => lmService.sendByCategory(Category.QUICK, messages, onChunk)
 }
 
 // Local state
@@ -271,9 +278,7 @@ async function handleAskQuestion(question) {
 
   try {
     const messages = getMainPrompts(`[DEEPDIVE] ${question}`, previousMessages)
-    // Use feature-based provider selection (Google AI preferred for deep dive)
     await chatServiceImpl.sendMessageForFeature(
-      FeatureType.DEEP_DIVE,
       messages,
       (chunk) => {
         chatStore.appendToResponse(childMsg.id, chunk)
@@ -400,9 +405,7 @@ async function handleQuickExplain(customPrompt = null) {
 
   try {
     const messages = getQuickExplainPrompts(promptText, previousMessages)
-    // Use feature-based provider selection (Cerebras preferred for explain)
-    await chatServiceImpl.sendMessageForFeature(
-      FeatureType.EXPLAIN,
+    await chatServiceImpl.sendMessageForQuick(
       messages,
       (chunk) => {
         popup.appendToNoteContent(chunk)
@@ -461,9 +464,7 @@ async function handleDictionary() {
 
   try {
     const messages = getDictionaryPrompts(selectedText, previousMessages)
-    // Use feature-based provider selection (Cerebras preferred for dictionary)
-    await chatServiceImpl.sendMessageForFeature(
-      FeatureType.DICTIONARY,
+    await chatServiceImpl.sendMessageForQuick(
       messages,
       (chunk) => {
         dictionaryDefinition.value += chunk

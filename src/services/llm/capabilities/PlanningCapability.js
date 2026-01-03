@@ -114,8 +114,11 @@ User: "Find the current price of Bitcoin and create a simple calculator to conve
    */
   _parsePlan(response) {
     try {
+      // Handle object response (from provider.send)
+      const text = typeof response === 'object' ? response?.content || '' : response
+
       // Try to extract JSON from response
-      const jsonMatch = response.match(/\{[\s\S]*\}/)
+      const jsonMatch = text.match(/\{[\s\S]*\}/)
       if (!jsonMatch) {
         throw new Error('No JSON found in response')
       }
@@ -156,7 +159,6 @@ User: "Find the current price of Bitcoin and create a simple calculator to conve
     const {
       userMessage,
       fullContext,
-      models,
       provider,
       config,
       signal,
@@ -177,13 +179,7 @@ User: "Find the current price of Bitcoin and create a simple calculator to conve
         { role: 'user', content: fullContext || userMessage }
       ]
 
-      const planResponse = await provider.sendMessage(
-        models.executorId,
-        planningMessages,
-        null,
-        signal,
-        config
-      )
+      const planResponse = await provider.send(planningMessages)
 
       const plan = this._parsePlan(planResponse)
 

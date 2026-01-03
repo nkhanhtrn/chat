@@ -55,7 +55,7 @@
       <!-- Info Text -->
       <div class="login-info">
         <p class="sync-note">
-          🔒 Your data will be synced securely to Firebase and accessible across all your devices.
+          🔒 Your data is stored locally on this device.
         </p>
       </div>
     </div>

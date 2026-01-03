@@ -8,8 +8,9 @@ import { createPinia } from 'pinia'
 import { useChatStore } from './stores/chat.js'
 import router from './router'
 import { initializeTheme, applySettings, exposeGlobally, exposeEchartsGlobally } from './services/settings.js'
-import { initializeFirebase } from './services/firebase.js'
-import { loadUserSettings, subscribeToUserSettings, flushSettings } from './services/firestore.js'
+import { Settings } from './services/Settings.js'
+// Firebase disabled - using local storage only
+// import { initializeFirebase } from './services/firebase.js'
 
 // Handle chunk loading failures (e.g., after deployment with new hashes)
 // This catches dynamic import failures and forces a page reload
@@ -57,44 +58,29 @@ app.use(router)
 
 // Initialize Firebase and load chat state asynchronously
 const initializeApp = async () => {
-  try {
-    // Initialize Firebase (optional - will use default config)
-    initializeFirebase()
-    console.log('Firebase initialized')
-  } catch (error) {
-    console.warn('Firebase initialization failed (this is ok if not configured yet):', error)
-  }
+  // Firebase disabled - using local storage only
+  // try {
+  //   initializeFirebase()
+  //   console.log('Firebase initialized')
+  // } catch (error) {
+  //   console.warn('Firebase initialization failed (this is ok if not configured yet):', error)
+  // }
 
-  // Load user settings from Firestore (initial load)
+  // Load user settings from localStorage
   try {
-    const settings = await loadUserSettings()
+    const settings = Settings.getAll()
     applySettings(settings)
-
-    // Subscribe to real-time settings updates (replaces repeated reads)
-    subscribeToUserSettings((updatedSettings) => {
-      console.log('Settings updated from Firestore subscription')
-      applySettings(updatedSettings)
-    })
-
-    // Flush pending settings on page unload
-    window.addEventListener('beforeunload', () => {
-      flushSettings()
-    })
-
-    // Initialize LLM provider
-    const { initProvider } = await import('./services/llm/index.js')
-    await initProvider()
   } catch (error) {
-    console.warn('Failed to load user settings from Firestore:', error)
+    console.warn('Failed to load user settings:', error)
   }
 
   // Set up chat store and load saved state
   const chatStore = useChatStore(pinia)
 
-  // Initialize store with saved state (from Firestore or localStorage)
+  // Initialize store with saved state (from localStorage/IndexedDB)
   const result = await chatStore.initializeStore()
 
-  // Expose conflict info globally for App.vue to handle
+  // Expose conflict info globally for App.vue to handle (should not happen in local-only mode)
   if (result.hasConflict) {
     window.__syncConflict = {
       localData: result.localData,

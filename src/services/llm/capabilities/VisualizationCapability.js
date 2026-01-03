@@ -245,8 +245,6 @@ export class VisualizationCapability extends BaseCapability {
     const {
       analysis,
       fullContext,
-      models,
-      config,
       provider,
       signal,
       callbacks = {}
@@ -276,13 +274,7 @@ Generate the visualization now:`
       { role: 'user', content: instructionPrompt }
     ]
 
-    const response = await provider.sendMessage(
-      models.executorId,
-      messages,
-      null,
-      signal,
-      config
-    )
+    const response = await provider.send(messages)
 
     const cleanedContent = handler.cleanOutput(response)
     const visualizationType = analysis.visualizationType || 'chart'
@@ -357,13 +349,11 @@ Generate the visualization now:`
    * @param {string} currentContent - Current visualization content (JSON string for chart, code for mermaid/svg)
    * @param {string} type - Visualization type: 'chart', 'mermaid', or 'svg'
    * @param {string} request - Edit request from user
-   * @param {string} modelId - Model ID to use
    * @param {Object} provider - LLM provider
-   * @param {Object} config - Provider config
    * @param {AbortSignal} signal - Abort signal
    * @returns {Object} Updated visualization { type, content }
    */
-  async editVisualization(currentContent, type, request, modelId, provider, config, signal) {
+  async editVisualization(currentContent, type, request, provider, signal) {
     const handler = this._getHandler(type)
 
     const systemPrompt = `You are editing an existing ${type === 'chart' ? 'ECharts configuration' : type === 'mermaid' ? 'Mermaid diagram' : 'SVG illustration'}.
@@ -384,7 +374,7 @@ Request: ${request}`
       { role: 'user', content: userPrompt }
     ]
 
-    const response = await provider.sendMessage(modelId, messages, null, signal, config)
+    const response = await provider.send(messages)
     const cleanedContent = handler.cleanOutput(response)
 
     return {

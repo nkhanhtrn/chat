@@ -5,12 +5,14 @@ import DevToolbar from '../DevToolbar.vue'
 import { useChatStore } from '../../stores/chat.js'
 import Message from '../../stores/Message.js'
 
-// Mock storage
-vi.mock('../../services/storage.js', () => ({
-  saveChatState: vi.fn(),
-  loadChatState: vi.fn(() => null),
-  clearAllStorage: vi.fn(),
-  resolveConflict: vi.fn()
+// Mock ChatStorage
+vi.mock('../../services/ChatStorage.js', () => ({
+  ChatStorage: {
+    saveState: vi.fn(),
+    loadState: vi.fn(() => null),
+    clearState: vi.fn(),
+    resolveConflict: vi.fn()
+  }
 }))
 
 describe('DevToolbar', () => {

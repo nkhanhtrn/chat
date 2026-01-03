@@ -92,7 +92,6 @@ export class TextResponseCapability extends BaseCapability {
     const {
       fullContext,
       messages,
-      models,
       config,
       provider,
       signal,
@@ -124,17 +123,17 @@ export class TextResponseCapability extends BaseCapability {
       }
     })
 
-    const response = await provider.sendMessage(
-      models.executorId,
-      messagesWithContext,
-      onChunk,
-      signal,
-      config
-    )
+    // Stream the response
+    let fullResponse = ''
+    for await (const chunk of provider.sendStream(messagesWithContext)) {
+      if (signal?.aborted) break
+      fullResponse += chunk
+      if (onChunk) onChunk(chunk)
+    }
 
     return {
       success: true,
-      result: response,
+      result: fullResponse,
       error: null,
       metadata: {
         hasWebSearch: webSearchResults.length > 0,

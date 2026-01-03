@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================
+    // Books Collection Rules
+    // ============================================
+
+    match /users/{userId}/books/{bookId} {
+      // Users can only read/write their own books
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // Device-specific reading progress subcollection
+      match /progress/{deviceId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Highlights subcollection
+      match /highlights/{highlightId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // ============================================
+    // Chat Collection Rules (existing)
+    // ============================================
+
+    match /users/{userId}/chats/{chatId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      match /messages/{messageId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // ============================================
+    // Studio Collection Rules (existing)
+    // ============================================
+
+    match /users/{userId}/studiosessions/{sessionId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ============================================
+    // Tools Collection Rules (existing)
+    // ============================================
+
+    match /users/{userId}/tools/{toolId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

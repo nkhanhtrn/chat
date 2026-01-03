@@ -2,13 +2,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useChatStore } from '../chat.js'
 import VocabCard from '../VocabCard.js'
-import * as storage from '../../services/storage.js'
+import { ChatStorage } from '../../services/ChatStorage.js'
 
-// Mock storage
-vi.mock('../../services/storage.js', () => ({
-  saveChatState: vi.fn(),
-  loadChatState: vi.fn().mockResolvedValue({ hasConflict: false, state: null }),
-  resolveConflict: vi.fn()
+// Mock ChatStorage
+vi.mock('../../services/ChatStorage.js', () => ({
+  ChatStorage: {
+    saveState: vi.fn(),
+    loadState: vi.fn().mockResolvedValue(null),
+    resolveConflict: vi.fn()
+  }
 }))
 
 describe('Chat Store - Vocabulary', () => {
@@ -381,8 +383,8 @@ describe('Chat Store - Vocabulary', () => {
       // Force persist
       chatStore._persistState()
 
-      expect(storage.saveChatState).toHaveBeenCalled()
-      const savedState = storage.saveChatState.mock.calls[storage.saveChatState.mock.calls.length - 1][0]
+      expect(ChatStorage.saveState).toHaveBeenCalled()
+      const savedState = ChatStorage.saveState.mock.calls[ChatStorage.saveState.mock.calls.length - 1][0]
       expect(savedState.vocabData).toBeDefined()
       expect(Object.keys(savedState.vocabData)).toHaveLength(1)
     })

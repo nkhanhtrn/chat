@@ -207,7 +207,7 @@ import SlideTransition from '../components/SlideTransition.vue'
 import EditBookModal from '../components/EditBookModal.vue'
 import BookSearchModal from '../components/Modal/BookSearchModal.vue'
 import { extractEpubMetadata, coverUrlToDataUrl } from '../services/epubRenderer.js'
-import { uploadBookToStorage, saveBookFileToIDB } from '../services/bookStorage.js'
+import { BookStorage } from '../services/BookStorage.js'
 import { generateDefaultCover } from '../services/bookCoverGenerator.js'
 import { extractDominantColor, generateColorFromText } from '../services/colorExtractor.js'
 
@@ -343,12 +343,8 @@ onMounted(async () => {
   isLoading.value = true
   error.value = null
   try {
-    const result = await booksStore.initializeStore()
-    if (result.hasConflict) {
-      // For now, just use local data if there's a conflict
-      // TODO: Could show a conflict resolution modal
-      error.value = 'Sync conflict detected. Using local data.'
-    }
+    await booksStore.initializeStore()
+    // Sync conflicts are handled internally, no need to show error
   } catch (err) {
     error.value = err.message || 'Failed to load library'
   } finally {
@@ -370,32 +366,32 @@ async function handleUploadedBook(bookData) {
   error.value = null
 
   try {
-    // Create book record first
+    uploadingBookId.value = 'uploading'
+    uploadProgress.value = 20
+
+    // Create book record with fileData included
     const book = await booksStore.addBook({
       title: bookData.title,
       author: bookData.author,
       coverUrl: bookData.coverUrl || null,
-      fileSize: bookData.fileSize || 0
+      fileSize: bookData.fileSize || 0,
+      fileData: bookData.fileData  // Include fileData so addBook handles it
     })
 
     uploadingBookId.value = book.id
-    uploadProgress.value = 50
-
-    // Cache the file in IndexedDB
-    console.log('[Upload] Saving file to IndexedDB for book:', book.id)
-    await saveBookFileToIDB(book.id, bookData.fileData)
-    console.log('[Upload] ✓ File saved to IndexedDB')
-
     uploadProgress.value = 80
 
     // Update book with storage path (already uploaded by modal)
     if (bookData.storagePath) {
       await booksStore.updateBook(book.id, {
-        storagePath: bookData.storagePath
+        fileStoragePath: bookData.storagePath,
+        fileInStorage: true
       })
     }
 
     uploadProgress.value = 100
+
+    console.log('[Upload] ✓ Book saved successfully')
 
     // Close the modal after successful upload
     showSearchModal.value = false
@@ -405,7 +401,7 @@ async function handleUploadedBook(bookData) {
       uploadingBookId.value = null
       uploadProgress.value = 0
       isUploading.value = false
-    }, 1500)
+    }, 500)
   } catch (err) {
     console.error('[Upload] Failed to save uploaded book:', err)
     error.value = err.message || 'Failed to save uploaded book'
@@ -494,36 +490,28 @@ async function handleDownloadedBook(bookData) {
   error.value = null
 
   try {
-    // Create book record first
+    console.log('[handleDownloadedBook] Received bookData:', {
+      title: bookData.title,
+      hasFileData: !!bookData.fileData,
+      fileSize: bookData.fileData?.byteLength
+    })
+
+    uploadingBookId.value = 'downloading'
+    uploadProgress.value = 10
+
+    // Create book record with fileData included
     const book = await booksStore.addBook({
       title: bookData.title,
       author: bookData.author,
       coverUrl: bookData.coverUrl || null,
-      fileSize: bookData.fileData?.byteLength || 0
+      fileSize: bookData.fileData?.byteLength || 0,
+      fileData: bookData.fileData  // Include fileData so addBook handles it
     })
 
     uploadingBookId.value = book.id
-    uploadProgress.value = 10
-
-    // Cache the file in IndexedDB
-    console.log('[PublicLibrary] Saving file to IndexedDB for book:', book.id)
-    await saveBookFileToIDB(book.id, bookData.fileData)
-    console.log('[PublicLibrary] ✓ File saved to IndexedDB')
-
-    uploadProgress.value = 50
-
-    // Upload file to Firebase Storage
-    const fileBlob = new Blob([bookData.fileData], { type: 'application/epub+zip' })
-    const downloadUrl = await uploadBookToStorage(fileBlob, book.id)
-
-    uploadProgress.value = 80
-
-    // Update book with storage path
-    await booksStore.updateBook(book.id, {
-      storagePath: downloadUrl
-    })
-
     uploadProgress.value = 100
+
+    console.log('[PublicLibrary] ✓ Book saved successfully, ID:', book.id)
 
     // Close the search modal after successful download
     showSearchModal.value = false
@@ -533,7 +521,7 @@ async function handleDownloadedBook(bookData) {
       uploadingBookId.value = null
       uploadProgress.value = 0
       isUploading.value = false
-    }, 1500)
+    }, 500)
   } catch (err) {
     console.error('[PublicLibrary] Failed to save downloaded book:', err)
     error.value = err.message || 'Failed to save downloaded book'

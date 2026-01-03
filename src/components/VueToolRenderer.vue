@@ -80,7 +80,10 @@ watch(() => error.value, (newError) => {
 
 // Watch for code changes and recompile
 watch(() => props.code, (newCode) => {
-  compileCode(newCode, props.toolName, props.toolId, props.sessionId)
+  // compileCode is now async - call it and handle promise
+  compileCode(newCode, props.toolName, props.toolId, props.sessionId).catch(err => {
+    console.error('[VueToolRenderer] Compilation error:', err)
+  })
 }, { immediate: true })
 
 // Clean up on unmount
@@ -93,7 +96,7 @@ onUnmounted(() => {
 .vue-tool-renderer {
   width: 100%;
   height: 100%;
-  overflow: hidden;
+  overflow: auto;
   display: flex;
   flex-direction: column;
   background: var(--color-bg-base);
@@ -108,7 +111,7 @@ onUnmounted(() => {
   height: 100%;
   box-sizing: border-box;
   background: var(--color-bg-base) !important;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .error-message {

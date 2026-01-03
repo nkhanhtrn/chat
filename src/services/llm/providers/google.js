@@ -1,9 +1,10 @@
 /**
  * Google AI Studio Provider (Gemini)
  * Supports multiple API keys with round-robin load balancing
+ * Category: 'details' (detailed responses)
  */
-
 import { parseGeminiUsage } from '../../../utils/tokenUsage.js'
+import { Provider } from '../Provider.js'
 
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'
 
@@ -116,20 +117,36 @@ const processGeminiSSEStream = async (reader, onChunk, signal = null) => {
 }
 
 /**
- * @type {import('../types.js').LLMProvider}
+ * Google AI Provider class
  */
-export const googleProvider = {
-  id: 'google',
-  name: 'Google AI Studio',
-  requiresApiKey: true,
-  defaultBaseUrl: DEFAULT_BASE_URL,
+export class GoogleProvider extends Provider {
+  constructor() {
+    super('google', 'Google AI Studio', 'details', {
+      requiresApiKey: true,
+      supportsStreaming: true
+    })
+    this.defaultBaseUrl = DEFAULT_BASE_URL
+  }
 
-  async fetchModels(config = {}) {
-    const { apiKey, apiKeys, baseUrl = DEFAULT_BASE_URL } = config
+  /**
+   * Get default model for Google AI
+   * @returns {string} Default model ID
+   */
+  getDefaultModel() {
+    return 'models/gemini-2.5-flash'
+  }
+
+  /**
+   * List available models
+   * @returns {Promise<Array<{id: string, name: string}>>} Available models
+   */
+  async listModels() {
+    const config = this.getConfig()
+    const { apiKey, apiKeys, baseUrl = this.defaultBaseUrl } = config
     const keyToUse = getNextApiKey(apiKeys || apiKey)
 
     if (!keyToUse) {
-      throw new Error('Google AI API key is required')
+      return []
     }
 
     try {
@@ -142,8 +159,7 @@ export const googleProvider = {
       )
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw new Error(error.error?.message || `HTTP ${response.status}`)
+        return []
       }
 
       const data = await response.json()
@@ -160,13 +176,20 @@ export const googleProvider = {
 
       return models
     } catch (error) {
-      console.error('Failed to fetch Google models:', error.message)
-      throw new Error(error.message || 'Failed to fetch models from Google API')
+      console.warn('Failed to fetch Google models:', error.message)
+      return []
     }
-  },
+  }
 
-  async sendMessage(model, messages, onChunk = null, signal = null, config = {}) {
-    const { apiKey, apiKeys, baseUrl = DEFAULT_BASE_URL, onUsage } = config
+  /**
+   * Send a chat message (non-streaming)
+   * @param {Array<{role: string, content: string}>} messages - Chat messages
+   * @returns {Promise<{content: string, usage?: Object}>} Response
+   */
+  async send(messages) {
+    const model = this.getModelId()
+    const config = this.getConfig()
+    const { apiKey, apiKeys, baseUrl = this.defaultBaseUrl } = config
     const keyToUse = getNextApiKey(apiKeys || apiKey)
 
     if (!keyToUse) {
@@ -175,92 +198,123 @@ export const googleProvider = {
 
     const { contents, systemInstruction } = convertMessages(messages)
 
-    try {
-      if (!onChunk) {
-        // Non-streaming
-        const response = await fetch(
-          `${baseUrl}/${model}:generateContent?key=${keyToUse}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents,
-              systemInstruction,
-              generationConfig: {
-                temperature: 0.7
-              }
-            }),
-            signal
+    const response = await fetch(
+      `${baseUrl}/${model}:generateContent?key=${keyToUse}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents,
+          systemInstruction,
+          generationConfig: {
+            temperature: 0.7
           }
-        )
-
-        if (!response.ok) {
-          const error = await response.json().catch(() => ({}))
-          throw new Error(error.error?.message || `HTTP ${response.status}`)
-        }
-
-        const data = await response.json()
-
-        // Extract usage data
-        const usage = parseGeminiUsage(data)
-        if (usage && onUsage) {
-          onUsage(usage)
-        }
-
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text
-        if (!text) {
-          throw new Error('No response from model')
-        }
-        return text
+        })
       }
+    )
 
-      // Streaming
-      const response = await fetch(
-        `${baseUrl}/${model}:streamGenerateContent?alt=sse&key=${keyToUse}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents,
-            systemInstruction,
-            generationConfig: {
-              temperature: 0.7
-            }
-          }),
-          signal
-        }
-      )
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw new Error(error.error?.message || `HTTP ${response.status}`)
-      }
-
-      const reader = response.body.getReader()
-      const result = await processGeminiSSEStream(reader, onChunk, signal)
-
-      // Report usage if available
-      if (result.usage && onUsage) {
-        onUsage(result.usage)
-      }
-
-      return result.content
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        return null
-      }
-      throw new Error(error.message || 'Failed to get chat response')
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.error?.message || `HTTP ${response.status}`)
     }
-  },
 
-  async testConnection(config = {}) {
+    const data = await response.json()
+    const usage = parseGeminiUsage(data)
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+
+    if (!text) {
+      throw new Error('No response from model')
+    }
+
+    return { content: text, usage }
+  }
+
+  /**
+   * Send a chat message (streaming)
+   * @param {Array<{role: string, content: string}>} messages - Chat messages
+   * @returns {AsyncIterable<string>} Streaming response chunks
+   */
+  async *sendStream(messages) {
+    const model = this.getModelId()
+    const config = this.getConfig()
+    const { apiKey, apiKeys, baseUrl = this.defaultBaseUrl } = config
+    const keyToUse = getNextApiKey(apiKeys || apiKey)
+
+    if (!keyToUse) {
+      throw new Error('Google AI API key is required')
+    }
+
+    const { contents, systemInstruction } = convertMessages(messages)
+
+    const response = await fetch(
+      `${baseUrl}/${model}:streamGenerateContent?alt=sse&key=${keyToUse}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents,
+          systemInstruction,
+          generationConfig: {
+            temperature: 0.7
+          }
+        })
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.error?.message || `HTTP ${response.status}`)
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
     try {
-      const models = await this.fetchModels(config)
-      return models.length > 0
-    } catch {
-      return false
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          const trimmedLine = line.trim()
+          if (trimmedLine === '' || trimmedLine === 'data: [DONE]') continue
+
+          if (trimmedLine.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(trimmedLine.slice(6))
+
+              if (data.error) {
+                throw new Error(data.error.message || `API Error: ${data.error.code || 'Unknown'}`)
+              }
+
+              const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+              if (text) {
+                yield text
+              }
+            } catch (e) {
+              if (e.message?.includes('API Error')) {
+                throw e
+              }
+            }
+          }
+        }
+      }
+    } finally {
+      try {
+        await reader.cancel()
+      } catch {
+        // Ignore
+      }
     }
   }
+
 }
+
+// Export singleton instance for backward compatibility
+const googleProvider = new GoogleProvider()
 
 export default googleProvider

@@ -1,3 +1,4 @@
+import { debugLog } from '../utils/debug.js'
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 
 const MOBILE_BREAKPOINT = 768
@@ -25,6 +26,7 @@ export function useSidebarCollapse(storageKey = 'chatSidebarCollapsed') {
       isCollapsed.value = true
     } else {
       const savedState = localStorage.getItem(storageKey)
+      debugLog('[useSidebarCollapse.onMounted] Reading from localStorage:', storageKey, savedState)
       if (savedState !== null) {
         isCollapsed.value = savedState === 'true'
       }
@@ -40,6 +42,7 @@ export function useSidebarCollapse(storageKey = 'chatSidebarCollapsed') {
   // Only persist state on desktop
   watch(isCollapsed, (newValue) => {
     if (!isMobile()) {
+      debugLog('[useSidebarCollapse.isCollapsed] Writing to localStorage:', storageKey, String(newValue))
       localStorage.setItem(storageKey, String(newValue))
     }
   })

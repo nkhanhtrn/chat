@@ -75,6 +75,7 @@
 </template>
 
 <script setup>
+import { debugLog } from '../utils/debug.js'
 import { ref, computed, onMounted, onUnmounted, useSlots, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useChatStore } from '../stores/chat.js'
@@ -123,10 +124,12 @@ onMounted(() => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
   const stored = localStorage.getItem(props.storageKey)
+  debugLog('[AppLayout.onMounted] Reading from localStorage:', props.storageKey, stored)
   if (stored !== null) {
     sideExpanded.value = stored === 'true'
   }
   const storedWidth = localStorage.getItem(`${props.storageKey}-width`)
+  debugLog('[AppLayout.onMounted] Reading width from localStorage:', `${props.storageKey}-width`, storedWidth)
   if (storedWidth !== null) {
     sideWidth.value = parseInt(storedWidth, 10)
   }
@@ -166,6 +169,7 @@ const hasCurrentContent = computed(() => hasCurrentNotebook.value || hasCurrentB
 
 onMounted(() => {
   const stored = localStorage.getItem(props.storageKey)
+  debugLog('[AppLayout.secondOnMounted] Reading from localStorage:', props.storageKey, stored)
   if (stored !== null) {
     sideExpanded.value = stored === 'true'
   }
@@ -177,11 +181,13 @@ onMounted(() => {
 
 function toggleSide() {
   sideExpanded.value = !sideExpanded.value
+  debugLog('[AppLayout.toggleSide] Writing to localStorage:', props.storageKey, sideExpanded.value.toString())
   localStorage.setItem(props.storageKey, sideExpanded.value.toString())
 }
 
 function closeSide() {
   sideExpanded.value = false
+  debugLog('[AppLayout.closeSide] Writing to localStorage:', props.storageKey, 'false')
   localStorage.setItem(props.storageKey, 'false')
 }
 

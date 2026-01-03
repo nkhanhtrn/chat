@@ -1,7 +1,7 @@
 import Message from './Message.js'
 import VocabCard from './VocabCard.js'
 import { defineStore } from 'pinia'
-import { saveChatState, loadChatState, resolveConflict as resolveStorageConflict } from '../services/storage.js'
+import { ChatStorage } from '../services/ChatStorage.js'
 
 export const useChatStore = defineStore('chat', {
   state: () => {
@@ -237,15 +237,7 @@ export const useChatStore = defineStore('chat', {
       }
 
       try {
-        const result = await loadChatState()
-
-        // If there's a conflict, return it for the UI to handle
-        if (result.hasConflict) {
-          console.log('Sync conflict detected, waiting for user resolution')
-          return result
-        }
-
-        const savedState = result.state
+        const savedState = await ChatStorage.loadState()
         if (savedState) {
           this._applyState(savedState)
           console.log('Chat store initialized from saved state')
@@ -302,7 +294,7 @@ export const useChatStore = defineStore('chat', {
 
     // Resolve a sync conflict and apply the chosen state
     async resolveConflict(choice, localData, cloudData) {
-      const chosenState = await resolveStorageConflict(choice, localData, cloudData)
+      const chosenState = await ChatStorage.resolveConflict(localData)
       this._applyState(chosenState)
       this.isInitialized = true
       console.log(`Conflict resolved, applied ${choice} data`)
@@ -897,7 +889,7 @@ export const useChatStore = defineStore('chat', {
         isStreaming: this.isStreaming,
         vocabData: this.vocabData,
       }
-      saveChatState(state)
+      ChatStorage.saveState(state)
     },
 
     // Create a new chat session

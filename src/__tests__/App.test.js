@@ -19,42 +19,61 @@ vi.mock('vue-router', () => ({
   })
 }))
 
-// Mock the API module
-vi.mock('../services/api.js', () => ({
-  fetchModels: vi.fn(),
-  sendChatMessage: vi.fn(),
-  sendChatMessageForFeature: vi.fn(),
-  FeatureType: {
-    QUESTION: 'question',
-    DEEP_DIVE: 'deep_dive',
-    SUMMARY: 'summary',
-    EXPLAIN: 'explain',
-    DICTIONARY: 'dictionary',
-    SR_SUMMARY: 'sr_summary'
+import lmService from '../services/llm/LMService.js'
+
+// Mock LMService
+vi.mock('../services/llm/LMService.js', () => ({
+  Category: {
+    FREE: 'free',
+    QUICK: 'quick',
+    DETAILS: 'details',
+    REASONING: 'reasoning'
   },
-  listProviders: vi.fn(() => [
-    { id: 'lmstudio', name: 'LM Studio', requiresApiKey: false },
-    { id: 'google', name: 'Google AI Studio', requiresApiKey: true }
-  ]),
-  getCurrentProviderId: vi.fn(() => 'lmstudio'),
-  getCurrentConfig: vi.fn(() => ({})),
-  setProvider: vi.fn(),
-  updateConfig: vi.fn(),
-  testConnection: vi.fn(() => Promise.resolve(true)),
-  initProvider: vi.fn()
+  default: {
+    listProviders: vi.fn(() => [
+      { id: 'lmstudio', name: 'LM Studio', requiresApiKey: false },
+      { id: 'google', name: 'Google AI Studio', requiresApiKey: true }
+    ]),
+    send: vi.fn(() => Promise.resolve({ content: 'Hello World' })),
+    sendStream: vi.fn((_providerId, _messages, onChunk) => {
+      // Simulate streaming
+      if (onChunk) {
+        setTimeout(() => {
+          onChunk('Hello ')
+          onChunk('World')
+        }, 0)
+      }
+      return Promise.resolve('Hello World')
+    }),
+    sendByCategory: vi.fn((_category, _messages, onChunk) => {
+      if (onChunk) {
+        setTimeout(() => {
+          onChunk('Hello ')
+          onChunk('World')
+        }, 0)
+      }
+      return Promise.resolve('Hello World')
+    }),
+    getProvider: vi.fn(() => ({
+      listModels: vi.fn(() => Promise.resolve([
+        { id: 'test-model-1', name: 'Test Model 1' },
+        { id: 'test-model-2', name: 'Test Model 2' }
+      ])),
+      supportsStreaming: true
+    }))
+  }
 }))
 
-import { fetchModels, sendChatMessage, sendChatMessageForFeature } from '../services/api.js'
-
-// Mock loadChatState to always return null for clean state
-vi.mock('../services/storage.js', async (importOriginal) => {
-  const actual = await importOriginal()
-  return {
-    ...actual,
-    loadChatState: () => null,
-    clearAllStorage: vi.fn()
+// Mock ChatStorage to always return null for clean state
+vi.mock('../services/ChatStorage.js', () => ({
+  ChatStorage: {
+    saveState: vi.fn(),
+    loadState: () => null,
+    clearState: vi.fn(),
+    setReadOnlyMode: vi.fn(),
+    isReadOnlyMode: vi.fn(() => false)
   }
-})
+}))
 
 // Mock firestore to prevent real network calls
 vi.mock('../services/firestore.js', () => ({
@@ -102,23 +121,6 @@ describe('ChatView', () => {
 
     // Reset mocks
     vi.clearAllMocks()
-
-    // Default mock implementations
-    fetchModels.mockResolvedValue([
-      { id: 'test-model-1' },
-      { id: 'test-model-2' }
-    ])
-
-    sendChatMessageForFeature.mockImplementation((_featureType, _messages, onChunk) => {
-      if (onChunk) {
-        // Simulate streaming
-        setTimeout(() => {
-          onChunk('Hello ')
-          onChunk('World')
-        }, 0)
-      }
-      return Promise.resolve('Hello World')
-    })
 
     // Default environment mocks (dev mode)
     getIsDev.mockReturnValue(true)
@@ -227,11 +229,11 @@ describe('ChatView', () => {
 
       await flushPromises()
 
-      expect(fetchModels).toHaveBeenCalled()
+      expect(lmService.getProvider().listModels).toHaveBeenCalled()
     })
 
     it('should use first model from fetched models', async () => {
-      fetchModels.mockResolvedValue([
+      lmService.getProvider().listModels.mockResolvedValue([
         { id: 'model-a' },
         { id: 'model-b' }
       ])
@@ -255,7 +257,7 @@ describe('ChatView', () => {
     })
 
     it('should show error when no models available', async () => {
-      fetchModels.mockResolvedValue([])
+      lmService.getProvider().listModels.mockResolvedValue([])
 
       wrapper = mount(ChatView, {
         global: {
@@ -273,8 +275,8 @@ describe('ChatView', () => {
       expect(wrapper.find('.error-message').text()).toContain('No models available')
     })
 
-    it('should show error when fetchModels fails', async () => {
-      fetchModels.mockRejectedValue(new Error('Network error'))
+    it('should show error when lmService.getProvider().listModels fails', async () => {
+      lmService.getProvider().listModels.mockRejectedValue(new Error('Network error'))
 
       wrapper = mount(ChatView, {
         global: {
@@ -298,7 +300,7 @@ describe('ChatView', () => {
 
     it('should pass isStreaming prop to last message', async () => {
       let resolveMessage
-      sendChatMessageForFeature.mockImplementation(() => {
+      lmService.sendByCategory.mockImplementation(() => {
         return new Promise((resolve) => {
           resolveMessage = resolve
         })
@@ -336,7 +338,7 @@ describe('ChatView', () => {
 
   describe('Error Handling', () => {
     it('should display error message when sendChatMessage fails', async () => {
-      sendChatMessageForFeature.mockRejectedValue(new Error('API Error'))
+      lmService.sendByCategory.mockRejectedValue(new Error('API Error'))
 
       wrapper = mount(ChatView, {
         global: {
@@ -360,7 +362,7 @@ describe('ChatView', () => {
 
 
     it('should clear error when sending new message', async () => {
-      sendChatMessageForFeature.mockRejectedValueOnce(new Error('First error'))
+      lmService.sendByCategory.mockRejectedValueOnce(new Error('First error'))
         .mockResolvedValueOnce('Success')
 
       wrapper = mount(ChatView, {
@@ -622,8 +624,8 @@ describe('ChatView', () => {
       await examplePrompts[0].trigger('click')
       await flushPromises()
 
-      // Should have called sendChatMessageForFeature
-      expect(sendChatMessageForFeature).toHaveBeenCalled()
+      // Should have called lmService.sendByCategory
+      expect(lmService.sendByCategory).toHaveBeenCalled()
     })
 
     it('should render all prepopulated questions', async () => {
@@ -720,15 +722,15 @@ describe('ChatView', () => {
       await firstPrompt.trigger('click')
       await flushPromises()
 
-      // Verify sendChatMessageForFeature was called
-      expect(sendChatMessageForFeature).toHaveBeenCalled()
+      // Verify lmService.sendByCategory was called
+      expect(lmService.sendByCategory).toHaveBeenCalled()
     })
   })
 
   describe('handleSendMessage streaming behavior', () => {
     it('should return false when already streaming', async () => {
       let resolveMessage
-      sendChatMessageForFeature.mockImplementation(() => {
+      lmService.sendByCategory.mockImplementation(() => {
         return new Promise((resolve) => {
           resolveMessage = resolve
         })
@@ -752,8 +754,8 @@ describe('ChatView', () => {
       chatInput.vm.$emit('send', 'Second message')
       await wrapper.vm.$nextTick()
 
-      // Should have only called sendChatMessageForFeature once
-      expect(sendChatMessageForFeature).toHaveBeenCalledTimes(1)
+      // Should have only called lmService.sendByCategory once
+      expect(lmService.sendByCategory).toHaveBeenCalledTimes(1)
 
       resolveMessage('Response')
       await flushPromises()
@@ -774,8 +776,8 @@ describe('ChatView', () => {
       chatInput.vm.$emit('send', '')
       await wrapper.vm.$nextTick()
 
-      // Should not have called sendChatMessageForFeature
-      expect(sendChatMessageForFeature).not.toHaveBeenCalled()
+      // Should not have called lmService.sendByCategory
+      expect(lmService.sendByCategory).not.toHaveBeenCalled()
     })
 
     it('should return false when message is only whitespace', async () => {
@@ -793,8 +795,8 @@ describe('ChatView', () => {
       chatInput.vm.$emit('send', '   ')
       await wrapper.vm.$nextTick()
 
-      // Should not have called sendChatMessageForFeature
-      expect(sendChatMessageForFeature).not.toHaveBeenCalled()
+      // Should not have called lmService.sendByCategory
+      expect(lmService.sendByCategory).not.toHaveBeenCalled()
     })
 
     it('should prevent multiple messages during streaming', async () => {
@@ -820,8 +822,8 @@ describe('ChatView', () => {
       expect(result1).toBe(false)
       expect(result2).toBe(false)
 
-      // sendChatMessageForFeature should not have been called
-      expect(sendChatMessageForFeature).not.toHaveBeenCalled()
+      // lmService.sendByCategory should not have been called
+      expect(lmService.sendByCategory).not.toHaveBeenCalled()
 
       // End streaming
       chatStore.setIsStreaming(false)
@@ -831,7 +833,7 @@ describe('ChatView', () => {
       await wrapper.vm.$nextTick()
 
       // Should have been called once now
-      expect(sendChatMessageForFeature).toHaveBeenCalledTimes(1)
+      expect(lmService.sendByCategory).toHaveBeenCalledTimes(1)
     })
   })
 

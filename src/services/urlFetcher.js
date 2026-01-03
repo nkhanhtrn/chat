@@ -5,7 +5,7 @@
  * Requires a custom fetch URL to be set in settings.
  */
 
-import { loadUserSettings } from './firestore.js'
+import { Settings } from './Settings.js'
 
 // URL detection regex - matches http/https URLs
 const URL_REGEX = /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi
@@ -56,15 +56,10 @@ export async function getCustomFetchUrl() {
     return settingsCache.customFetchUrl || null
   }
 
-  try {
-    const settings = await loadUserSettings()
-    settingsCache = settings || {}
-    settingsCacheTimestamp = now
-    return settings?.customFetchUrl || null
-  } catch (error) {
-    console.warn('Failed to load settings for custom fetch URL:', error)
-    return null
-  }
+  const customFetchUrl = Settings.getString('customFetchUrl')
+  settingsCache = { customFetchUrl }
+  settingsCacheTimestamp = now
+  return customFetchUrl || null
 }
 
 /**

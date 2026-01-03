@@ -3,7 +3,7 @@
  */
 
 import { BaseCapability, createPipeData } from './BaseCapability.js'
-import { saveTool, syncToolsFromCloud } from '../../indexedDB.js'
+import { saveTool } from '../../indexedDB.js'
 import { generateCode as callCodeApi } from '../../codeApi.js'
 import { detectUrls, fetchUrlContent, cleanHtml } from '../../urlFetcher.js'
 
@@ -47,6 +47,26 @@ IMPORTANT:
 - Use .content for scrollable areas (it has flex: 1 and overflow: auto)
 - Keep header/footer compact with flex-shrink: 0
 
+DATA PERSISTENCE (Auto-save user data):
+- Tools can auto-save user data using the 'persistKeys' option
+- Add persistKeys: [] to your component options to specify which data keys to save
+- Only include USER DATA that should persist (inputs, settings, user state)
+- EXCLUDE temporary UI state like: loading, error, hovered, temp, etc.
+- Data is automatically restored when the tool reopens
+- Example:
+  export default {
+    persistKeys: ['count', 'userText', 'settings'],  // only these are saved
+    data() {
+      return {
+        count: 0,           // saved (in persistKeys)
+        userText: '',       // saved (in persistKeys)
+        settings: {},       // saved (in persistKeys)
+        loading: false,     // NOT saved (temporary UI state)
+        error: null         // NOT saved (temporary UI state)
+      }
+    }
+  }
+
 CHARTING with ECHARTS (v6.0.0):
 - For charts/graphs, use ECharts library (available globally as 'echarts')
 - ECharts is pre-loaded - DO NOT import it, just use it directly
@@ -81,7 +101,14 @@ EXAMPLE:
 
 <script>
 export default {
-  data() { return { value: '' } },
+  // Specify which data to auto-save (user data only, not UI state)
+  persistKeys: ['value'],
+
+  data() {
+    return {
+      value: ''  // this will be saved and restored
+    }
+  },
   methods: {
     submit() { },
     reset() { this.value = '' },
@@ -109,6 +136,8 @@ CHART EXAMPLE (using ECharts):
 
 <script>
 export default {
+  persistKeys: ['chartData'],  // save chart data but not chartInstance
+
   data() {
     return {
       chartInstance: null,
@@ -165,6 +194,12 @@ Never include :root or define CSS variables. Just use var(--color-*).
 
 ${DESIGN_GUIDE}
 
+IMPORTANT - Data Persistence:
+- ALWAYS include a 'persistKeys' array in your component options
+- List ONLY the data keys that contain user data (inputs, settings, counts, etc.)
+- DO NOT include temporary UI state (loading, error, hovered, temp, etc.)
+- This ensures user data is saved/restored automatically when tools close and reopen
+
 Start with: <!-- @tool: Name Emoji --> (e.g. <!-- @tool: Calculator 🧮 -->)
 Output only the code.`
 
@@ -197,14 +232,11 @@ export class BuildCapability extends BaseCapability {
 
   async process(input) {
     const { data: pipedData, context } = input
-    const { fullContext, models, config, provider, signal, callbacks = {}, sessionId } = context
+    const { fullContext, useThinkingMode = false, provider, signal, callbacks = {}, sessionId } = context
     const { onToolGenerated } = callbacks
 
-    // Sync tools from cloud first (non-blocking, best effort)
-    await syncToolsFromCloud().catch(() => {})
-
     // Build new tool
-    const code = await this._buildTool(fullContext, models.executorId, provider, config, signal, pipedData)
+    const code = await this._buildTool(fullContext, useThinkingMode, provider, signal, pipedData)
 
     let parsedTool
     try {
@@ -213,28 +245,29 @@ export class BuildCapability extends BaseCapability {
       return { success: false, result: null, error: e.message }
     }
 
-    // Auto-save tool to library with session scope (defaults to session if sessionId provided)
-    // This generates and assigns an ID that must be used for tool instance storage
+    // Auto-save tool to library (always session-scoped)
     const savedTool = await saveTool({
       ...parsedTool,
-      sourcePrompt: fullContext,
-      scope: sessionId ? 'session' : 'global',
-      sessionId: sessionId || null
-    })
+      sourcePrompt: fullContext
+    }, sessionId)
 
     if (onToolGenerated) onToolGenerated(savedTool)
 
     return { success: true, result: savedTool, error: null }
   }
 
-  async _buildTool(userMessage, modelId, provider, config, signal, pipedData = null) {
-    if (config?.useThinkingMode) {
+  async _buildTool(userMessage, useThinkingMode, provider, signal, pipedData = null) {
+    if (useThinkingMode) {
       // Thinking mode ON - use Reasoning AI
       const result = await callCodeApi({
         initial_code: `<template><!-- Vue 3 component - JavaScript only, NO TypeScript --></template>\n<script>\nexport default {\n  data() { return {} },\n  methods: {},\n  computed: {}\n}\n</script>\n<style scoped></style>`,
         edit_prompt: `Create a Vue 3 component using plain JavaScript (NOT TypeScript). NEVER import or use 'ref' from Vue - only use Options API (data, methods, computed, watch, etc.).
 
 ${DESIGN_GUIDE}
+
+IMPORTANT - Data Persistence:
+- ALWAYS include a 'persistKeys' array listing user data keys (inputs, settings, counts, etc.)
+- DO NOT include temporary UI state (loading, error, hovered, temp, etc.)
 
 ${userMessage}`,
         output_path: `tools/${crypto.randomUUID()}.vue`,
@@ -259,11 +292,11 @@ ${userMessage}`,
         { role: 'user', content: prompt }
       ]
 
-      return await provider.sendMessage(modelId, messages, null, signal, config)
+      return await provider.send(messages)
     }
   }
 
-  async editTool(currentCode, request, modelId, provider, config, signal, useThinkingMode = false, onStdoutChunk = null) {
+  async editTool(currentCode, request, provider, signal, useThinkingMode = false, onStdoutChunk = null) {
     // Detect and fetch URLs from the request
     const urls = detectUrls(request)
     let urlContent = ''
@@ -304,6 +337,11 @@ ${userMessage}`,
 
 ${DESIGN_GUIDE}
 
+IMPORTANT - Data Persistence:
+- Maintain the 'persistKeys' array - keep user data keys, remove UI state keys
+- If adding new user-facing data (inputs, settings), add to persistKeys
+- If adding temporary UI state (loading, error), do NOT add to persistKeys
+
 User Request: ${enhancedRequest}`,
         output_path: `tools/${crypto.randomUUID()}.vue`,
         onStdoutChunk,
@@ -320,6 +358,11 @@ User Request: ${enhancedRequest}`,
 
     const systemPrompt = `Modify the Vue component per the user's request.
 
+IMPORTANT - Data Persistence:
+- Maintain the 'persistKeys' array - keep user data keys, remove UI state keys
+- If adding new user-facing data (inputs, settings), add to persistKeys
+- If adding temporary UI state (loading, error), do NOT add to persistKeys
+
 Also consolidate the code:
 - Remove comments and unused code
 - Simplify verbose patterns
@@ -334,18 +377,23 @@ Output only the complete, consolidated code.`
       { role: 'user', content: userPrompt }
     ]
 
-    const output = await provider.sendMessage(modelId, messages, null, signal, config)
-    return this._parseOutput(output)
+    return await provider.send(messages)
   }
 
   _parseOutput(raw) {
-    // Handle both string input and object input with { code, stdout }
+    // Handle both { code, stdout } format (thinking mode) and { content } format (non-thinking)
     let stdout = ''
     let code = raw
 
     if (typeof raw === 'object' && raw !== null) {
       stdout = raw.stdout || ''
-      code = raw.code
+      // Thinking mode: { code, stdout }, Non-thinking mode: { content }
+      code = raw.code || raw.content || ''
+    }
+
+    // Ensure code is a string before processing
+    if (typeof code !== 'string') {
+      code = String(code || '')
     }
 
     code = code.trim()

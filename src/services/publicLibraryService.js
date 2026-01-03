@@ -5,7 +5,7 @@
  */
 
 import { getProxyBaseUrl, invalidateFetchSettingsCache as invalidateUrlFetcherCache, getProxiedImageUrl as _getProxiedImageUrl, getProxiedTextUrl, getProxiedBrowseUrl, fetchBinaryContent } from './urlFetcher.js'
-import { loadUserSettings } from './firestore.js'
+import { Settings } from './Settings.js'
 
 // Cache for public library base URL to avoid repeated lookups
 let publicLibraryBaseUrlCache = null
@@ -22,18 +22,13 @@ export async function getPublicLibraryBaseUrl() {
     return publicLibraryBaseUrlCache
   }
 
-  try {
-    const settings = await loadUserSettings()
-    if (!settings?.bookApiUrl) {
-      throw new Error('Book library URL not configured in settings')
-    }
-    publicLibraryBaseUrlCache = settings.bookApiUrl
-    publicLibraryBaseUrlCacheTimestamp = now
-    return publicLibraryBaseUrlCache
-  } catch (error) {
-    console.error('[PublicLibrary] Failed to load settings or URL not configured:', error)
-    throw new Error('Book library URL not configured. Please set it in settings.')
+  const bookApiUrl = Settings.getString('bookApiUrl')
+  if (!bookApiUrl) {
+    throw new Error('Book library URL not configured in settings')
   }
+  publicLibraryBaseUrlCache = bookApiUrl
+  publicLibraryBaseUrlCacheTimestamp = now
+  return publicLibraryBaseUrlCache
 }
 
 /**
@@ -51,13 +46,7 @@ export async function invalidateFetchSettingsCache() {
  * @returns {Promise<string|null>}
  */
 export async function getPublicLibraryApiKey() {
-  try {
-    const settings = await loadUserSettings()
-    return settings?.bookApiKey || null
-  } catch (error) {
-    console.warn('[PublicLibrary] Failed to load API key from settings:', error)
-    return null
-  }
+  return Settings.getString('bookApiKey') || null
 }
 
 /**

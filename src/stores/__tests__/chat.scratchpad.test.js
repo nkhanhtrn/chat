@@ -1,8 +1,16 @@
-import * as storage from '../../services/storage.js'
+import { ChatStorage } from '../../services/ChatStorage.js'
 import { vi } from 'vitest'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useChatStore } from '../chat.js'
+
+// Mock ChatStorage
+vi.mock('../../services/ChatStorage.js', () => ({
+  ChatStorage: {
+    saveState: vi.fn(() => Promise.resolve()),
+    loadState: vi.fn(() => Promise.resolve(null))
+  }
+}))
 
 describe('useChatStore - Scratchpad', () => {
   let chatStore
@@ -10,8 +18,8 @@ describe('useChatStore - Scratchpad', () => {
   let loadChatStateSpy
 
   beforeEach(() => {
-    // Mock loadChatState to return null (default state)
-    loadChatStateSpy = vi.spyOn(storage, 'loadChatState').mockResolvedValue({ hasConflict: false, state: null })
+    // Mock loadState to return null (default state)
+    loadChatStateSpy = vi.spyOn(ChatStorage, 'loadState').mockResolvedValue(null)
 
     setActivePinia(createPinia())
     chatStore = useChatStore()
@@ -23,7 +31,7 @@ describe('useChatStore - Scratchpad', () => {
     chatStore.chats = []
     chatStore.currentChatId = null
 
-    saveChatStateSpy = vi.spyOn(storage, 'saveChatState')
+    saveChatStateSpy = vi.spyOn(ChatStorage, 'saveState')
   })
 
   afterEach(() => {

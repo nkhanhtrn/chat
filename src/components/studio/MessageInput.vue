@@ -121,10 +121,6 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
-  isModelReady: {
-    type: Boolean,
-    default: false
-  },
   messagesEmpty: {
     type: Boolean,
     default: true
@@ -154,7 +150,6 @@ const fileInputRef = ref(null)
 
 const canSend = computed(() => {
   return props.modelValue.trim() &&
-    props.isModelReady &&
     !props.hasLoadingUrls &&
     !props.hasLoadingFiles
 })

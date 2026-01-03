@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import ChatMessage from '../ChatMessage.vue'
-import * as api from '../../services/api.js'
 import * as extraPrompt from '../../services/extraPrompt.js'
 
 // Helper to access state from setup script

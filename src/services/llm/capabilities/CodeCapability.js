@@ -115,8 +115,6 @@ export class CodeCapability extends BaseCapability {
     const {
       analysis,
       fullContext,
-      models,
-      config,
       provider,
       signal,
       previousResults = {},
@@ -143,7 +141,7 @@ export class CodeCapability extends BaseCapability {
     }
 
     // Generate code with context including piped data
-    let code = await this._generateCode(analysis, fullContext, models.executorId, provider, config, signal, mergedResults)
+    let code = await this._generateCode(analysis, fullContext, provider, signal, mergedResults)
     let cleanedCode = this.cleanOutput(code)
     let execution = this._executeCode(cleanedCode, mergedResults)
     let attempts = 1
@@ -164,9 +162,7 @@ export class CodeCapability extends BaseCapability {
           fullContext,
           cleanedCode,
           execution.error,
-          models.executorId,
           provider,
-          config,
           signal,
           mergedResults
         )
@@ -252,22 +248,16 @@ Write the JavaScript code now:`
     return prompt
   }
 
-  async _generateCode(analysis, userMessage, executorModelId, provider, config, signal, previousResults = {}) {
+  async _generateCode(analysis, userMessage, provider, signal, previousResults = {}) {
     const messages = [
       { role: 'system', content: this.getSystemPrompt() },
       { role: 'user', content: this.buildExecutorPrompt({ analysis, userMessage, previousResults }) }
     ]
 
-    return provider.sendMessage(
-      executorModelId,
-      messages,
-      null,
-      signal,
-      config
-    )
+    return provider.send(messages)
   }
 
-  async _regenerateWithError(analysis, userMessage, previousCode, errorMessage, executorModelId, provider, config, signal, previousResults = {}) {
+  async _regenerateWithError(analysis, userMessage, previousCode, errorMessage, provider, signal, previousResults = {}) {
     let fixPrompt = `Original task: ${analysis.taskDescription}
 Inputs: ${JSON.stringify(analysis.inputs || [])}
 Expected output: ${analysis.expectedOutput || 'Result'}`
@@ -297,13 +287,7 @@ Fix the code to work correctly. Write only the corrected JavaScript code:`
       { role: 'user', content: fixPrompt }
     ]
 
-    return provider.sendMessage(
-      executorModelId,
-      messages,
-      null,
-      signal,
-      config
-    )
+    return provider.send(messages)
   }
 
   /**
@@ -313,6 +297,11 @@ Fix the code to work correctly. Write only the corrected JavaScript code:`
    */
   _executeCode(code, previousResults = {}) {
     try {
+      // Ensure code is a string before processing
+      if (typeof code !== 'string') {
+        code = String(code || '')
+      }
+
       const trimmedCode = code.trim()
       const lines = trimmedCode.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('//'))
 
@@ -415,7 +404,7 @@ Fix the code to work correctly. Write only the corrected JavaScript code:`
    * @param {Function} onStdoutChunk - Callback for streaming stdout chunks
    * @returns {Object} { code, result, success, error }
    */
-  async editCode(currentCode, request, modelId, provider, config, signal, useThinkingMode = false, onStdoutChunk = null) {
+  async editCode(currentCode, request, provider, signal, useThinkingMode = false, onStdoutChunk = null) {
     // Use Code API if thinking mode is enabled
     if (useThinkingMode) {
       const result = await callCodeApi({
@@ -465,7 +454,7 @@ Request: ${request}`
       { role: 'user', content: userPrompt }
     ]
 
-    const response = await provider.sendMessage(modelId, messages, null, signal, config)
+    const response = await provider.send(messages)
     const cleanedCode = this.cleanOutput(response)
 
     // Execute the updated code

@@ -137,7 +137,8 @@ import MessageNavigation from '../components/MessageNavigation.vue'
 const NotebookOverview = defineAsyncComponent(() => import('../components/NotebookOverview.vue'))
 import Scratchpad from '../components/Scratchpad.vue'
 import SlideTransition from '../components/SlideTransition.vue'
-import { sendChatMessageForFeature, FeatureType, fetchModels } from '../services/api.js'
+import lmService, { Category } from '../services/llm/LMService.js'
+
 import { useChatStore } from '../stores/chat.js'
 import DevToolbar from '../components/DevToolbar.vue'
 import { getIsDev, getDefaultQuestions } from '../composables/useEnvironment.js'
@@ -261,18 +262,6 @@ onMounted(async () => {
       return
     }
   }
-
-  try {
-    const models = await fetchModels()
-    if (models.length > 0) {
-      chatStore.setCurrentModel(models[0].id)
-      console.log('Using model:', models[0].id)
-    } else {
-      error.value = 'No models available. Please load a model in LM Studio.'
-    }
-  } catch (err) {
-    error.value = err.message
-  }
 })
 
 // Watch for route changes to switch notebooks and questions
@@ -325,7 +314,6 @@ const setScrollPosition = (position) => {
 
 // Provide scroll functions to child components
 provide('getScrollPosition', getScrollPosition)
-provide('setScrollPosition', setScrollPosition)
 
 const handleSendMessage = async (userMessage, contextQuestions = []) => {
   if (!userMessage.trim() || chatStore.isStreaming) return false
@@ -358,25 +346,24 @@ const handleSendMessage = async (userMessage, contextQuestions = []) => {
 
   // check if this is the first message in the chat to set as summary
   let messages;
-  let featureType;
+  let category;
   if (chatStore.rootMessageIds.length === 1) {
     messages = getMainPrompts(`[NEWTOPIC] ${msg.question}`, [], contextQuestions)
-    featureType = FeatureType.QUESTION
+    category = Category.DETAILS
   } else {
     messages = getMainPrompts(`[DEEPDIVE] ${msg.question}`, previousMessages, contextQuestions);
-    featureType = FeatureType.DEEP_DIVE
+    category = Category.DETAILS
   }
   console.log("Final message to send:", messages);
   try {
-    // Use feature-based provider selection (Google AI preferred for question/deep dive)
-    await sendChatMessageForFeature(
-      featureType,
+    // Use category-based provider selection
+    await lmService.sendByCategory(
+      category,
       messages,
       (chunk) => {
         // Update the message response through the store
         chatStore.appendToResponse(msg.id, chunk)
-      },
-      signal
+      }
     )
   } catch (err) {
     error.value = err.message

@@ -8,8 +8,7 @@ vi.mock('../../../indexedDB.js', () => ({
     ...tool,
     createdAt: Date.now(),
     updatedAt: Date.now()
-  })),
-  syncToolsFromCloud: vi.fn().mockResolvedValue(0)
+  }))
 }))
 
 // Mock urlFetcher functions

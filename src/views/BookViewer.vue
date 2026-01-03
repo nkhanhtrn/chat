@@ -220,9 +220,8 @@ import Note from '../components/Note.vue'
 import SideChatPlayground from '../components/SideChatPlayground.vue'
 import MarkdownRenderer from '../components/MarkdownRenderer.vue'
 import { EpubRenderer } from '../services/epubRenderer.js'
-import { getOrDownloadBookFile } from '../services/bookStorage.js'
-import { sendChatMessageForFeature, FeatureType } from '../services/api.js'
-import { getDictionaryPrompts, getQuickExplainPrompts } from '../services/extraPrompt.js'
+import { BookStorage } from '../services/BookStorage.js'
+import lmService, { Category } from '../services/llm/LMService.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -422,7 +421,6 @@ watch(activeTab, (newTab) => {
   })
 })
 
-let saveInterval = null
 let settingsObserver = null
 let resizeObserver = null
 
@@ -444,9 +442,6 @@ onMounted(async () => {
   // Load the book
   await loadBook(bookId)
 
-  // Set up auto-save interval
-  saveInterval = setInterval(saveReadingPosition, 5000)
-
   // Watch for CSS variable changes (settings) and refresh EPUB theme
   setupSettingsWatcher()
 
@@ -460,9 +455,6 @@ onMounted(async () => {
 onUnmounted(() => {
   if (renderer.value) {
     renderer.value.destroy()
-  }
-  if (saveInterval) {
-    clearInterval(saveInterval)
   }
   if (settingsObserver) {
     settingsObserver.disconnect()
@@ -563,9 +555,6 @@ async function loadBook(bookId) {
     // Update current chapter index
     updateCurrentChapter()
 
-    // Update progress after a short delay to ensure epub.js has processed navigation
-    setTimeout(() => updateProgress(), 100)
-
     // Clear preloaded data since we're now using it
     booksStore.clearPreloadedBook(bookId)
 
@@ -589,8 +578,8 @@ async function loadBook(bookId) {
 
     downloadProgress.value = 70
 
-    // Get or download book file (IndexedDB cache → Firebase Storage → IndexedDB cache)
-    const fileData = await getOrDownloadBookFile(bookId, book.storagePath)
+    // Get book file from IndexedDB cache
+    const fileData = await BookStorage.getBookFile(bookId)
 
     downloadProgress.value = 90
 
@@ -633,9 +622,6 @@ async function loadBook(bookId) {
 
     // Update current chapter index
     updateCurrentChapter()
-
-    // Update progress after a short delay to ensure epub.js has processed navigation
-    setTimeout(() => updateProgress(), 100)
 
     // Clear progress after a short delay
     setTimeout(() => {
@@ -829,7 +815,7 @@ async function handleDictionary() {
 
   try {
     const prompts = getDictionaryPrompts(selectedText)
-    const result = await sendChatMessageForFeature(FeatureType.DICTIONARY, prompts)
+    const result = await lmService.sendByCategory(Category.QUICK, prompts)
     dictionaryDefinition.value = result
   } catch (err) {
     console.error('Dictionary lookup failed:', err)
@@ -861,7 +847,7 @@ async function handleQuickExplain() {
 
   try {
     const prompts = getQuickExplainPrompts(selectedText)
-    const result = await sendChatMessageForFeature(FeatureType.EXPLAIN, prompts)
+    const result = await lmService.sendByCategory(Category.QUICK, prompts)
     explainContent.value = result
   } catch (err) {
     console.error('Quick explain failed:', err)
@@ -886,7 +872,7 @@ async function handleCustomPrompt(prompt) {
 
   try {
     const prompts = [{ role: 'user', content: prompt }]
-    const result = await sendChatMessageForFeature(FeatureType.DEEP_DIVE, prompts)
+    const result = await lmService.sendByCategory(Category.DETAILS, prompts)
     explainContent.value = result
   } catch (err) {
     console.error('Custom prompt failed:', err)

@@ -1,14 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useChatStore } from '../chat.js'
-import * as storage from '../../services/storage.js'
+import { ChatStorage } from '../../services/ChatStorage.js'
 import Message from '../Message.js'
 
-// Mock storage module
-vi.mock('../../services/storage.js', () => ({
-  loadChatState: vi.fn(),
-  saveChatState: vi.fn(),
-  resolveConflict: vi.fn()
+// Mock ChatStorage
+vi.mock('../../services/ChatStorage.js', () => ({
+  ChatStorage: {
+    loadState: vi.fn(),
+    saveState: vi.fn(),
+    resolveConflict: vi.fn()
+  }
 }))
 
 describe('useChatStore - Sync functionality', () => {
@@ -55,7 +57,7 @@ describe('useChatStore - Sync functionality', () => {
 
   describe('initializeStore', () => {
     it('initializes with saved state when no conflict', async () => {
-      vi.mocked(storage.loadChatState).mockResolvedValue({
+      vi.mocked(ChatStorage.loadState).mockResolvedValue({
         hasConflict: false,
         state: mockSavedState
       })
@@ -71,7 +73,7 @@ describe('useChatStore - Sync functionality', () => {
     })
 
     it('returns conflict info when conflict detected', async () => {
-      vi.mocked(storage.loadChatState).mockResolvedValue({
+      vi.mocked(ChatStorage.loadState).mockResolvedValue({
         hasConflict: true,
         localData: mockLocalData,
         cloudData: mockCloudData
@@ -87,7 +89,7 @@ describe('useChatStore - Sync functionality', () => {
     })
 
     it('uses default state when no saved state', async () => {
-      vi.mocked(storage.loadChatState).mockResolvedValue({
+      vi.mocked(ChatStorage.loadState).mockResolvedValue({
         hasConflict: false,
         state: null
       })
@@ -101,7 +103,7 @@ describe('useChatStore - Sync functionality', () => {
     })
 
     it('handles initialization error gracefully', async () => {
-      vi.mocked(storage.loadChatState).mockRejectedValue(new Error('Load failed'))
+      vi.mocked(ChatStorage.loadState).mockRejectedValue(new Error('Load failed'))
 
       store = useChatStore()
       const result = await store.initializeStore()
@@ -111,7 +113,7 @@ describe('useChatStore - Sync functionality', () => {
     })
 
     it('prevents re-initialization', async () => {
-      vi.mocked(storage.loadChatState).mockResolvedValue({
+      vi.mocked(ChatStorage.loadState).mockResolvedValue({
         hasConflict: false,
         state: mockSavedState
       })
@@ -122,12 +124,12 @@ describe('useChatStore - Sync functionality', () => {
       // Try to initialize again
       const result = await store.initializeStore()
 
-      expect(storage.loadChatState).toHaveBeenCalledTimes(1)
+      expect(ChatStorage.loadState).toHaveBeenCalledTimes(1)
       expect(result.hasConflict).toBe(false)
     })
 
     it('reconstructs Message objects from plain objects', async () => {
-      vi.mocked(storage.loadChatState).mockResolvedValue({
+      vi.mocked(ChatStorage.loadState).mockResolvedValue({
         hasConflict: false,
         state: mockSavedState
       })
@@ -143,7 +145,7 @@ describe('useChatStore - Sync functionality', () => {
     })
 
     it('restores all state properties', async () => {
-      vi.mocked(storage.loadChatState).mockResolvedValue({
+      vi.mocked(ChatStorage.loadState).mockResolvedValue({
         hasConflict: false,
         state: mockSavedState
       })
@@ -162,7 +164,7 @@ describe('useChatStore - Sync functionality', () => {
 
   describe('resolveConflict', () => {
     beforeEach(async () => {
-      vi.mocked(storage.loadChatState).mockResolvedValue({
+      vi.mocked(ChatStorage.loadState).mockResolvedValue({
         hasConflict: true,
         localData: mockLocalData,
         cloudData: mockCloudData
@@ -173,29 +175,29 @@ describe('useChatStore - Sync functionality', () => {
     })
 
     it('applies local data when "local" is chosen', async () => {
-      vi.mocked(storage.resolveConflict).mockResolvedValue(mockLocalData)
+      vi.mocked(ChatStorage.resolveConflict).mockResolvedValue(mockLocalData)
 
       await store.resolveConflict('local', mockLocalData, mockCloudData)
 
-      expect(storage.resolveConflict).toHaveBeenCalledWith('local', mockLocalData, mockCloudData)
+      expect(ChatStorage.resolveConflict).toHaveBeenCalledWith('local', mockLocalData, mockCloudData)
       expect(store.messagesById.msg1).toBeInstanceOf(Message)
       expect(store.currentChatId).toBe('chat1')
       expect(store.isInitialized).toBe(true)
     })
 
     it('applies cloud data when "cloud" is chosen', async () => {
-      vi.mocked(storage.resolveConflict).mockResolvedValue(mockCloudData)
+      vi.mocked(ChatStorage.resolveConflict).mockResolvedValue(mockCloudData)
 
       await store.resolveConflict('cloud', mockLocalData, mockCloudData)
 
-      expect(storage.resolveConflict).toHaveBeenCalledWith('cloud', mockLocalData, mockCloudData)
+      expect(ChatStorage.resolveConflict).toHaveBeenCalledWith('cloud', mockLocalData, mockCloudData)
       expect(store.messagesById.msg2).toBeInstanceOf(Message)
       expect(store.currentChatId).toBe('chat2')
       expect(store.isInitialized).toBe(true)
     })
 
     it('marks store as initialized after resolution', async () => {
-      vi.mocked(storage.resolveConflict).mockResolvedValue(mockLocalData)
+      vi.mocked(ChatStorage.resolveConflict).mockResolvedValue(mockLocalData)
 
       expect(store.isInitialized).toBe(false)
 
@@ -207,7 +209,7 @@ describe('useChatStore - Sync functionality', () => {
 
   describe('_applyState', () => {
     beforeEach(() => {
-      vi.mocked(storage.loadChatState).mockResolvedValue({
+      vi.mocked(ChatStorage.loadState).mockResolvedValue({
         hasConflict: false,
         state: null
       })
@@ -280,18 +282,18 @@ describe('useChatStore - Sync functionality', () => {
 
   describe('_persistState', () => {
     it('calls saveChatState with current state', async () => {
-      vi.mocked(storage.loadChatState).mockResolvedValue({
+      vi.mocked(ChatStorage.loadState).mockResolvedValue({
         hasConflict: false,
         state: mockSavedState
       })
-      vi.mocked(storage.saveChatState).mockResolvedValue(undefined)
+      vi.mocked(ChatStorage.saveState).mockResolvedValue(undefined)
 
       store = useChatStore()
       await store.initializeStore()
 
       store._persistState()
 
-      expect(storage.saveChatState).toHaveBeenCalledWith(
+      expect(ChatStorage.saveState).toHaveBeenCalledWith(
         expect.objectContaining({
           messagesById: expect.any(Object),
           rootMessageIds: expect.any(Array),
@@ -301,17 +303,17 @@ describe('useChatStore - Sync functionality', () => {
     })
 
     it('includes all necessary state properties', async () => {
-      vi.mocked(storage.loadChatState).mockResolvedValue({
+      vi.mocked(ChatStorage.loadState).mockResolvedValue({
         hasConflict: false,
         state: mockSavedState
       })
-      vi.mocked(storage.saveChatState).mockResolvedValue(undefined)
+      vi.mocked(ChatStorage.saveState).mockResolvedValue(undefined)
 
       store = useChatStore()
       await store.initializeStore()
       store._persistState()
 
-      const savedState = vi.mocked(storage.saveChatState).mock.calls[0][0]
+      const savedState = vi.mocked(ChatStorage.saveState).mock.calls[0][0]
       expect(savedState).toHaveProperty('messagesById')
       expect(savedState).toHaveProperty('rootMessageIds')
       expect(savedState).toHaveProperty('currentMessageId')
@@ -322,42 +324,42 @@ describe('useChatStore - Sync functionality', () => {
       expect(savedState).toHaveProperty('isStreaming')
     })
 
-    it('includes isStreaming state for Firestore sync control', async () => {
-      vi.mocked(storage.loadChatState).mockResolvedValue({
+    it('includes isStreaming state for sync control', async () => {
+      vi.mocked(ChatStorage.loadState).mockResolvedValue({
         hasConflict: false,
         state: mockSavedState
       })
-      vi.mocked(storage.saveChatState).mockResolvedValue(undefined)
+      vi.mocked(ChatStorage.saveState).mockResolvedValue(undefined)
 
       store = useChatStore()
       await store.initializeStore()
 
       // Test when not streaming
       store._persistState()
-      let savedState = vi.mocked(storage.saveChatState).mock.calls[0][0]
+      let savedState = vi.mocked(ChatStorage.saveState).mock.calls[0][0]
       expect(savedState.isStreaming).toBe(false)
 
       // Test when streaming
       // Note: _syncAllMessagesToSR() may have called _persistState() during initializeStore()
       // We need to track the call count to use the correct indices
-      const callsBeforeStreaming = vi.mocked(storage.saveChatState).mock.calls.length
+      const callsBeforeStreaming = vi.mocked(ChatStorage.saveState).mock.calls.length
       store.startStreaming('test-msg-id')
       store._persistState()
-      savedState = vi.mocked(storage.saveChatState).mock.calls[callsBeforeStreaming][0]
+      savedState = vi.mocked(ChatStorage.saveState).mock.calls[callsBeforeStreaming][0]
       expect(savedState.isStreaming).toBe(true)
 
       // Test after stopping streaming
-      const callsAfterStreaming = vi.mocked(storage.saveChatState).mock.calls.length
+      const callsAfterStreaming = vi.mocked(ChatStorage.saveState).mock.calls.length
       store.stopStreaming()
       store._persistState()
-      savedState = vi.mocked(storage.saveChatState).mock.calls[callsAfterStreaming][0]
+      savedState = vi.mocked(ChatStorage.saveState).mock.calls[callsAfterStreaming][0]
       expect(savedState.isStreaming).toBe(false)
     })
   })
 
   describe('isInitialized state', () => {
     it('starts as false', () => {
-      vi.mocked(storage.loadChatState).mockResolvedValue({
+      vi.mocked(ChatStorage.loadState).mockResolvedValue({
         hasConflict: false,
         state: null
       })
@@ -368,7 +370,7 @@ describe('useChatStore - Sync functionality', () => {
     })
 
     it('becomes true after successful initialization', async () => {
-      vi.mocked(storage.loadChatState).mockResolvedValue({
+      vi.mocked(ChatStorage.loadState).mockResolvedValue({
         hasConflict: false,
         state: mockSavedState
       })
@@ -380,7 +382,7 @@ describe('useChatStore - Sync functionality', () => {
     })
 
     it('stays false during conflict until resolved', async () => {
-      vi.mocked(storage.loadChatState).mockResolvedValue({
+      vi.mocked(ChatStorage.loadState).mockResolvedValue({
         hasConflict: true,
         localData: mockLocalData,
         cloudData: mockCloudData
@@ -391,7 +393,7 @@ describe('useChatStore - Sync functionality', () => {
 
       expect(store.isInitialized).toBe(false)
 
-      vi.mocked(storage.resolveConflict).mockResolvedValue(mockLocalData)
+      vi.mocked(ChatStorage.resolveConflict).mockResolvedValue(mockLocalData)
       await store.resolveConflict('local', mockLocalData, mockCloudData)
 
       expect(store.isInitialized).toBe(true)
