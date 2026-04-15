@@ -1,0 +1,134 @@
+/* Theme Color Variables - Sepia Theme */
+[data-theme="sepia"] {
+  /* Primary Brand Colors */
+  --color-primary: #5c4a3d;
+  --color-primary-hover: #4a3c31;
+  --color-primary-gradient-start: #6b5a4d;
+  --color-primary-gradient-end: #7d6b5d;
+
+  /* Accent Colors */
+  --color-accent: #6b5a4d;
+  --color-accent-hover: #5c4a3d;
+
+  /* Base Backgrounds */
+  --color-bg-base: #f4ecd8;
+  --color-bg-elevated: #faf6eb;
+  --color-bg-secondary: #efe7d3;
+  --color-bg-tertiary: #e8e0cc;
+  --color-bg-page: #faf6eb;
+
+  /* Interactive Backgrounds */
+  --color-bg-hover: rgba(92, 74, 61, 0.08);
+  --color-bg-active: rgba(92, 74, 61, 0.15);
+  --color-bg-selected: #ebe3cf;
+  --color-bg-disabled: #ebe3cf;
+
+  /* Chat List */
+  --color-chat-item-bg: #faf6eb;
+  --color-chat-item-hover: #f5efe1;
+
+  /* Component Backgrounds */
+  --color-bg-primary-subtle: rgba(92, 74, 61, 0.06);
+  --color-bg-accent-subtle: #ebe3cf;
+  --color-bg-accent-muted: #d4c9b5;
+  --color-bg-button: #f0e8d8;
+  --color-bg-button-hover: rgba(92, 74, 61, 0.12);
+  --color-bg-button-active: rgba(92, 74, 61, 0.18);
+  --color-bg-context-hover: #ebe3cf;
+  --color-bg-copy-hover: rgba(92, 74, 61, 0.08);
+  --color-bg-toolbar: #f5efe1;
+  --color-bg-input: #faf6eb;
+  --color-bg-context-menu: #faf6eb;
+
+  /* Borders */
+  --color-border: #b0a090;
+  --color-border-base: #d4c9b5;
+  --color-border-subtle: #e0d7c5;
+  --color-border-input: #c9bda8;
+  --color-border-strong: #a89888;
+  --color-border-context: #d4c9b5;
+  --color-border-button: #c9bda8;
+  --color-border-button-hover: #b8aa98;
+  --color-border-button-active: #a89888;
+  --color-border-message-user: #a89888;
+  --color-border-accent: #9a8a7a;
+
+  /* Text Colors */
+  --color-text-base: #3d2e1f;
+  --color-text-strong: #2d2015;
+  --color-text-muted: #6b5a4d;
+  --color-text-subtle: #8a7a6a;
+  --color-text-placeholder: #8a7a6a;
+  --color-text-disabled: #9a8a7a;
+  --color-text-inverse: #faf6eb;
+  --color-text-on-accent: #3d2e1f;
+  --color-text-secondary: #4d3e2f;
+  --color-text-tertiary: #5c4a3d;
+  --color-text-code: #3d2e1f;
+  --color-text-context-disabled: #a09080;
+  --color-text-cursor: #5c4a3d;
+
+  /* Message/Chat specific */
+  --color-text-welcome: #3d2e1f;
+  --color-text-message: #4a3c31;
+  --color-text-badge: #4a3c31;
+
+  /* Link Colors */
+  --color-link-question: #2d2015;
+  --color-link-question-hover: #3d2e1f;
+  --color-link-border: #7d6b5d;
+  --color-link-border-hover: #5c4a3d;
+
+  /* Feedback Colors */
+  --color-error-bg: rgba(180, 100, 80, 0.15);
+  --color-error-text: #9a4a3a;
+  --color-error-border: #c47060;
+
+  /* Special */
+  --color-highlight: #f0e080;
+
+  /* iBook Highlight Colors */
+  --color-highlight-0: rgba(215, 190, 62, 0.5);
+  --color-highlight-1: rgba(130, 175, 90, 0.5);
+  --color-highlight-2: rgba(90, 145, 190, 0.5);
+  --color-highlight-3: rgba(200, 130, 145, 0.5);
+  --color-highlight-4: rgba(160, 120, 190, 0.5);
+
+  /* Shadows */
+  --shadow-sm: rgba(92, 74, 61, 0.1);
+  --shadow-md: rgba(92, 74, 61, 0.15);
+  --shadow-lg: rgba(92, 74, 61, 0.2);
+  --shadow-primary: rgba(92, 74, 61, 0.12);
+  --shadow-primary-strong: rgba(92, 74, 61, 0.18);
+  --shadow-accent: rgba(92, 74, 61, 0.08);
+  --shadow-inset: rgba(92, 74, 61, 0.06);
+
+  /* Scrollbar */
+  --color-scrollbar-track: #ebe3cf;
+  --color-scrollbar-thumb: #c9bda8;
+  --color-scrollbar-thumb-hover: #b8aa98;
+
+  /* Navigation specific */
+  --color-nav-disabled-bg: #ebe3cf;
+  --color-nav-disabled-text: #b8aa98;
+
+  /* Code Block & Table specific */
+  --color-code-block-bg: #f0e8d8;
+  --color-code-block-header-bg: #e8e0cc;
+  --color-code-block-border: #d4c9b5;
+  --color-code-block-header-text: #4a3c31;
+  --color-code-block-text: #3d2e1f;
+  --color-inline-code-bg: #ebe3cf;
+  --color-inline-code-text: #4a3c31;
+  --color-table-bg: #faf6eb;
+  --color-table-header-bg: #ebe3cf;
+  --color-table-border: #d4c9b5;
+  --color-table-hover-bg: #f5efe1;
+
+  /* Mermaid Diagram specific */
+  --color-mermaid-bg: #f4ecd8;
+  --color-mermaid-header-bg: #e8e0cc;
+  --color-mermaid-border: #d4c9b5;
+  --color-mermaid-label-text: #6b5a4d;
+  --color-mermaid-error-text: #9a4a3a;
+}

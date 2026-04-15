@@ -1,0 +1,50 @@
+{
+  "name": "studygpt",
+  "version": "2.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "type-check": "vue-tsc --noEmit",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:all": "npm run test:coverage && npm run test:e2e",
+    "deploy": "bash scripts/deploy.sh"
+  },
+  "dependencies": {
+    "axios": "^1.6.7",
+    "echarts": "^6.0.0",
+    "epubjs": "^0.3.93",
+    "firebase": "^12.6.0",
+    "idb": "^8.0.3",
+    "katex": "^0.16.25",
+    "markdown-it": "^14.1.0",
+    "marked": "^17.0.1",
+    "mermaid": "^11.12.2",
+    "pdfjs-dist": "^5.4.449",
+    "pinia": "^3.0.4",
+    "vue": "^3.4.21",
+    "vue-router": "^4.6.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@types/katex": "^0.16.7",
+    "@types/markdown-it": "^14.1.2",
+    "@vitejs/plugin-vue": "^5.0.4",
+    "@vitest/coverage-v8": "^4.0.13",
+    "@vue/test-utils": "^2.4.6",
+    "gh-pages": "^6.3.0",
+    "happy-dom": "^20.0.10",
+    "playwright": "^1.58.2",
+    "typescript": "^5.7.0",
+    "vite": "^5.1.6",
+    "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^4.0.13",
+    "vue-tsc": "^2.2.0"
+  }
+}
