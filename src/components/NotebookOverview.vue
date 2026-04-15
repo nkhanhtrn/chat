@@ -27,6 +27,7 @@
         @rename="(data: Record<string, unknown>, text: string) => $emit('rename', data, text)"
         @delete-root="(data: Record<string, unknown>) => $emit('delete-root', data)"
         @delete-child="(data: Record<string, unknown>) => $emit('delete-child', data)"
+        @drop="(data: Record<string, unknown>) => $emit('drop', data)"
       />
 
       <div v-else class="empty-state">

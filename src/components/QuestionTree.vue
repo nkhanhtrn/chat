@@ -1,89 +1,74 @@
 <template>
   <div class="question-tree">
-    <template v-for="msg in rootMessages" :key="msg.id">
-      <div>
-        <div
-          :class="['tree-item', 'root-header', { active: msg.id === currentMessageId }]"
-          @click="handleRootClick(msg)"
+    <DraggableTreeItem
+      v-for="(msg, index) in rootMessages"
+      :key="msg.id"
+      :item="msg as TreeItem"
+      :index="index"
+      :parent-id="null"
+      :is-active="msg.id === currentMessageId"
+      :is-expanded="isExpanded(msg.id as string)"
+      :is-draggable="true"
+      item-class="root-header"
+      @click="handleRootClick(msg)"
+      @delete="confirmDelete(msg, 'root')"
+      @drop="handleDrop"
+      @rename="(item: TreeItem, text: string) => emit('rename', item, text)"
+    >
+      <template #children>
+        <DraggableTreeItem
+          v-for="(child, childIdx) in getChildren(msg.id as string)"
+          :key="child.id"
+          :item="child as TreeItem"
+          :index="childIdx"
+          :parent-id="msg.id as string"
+          :is-active="child.id === currentMessageId"
+          :is-expanded="true"
+          :is-draggable="true"
+          item-class="child-item"
+          @click="$emit('select', { id: child.id, rootId: msg.id as string })"
+          @delete="confirmDelete(child, 'child')"
+          @drop="handleDrop"
+          @rename="(item: TreeItem, text: string) => emit('rename', item, text)"
         >
-          <InlineEdit
-            :ref="(el: any) => setEditRef(msg.id as string, el)"
-            :model-value="(msg.questionSummarized || msg.question) as string"
-            text-class="tree-item-text"
-            input-class="tree-item-input"
-            @save="(text: string) => emit('rename', msg, text)"
-          />
-          <div class="tree-item-actions">
-            <button class="tree-item-action-btn" @click.stop="handleEditClick(msg.id)" title="Rename">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 3l4 4L7 21H3v-4L17 3z"/></svg>
-            </button>
-            <button class="tree-item-action-btn" @click.stop="confirmDelete(msg, 'root')" title="Delete">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-          </div>
-        </div>
-        <div v-if="isExpanded(msg.id) && getChildren(msg.id).length > 0" class="tree-children">
-          <div v-for="child in getChildren(msg.id)" :key="child.id">
-            <div
-              :class="['tree-item', 'child-item', { active: child.id === currentMessageId }]"
-              @click="$emit('select', { id: child.id, rootId: msg.id as string })"
-            >
-              <InlineEdit
-                :ref="(el: any) => setEditRef(child.id, el)"
-                :model-value="(child.questionSummarized || child.question) as string"
-                text-class="tree-item-text"
-                input-class="tree-item-input"
-                @save="(text: string) => emit('rename', child, text)"
-              />
-              <div class="tree-item-actions">
-                <button class="tree-item-action-btn" @click.stop="handleEditClick(child.id)" title="Rename">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 3l4 4L7 21H3v-4L17 3z"/></svg>
-                </button>
-                <button class="tree-item-action-btn" @click.stop="confirmDelete(child, 'child')" title="Delete">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-              </div>
-            </div>
-            <div v-if="autoExpandAll && getChildren(child.id).length > 0" class="tree-children">
-              <div
-                v-for="grandChild in getChildren(child.id)"
-                :key="grandChild.id"
-                :class="['tree-item', 'child-item', { active: grandChild.id === currentMessageId }]"
-                @click="$emit('select', { id: grandChild.id, rootId: msg.id as string })"
-              >
-                <InlineEdit
-                  :ref="(el: any) => setEditRef(grandChild.id, el)"
-                  :model-value="(grandChild.questionSummarized || grandChild.question) as string"
-                  text-class="tree-item-text"
-                  input-class="tree-item-input"
-                  @save="(text: string) => emit('rename', grandChild, text)"
-                />
-                <div class="tree-item-actions">
-                  <button class="tree-item-action-btn" @click.stop="handleEditClick(grandChild.id)" title="Rename">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 3l4 4L7 21H3v-4L17 3z"/></svg>
-                  </button>
-                  <button class="tree-item-action-btn" @click.stop="confirmDelete(grandChild, 'child')" title="Delete">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </template>
+          <template v-if="autoExpandAll && getChildren(child.id).length > 0" #children>
+            <DraggableTreeItem
+              v-for="(gc, gcIdx) in getChildren(child.id)"
+              :key="gc.id"
+              :item="gc as TreeItem"
+              :index="gcIdx"
+              :parent-id="child.id"
+              :is-active="gc.id === currentMessageId"
+              :is-expanded="true"
+              :is-draggable="true"
+              item-class="child-item"
+              @click="$emit('select', { id: gc.id, rootId: msg.id as string })"
+              @delete="confirmDelete(gc, 'child')"
+              @drop="handleDrop"
+              @rename="(item: TreeItem, text: string) => emit('rename', item, text)"
+            />
+          </template>
+        </DraggableTreeItem>
+      </template>
+    </DraggableTreeItem>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, provide, watch } from 'vue'
 import { useMessageTreeStore } from '@/stores/messageTree'
-import InlineEdit from './InlineEdit.vue'
+import DraggableTreeItem from './DraggableTreeItem.vue'
+
+interface TreeItem {
+  id: string
+  question: string
+  questionSummarized?: string | null
+  [key: string]: unknown
+}
 
 const props = withDefaults(defineProps<{
   rootMessages: Array<Record<string, unknown>>
   currentMessageId?: string | null
-  /** When true, show all children at all levels (for index/overview). When false, click to show direct children only (sidebar). */
   autoExpandAll?: boolean
 }>(), { currentMessageId: null, autoExpandAll: false })
 
@@ -92,20 +77,24 @@ const emit = defineEmits<{
   'delete-root': [data: Record<string, unknown>]
   'delete-child': [data: Record<string, unknown>]
   rename: [data: Record<string, unknown>, text: string]
-  drop: [data: Record<string, unknown>]
+  drop: [data: {
+    messageId: string
+    targetId: string
+    position: 'above' | 'below'
+    targetIndex: number
+    targetParentId: string | null
+  }]
 }>()
 
 const treeStore = useMessageTreeStore()
 const expandedRootId = ref<string | null>(null)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const editRefs = new Map<string, any>()
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function setEditRef(id: string, el: any) {
-  if (el) editRefs.set(id, el)
-}
+// Shared drag state via provide/inject
+const draggedItem = ref<{ id: string; parentId: string | null } | null>(null)
+const dropTarget = ref<{ id: string; position: string; parentId: string | null } | null>(null)
+provide('draggedItem', draggedItem)
+provide('dropTarget', dropTarget)
 
-// Auto-expand the root containing the current message
 function findRootForMessage(messageId: string | null | undefined): string | null {
   if (!messageId) return null
   for (const msg of props.rootMessages) {
@@ -155,9 +144,8 @@ function getChildren(id: string) {
     .map(c => ({ id: c!.id, question: c!.question, questionSummarized: c!.questionSummarized }))
 }
 
-function handleEditClick(id: string | undefined) {
-  if (!id) return
-  editRefs.get(id)?.startEditing()
+function handleDrop(data: { messageId: string; targetId: string; position: 'above' | 'below'; targetIndex: number; targetParentId: string | null }) {
+  emit('drop', data)
 }
 
 function confirmDelete(item: Record<string, unknown>, type: 'root' | 'child') {
@@ -171,68 +159,6 @@ function confirmDelete(item: Record<string, unknown>, type: 'root' | 'child') {
 <style scoped>
 .question-tree { width: 100%; display: flex; flex-direction: column; }
 
-.tree-item {
-  display: flex;
-  align-items: flex-start;
-  padding: 0.35rem 0.5rem;
-  cursor: pointer;
-  transition: all 0.15s;
-  border-radius: 4px;
-  gap: 0.25rem;
-  user-select: none;
-}
-.tree-item:hover,
-.tree-item:active { background-color: var(--color-bg-hover); }
-.tree-item.active { background-color: var(--color-bg-hover); }
-.tree-item.active .tree-item-text { color: var(--color-text-strong); font-weight: 600; }
-
-.root-header { padding: 0.5rem 0.75rem; }
-
-.child-item { padding-left: 1.5rem; }
-.tree-children {
-  border-left: 1px solid var(--color-border-subtle);
-  margin-left: 1rem;
-}
-
-.tree-item-text {
-  font-size: 0.9rem;
-  color: var(--color-text-muted);
-  line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  flex: 1;
-  min-width: 0;
-}
-
-.tree-item-input {
-  font-size: 0.9rem;
-  line-height: 1.4;
-  padding: 0.1rem 0.25rem;
-}
-
-.tree-item-actions {
-  display: none;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-}
-.tree-item:hover .tree-item-actions { display: flex; }
-
-.tree-item-action-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  color: var(--color-text-muted);
-  background: none;
-  border: none;
-  border-radius: 3px;
-  cursor: pointer;
-  opacity: 0.5;
-}
-.tree-item-action-btn:hover { opacity: 1; color: var(--color-text-strong); background-color: var(--color-bg-active); }
+:deep(.root-header) { padding: 0.5rem 0.75rem; }
+:deep(.child-item) { padding-left: 0; }
 </style>

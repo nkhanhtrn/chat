@@ -1,7 +1,19 @@
 <template>
-  <Modal :visible="visible" :title="title" size="medium" @close="$emit('close')">
+  <Modal :visible="visible" :title="word || title" size="medium" :title-style="{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '340px' }" @close="$emit('close')">
+    <template #header-actions>
+      <button v-if="editMode" class="icon-btn" @click="onSave" title="Save">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+      </button>
+      <template v-else-if="!isStreaming">
+        <button v-if="showEdit" class="icon-btn" @click="$emit('edit')" title="Edit">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 3l4 4L7 21H3v-4L17 3z"/></svg>
+        </button>
+        <button v-if="showSave" class="icon-btn" @click="$emit('save')" :title="saveLabel">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        </button>
+      </template>
+    </template>
     <div v-if="word" class="dict-content">
-      <h3>{{ word }}</h3>
       <template v-if="editMode">
         <textarea
           ref="editArea"
@@ -9,9 +21,6 @@
           class="dict-edit-area"
           placeholder="Write your note..."
         ></textarea>
-        <div class="dict-actions">
-          <button class="dict-save-btn" @click="onSave">Save</button>
-        </div>
       </template>
       <template v-else>
         <div v-if="definition || isStreaming" class="dict-definition">
@@ -19,10 +28,6 @@
           <span v-if="isStreaming" class="dict-cursor">▊</span>
         </div>
         <p v-else-if="!isStreaming" class="dict-empty">No definition found.</p>
-        <div v-if="definition && !isStreaming && (showSave || showEdit)" class="dict-actions">
-          <button v-if="showEdit" class="dict-edit-btn" @click="$emit('edit')">Edit</button>
-          <button v-if="showSave" class="dict-save-btn" @click="$emit('save')">{{ saveLabel }}</button>
-        </div>
       </template>
     </div>
   </Modal>
@@ -57,13 +62,28 @@ watch(() => props.visible, (v) => {
   }
 })
 
+watch(() => props.editMode, (isEdit) => {
+  if (isEdit && props.visible) {
+    editText.value = props.definition ?? ''
+    nextTick(() => editArea.value?.focus())
+  }
+})
+
 function onSave() {
   emit('save-text', editText.value)
 }
 </script>
 
 <style scoped>
-.dict-content h3 { margin-bottom: 0.75rem; font-size: 1.1rem; color: var(--color-text-strong); }
+.icon-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; padding: 0;
+  background: none; border: none; border-radius: 4px;
+  cursor: pointer; color: var(--color-text-muted);
+  transition: all 0.15s;
+}
+.icon-btn:hover { background: var(--color-bg-hover); color: var(--color-text-strong); }
+
 .dict-definition { font-size: 0.95rem; line-height: 1.6; }
 .dict-cursor { animation: blink 1s infinite; color: var(--color-text-muted); }
 .dict-empty { color: var(--color-text-muted); font-style: italic; }
@@ -74,18 +94,5 @@ function onSave() {
   resize: vertical; font-family: inherit;
 }
 .dict-edit-area:focus { outline: none; border-color: var(--color-primary); }
-.dict-actions { margin-top: 0.75rem; display: flex; justify-content: flex-end; gap: 0.5rem; }
-.dict-edit-btn {
-  padding: 0.3rem 0.75rem; border: 1px solid var(--color-border-base); border-radius: 4px;
-  background: none; color: var(--color-text-strong); cursor: pointer; font-size: 0.85rem;
-  transition: background-color 0.15s;
-}
-.dict-edit-btn:hover { background: var(--color-bg-hover); }
-.dict-save-btn {
-  padding: 0.3rem 0.75rem; border: 1px solid var(--color-border-base); border-radius: 4px;
-  background: var(--color-primary); color: white; cursor: pointer; font-size: 0.85rem;
-  transition: background-color 0.15s;
-}
-.dict-save-btn:hover { background: var(--color-primary-hover); }
 @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
 </style>

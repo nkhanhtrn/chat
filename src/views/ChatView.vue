@@ -30,6 +30,7 @@
               @delete-root="handleOverviewDeleteRoot"
               @delete-child="handleOverviewDeleteChild"
               @rename="handleOverviewRename"
+              @drop="handleOverviewDrop"
             />
           </div>
           <div v-else-if="treeStore.rootMessages.length === 0 || isAddingNewQuestion" key="welcome" class="welcome-message">
@@ -248,6 +249,16 @@ const handleOverviewDeleteChild = (data: Record<string, unknown>) => {
 const handleOverviewRename = (data: Record<string, unknown>, text: string) => {
   const id = data.id as string
   if (id) treeStore.setQuestionSummarized(id, text)
+}
+
+const handleOverviewDrop = (dropData: { messageId: string; targetId: string; position: 'above' | 'below'; targetIndex: number; targetParentId: string | null }) => {
+  const rootIds = [...treeStore.rootMessageIds]
+  if (dropData.position === 'above') {
+    treeStore.moveMessage(dropData.messageId, dropData.targetParentId, dropData.targetIndex, rootIds)
+  } else {
+    treeStore.moveMessage(dropData.messageId, dropData.targetId, 0, rootIds)
+  }
+  notebookStore.syncCurrentChat()
 }
 </script>
 

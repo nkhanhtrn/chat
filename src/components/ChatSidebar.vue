@@ -22,7 +22,7 @@
         <div v-else class="search-no-results">No results found</div>
       </template>
       <template v-else>
-        <QuestionTree :root-messages="rootMessages" :current-message-id="currentMessageId" @select="handleTreeSelect" @rename="handleTreeRename" @delete-root="handleTreeDeleteRoot" @delete-child="handleTreeDeleteChild" />
+        <QuestionTree :root-messages="rootMessages" :current-message-id="currentMessageId" @select="handleTreeSelect" @rename="handleTreeRename" @delete-root="handleTreeDeleteRoot" @delete-child="handleTreeDeleteChild" @drop="handleTreeDrop" />
         <div v-if="rootMessages.length === 0" class="empty-state"><p>No questions yet</p></div>
       </template>
       <div class="new-question-item" :class="{ active: isAddingNewQuestion }" @click="$emit('new-question')">
@@ -143,6 +143,20 @@ function handleTreeDeleteChild(data: Record<string, unknown>) {
   const id = data.id as string
   if (!id) return
   treeStore.deleteChildMessage(id)
+}
+
+function handleTreeDrop(dropData: { messageId: string; targetId: string; position: 'above' | 'below'; targetIndex: number; targetParentId: string | null }) {
+  const chat = props.chats.find(c => c.id === props.currentChatId)
+  if (!chat) return
+  const rootIds = [...chat.questions.map(q => q.id)]
+
+  if (dropData.position === 'above') {
+    treeStore.moveMessage(dropData.messageId, dropData.targetParentId, dropData.targetIndex, rootIds)
+  } else {
+    treeStore.moveMessage(dropData.messageId, dropData.targetId, 0, rootIds)
+  }
+
+  notebookStore.syncCurrentChat()
 }
 
 function navigateToNotebookOverview() {
