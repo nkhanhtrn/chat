@@ -4,7 +4,6 @@ import { cerebrasProvider } from './providers/cerebras'
 import { googleProvider } from './providers/google'
 import { lmstudioProvider } from './providers/lmstudio'
 import { codeApiProvider } from './providers/codeapi'
-import { mockE2EProvider } from './providers/mockE2E'
 
 export const Category: Record<string, ProviderCategory> = {
   FREE: 'free',
@@ -21,7 +20,6 @@ class LMService {
     this.register(cerebrasProvider)
     this.register(googleProvider)
     this.register(codeApiProvider)
-    this.register(mockE2EProvider)
   }
 
   register(provider: ProviderBase): void {
@@ -35,9 +33,6 @@ class LMService {
   }
 
   getProviderByCategory(category: ProviderCategory): ProviderBase {
-    const isE2E = typeof window !== 'undefined' && localStorage.getItem('__e2e__') === 'true'
-    if (isE2E) return mockE2EProvider
-
     const isDev = import.meta.env.DEV
     const usePublicAI = (window as any).__devUsePublicAI
 

@@ -1,14 +1,22 @@
-import type { Theme } from '@/types/settings'
+import type { Theme, ContentWidth } from '@/types/settings'
 
 const SETTINGS_KEY = 'user-settings'
 
 interface SettingsData {
   theme?: Theme
   fontSize?: number
+  fontFamily?: string
+  lineHeight?: number
+  contentWidth?: ContentWidth
   codeApiUrl?: string
+  customFetchUrl?: string
+  bookApiUrl?: string
+  bookApiKey?: string
+  extraService?: string
   currentModels?: Record<string, string>
   providerConfigs?: Record<string, unknown>
   devToolbar?: boolean
+  [key: string]: unknown
 }
 
 class SettingsManager {
@@ -29,9 +37,29 @@ class SettingsManager {
     return this.cache[key]
   }
 
-  set<K extends keyof SettingsData>(key: K, value: SettingsData[K]): void {
-    this.cache[key] = value
+  getString(key: string): string {
+    const value = this.cache[key]
+    return typeof value === 'string' ? value.trim() : ''
+  }
+
+  set(changes: Partial<SettingsData>): void {
+    for (const [key, value] of Object.entries(changes)) {
+      this.cache[key] = typeof value === 'string' ? value.trim() : value
+    }
     this._persist()
+  }
+
+  delete(keys: string | string[]): void {
+    const keysToDelete = Array.isArray(keys) ? keys : [keys]
+    for (const key of keysToDelete) {
+      delete this.cache[key]
+    }
+    this._persist()
+  }
+
+  clear(): void {
+    this.cache = {}
+    localStorage.removeItem(SETTINGS_KEY)
   }
 
   private _persist(): void {
@@ -41,28 +69,57 @@ class SettingsManager {
 
 export const Settings = new SettingsManager()
 
+export function setTheme(theme: Theme): boolean {
+  if (!['light', 'dark', 'sepia'].includes(theme)) return false
+  document.documentElement.setAttribute('data-theme', theme)
+  localStorage.setItem('theme', theme)
+  return true
+}
+
+export function getTheme(): string {
+  const cached = localStorage.getItem('theme')
+  if (cached && ['light', 'dark', 'sepia'].includes(cached)) return cached
+  return 'light'
+}
+
 export function initializeTheme(): void {
-  try {
-    const theme = localStorage.getItem('theme')
-    if (theme && ['light', 'dark', 'sepia'].includes(theme)) {
-      document.documentElement.setAttribute('data-theme', theme)
-    }
-  } catch { /* ignore */ }
+  const cached = localStorage.getItem('theme')
+  if (cached && ['light', 'dark', 'sepia'].includes(cached)) {
+    document.documentElement.setAttribute('data-theme', cached)
+  }
+}
+
+export function applyFontSize(size: number): void {
+  document.documentElement.style.setProperty('--message-font-size', `${size}px`)
+}
+
+export function applyFontFamily(family: string): void {
+  document.documentElement.style.setProperty('--message-font-family', family)
+}
+
+export function applyLineHeight(height: number): void {
+  document.documentElement.style.setProperty('--message-line-height', height.toString())
+}
+
+export function applyContentWidth(width: string): void {
+  const widthMap: Record<string, string> = { narrow: '600px', medium: '800px', wide: '1000px' }
+  document.documentElement.style.setProperty('--content-max-width', widthMap[width] || '800px')
 }
 
 export function applySettings(settings: SettingsData): void {
-  if (settings.theme) {
-    document.documentElement.setAttribute('data-theme', settings.theme)
-    localStorage.setItem('theme', settings.theme)
-  }
-  if (settings.fontSize) {
-    document.documentElement.style.fontSize = `${settings.fontSize}px`
-  }
+  if (!settings) return
+  if (settings.theme) setTheme(settings.theme)
+  if (settings.fontSize) applyFontSize(settings.fontSize)
+  if (settings.fontFamily) applyFontFamily(settings.fontFamily)
+  if (settings.lineHeight) applyLineHeight(settings.lineHeight)
+  if (settings.contentWidth) applyContentWidth(settings.contentWidth)
 }
 
 export function exposeGlobally(): void {
   if (import.meta.env.DEV) {
     ;(window as any).Settings = Settings
+    ;(window as any).__setTheme = setTheme
+    ;(window as any).__getTheme = getTheme
   }
 }
 
