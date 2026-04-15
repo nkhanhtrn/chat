@@ -9,8 +9,26 @@
       <div v-if="currentNotebook" class="overview-header-item" @click="navigateToNotebookOverview">
         <span>{{ currentNotebook.title }}</span>
       </div>
-      <QuestionTree :root-messages="rootMessages" :current-message-id="currentMessageId" @select="handleTreeSelect" />
-      <div v-if="rootMessages.length === 0" class="empty-state"><p>No questions yet</p></div>
+      <template v-if="searchQuery.trim()">
+        <div v-if="searchResults.length > 0" class="search-results-list">
+          <div v-for="r in searchResults" :key="r.id" :class="['search-result-item', { active: r.id === currentMessageId }]" @click="handleSearchSelect(r)">
+            <div v-if="r.parentQuestion" class="search-result-path">
+              <span class="path-text">{{ r.parentQuestion }}</span>
+              <span class="path-separator">›</span>
+            </div>
+            <div class="search-result-question">{{ r.questionSummarized || r.question }}</div>
+          </div>
+        </div>
+        <div v-else class="search-no-results">No results found</div>
+      </template>
+      <template v-else>
+        <QuestionTree :root-messages="rootMessages" :current-message-id="currentMessageId" @select="handleTreeSelect" @rename="handleTreeRename" @delete-root="handleTreeDeleteRoot" @delete-child="handleTreeDeleteChild" />
+        <div v-if="rootMessages.length === 0" class="empty-state"><p>No questions yet</p></div>
+      </template>
+      <div class="new-question-item" :class="{ active: isAddingNewQuestion }" @click="$emit('new-question')">
+        <span class="new-question-icon">+</span>
+        <span class="new-question-text">New question</span>
+      </div>
     </div>
   </div>
 </template>
@@ -54,10 +72,77 @@ const rootMessages = computed(() => {
   })
 })
 
+interface SearchResult {
+  id: string
+  question: string
+  questionSummarized: string | null
+  parentQuestion?: string
+}
+
+const searchResults = computed(() => {
+  const query = searchQuery.value.trim().toLowerCase()
+  if (!query) return []
+
+  const results: SearchResult[] = []
+
+  for (const rm of rootMessages.value) {
+    const q = (rm.questionSummarized || rm.question || '').toLowerCase()
+    const id = rm.id as string
+
+    if (q.includes(query)) {
+      results.push({ id, question: rm.question as string, questionSummarized: rm.questionSummarized as string | null })
+    }
+
+    // Search children
+    const msg = treeStore.getMessageById(id)
+    if (msg?.childIds?.length) {
+      for (const cid of msg.childIds) {
+        const child = treeStore.getMessageById(cid)
+        if (!child) continue
+        const cq = (child.questionSummarized || child.question || '').toLowerCase()
+        if (cq.includes(query)) {
+          results.push({
+            id: child.id,
+            question: child.question,
+            questionSummarized: child.questionSummarized,
+            parentQuestion: rm.questionSummarized || rm.question as string,
+          })
+        }
+      }
+    }
+  }
+
+  return results
+})
+
+function handleSearchSelect(result: SearchResult) {
+  const chat = props.chats.find(c => c.id === props.currentChatId)
+  if (!chat) return
+  emit('select-question', { id: result.id, chatId: chat.id, rootIndex: 0 })
+  searchQuery.value = ''
+}
+
 function handleTreeSelect(selection: { id: string }) {
   const chat = props.chats.find(c => c.id === props.currentChatId)
   if (!chat) return
   emit('select-question', { id: selection.id, chatId: chat.id, rootIndex: 0 })
+}
+
+function handleTreeRename(data: Record<string, unknown>, text: string) {
+  const id = data.id as string
+  if (id) treeStore.setQuestionSummarized(id, text)
+}
+
+function handleTreeDeleteRoot(data: Record<string, unknown>) {
+  const id = data.id as string
+  if (!id || !props.currentChatId) return
+  emit('delete-question', id, props.currentChatId)
+}
+
+function handleTreeDeleteChild(data: Record<string, unknown>) {
+  const id = data.id as string
+  if (!id) return
+  treeStore.deleteChildMessage(id)
 }
 
 function navigateToNotebookOverview() {
@@ -73,7 +158,6 @@ function navigateToNotebookOverview() {
 .overview-header-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; margin-bottom: 0.25rem; cursor: pointer; border-radius: 4px; transition: background-color 0.15s; }
 .overview-header-item:hover { background-color: var(--color-bg-hover); }
 .overview-header-item span { font-size: 0.9rem; font-weight: 600; color: var(--color-text-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.overview-header-item:hover span { color: var(--color-primary); }
 
 .chat-list { flex: 1; overflow-y: auto; padding: 1rem 0.5rem; }
 .chat-list::-webkit-scrollbar { width: 8px; }
@@ -82,9 +166,9 @@ function navigateToNotebookOverview() {
 .chat-list::-webkit-scrollbar-thumb:hover { background: var(--color-scrollbar-thumb-hover); }
 
 /* New question button */
-.new-question-button { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; margin-top: 0.5rem; cursor: pointer; transition: all 0.15s; opacity: 0.6; border-radius: 4px; }
-.new-question-button:hover, .new-question-button.active { opacity: 1; background-color: var(--color-bg-hover); }
-.new-question-icon { font-size: 1rem; font-weight: bold; color: var(--color-text-muted); }
+.new-question-item { display: flex; align-items: flex-start; gap: 0.25rem; padding: 0.35rem 0.5rem; cursor: pointer; transition: all 0.15s; border-radius: 4px; user-select: none; opacity: 0.5; }
+.new-question-item:hover, .new-question-item.active { opacity: 1; background-color: var(--color-bg-hover); }
+.new-question-icon { font-size: 0.95rem; font-weight: bold; color: var(--color-text-muted); line-height: 1.4; }
 .new-question-text { font-size: 0.9rem; color: var(--color-text-muted); }
 
 .empty-state { text-align: center; padding: 2rem 1rem; color: var(--color-text-muted); }

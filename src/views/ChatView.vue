@@ -20,7 +20,19 @@
       </div>
       <div class="messages-container" ref="messagesContainer">
         <SlideTransition>
-          <div v-if="treeStore.rootMessages.length === 0 || isAddingNewQuestion" key="welcome" class="welcome-message">
+          <div v-if="showingOverview" key="overview">
+            <NotebookOverview
+              :notebook-id="notebookStore.currentChatId!"
+              :title="notebookTitle"
+              :root-messages="notebookRootMessages"
+              @select-question="handleOverviewSelectQuestion"
+              @rename-notebook="handleNotebookRename"
+              @delete-root="handleOverviewDeleteRoot"
+              @delete-child="handleOverviewDeleteChild"
+              @rename="handleOverviewRename"
+            />
+          </div>
+          <div v-else-if="treeStore.rootMessages.length === 0 || isAddingNewQuestion" key="welcome" class="welcome-message">
             <h2>{{ isAddingNewQuestion ? 'Ask a new question' : 'Welcome to your Study Assistant!' }}</h2>
             <p>{{ isAddingNewQuestion ? 'Enter your question below to continue learning.' : 'Start by asking a question about any topic.' }}</p>
             <div v-if="!isAddingNewQuestion" class="example-prompts">
@@ -55,6 +67,7 @@ import SideChatPlayground from '@/components/SideChatPlayground.vue'
 import MessageNavigation from '@/components/MessageNavigation.vue'
 import Scratchpad from '@/components/Scratchpad.vue'
 import SlideTransition from '@/components/SlideTransition.vue'
+import NotebookOverview from '@/components/NotebookOverview.vue'
 import { useNotebookStore } from '@/stores/notebook'
 import { useMessageTreeStore } from '@/stores/messageTree'
 import { useStreamingStore } from '@/stores/streaming'
@@ -78,6 +91,19 @@ const effectiveNotebookId = computed(() => route.params.id as string)
 const effectiveQuestionId = computed(() => route.params.questionId as string)
 
 const prepopulatedQuestions = ref(getDefaultQuestions())
+
+const notebookTitle = computed(() => {
+  const chat = notebookStore.chatList.find(c => c.id === notebookStore.currentChatId)
+  return chat?.title ?? 'Untitled Notebook'
+})
+
+const notebookRootMessages = computed(() => {
+  return treeStore.rootMessages.map(m => ({
+    id: m.id,
+    question: m.question,
+    questionSummarized: m.questionSummarized,
+  }))
+})
 
 const getScrollPosition = () => messagesContainer.value?.scrollTop ?? 0
 const setScrollPosition = (pos: number) => { nextTick(() => { if (messagesContainer.value) messagesContainer.value.scrollTop = pos }) }
@@ -196,6 +222,33 @@ const handleRenameQuestion = (messageId: string, newSummary: string) => treeStor
 const handleDeleteQuestion = (messageId: string, chatId: string) => notebookStore.deleteQuestion(messageId, chatId)
 const handleNewQuestion = () => { isAddingNewQuestion.value = true }
 const handleScratchpadUpdate = (content: string) => notebookStore.updateScratchpad(content)
+
+const handleOverviewSelectQuestion = (data: Record<string, unknown>) => {
+  const id = data.id as string
+  if (id && notebookStore.currentChatId) {
+    showingOverview.value = false
+    router.push({ name: 'question', params: { id: notebookStore.currentChatId, questionId: id } })
+  }
+}
+
+const handleNotebookRename = (title: string) => {
+  if (notebookStore.currentChatId) notebookStore.renameChat(notebookStore.currentChatId, title)
+}
+
+const handleOverviewDeleteRoot = (data: Record<string, unknown>) => {
+  const id = data.id as string
+  if (id && notebookStore.currentChatId) notebookStore.deleteQuestion(id, notebookStore.currentChatId)
+}
+
+const handleOverviewDeleteChild = (data: Record<string, unknown>) => {
+  const id = data.id as string
+  if (id) treeStore.removeMessageTree(id)
+}
+
+const handleOverviewRename = (data: Record<string, unknown>, text: string) => {
+  const id = data.id as string
+  if (id) treeStore.setQuestionSummarized(id, text)
+}
 </script>
 
 <style scoped>

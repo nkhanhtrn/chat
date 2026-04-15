@@ -270,9 +270,22 @@ async function handleAskQuestion(question: string) {
 
 function handleSetSelectionColor(index: number) {
   selectionColorIndex.value = index
-  const highlightId = popup.state.highlightId
+  const { highlightId, selectedText, startOffset, endOffset } = popup.state
   if (highlightId) {
     highlights.updateContent(highlightId, { colorIndex: index } as any)
+  } else if (selectedText && startOffset !== undefined && endOffset !== undefined) {
+    highlights.addNote({
+      text: selectedText,
+      startOffset,
+      endOffset,
+      noteContent: '',
+      colorIndex: index,
+    })
+    // Update popup state so menu now shows Remove instead of Highlight
+    const noteId = currentMessage.value?.customContent?.find(c =>
+      c.text === selectedText && c.startOffset === startOffset && c.endOffset === endOffset
+    )?.id
+    if (noteId) popup.state.highlightId = noteId
   }
 }
 
@@ -495,12 +508,27 @@ function handleRemoveContent() {
 }
 
 function handleNote() {
-  const { selectedText, highlightId } = popup.state
-  if (!selectedText || !highlightId) return
+  const { selectedText, startOffset, endOffset, highlightId } = popup.state
+  if (!selectedText || startOffset === undefined || endOffset === undefined) return
 
-  const cc = currentMessage.value?.customContent
-  const item = cc?.find(c => c.id === highlightId)
-  const existingNote = (item as any)?.noteContent || ''
+  let existingNote = ''
+  let contentId: string | null = highlightId
+
+  if (highlightId) {
+    const cc = currentMessage.value?.customContent
+    const item = cc?.find(c => c.id === highlightId)
+    existingNote = (item as any)?.noteContent || ''
+  } else {
+    // New selection - create the highlight first so the note can be attached
+    const id = highlights.addNote({
+      text: selectedText,
+      startOffset,
+      endOffset,
+      noteContent: '',
+      colorIndex: selectionColorIndex.value,
+    })
+    contentId = id
+  }
 
   closePopup()
 
@@ -510,10 +538,10 @@ function handleNote() {
   dictionaryEditMode.value = true
   dictionarySaveContext.value = {
     selectedText,
-    startOffset: popup.state.startOffset!,
-    endOffset: popup.state.endOffset!,
+    startOffset,
+    endOffset,
     parentId: currentMessage.value.id,
-    existingContentId: highlightId,
+    existingContentId: contentId,
   }
   isDictionaryStreaming.value = false
   showDictionaryModal.value = true

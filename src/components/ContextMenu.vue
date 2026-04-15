@@ -4,10 +4,12 @@
       <div class="context-menu-backdrop" @click="onClickOutside" @touchend.prevent="onClickOutside"></div>
       <div class="context-menu" :style="{ left: `${x}px`, top: `${y}px` }" @mousedown.stop @touchstart.stop>
         <template v-if="!readOnly">
-          <div v-if="hasExistingItem" class="context-menu-row">
-            <button class="context-menu-btn" @click="onRemove">Remove</button>
+          <div class="context-menu-row">
+            <button class="context-menu-btn" @click="onCopy">Copy</button>
+            <button v-if="hasExistingItem" class="context-menu-btn" @click="onRemove">Remove</button>
+            <button v-else class="context-menu-btn" @click="onHighlight">Highlight</button>
           </div>
-          <div class="context-menu-row action-row">
+          <div class="context-menu-row highlight-row">
             <div class="color-picker">
               <button
                 v-for="(_, index) in selectionColors"
@@ -18,18 +20,14 @@
                 @click="selectColor(index)"
               ></button>
             </div>
-            <div class="action-buttons">
-              <button class="context-menu-btn" @click="onCopy">Copy</button>
-              <button v-if="!hasExistingItem" class="context-menu-btn" @click="onHighlight">Highlight</button>
-              <button class="context-menu-btn" @click="onDictionary" :disabled="isStreaming">Dictionary</button>
-              <button class="context-menu-btn" @click="onLinkToQuestion">Link to Question</button>
-            </div>
+          </div>
+          <div class="context-menu-row">
+            <button class="context-menu-btn" @click="onDictionary" :disabled="isStreaming">Dictionary</button>
+            <button class="context-menu-btn" @click="onNote">{{ hasExistingItem ? (hasNote ? 'Edit Note' : 'Add Note') : 'Add Note' }}</button>
+            <button class="context-menu-btn" @click="onLinkToQuestion">Link to Question</button>
           </div>
           <div class="context-menu-row">
             <button class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming">Deep Dive</button>
-          </div>
-          <div v-if="hasExistingItem" class="context-menu-row">
-            <button class="context-menu-btn" @click="onNote">{{ hasNote ? 'Edit Note' : 'Add Note' }}</button>
           </div>
           <div class="context-menu-row prompt-row">
             <PromptInput
@@ -142,7 +140,8 @@ onUnmounted(() => document.removeEventListener('keydown', onKeyDown))
 .context-menu-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .context-menu-row { padding: 0.5rem; border-bottom: 1px solid var(--color-border-context); }
 .context-menu-row:last-child { border-bottom: none; }
-.action-row { display: flex; align-items: center; gap: 0.5rem; }
+.context-menu-separator { border-bottom: 1px solid var(--color-border-context); margin: 0.15rem 0; }
+.highlight-row { display: flex; align-items: center; justify-content: flex-start; padding-left: 0.85rem; }
 .action-buttons { display: flex; flex-wrap: wrap; gap: 0; flex: 1; }
 .color-picker { display: flex; gap: 0.35rem; }
 .color-circle {

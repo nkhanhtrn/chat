@@ -63,7 +63,7 @@ function getNodeProps(node: Record<string, unknown>): Record<string, unknown> {
     case 'text':
       return { content: node.content, startOffset: node.startOffset, endOffset: node.endOffset }
     case 'question-link':
-      return { text: node.text, targetMessageId: node.targetMessageId, questionId: node.questionId, startOffset: node.startOffset, endOffset: node.endOffset, colorIndex: node.colorIndex ?? 0 }
+      return { text: node.text, targetMessageId: node.targetMessageId, questionId: node.questionId, startOffset: node.startOffset, endOffset: node.endOffset }
     case 'note':
       return { text: node.text, noteId: node.noteId, startOffset: node.startOffset, endOffset: node.endOffset, noteContent: node.noteContent, isLastSegment: node.isLastSegment !== false, colorIndex: node.colorIndex ?? 0 }
     case 'code_inline':

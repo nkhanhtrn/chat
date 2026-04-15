@@ -91,7 +91,7 @@ function getNodeProps(node: ASTNodeType): Record<string, any> {
         text: n.text, targetMessageId: n.targetMessageId, questionId: n.questionId,
         startOffset: n.startOffset, endOffset: n.endOffset,
         noteContent: n.noteContent || '', hasNote: !!n.hasNote,
-        isLastSegment: n.isLastSegment !== false, colorIndex: n.colorIndex ?? 0,
+        isLastSegment: n.isLastSegment !== false,
       }
     case 'note':
       return {
