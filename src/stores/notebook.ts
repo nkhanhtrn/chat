@@ -362,9 +362,10 @@ export const useNotebookStore = defineStore('notebook', {
 
       const removedCount = treeStore.countMessagesWithChildren(messageId)
 
+      const rootIdsBeforeDelete = [...chat.rootMessageIds]
       chat.rootMessageIds.splice(messageIndex, 1)
 
-      const rootResult = treeStore.deleteQuestion(messageId, chatId, [...chat.rootMessageIds])
+      const rootResult = treeStore.deleteQuestion(messageId, chatId, rootIdsBeforeDelete)
       if (rootResult === 'decrement') treeStore.currentRootIndex--
 
       if (chat.messageCount !== undefined) {

@@ -123,7 +123,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeyDown))
 <style scoped>
 .context-menu {
   position: absolute;
-  width: 250px;
+  width: 200px;
   background: var(--color-bg-context-menu);
   border: 1px solid var(--color-border-context);
   box-shadow: 0 4px 12px var(--shadow-md);
