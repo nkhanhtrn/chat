@@ -142,7 +142,7 @@ const filteredBooks = computed(() => {
       return words.every(w => text.includes(w))
     })
   }
-  return books.sort((a, b) => (a.title || '').localeCompare(b.title || ''))
+  return books.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
 })
 
 const toggleViewMode = () => {

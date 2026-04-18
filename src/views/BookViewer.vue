@@ -67,7 +67,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/AppLayout.vue'
 import BookTocSidebar from '@/components/BookTocSidebar.vue'
@@ -484,6 +484,26 @@ onMounted(async () => {
 
 onUnmounted(() => {
   destroyRenderer()
+})
+
+// Keyboard navigation
+function handleKeydown(e: KeyboardEvent) {
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+  if (e.key === 'ArrowLeft') {
+    e.preventDefault()
+    handlePrevPage()
+  } else if (e.key === 'ArrowRight') {
+    e.preventDefault()
+    handleNextPage()
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeydown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
