@@ -416,4 +416,69 @@ describe('useBooksStore', () => {
       expect(store.getBookNotebook('book-123')).toBeNull()
     })
   })
+
+  describe('addBook (PDF)', () => {
+    it('creates book with pdf fileType and correct storage path', async () => {
+      await store.addBook({
+        title: 'Test PDF',
+        author: 'Author',
+        fileSize: 2048,
+        fileData: new ArrayBuffer(8),
+        coverData: null,
+        fileType: 'pdf',
+        totalPages: 50,
+      })
+
+      const book = store.books.find(b => b.title === 'Test PDF')
+      expect(book).toBeDefined()
+      expect(book!.fileType).toBe('pdf')
+      expect(book!.fileStoragePath).toContain('book.pdf')
+      expect(book!.totalPages).toBe(50)
+      expect(book!.lastPage).toBeNull()
+    })
+
+    it('creates book with epub fileType and correct storage path', async () => {
+      await store.addBook({
+        title: 'Test EPUB',
+        author: 'Author',
+        fileSize: 2048,
+        fileData: new ArrayBuffer(8),
+        coverData: null,
+        fileType: 'epub',
+      })
+
+      const book = store.books.find(b => b.title === 'Test EPUB')
+      expect(book).toBeDefined()
+      expect(book!.fileType).toBe('epub')
+      expect(book!.fileStoragePath).toContain('book.epub')
+    })
+
+    it('defaults to epub fileType when not specified', async () => {
+      await store.addBook({
+        title: 'Default Format',
+        fileSize: 1024,
+        fileData: new ArrayBuffer(8),
+      })
+
+      const book = store.books.find(b => b.title === 'Default Format')
+      expect(book!.fileType).toBe('epub')
+      expect(book!.fileStoragePath).toContain('book.epub')
+    })
+  })
+
+  describe('preloadBook (PDF)', () => {
+    it('uses extractPdfToc for PDF books', async () => {
+      const { BookStorage } = await import('@/services/BookStorage')
+      const { extractPdfToc } = await import('@/services/pdfRenderer')
+      const mockToc = [{ id: '1', label: 'Chapter', href: 'page:1', subitems: [] }]
+      vi.mocked(BookStorage.getBookFile).mockResolvedValue(new ArrayBuffer(100))
+      vi.mocked(extractPdfToc).mockResolvedValue(mockToc as any[])
+      store.books.push(makeBook({ id: 'book-123', fileType: 'pdf' }))
+
+      const result = await store.preloadBook('book-123')
+
+      expect(extractPdfToc).toHaveBeenCalled()
+      expect(result.toc).toEqual(mockToc)
+    })
+  })
 })
