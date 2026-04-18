@@ -46,7 +46,7 @@ function handleClick(event: MouseEvent) {
 
   const notebookId = findNotebookForMessage(props.targetMessageId)
   if (notebookId) {
-    router.push({ name: 'question', params: { id: notebookId, questionId: props.targetMessageId } })
+    router.push({ name: 'current-content-question', params: { type: 'notebook', id: notebookId, questionId: props.targetMessageId } })
   }
 }
 

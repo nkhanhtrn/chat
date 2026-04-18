@@ -1,14 +1,22 @@
 import { defineStore } from 'pinia'
 import type { BookData, BookCreateParams } from '@/types/book'
-import { Book } from '@/models/Book'
 import { syncBookList, syncBookContent, saveBookList, saveBook, deleteBook as deleteBookFromIndexedDB, resolveBookListConflict } from '@/services/BookSyncService'
-import { saveBookToFirestore, deleteBookFromFirestore, uploadBookFileToStorage } from '@/services/firestore/firestore-books'
+import { saveBookToFirestore, deleteBookFromFirestore, uploadBookFileToStorage, uploadCoverImage } from '@/services/firestore/firestore-books'
 import { getFirebaseAuth } from '@/services/firebase'
 import { debugLog } from '@/utils/debug'
 
 export interface PreloadedBookData {
   fileData: ArrayBuffer
   toc: unknown[]
+}
+
+function arrayBufferToDataUrl(buf: ArrayBuffer, type = 'image/jpeg'): string {
+  const bytes = new Uint8Array(buf)
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return `data:${type};base64,${btoa(binary)}`
 }
 
 export const useBooksStore = defineStore('books', {
@@ -22,6 +30,10 @@ export const useBooksStore = defineStore('books', {
     preloadedBooks: {} as Record<string, PreloadedBookData>,
     preloadProgress: {} as Record<string, number>,
     preloadingIds: new Set<string>(),
+    uploadProgress: {} as Record<string, number>,
+    uploadingIds: new Set<string>(),
+    downloadProgress: {} as Record<string, number>,
+    downloadingIds: new Set<string>(),
     bookNotebooks: {} as Record<string, string>,
     lastCloudSyncAt: null as number | null,
     isCloudSyncing: false,
@@ -63,6 +75,22 @@ export const useBooksStore = defineStore('books', {
       return (id: string): number => state.preloadProgress[id] ?? 0
     },
 
+    isBookUploading(state) {
+      return (id: string): boolean => state.uploadingIds.has(id)
+    },
+
+    getUploadProgress(state) {
+      return (id: string): number => state.uploadProgress[id] ?? 0
+    },
+
+    isBookDownloading(state) {
+      return (id: string): boolean => state.downloadingIds.has(id)
+    },
+
+    getDownloadProgress(state) {
+      return (id: string): number => state.downloadProgress[id] ?? 0
+    },
+
     getBookNotebook(state) {
       return (bookId: string): string | null => state.bookNotebooks[bookId] ?? null
     },
@@ -94,6 +122,12 @@ export const useBooksStore = defineStore('books', {
         const listData = await syncBookList()
         this.books = (listData.books as BookData[]) ?? []
         this.lastCloudSyncAt = (listData.lastSyncedAt as number) ?? null
+
+        // Resolve covers from IndexedDB cache (non-blocking)
+        this.resolveCachedCovers().catch(err => {
+          console.warn('[BooksStore] Failed to resolve cached covers:', err)
+        })
+
         this.isInitialized = true
 
         debugLog(`[BooksStore] Initialized: ${this.books.length} books`)
@@ -113,12 +147,12 @@ export const useBooksStore = defineStore('books', {
 
     async loadBookContent(bookId: string): Promise<BookData> {
       try {
-        const { book } = await syncBookContent(bookId) as { book: Record<string, unknown> }
+        const { book } = await syncBookContent(bookId)
         if (!book) throw new Error('Book not found')
 
         const index = this.books.findIndex(b => b.id === bookId)
         if (index !== -1) {
-          this.books[index] = Book.toPlain(book as Partial<BookData>)
+          this.books[index] = book
         }
 
         return this.books.find(b => b.id === bookId)!
@@ -140,62 +174,104 @@ export const useBooksStore = defineStore('books', {
       }
     },
 
-    async addBook(bookData: Record<string, unknown> & { fileData?: ArrayBuffer }): Promise<BookData> {
+    async addBook(bookData: Partial<BookData> & { fileData?: ArrayBuffer; coverData?: ArrayBuffer | null }): Promise<BookData> {
       const bookId = crypto.randomUUID()
 
       const auth = getFirebaseAuth()
       const user = auth?.currentUser
       const storagePath = user ? `users/${user.uid}/books/${bookId}/book.epub` : ''
 
-      const { id: _bookDataId, ...bookDataOverrides } = bookData as Record<string, unknown>
+      const { fileData, coverData, ...metadataOverrides } = bookData
+
+      // Convert cover bytes to data URL for immediate local display
+      let localCoverUrl = ''
+      if (coverData) {
+        try {
+          const blob = new Blob([coverData], { type: 'image/jpeg' })
+          localCoverUrl = await new Promise<string>((resolve) => {
+            const reader = new FileReader()
+            reader.onload = () => resolve(reader.result as string)
+            reader.readAsDataURL(blob)
+          })
+        } catch {}
+      }
+
       const book: BookData & { fileData?: ArrayBuffer } = {
-        title: (bookData.title as string) ?? '',
-        author: (bookData.author as string) ?? '',
-        coverUrl: (bookData.coverUrl as string) ?? '',
-        fileSize: (bookData.fileSize as number) ?? 0,
+        id: bookId,
+        title: bookData.title ?? '',
+        author: bookData.author ?? '',
+        coverUrl: localCoverUrl,
+        fileSize: bookData.fileSize ?? 0,
         fileInStorage: false,
         fileStoragePath: storagePath,
         createdAt: Date.now(),
         updatedAt: Date.now(),
-        deletedAt: null,
         lastCfi: null,
         fileCachedAt: null,
-        ...bookDataOverrides,
-        id: bookId,
+        readingProgress: 0,
+        ...metadataOverrides,
       }
+
+      // Start upload tracking before the card renders
+      this.uploadingIds.add(bookId)
+      this.uploadProgress[bookId] = 0
 
       this.books.push(book)
 
-      const { fileData, ...bookMetadata } = book
+      const { fileData: _fd, ...bookMetadata } = book
 
-      await saveBook(Book.toPlain(bookMetadata))
-      if (fileData) {
-        const { BookStorage } = await import('@/services/BookStorage')
-        await BookStorage.saveBookFile(book.id, fileData)
+      try {
+        this.uploadProgress[bookId] = 0.1
+        await saveBook(bookMetadata)
+        this.uploadProgress[bookId] = 0.2
+
+        await this.uploadBookFileToCloud(book.id, fileData, storagePath, coverData)
+      } catch (error) {
+        // Remove the partial book on failure
+        await this.deleteBook(bookId)
+        throw error
       }
-
-      this.uploadBookFileToCloud(book.id, fileData, storagePath).catch(err => {
-        console.warn('Failed to upload book file to cloud:', err)
-        saveBookToFirestore(Book.toPlain(bookMetadata))
-      })
 
       return book
     },
 
-    async uploadBookFileToCloud(bookId: string, fileData: ArrayBuffer | undefined, _storagePath: string): Promise<void> {
+    async uploadBookFileToCloud(bookId: string, fileData: ArrayBuffer | undefined, _storagePath: string, coverData?: ArrayBuffer | null): Promise<void> {
       try {
-        if (fileData) await uploadBookFileToStorage(bookId, fileData)
+        if (fileData) {
+          await uploadBookFileToStorage(bookId, fileData, (progress) => {
+            // Map 0-1 upload progress to 0.2-0.85 range (reserving space for cover + metadata)
+            this.uploadProgress[bookId] = 0.2 + progress * 0.65
+          })
+        }
 
+        // Upload cover image to Storage and get a download URL, also cache locally
         const book = this.books.find(b => b.id === bookId)
+        if (book && coverData) {
+          this.uploadProgress[bookId] = 0.9
+          const coverUrl = await uploadCoverImage(bookId, coverData)
+          if (coverUrl) {
+            book.coverUrl = coverUrl
+          }
+          // Cache cover in IndexedDB for fast loading
+          try {
+            const { BookStorage } = await import('@/services/BookStorage')
+            await BookStorage.saveCoverImage(bookId, coverData)
+          } catch {}
+        }
+
         if (book) {
           book.fileInStorage = true
           book.updatedAt = Date.now()
-          await saveBook(Book.toPlain(book))
-          await saveBookToFirestore(Book.toPlain(book))
+          await saveBook(book)
+          await saveBookToFirestore(book)
         }
-      } catch (error) {
-        console.error('[BooksStore] Failed to upload file:', error)
-        throw error
+
+        this.uploadProgress[bookId] = 1
+      } finally {
+        setTimeout(() => {
+          this.uploadingIds.delete(bookId)
+          delete this.uploadProgress[bookId]
+        }, 800)
       }
     },
 
@@ -204,10 +280,11 @@ export const useBooksStore = defineStore('books', {
       if (!book) return
 
       book.lastCfi = cfi
+      book.readingProgress = Math.round(progress * 100)
       book.updatedAt = Date.now()
 
-      await saveBook(Book.toPlain(book))
-      saveBookToFirestore(Book.toPlain(book)).catch(err => {
+      await saveBook(book)
+      saveBookToFirestore(book).catch(err => {
         console.warn('Failed to upload reading position:', err)
       })
     },
@@ -227,6 +304,15 @@ export const useBooksStore = defineStore('books', {
       }
 
       delete this.preloadedBooks[bookId]
+
+      // Clean up cached cover and file
+      try {
+        const { BookStorage } = await import('@/services/BookStorage')
+        await Promise.all([
+          BookStorage.deleteCoverImage(bookId),
+          BookStorage.deleteBookFile(bookId),
+        ])
+      } catch {}
     },
 
     setCurrentBook(bookId: string | null): void {
@@ -238,8 +324,8 @@ export const useBooksStore = defineStore('books', {
       if (!book) return
 
       Object.assign(book, updates, { updatedAt: Date.now() })
-      await saveBook(Book.toPlain(book))
-      saveBookToFirestore(Book.toPlain(book)).catch(err => {
+      await saveBook(book)
+      saveBookToFirestore(book).catch(err => {
         console.warn('Failed to upload book update to cloud:', err)
       })
     },
@@ -256,8 +342,28 @@ export const useBooksStore = defineStore('books', {
 
         onProgress?.(10)
 
-        const { BookStorage } = await import('@/services/BookStorage')
-        const fileData = await BookStorage.getBookFile(bookId)
+        let fileData: ArrayBuffer | null = null
+
+        // Try IndexedDB cache first
+        try {
+          const { BookStorage } = await import('@/services/BookStorage')
+          fileData = await BookStorage.getBookFile(bookId)
+        } catch {}
+
+        // Fall back to cloud download
+        if (!fileData) {
+          try {
+            const { downloadBookFileFromStorage } = await import('@/services/firestore/firestore-books')
+            fileData = await downloadBookFileFromStorage(bookId)
+            if (fileData) {
+              const { BookStorage } = await import('@/services/BookStorage')
+              await BookStorage.saveBookFile(bookId, fileData)
+            }
+          } catch {}
+        }
+
+        if (!fileData) throw new Error('Book file not found locally or in cloud')
+
         onProgress?.(60)
 
         const { EpubRenderer } = await import('@/services/epubRenderer')
@@ -322,7 +428,7 @@ export const useBooksStore = defineStore('books', {
 
         for (const book of this.books) {
           try {
-            await saveBookToFirestore(Book.toPlain(book))
+            await saveBookToFirestore(book)
           } catch (error) {
             console.error('[BooksStore] Failed to sync book:', book.id, error)
           }
@@ -344,6 +450,43 @@ export const useBooksStore = defineStore('books', {
 
     clearConflicts(): void {
       this.syncConflicts = []
+    },
+
+    /** Replace remote coverUrl with cached data URL, downloading if needed */
+    async resolveCachedCovers(): Promise<void> {
+      const { BookStorage } = await import('@/services/BookStorage')
+
+      for (const book of this.books) {
+        if (!book.id) continue
+
+        // Skip books that don't have a cover at all
+        if (!book.coverUrl) continue
+
+        // Check IndexedDB cache first
+        try {
+          const cached = await BookStorage.getCoverImage(book.id)
+          if (cached && cached.byteLength > 100) {
+            book.coverUrl = arrayBufferToDataUrl(cached)
+            continue
+          }
+        } catch {}
+
+        // No cache — if there's a remote coverUrl, download and cache it
+        if (book.coverUrl.startsWith('https://')) {
+          try {
+            const resp = await fetch(book.coverUrl)
+            if (resp.ok) {
+              const arrayBuf = await resp.arrayBuffer()
+              if (arrayBuf.byteLength > 100) {
+                await BookStorage.saveCoverImage(book.id, arrayBuf).catch(() => {})
+                book.coverUrl = arrayBufferToDataUrl(arrayBuf)
+              } else {
+                book.coverUrl = ''
+              }
+            }
+          } catch {}
+        }
+      }
     },
   },
 })

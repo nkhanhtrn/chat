@@ -10,9 +10,9 @@ export class Book {
   fileStoragePath: string
   createdAt: number
   updatedAt: number
-  deletedAt: number | null
   lastCfi: string | null
   fileCachedAt: number | null
+  readingProgress: number
 
   constructor(data: BookCreateParams = {}) {
     this.id = data.id ?? crypto.randomUUID()
@@ -24,9 +24,9 @@ export class Book {
     this.fileStoragePath = data.fileStoragePath ?? ''
     this.createdAt = Date.now()
     this.updatedAt = Date.now()
-    this.deletedAt = null
     this.lastCfi = data.lastCfi ?? null
     this.fileCachedAt = null
+    this.readingProgress = data.readingProgress ?? 0
   }
 
   toPlain(): BookData {
@@ -40,9 +40,9 @@ export class Book {
       fileStoragePath: this.fileStoragePath,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
-      deletedAt: this.deletedAt,
       lastCfi: this.lastCfi,
-      fileCachedAt: this.fileCachedAt
+      fileCachedAt: this.fileCachedAt,
+      readingProgress: this.readingProgress
     }
   }
 

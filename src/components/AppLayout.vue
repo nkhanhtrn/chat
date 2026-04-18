@@ -68,11 +68,10 @@ const activePage = computed(() => {
   const name = route.name as string
   if (name === 'home') return 'home'
   if (name === 'notebooks') return 'notebooks'
-  if (name === 'notebook' || name === 'question') return 'notebook'
-  if (name === 'current-content' || name === 'current-content-question') return 'current-content'
+  if (name === 'notebook' || name === 'question' || name === 'current-content' || name === 'current-content-question') return 'current-content'
   if (name === 'calendar') return 'calendar'
   if (name === 'studio') return 'studio'
-  if (name === 'books' || name === 'book-viewer') return 'books'
+  if (name === 'books') return 'books'
   return ''
 })
 
@@ -109,7 +108,10 @@ function goTo(page: string) {
   if (page === 'home') router.push({ name: 'home' })
   else if (page === 'notebooks') router.push({ name: 'notebooks' })
   else if (page === 'books') router.push({ name: 'books' })
-  else if (page === 'current-content' && notebookStore.currentChatId) router.push({ name: 'notebook', params: { id: notebookStore.currentChatId } })
+  else if (page === 'current-content') {
+    if (booksStore.currentBookId) router.push({ name: 'current-content', params: { type: 'book', id: booksStore.currentBookId } })
+    else if (notebookStore.currentChatId) router.push({ name: 'current-content', params: { type: 'notebook', id: notebookStore.currentChatId } })
+  }
   else if (page === 'calendar') router.push({ name: 'calendar' })
   else if (page === 'studio') router.push({ name: 'studio' })
 }

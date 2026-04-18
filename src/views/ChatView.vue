@@ -120,7 +120,7 @@ onMounted(async () => {
       await notebookStore.switchToChat(notebookId)
       if (questionId) {
         showingOverview.value = false
-        if (!navigateToQuestion(questionId)) router.replace({ name: 'notebook', params: { id: notebookId } })
+        if (!navigateToQuestion(questionId)) router.replace({ name: 'current-content', params: { type: 'notebook', id: notebookId } })
       } else if (treeStore.rootMessageIds.length > 0) showingOverview.value = true
     } else {
       router.push({ name: 'home' })
@@ -179,7 +179,7 @@ const handleSendMessage = async (userMessage: string, contextQuestions: Array<Re
   const msg = treeStore.addRootMessage({ id: crypto.randomUUID(), question: userMessage, response: '' }, notebookStore.currentChatId)
   notebookStore.syncCurrentChat()
 
-  router.replace({ name: 'question', params: { id: notebookStore.currentChatId!, questionId: msg.id } })
+  router.replace({ name: 'current-content-question', params: { type: 'notebook', id: notebookStore.currentChatId!, questionId: msg.id } })
   scrollToBottom()
 
   streamingStore.startStreaming(msg.id)
@@ -215,7 +215,7 @@ const handleSelectQuestion = (question: { id: string; chatId: string }) => {
   isAddingNewQuestion.value = false
   showingOverview.value = false
   if (treeStore.currentMessageId) treeStore.saveScrollPosition(treeStore.currentMessageId, getScrollPosition())
-  router.push({ name: 'question', params: { id: question.chatId, questionId: question.id } })
+  router.push({ name: 'current-content-question', params: { type: 'notebook', id: question.chatId, questionId: question.id } })
   nextTick(() => { const scrollPos = treeStore.getMessageById(question.id)?.scrollPosition ?? 0; setScrollPosition(scrollPos) })
 }
 
@@ -228,7 +228,7 @@ const handleOverviewSelectQuestion = (data: Record<string, unknown>) => {
   const id = data.id as string
   if (id && notebookStore.currentChatId) {
     showingOverview.value = false
-    router.push({ name: 'question', params: { id: notebookStore.currentChatId, questionId: id } })
+    router.push({ name: 'current-content-question', params: { type: 'notebook', id: notebookStore.currentChatId, questionId: id } })
   }
 }
 

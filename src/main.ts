@@ -78,6 +78,20 @@ const initializeApp = async () => {
     })
   }
 
+  // Wait for Firebase auth state to resolve before initializing stores
+  await new Promise<void>((resolve) => {
+    const currentUser = auth?.currentUser
+    if (currentUser) {
+      resolve()
+    } else {
+      const unsubscribe = auth?.onAuthStateChanged(() => {
+        unsubscribe?.()
+        resolve()
+      })
+      if (!auth) resolve()
+    }
+  })
+
   // Initialize stores before mounting
   const notebookStore = useNotebookStore(pinia)
   const treeStore = useMessageTreeStore(pinia)

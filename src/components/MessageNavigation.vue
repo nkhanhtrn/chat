@@ -45,14 +45,14 @@ function onBreadcrumbClick(msg: Message) {
   if (treeStore.currentMessageId) {
     treeStore.saveScrollPosition(treeStore.currentMessageId, getScrollPosition())
   }
-  router.push({ name: 'question', params: { id: notebookStore.currentChatId, questionId: msg.id } })
+  router.push({ name: 'current-content-question', params: { type: 'notebook', id: notebookStore.currentChatId, questionId: msg.id } })
 }
 
 function navigateToIndex() {
   if (treeStore.currentMessageId) {
     treeStore.saveScrollPosition(treeStore.currentMessageId, getScrollPosition())
   }
-  router.push({ name: 'notebook', params: { id: notebookStore.currentChatId } })
+  router.push({ name: 'current-content', params: { type: 'notebook', id: notebookStore.currentChatId } })
 }
 </script>
 

@@ -9,9 +9,9 @@ export interface BookData {
   fileStoragePath: string
   createdAt: number
   updatedAt: number
-  deletedAt: number | null
   lastCfi: string | null
   fileCachedAt: number | null
+  readingProgress: number
 }
 
 /** Book metadata (excludes file data) */
@@ -33,4 +33,5 @@ export interface BookCreateParams {
   fileInStorage?: boolean
   fileStoragePath?: string
   lastCfi?: string | null
+  readingProgress?: number
 }

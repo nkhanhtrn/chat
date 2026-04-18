@@ -57,18 +57,18 @@ const { query: searchQuery, results: searchResults } = useGlobalSearch({ include
 
 const createNewNotebook = () => {
   const newChat = notebookStore.createNewChat()
-  router.push({ name: 'notebook', params: { id: newChat.id } })
+  router.push({ name: 'current-content', params: { type: 'notebook', id: newChat.id } })
 }
 
 const openNotebook = (id: string) => {
   notebookStore.switchToChat(id)
-  router.push({ name: 'notebook', params: { id } })
+  router.push({ name: 'current-content', params: { type: 'notebook', id } })
 }
 
 const openQuestion = (result: Record<string, unknown>) => {
   const chatId = result.chatId as string
   if (notebookStore.currentChatId !== chatId) notebookStore.switchToChat(chatId)
-  router.push({ name: 'question', params: { id: chatId, questionId: result.id as string } })
+  router.push({ name: 'current-content-question', params: { type: 'notebook', id: chatId, questionId: result.id as string } })
 }
 
 const deleteNotebook = (id: string) => {

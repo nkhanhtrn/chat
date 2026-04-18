@@ -160,7 +160,7 @@ function handleTreeDrop(dropData: { messageId: string; targetId: string; positio
 }
 
 function navigateToNotebookOverview() {
-  if (props.currentChatId) router.push({ name: 'notebook', params: { id: props.currentChatId } })
+  if (props.currentChatId) router.push({ name: 'current-content', params: { type: 'notebook', id: props.currentChatId } })
 }
 </script>
 

@@ -218,7 +218,7 @@ const handleOpenQuestion = (data: Record<string, unknown>) => {
   const chatId = data.chatId as string
   if (!chatId) return
   if (notebookStore.currentChatId !== chatId) notebookStore.switchToChat(chatId)
-  router.push({ name: 'question', params: { id: chatId, questionId: data.id as string } })
+  router.push({ name: 'current-content-question', params: { type: 'notebook', id: chatId, questionId: data.id as string } })
 }
 
 onMounted(async () => {
