@@ -255,6 +255,44 @@ describe('useBooksStore', () => {
 
       expect(saveBook).not.toHaveBeenCalled()
     })
+
+    it('updates updatedAt timestamp', async () => {
+      const originalUpdatedAt = 1000
+      const book = makeBook({ id: 'book-123', fileType: 'pdf', updatedAt: originalUpdatedAt })
+      store.books.push(book)
+
+      await store.updatePdfReadingPosition('book-123', 5, 0.5)
+
+      expect(book.updatedAt).toBeGreaterThan(originalUpdatedAt)
+    })
+  })
+
+  describe('updatedAt drives sort-by-last-opened', () => {
+    it('EPUB position update changes sort order', async () => {
+      store.books.push(
+        makeBook({ id: 'older', title: 'Older Book', updatedAt: 1000 }),
+        makeBook({ id: 'newer', title: 'Newer Book', updatedAt: 2000 }),
+      )
+
+      // "older" is read, bumping its updatedAt
+      await store.updateReadingPosition('older', 'epubcfi(/6/4)', 0.5)
+
+      const sorted = store.booksSortedByDate
+      expect(sorted[0].id).toBe('older')
+    })
+
+    it('PDF position update changes sort order', async () => {
+      store.books.push(
+        makeBook({ id: 'older', title: 'Older Book', updatedAt: 1000, fileType: 'pdf' }),
+        makeBook({ id: 'newer', title: 'Newer Book', updatedAt: 2000, fileType: 'pdf' }),
+      )
+
+      // "older" is read, bumping its updatedAt
+      await store.updatePdfReadingPosition('older', 10, 0.3)
+
+      const sorted = store.booksSortedByDate
+      expect(sorted[0].id).toBe('older')
+    })
   })
 
   describe('updateBook', () => {

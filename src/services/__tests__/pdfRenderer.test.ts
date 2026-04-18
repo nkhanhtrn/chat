@@ -265,6 +265,57 @@ describe('PdfRenderer', () => {
     })
   })
 
+  describe('sequential navigation (keyboard-like)', () => {
+    it('navigates through all pages sequentially', async () => {
+      const onLocationChange = vi.fn()
+      const renderer = new PdfRenderer(container, new ArrayBuffer(8), { onLocationChange })
+      await renderer.initialize()
+
+      // Page 1 -> 2 -> 3
+      await renderer.nextPage()
+      await renderer.nextPage()
+
+      // Should be on last page now
+      const loc = renderer.getCurrentLocation()!
+      expect(loc.page).toBe(mockNumPages)
+
+      // 3 -> 2 -> 1
+      await renderer.prevPage()
+      await renderer.prevPage()
+
+      const loc2 = renderer.getCurrentLocation()!
+      expect(loc2.page).toBe(1)
+      renderer.destroy()
+    })
+
+    it('fires onLocationChange for each page turn', async () => {
+      const onLocationChange = vi.fn()
+      const renderer = new PdfRenderer(container, new ArrayBuffer(8), { onLocationChange })
+      await renderer.initialize()
+      const initCalls = onLocationChange.mock.calls.length
+
+      await renderer.nextPage()
+      await renderer.prevPage()
+
+      // Should have fired once for init + once for next + once for prev
+      expect(onLocationChange.mock.calls.length).toBe(initCalls + 2)
+      renderer.destroy()
+    })
+
+    it('handles rapid sequential nextPage calls', async () => {
+      const renderer = new PdfRenderer(container, new ArrayBuffer(8))
+      await renderer.initialize()
+
+      // Fire multiple nextPage — the rendering guard serializes them
+      await Promise.all([renderer.nextPage(), renderer.nextPage()])
+
+      // Should end up on page 2 or 3 (one may have been blocked by rendering guard)
+      const loc = renderer.getCurrentLocation()!
+      expect(loc.page).toBeGreaterThanOrEqual(2)
+      renderer.destroy()
+    })
+  })
+
   describe('setScale', () => {
     it('clamps scale to 0.5 minimum', async () => {
       const renderer = new PdfRenderer(container, new ArrayBuffer(8))
