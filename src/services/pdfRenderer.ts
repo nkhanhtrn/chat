@@ -1,0 +1,325 @@
+import { getDocument, GlobalWorkerOptions, TextLayer } from 'pdfjs-dist'
+import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist'
+import type { TocItem } from '@/types/book'
+
+// Set up the web worker for pdfjs
+GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url,
+).toString()
+
+export interface PdfRendererOptions {
+  scale?: number
+  onLocationChange?: (location: { page: number; totalPages: number; percentage: number }) => void
+  onTextSelect?: (data: { text: string; x: number; y: number }) => void
+}
+
+export class PdfRenderer {
+  private pdfDoc: PDFDocumentProxy | null = null
+  private container: HTMLElement
+  private fileData: ArrayBuffer
+  private options: PdfRendererOptions
+  private _outline: TocItem[] = []
+  private _currentPage = 1
+  private _totalPages = 0
+  private _scale: number
+  private rendering = false
+  private destroyed = false
+  private textSelectHandler: (() => void) | null = null
+
+  constructor(container: HTMLElement, fileData: ArrayBuffer, options: PdfRendererOptions = {}) {
+    this.container = container
+    this.fileData = fileData
+    this.options = options
+    this._scale = options.scale ?? 1.5
+  }
+
+  async initialize(): Promise<void> {
+    // Copy data — getDocument transfers the buffer to the worker, detaching it
+    const data = new Uint8Array(this.fileData).slice()
+    const loadingTask = getDocument({ data })
+    this.pdfDoc = await loadingTask.promise
+    this._totalPages = this.pdfDoc.numPages
+
+    // Extract outline
+    const outline = await this.pdfDoc.getOutline()
+    if (outline) {
+      this._outline = await this.convertOutline(outline)
+    }
+
+    // Render first page
+    await this.renderPage(this._currentPage)
+
+    // Setup text selection
+    this.setupTextSelection()
+
+    // Notify initial location
+    this.notifyLocationChange()
+  }
+
+  async display(target?: number | string): Promise<void> {
+    let page: number
+    if (typeof target === 'number') {
+      page = target
+    } else if (typeof target === 'string' && target.startsWith('page:')) {
+      page = parseInt(target.slice(5), 10)
+    } else {
+      page = 1
+    }
+
+    page = Math.max(1, Math.min(page, this._totalPages))
+    await this.renderPage(page)
+    if (this.destroyed) return
+    this._currentPage = page
+    this.notifyLocationChange()
+  }
+
+  async prevPage(): Promise<void> {
+    if (this._currentPage <= 1 || this.destroyed) return
+    await this.renderPage(this._currentPage - 1)
+    if (this.destroyed) return
+    this._currentPage--
+    this.notifyLocationChange()
+  }
+
+  async nextPage(): Promise<void> {
+    if (this._currentPage >= this._totalPages || this.destroyed) return
+    await this.renderPage(this._currentPage + 1)
+    if (this.destroyed) return
+    this._currentPage++
+    this.notifyLocationChange()
+  }
+
+  getTableOfContents(): TocItem[] {
+    return this._outline
+  }
+
+  getCurrentLocation(): { page: number; totalPages: number; percentage: number } | null {
+    if (!this.pdfDoc) return null
+    return {
+      page: this._currentPage,
+      totalPages: this._totalPages,
+      percentage: this._currentPage / this._totalPages,
+    }
+  }
+
+  async setScale(scale: number): Promise<void> {
+    this._scale = Math.max(0.5, Math.min(4, scale))
+    if (this.destroyed) return
+    await this.renderPage(this._currentPage)
+  }
+
+  getScale(): number {
+    return this._scale
+  }
+
+  get totalPages(): number {
+    return this._totalPages
+  }
+
+  destroy(): void {
+    this.destroyed = true
+    if (this.textSelectHandler) {
+      this.container.removeEventListener('mouseup', this.textSelectHandler)
+      this.textSelectHandler = null
+    }
+    this.container.innerHTML = ''
+    if (this.pdfDoc) {
+      this.pdfDoc.destroy()
+      this.pdfDoc = null
+    }
+  }
+
+  private async renderPage(pageNum: number): Promise<void> {
+    if (!this.pdfDoc || this.rendering || this.destroyed) return
+    this.rendering = true
+
+    try {
+      const page: PDFPageProxy = await this.pdfDoc.getPage(pageNum)
+      if (this.destroyed) return
+
+      const viewport = page.getViewport({ scale: this._scale })
+
+      // Canvas layer
+      const canvas = document.createElement('canvas')
+      canvas.width = viewport.width
+      canvas.height = viewport.height
+      const ctx = canvas.getContext('2d')!
+      await page.render({ canvasContext: ctx, viewport }).promise
+      if (this.destroyed) return
+
+      // Text layer for selection
+      const textLayerDiv = document.createElement('div')
+      textLayerDiv.className = 'pdf-text-layer'
+      textLayerDiv.style.width = viewport.width + 'px'
+      textLayerDiv.style.height = viewport.height + 'px'
+
+      const textContent = await page.getTextContent()
+      if (this.destroyed) return
+
+      const textLayer = new TextLayer({
+        textContentSource: textContent,
+        container: textLayerDiv,
+        viewport: viewport,
+      })
+      await textLayer.render()
+      if (this.destroyed) return
+
+      // Wrapper
+      const wrapper = document.createElement('div')
+      wrapper.className = 'pdf-page-wrapper'
+      wrapper.style.width = viewport.width + 'px'
+      wrapper.appendChild(canvas)
+      wrapper.appendChild(textLayerDiv)
+
+      // Clear and insert
+      this.container.innerHTML = ''
+      this.container.appendChild(wrapper)
+
+      // Scroll to top of viewer
+      this.container.scrollTop = 0
+    } finally {
+      this.rendering = false
+    }
+  }
+
+  private setupTextSelection(): void {
+    this.textSelectHandler = () => {
+      const selection = window.getSelection()
+      if (!selection || selection.isCollapsed || !selection.rangeCount) return
+      const text = selection.toString().trim()
+      if (!text) return
+      const range = selection.getRangeAt(0)
+      const rect = range.getBoundingClientRect()
+      this.options.onTextSelect?.({
+        text,
+        x: rect.left + rect.width / 2,
+        y: rect.bottom,
+      })
+    }
+    this.container.addEventListener('mouseup', this.textSelectHandler)
+  }
+
+  private notifyLocationChange(): void {
+    this.options.onLocationChange?.({
+      page: this._currentPage,
+      totalPages: this._totalPages,
+      percentage: this._currentPage / this._totalPages,
+    })
+  }
+
+  private async convertOutline(outline: { title: string; dest: unknown; items: unknown[] }[]): Promise<TocItem[]> {
+    const result: TocItem[] = []
+    for (const item of outline) {
+      let pageNumber = 1
+      if (item.dest) {
+        try {
+          const dest = typeof item.dest === 'string'
+            ? await this.pdfDoc!.getDestination(item.dest)
+            : item.dest
+          if (dest) {
+            const pageIndex = await this.pdfDoc!.getPageIndex(dest[0] as any)
+            pageNumber = pageIndex + 1
+          }
+        } catch {
+          // ignore dest resolution errors
+        }
+      }
+      result.push({
+        id: `outline-${pageNumber}-${item.title}`,
+        label: item.title,
+        href: `page:${pageNumber}`,
+        subitems: (item.items as any[])?.length
+          ? await this.convertOutline(item.items as any[])
+          : [],
+      })
+    }
+    return result
+  }
+}
+
+/** Extract metadata and cover from a PDF file without full rendering */
+export async function extractPdfInfo(fileData: ArrayBuffer): Promise<{
+  title: string
+  author: string
+  coverData: ArrayBuffer | null
+  totalPages: number
+}> {
+  // Copy data — getDocument transfers the buffer to the worker, detaching it
+  const loadingTask = getDocument({ data: new Uint8Array(fileData).slice() })
+  const pdf = await loadingTask.promise
+
+  try {
+    // Extract metadata
+    let title = ''
+    let author = ''
+    try {
+      const metadata = await pdf.getMetadata()
+      const info = metadata.info as Record<string, string> | null
+      title = info?.Title ?? ''
+      author = info?.Author ?? ''
+    } catch {
+      // ignore metadata errors
+    }
+
+    // Generate cover from first page
+    let coverData: ArrayBuffer | null = null
+    try {
+      const page = await pdf.getPage(1)
+      const viewport = page.getViewport({ scale: 0.5 })
+      const canvas = document.createElement('canvas')
+      canvas.width = viewport.width
+      canvas.height = viewport.height
+      const ctx = canvas.getContext('2d')!
+      await page.render({ canvasContext: ctx, viewport }).promise
+      const blob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob(b => resolve(b!), 'image/jpeg', 0.7)
+      })
+      coverData = await blob.arrayBuffer()
+    } catch {
+      // ignore cover generation errors
+    }
+
+    return { title, author, coverData, totalPages: pdf.numPages }
+  } finally {
+    pdf.destroy()
+  }
+}
+
+/** Lightweight TOC extraction for preloading (avoids full renderer init) */
+export async function extractPdfToc(fileData: ArrayBuffer): Promise<TocItem[]> {
+  const loadingTask = getDocument({ data: new Uint8Array(fileData).slice() })
+  const pdf = await loadingTask.promise
+
+  try {
+    const outline = await pdf.getOutline()
+    if (!outline) return []
+
+    const result: TocItem[] = []
+    for (const item of outline) {
+      let pageNumber = 1
+      if (item.dest) {
+        try {
+          const dest = typeof item.dest === 'string'
+            ? await pdf.getDestination(item.dest)
+            : item.dest
+          if (dest) {
+            const pageIndex = await pdf.getPageIndex(dest[0] as any)
+            pageNumber = pageIndex + 1
+          }
+        } catch {
+          // ignore
+        }
+      }
+      result.push({
+        id: `outline-${pageNumber}-${item.title}`,
+        label: item.title,
+        href: `page:${pageNumber}`,
+        subitems: [], // shallow for preload
+      })
+    }
+    return result
+  } finally {
+    pdf.destroy()
+  }
+}

@@ -24,7 +24,7 @@
           <Button variant="primary" @click="triggerFilePicker" :disabled="uploading" class="add-book-btn">+ New Book</Button>
         </div>
         <Button variant="primary" @click="triggerFilePicker" :disabled="uploading" class="add-book-btn mobile-only-btn">+</Button>
-        <input ref="fileInput" type="file" accept=".epub" class="file-input" @change="handleFileSelect" />
+        <input ref="fileInput" type="file" accept=".epub,.pdf" class="file-input" @change="handleFileSelect" />
       </div>
 
       <div class="search-container">
@@ -70,7 +70,7 @@
             <div v-if="filteredBooks.length === 0 && !uploading" class="empty-state">
               <div class="empty-icon">{{ searchQuery.trim() ? '🔍' : '📚' }}</div>
               <p>{{ searchQuery.trim() ? 'No books found matching "' + searchQuery + '"' : 'No books yet' }}</p>
-              <p v-if="!searchQuery.trim()" class="empty-hint">Add your first EPUB book to get started</p>
+              <p v-if="!searchQuery.trim()" class="empty-hint">Add your first book (EPUB or PDF) to get started</p>
             </div>
           </div>
         </transition>
@@ -112,6 +112,7 @@ import ProgressBar from '@/components/ProgressBar.vue'
 import SlideTransition from '@/components/SlideTransition.vue'
 import { useBooksStore } from '@/stores/books'
 import { extractEpubInfo } from '@/services/epubRenderer'
+import { extractPdfInfo } from '@/services/pdfRenderer'
 import type { BookData } from '@/types/book'
 
 const router = useRouter()
@@ -261,20 +262,45 @@ async function handleFileSelect(event: Event) {
   uploading.value = true
   try {
     const arrayBuffer = await file.arrayBuffer()
-    let title = file.name.replace(/\.epub$/i, '')
+    const isPdf = file.name.toLowerCase().endsWith('.pdf')
+    const fallbackTitle = file.name.replace(/\.(epub|pdf)$/i, '')
+    let title = fallbackTitle
     let author = ''
     let coverData: ArrayBuffer | null = null
+    let totalPages: number | undefined
 
-    try {
-      const info = await extractEpubInfo(arrayBuffer)
-      title = info.title || title
-      author = info.author
-      coverData = info.coverData
-    } catch (err) {
-      console.warn('[BooksLibrary] Failed to extract EPUB info:', err)
+    if (isPdf) {
+      try {
+        const info = await extractPdfInfo(arrayBuffer)
+        title = info.title || fallbackTitle
+        author = info.author
+        coverData = info.coverData
+        totalPages = info.totalPages
+      } catch (err) {
+        console.warn('[BooksLibrary] Failed to extract PDF info:', err)
+      }
+
+      await booksStore.addBook({
+        title, author, fileSize: file.size,
+        fileData: arrayBuffer, coverData,
+        fileType: 'pdf', totalPages,
+      })
+    } else {
+      try {
+        const info = await extractEpubInfo(arrayBuffer)
+        title = info.title || fallbackTitle
+        author = info.author
+        coverData = info.coverData
+      } catch (err) {
+        console.warn('[BooksLibrary] Failed to extract EPUB info:', err)
+      }
+
+      await booksStore.addBook({
+        title, author, fileSize: file.size,
+        fileData: arrayBuffer, coverData,
+        fileType: 'epub',
+      })
     }
-
-    await booksStore.addBook({ title, author, fileSize: file.size, fileData: arrayBuffer, coverData })
   } catch (err) {
     console.error('[BooksLibrary] Failed to add book:', err)
     alert('Failed to add book: ' + (err as Error).message)

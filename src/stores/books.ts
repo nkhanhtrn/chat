@@ -208,7 +208,9 @@ export const useBooksStore = defineStore('books', {
 
       const auth = getFirebaseAuth()
       const user = auth?.currentUser
-      const storagePath = user ? `users/${user.uid}/books/${bookId}/book.epub` : ''
+      const fileType = (bookData.fileType as 'epub' | 'pdf') ?? 'epub'
+      const extension = fileType === 'pdf' ? 'pdf' : 'epub'
+      const storagePath = user ? `users/${user.uid}/books/${bookId}/book.${extension}` : ''
 
       const { fileData, coverData, ...metadataOverrides } = bookData
 
@@ -231,6 +233,9 @@ export const useBooksStore = defineStore('books', {
         lastCfi: null,
         fileCachedAt: null,
         readingProgress: 0,
+        fileType,
+        lastPage: null,
+        totalPages: bookData.totalPages ?? null,
         ...metadataOverrides,
       }
 
@@ -260,10 +265,12 @@ export const useBooksStore = defineStore('books', {
     async uploadBookFileToCloud(bookId: string, fileData: ArrayBuffer | undefined, _storagePath: string): Promise<void> {
       try {
         if (fileData) {
+          const book = this.books.find(b => b.id === bookId)
+          const fileType = (book?.fileType as 'epub' | 'pdf') ?? 'epub'
           await uploadBookFileToStorage(bookId, fileData, (progress) => {
             // Map 0-1 upload progress to 0.2-0.9 range
             this.uploadProgress[bookId] = 0.2 + progress * 0.7
-          })
+          }, fileType)
         }
 
         const book = this.books.find(b => b.id === bookId)
@@ -294,6 +301,20 @@ export const useBooksStore = defineStore('books', {
       await saveBook(book)
       saveBookToFirestore(book).catch(err => {
         console.warn('Failed to upload reading position:', err)
+      })
+    },
+
+    async updatePdfReadingPosition(bookId: string, page: number, progress: number): Promise<void> {
+      const book = this.books.find(b => b.id === bookId)
+      if (!book) return
+
+      book.lastPage = page
+      book.readingProgress = Math.round(progress * 100)
+      book.updatedAt = Date.now()
+
+      await saveBook(book)
+      saveBookToFirestore(book).catch(err => {
+        console.warn('Failed to upload PDF reading position:', err)
       })
     },
 
@@ -374,19 +395,28 @@ export const useBooksStore = defineStore('books', {
 
         onProgress?.(60)
 
-        const { EpubRenderer } = await import('@/services/epubRenderer')
-        const tempContainer = document.createElement('div')
-        tempContainer.style.cssText = 'position: absolute; visibility: hidden; width: 0; height: 0; overflow: hidden;'
-        document.body.appendChild(tempContainer)
+        const fileType = (book.fileType as 'epub' | 'pdf') ?? 'epub'
+        let toc: unknown[] = []
 
-        const tempRenderer = new EpubRenderer(tempContainer, fileData)
-        await tempRenderer.initialize()
-        onProgress?.(85)
+        if (fileType === 'pdf') {
+          const { extractPdfToc } = await import('@/services/pdfRenderer')
+          toc = await extractPdfToc(fileData)
+          onProgress?.(100)
+        } else {
+          const { EpubRenderer } = await import('@/services/epubRenderer')
+          const tempContainer = document.createElement('div')
+          tempContainer.style.cssText = 'position: absolute; visibility: hidden; width: 0; height: 0; overflow: hidden;'
+          document.body.appendChild(tempContainer)
 
-        const toc = tempRenderer.getTableOfContents()
-        tempRenderer.destroy()
-        tempContainer.remove()
-        onProgress?.(100)
+          const tempRenderer = new EpubRenderer(tempContainer, fileData)
+          await tempRenderer.initialize()
+          onProgress?.(85)
+
+          toc = tempRenderer.getTableOfContents()
+          tempRenderer.destroy()
+          tempContainer.remove()
+          onProgress?.(100)
+        }
 
         this.preloadedBooks[bookId] = { fileData, toc }
         return this.preloadedBooks[bookId]

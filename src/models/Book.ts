@@ -13,6 +13,9 @@ export class Book {
   lastCfi: string | null
   fileCachedAt: number | null
   readingProgress: number
+  fileType: 'epub' | 'pdf'
+  lastPage: number | null
+  totalPages: number | null
 
   constructor(data: BookCreateParams = {}) {
     this.id = data.id ?? crypto.randomUUID()
@@ -27,6 +30,9 @@ export class Book {
     this.lastCfi = data.lastCfi ?? null
     this.fileCachedAt = null
     this.readingProgress = data.readingProgress ?? 0
+    this.fileType = data.fileType ?? 'epub'
+    this.lastPage = data.lastPage ?? null
+    this.totalPages = data.totalPages ?? null
   }
 
   toPlain(): BookData {
@@ -42,7 +48,10 @@ export class Book {
       updatedAt: this.updatedAt,
       lastCfi: this.lastCfi,
       fileCachedAt: this.fileCachedAt,
-      readingProgress: this.readingProgress
+      readingProgress: this.readingProgress,
+      fileType: this.fileType,
+      lastPage: this.lastPage,
+      totalPages: this.totalPages,
     }
   }
 

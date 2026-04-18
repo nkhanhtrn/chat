@@ -41,11 +41,11 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import type { NavItem } from 'epubjs'
+import type { TocItem } from '@/types/book'
 import BookTocItem from './BookTocItem.vue'
 
 const props = defineProps<{
-  toc: NavItem[]
+  toc: TocItem[]
   bookTitle: string
   activeHref?: string | null
 }>()
@@ -63,10 +63,10 @@ interface SearchResult {
   parentLabel?: string
 }
 
-function flattenToc(items: NavItem[], parent?: string): SearchResult[] {
+function flattenToc(items: TocItem[], parent?: string): SearchResult[] {
   const results: SearchResult[] = []
   for (const item of items) {
-    results.push({ id: item.id, label: item.label, href: item.href, parentLabel: parent })
+    results.push({ id: item.id ?? '', label: item.label, href: item.href, parentLabel: parent })
     if (item.subitems?.length) {
       results.push(...flattenToc(item.subitems, item.label))
     }

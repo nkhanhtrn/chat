@@ -94,7 +94,8 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vue-vendor': ['vue', 'vue-router', 'pinia'],
-          'firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore']
+          'firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+          'pdfjs': ['pdfjs-dist'],
         }
       }
     },

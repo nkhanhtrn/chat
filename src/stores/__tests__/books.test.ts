@@ -44,6 +44,17 @@ vi.mock('@/services/epubRenderer', () => ({
   }),
 }))
 
+vi.mock('@/services/pdfRenderer', () => ({
+  PdfRenderer: vi.fn(),
+  extractPdfInfo: vi.fn().mockResolvedValue({
+    title: 'PDF Title',
+    author: 'PDF Author',
+    coverData: null,
+    totalPages: 100,
+  }),
+  extractPdfToc: vi.fn().mockResolvedValue([]),
+}))
+
 import { useBooksStore } from '@/stores/books'
 import type { BookData } from '@/types/book'
 
@@ -61,6 +72,9 @@ function makeBook(overrides: Partial<BookData> = {}): BookData {
     lastCfi: null,
     fileCachedAt: null,
     readingProgress: 0,
+    fileType: 'epub',
+    lastPage: null,
+    totalPages: null,
     ...overrides,
   }
 }
@@ -207,6 +221,37 @@ describe('useBooksStore', () => {
       const { saveBook } = await import('@/services/BookSyncService')
 
       await store.updateReadingPosition('nonexistent', 'cfi', 0.5)
+
+      expect(saveBook).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('updatePdfReadingPosition', () => {
+    it('updates page and progress on a PDF book', async () => {
+      const book = makeBook({ id: 'book-123', fileType: 'pdf', lastPage: null, readingProgress: 0 })
+      store.books.push(book)
+
+      await store.updatePdfReadingPosition('book-123', 42, 0.42)
+
+      expect(book.lastPage).toBe(42)
+      expect(book.readingProgress).toBe(42)
+    })
+
+    it('calls saveBook locally', async () => {
+      const { saveBook } = await import('@/services/BookSyncService')
+      store.books.push(makeBook({ id: 'book-123', fileType: 'pdf' }))
+
+      await store.updatePdfReadingPosition('book-123', 10, 0.1)
+
+      expect(saveBook).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'book-123', lastPage: 10, readingProgress: 10 }),
+      )
+    })
+
+    it('does nothing if book not found', async () => {
+      const { saveBook } = await import('@/services/BookSyncService')
+
+      await store.updatePdfReadingPosition('nonexistent', 5, 0.5)
 
       expect(saveBook).not.toHaveBeenCalled()
     })

@@ -36,8 +36,9 @@ export async function deleteBookFromFirestore(bookId: string): Promise<void> {
   // Also try to delete files from storage
   try {
     const storage = getStorage()
-    await Promise.all([
+    await Promise.allSettled([
       deleteObject(ref(storage, `users/${uid}/books/${bookId}/book.epub`)),
+      deleteObject(ref(storage, `users/${uid}/books/${bookId}/book.pdf`)),
       deleteObject(ref(storage, `users/${uid}/books/${bookId}/cover.jpg`)),
     ])
   } catch {
@@ -49,12 +50,14 @@ export function uploadBookFileToStorage(
   bookId: string,
   fileData: ArrayBuffer,
   onProgress?: (progress: number) => void,
+  fileType: 'epub' | 'pdf' = 'epub',
 ): Promise<void> {
   const uid = getUid()
   if (!uid) return Promise.resolve()
 
+  const extension = fileType === 'pdf' ? 'pdf' : 'epub'
   const storage = getStorage()
-  const fileRef = ref(storage, `users/${uid}/books/${bookId}/book.epub`)
+  const fileRef = ref(storage, `users/${uid}/books/${bookId}/book.${extension}`)
 
   const uploadTask = uploadBytesResumable(fileRef, fileData)
 
@@ -103,19 +106,19 @@ export async function loadBooksFromFirestore(): Promise<BookData[]> {
 export function downloadBookFileFromStorage(
   bookId: string,
   onProgress?: (progress: number) => void,
+  fileType?: 'epub' | 'pdf',
 ): Promise<ArrayBuffer | null> {
   const uid = getUid()
   if (!uid) return Promise.resolve(null)
 
   const storage = getStorage()
-  const fileRef = ref(storage, `users/${uid}/books/${bookId}/book.epub`)
 
-  // Get metadata first for total size, then download with progress
-  return getBlob(fileRef).then(async (blob) => {
+  const downloadWithExtension = async (ext: string): Promise<ArrayBuffer | null> => {
+    const fileRef = ref(storage, `users/${uid}/books/${bookId}/book.${ext}`)
+    const blob = await getBlob(fileRef)
     const total = blob.size
     if (total === 0) return null
 
-    // Read with progress via ReadableStream
     const reader = blob.stream().getReader()
     const chunks: Uint8Array[] = []
     let received = 0
@@ -135,8 +138,19 @@ export function downloadBookFileFromStorage(
       offset += chunk.length
     }
     return result.buffer as ArrayBuffer
-  }).catch((error: unknown) => {
-    console.warn('[FirestoreBooks] Failed to download book file:', error)
-    return null
-  })
+  }
+
+  if (fileType) {
+    // Known type — download directly
+    const ext = fileType === 'pdf' ? 'pdf' : 'epub'
+    return downloadWithExtension(ext).catch((error: unknown) => {
+      console.warn('[FirestoreBooks] Failed to download book file:', error)
+      return null
+    })
+  }
+
+  // Unknown type — try epub first (legacy), then pdf
+  return downloadWithExtension('epub').catch(() =>
+    downloadWithExtension('pdf').catch(() => null),
+  )
 }

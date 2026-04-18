@@ -23,6 +23,9 @@ describe('Book', () => {
       expect(book.lastCfi).toBeNull()
       expect(book.fileCachedAt).toBeNull()
       expect(book.readingProgress).toBe(0)
+      expect(book.fileType).toBe('epub')
+      expect(book.lastPage).toBeNull()
+      expect(book.totalPages).toBeNull()
     })
 
     it('accepts partial data', () => {
@@ -38,6 +41,13 @@ describe('Book', () => {
     it('accepts custom id', () => {
       const book = new Book({ id: 'custom-id' })
       expect(book.id).toBe('custom-id')
+    })
+
+    it('accepts pdf fileType with totalPages', () => {
+      const book = new Book({ fileType: 'pdf', totalPages: 250 })
+      expect(book.fileType).toBe('pdf')
+      expect(book.totalPages).toBe(250)
+      expect(book.lastPage).toBeNull()
     })
 
     it('sets timestamps', () => {
@@ -67,6 +77,9 @@ describe('Book', () => {
         lastCfi: null,
         fileCachedAt: null,
         readingProgress: 0,
+        fileType: 'epub',
+        lastPage: null,
+        totalPages: null,
       })
     })
   })

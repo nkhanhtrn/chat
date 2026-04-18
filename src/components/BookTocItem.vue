@@ -23,10 +23,10 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import type { NavItem } from 'epubjs'
+import type { TocItem } from '@/types/book'
 
 const props = defineProps<{
-  item: NavItem
+  item: TocItem
   depth: number
   activeHref?: string | null
 }>()

@@ -12,6 +12,17 @@ export interface BookData {
   lastCfi: string | null
   fileCachedAt: number | null
   readingProgress: number
+  fileType: 'epub' | 'pdf'
+  lastPage: number | null
+  totalPages: number | null
+}
+
+/** Unified TOC item for both EPUB and PDF */
+export interface TocItem {
+  id: string | undefined
+  label: string
+  href: string
+  subitems?: TocItem[]
 }
 
 /** Book metadata (excludes file data) */
@@ -34,4 +45,7 @@ export interface BookCreateParams {
   fileStoragePath?: string
   lastCfi?: string | null
   readingProgress?: number
+  fileType?: 'epub' | 'pdf'
+  lastPage?: number | null
+  totalPages?: number | null
 }
