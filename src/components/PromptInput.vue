@@ -64,20 +64,26 @@ defineExpose({ inputRef })
 </script>
 
 <style scoped>
-.prompt-input-wrapper { display: flex; align-items: center; gap: 0.35rem; }
-.prompt-input {
-  flex: 1; padding: 0.35rem 0.5rem; border: 1px solid var(--color-border-context, #ddd);
-  border-radius: 4px; background: var(--color-bg-base); color: var(--color-text-base);
-  font-size: 0.9rem; outline: none;
+.prompt-input-wrapper {
+  position: relative;
+  border: 1px solid var(--color-border-context, #ddd);
+  border-radius: 4px; background: var(--color-bg-base);
+  font-family: system-ui, -apple-system, sans-serif;
 }
-.prompt-input:focus { border-color: var(--color-primary); }
+.prompt-input-wrapper:focus-within { border-color: var(--color-primary); }
+.prompt-input {
+  width: 100%; padding: 0.3rem 28px 0.3rem 0.4rem; border: none; background: transparent;
+  color: var(--color-text-base); font-size: 0.85rem; font-family: inherit; outline: none;
+  box-sizing: border-box;
+}
 .prompt-input:disabled { opacity: 0.5; cursor: not-allowed; }
 .prompt-send-btn {
+  position: absolute; right: 2px; top: 50%; transform: translateY(-50%);
   display: flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; padding: 0; border: none; border-radius: 4px;
-  background: var(--color-primary); color: white; cursor: pointer;
-  transition: background-color 0.15s; flex-shrink: 0;
+  width: 24px; height: 24px; padding: 0; border: none;
+  background: transparent; color: var(--color-text-muted); cursor: pointer;
+  transition: color 0.15s;
 }
-.prompt-send-btn:hover:not(:disabled) { background: var(--color-primary-hover); }
-.prompt-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.prompt-send-btn:hover:not(:disabled) { color: var(--color-primary); }
+.prompt-send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 </style>

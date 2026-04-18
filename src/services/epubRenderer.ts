@@ -4,6 +4,7 @@ export interface EpubRendererOptions {
   width?: string | number
   height?: string | number
   onLocationChange?: (location: { cfi: string; percentage: number; atStart: boolean; atEnd: boolean }) => void
+  onTextSelect?: (data: { text: string; x: number; y: number }) => void
   theme?: { bg: string; color: string; accent: string; fontFamily?: string; fontSize?: number; lineHeight?: number }
 }
 
@@ -15,6 +16,7 @@ export class EpubRenderer {
   private options: EpubRendererOptions
   private _toc: NavItem[] = []
   private locationsReady = false
+  private selectCleanup: (() => void) | null = null
 
   constructor(container: HTMLElement, fileData: ArrayBuffer, options: EpubRendererOptions = {}) {
     this.container = container
@@ -88,6 +90,40 @@ export class EpubRenderer {
 
     // Display from the beginning — callers can navigate to a saved CFI after
     await this.rendition.display()
+
+    // Detect text selection inside the EPUB iframe for context menu
+    if (this.options.onTextSelect) {
+      this.rendition.on('selected', (_cfiRange: any, contents: any) => {
+        const win = contents?.window as Window | undefined
+        const doc = contents?.document as Document | undefined
+        if (!win || !doc) return
+
+        const selection = win.getSelection()
+        if (!selection || selection.isCollapsed || !selection.rangeCount) return
+
+        const range = selection.getRangeAt(0)
+        const text = selection.toString().trim()
+        if (!text) return
+
+        const rect = range.getBoundingClientRect()
+
+        // Convert iframe-relative rect to main viewport coordinates
+        const iframe = doc.defaultView?.frameElement as HTMLIFrameElement | null
+        const iframeRect = iframe?.getBoundingClientRect()
+        const x = rect.left + (iframeRect?.left ?? 0)
+        const y = rect.top + (iframeRect?.top ?? 0) + rect.height
+
+        // Clamp to viewport
+        const menuWidth = 220
+        const vx = Math.min(x, window.innerWidth - menuWidth - 10)
+        const vy = Math.min(y, window.innerHeight - 100)
+
+        this.options.onTextSelect?.({ text, x: Math.max(10, vx), y: Math.max(10, vy) })
+      })
+      this.selectCleanup = () => {
+        this.rendition?.off('selected')
+      }
+    }
 
     // Extract TOC after display
     try {
@@ -192,6 +228,8 @@ export class EpubRenderer {
   }
 
   destroy(): void {
+    this.selectCleanup?.()
+    this.selectCleanup = null
     this.rendition?.destroy()
     this.book?.destroy()
     this.rendition = null

@@ -34,18 +34,41 @@
         </div>
       </template>
     </div>
+    <ContextMenu
+      :visible="contextMenu.visible"
+      :x="contextMenu.x"
+      :y="contextMenu.y"
+      :highlighted-text="contextMenu.text"
+      :read-only="true"
+      @close="contextMenu.visible = false"
+      @dictionary="handleDictionary"
+      @ask-question="handleExplain"
+      @custom-prompt="handleCustomPrompt"
+      @custom-prompt-deep-dive="handleCustomPromptDeepDive"
+    />
+    <DictionaryModal
+      :visible="dictionary.show"
+      :word="dictionary.word"
+      :definition="dictionary.definition"
+      :is-streaming="dictionary.streaming"
+      @close="dictionary.show = false"
+    />
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/AppLayout.vue'
 import BookTocSidebar from '@/components/BookTocSidebar.vue'
 import ProgressBar from '@/components/ProgressBar.vue'
+import ContextMenu from '@/components/ContextMenu.vue'
+import DictionaryModal from '@/components/modal/DictionaryModal.vue'
 import { useBooksStore } from '@/stores/books'
 import { EpubRenderer } from '@/services/epubRenderer'
 import { Settings } from '@/services/settings'
+import lmService, { Category } from '@/services/llm/LMService'
+import { getDictionaryPrompts, getQuickExplainPrompts, getMainPrompts } from '@/services/extraPrompt'
 import type { BookData } from '@/types/book'
 import type { NavItem } from 'epubjs'
 
@@ -61,6 +84,100 @@ const canGoPrev = ref(false)
 const canGoNext = ref(true)
 const toc = ref<NavItem[]>([])
 const activeHref = ref<string | null>(null)
+const contextMenu = reactive({ visible: false, x: 0, y: 0, text: '' })
+const dictionary = reactive({ show: false, word: '', definition: '', streaming: false })
+
+async function handleDictionary() {
+  contextMenu.visible = false
+  const word = contextMenu.text
+  if (!word) return
+
+  dictionary.word = word
+  dictionary.definition = ''
+  dictionary.streaming = true
+  dictionary.show = true
+
+  try {
+    const messages = getDictionaryPrompts(word)
+    await lmService.sendByCategory(Category.QUICK, messages, (chunk: string) => {
+      dictionary.definition += chunk
+    })
+  } catch (err) {
+    console.error('[BookViewer] Dictionary lookup failed:', err)
+    if (!dictionary.definition) dictionary.definition = 'Failed to look up definition.'
+  } finally {
+    dictionary.streaming = false
+  }
+}
+
+async function handleExplain(text: string) {
+  contextMenu.visible = false
+  if (!text) return
+
+  dictionary.word = text
+  dictionary.definition = ''
+  dictionary.streaming = true
+  dictionary.show = true
+
+  try {
+    const messages = getQuickExplainPrompts(`Explain this text: "${text}"`)
+    await lmService.sendByCategory(Category.QUICK, messages, (chunk: string) => {
+      dictionary.definition += chunk
+    })
+  } catch (err) {
+    console.error('[BookViewer] Explain failed:', err)
+    if (!dictionary.definition) dictionary.definition = 'Failed to get explanation.'
+  } finally {
+    dictionary.streaming = false
+  }
+}
+
+async function handleCustomPrompt(prompt: string) {
+  contextMenu.visible = false
+  const text = contextMenu.text
+  if (!text) return
+
+  dictionary.word = text
+  dictionary.definition = ''
+  dictionary.streaming = true
+  dictionary.show = true
+
+  try {
+    const messages = getQuickExplainPrompts(`Regarding this text: "${text}"\n\n${prompt}`)
+    await lmService.sendByCategory(Category.QUICK, messages, (chunk: string) => {
+      dictionary.definition += chunk
+    })
+  } catch (err) {
+    console.error('[BookViewer] Custom prompt failed:', err)
+    if (!dictionary.definition) dictionary.definition = 'Failed to get response.'
+  } finally {
+    dictionary.streaming = false
+  }
+}
+
+async function handleCustomPromptDeepDive(prompt: string) {
+  contextMenu.visible = false
+  const text = contextMenu.text
+  if (!text) return
+
+  dictionary.word = text
+  dictionary.definition = ''
+  dictionary.streaming = true
+  dictionary.show = true
+
+  try {
+    const question = `${prompt} (context: "${text}")`
+    const messages = getMainPrompts(question)
+    await lmService.sendByCategory(Category.DETAILS, messages, (chunk: string) => {
+      dictionary.definition += chunk
+    })
+  } catch (err) {
+    console.error('[BookViewer] Deep dive failed:', err)
+    if (!dictionary.definition) dictionary.definition = 'Failed to get response.'
+  } finally {
+    dictionary.streaming = false
+  }
+}
 
 let renderer: EpubRenderer | null = null
 let resizeObserver: ResizeObserver | null = null
@@ -131,10 +248,17 @@ async function renderBook(bookId: string, fileData: ArrayBuffer) {
 
   renderer = new EpubRenderer(viewerContainer.value, fileData, {
     theme: getEpubTheme(),
+    onTextSelect(data) {
+      contextMenu.x = data.x
+      contextMenu.y = data.y
+      contextMenu.text = data.text
+      contextMenu.visible = true
+    },
     onLocationChange(location) {
       progress.value = location.percentage
       canGoPrev.value = !location.atStart
       canGoNext.value = !location.atEnd
+      contextMenu.visible = false
 
       booksStore.updateReadingPosition(bookId, location.cfi, location.percentage).catch(err => {
         console.warn('Failed to save reading position:', err)

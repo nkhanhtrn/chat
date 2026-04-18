@@ -3,46 +3,39 @@
     <template v-if="visible">
       <div class="context-menu-backdrop" @click="onClickOutside" @touchend.prevent="onClickOutside"></div>
       <div class="context-menu" :style="{ left: `${x}px`, top: `${y}px` }" @mousedown.stop @touchstart.stop>
-        <template v-if="!readOnly">
-          <div class="context-menu-row">
-            <button class="context-menu-btn" @click="onCopy">Copy</button>
-            <button v-if="hasExistingItem" class="context-menu-btn" @click="onRemove">Remove</button>
-            <button v-else class="context-menu-btn" @click="onHighlight">Highlight</button>
+        <div class="context-menu-row">
+          <button class="context-menu-btn" @click="onCopy">Copy</button>
+          <button v-if="!readOnly && hasExistingItem" class="context-menu-btn" @click="onRemove">Remove</button>
+          <button v-if="!readOnly && !hasExistingItem" class="context-menu-btn" @click="onHighlight">Highlight</button>
+        </div>
+        <div v-if="!readOnly" class="context-menu-row highlight-row">
+          <div class="color-picker">
+            <button
+              v-for="(_, index) in selectionColors"
+              :key="index"
+              class="color-circle"
+              :class="{ selected: selectedColorIndex === index }"
+              :style="{ backgroundColor: selectionColors[index] }"
+              @click="selectColor(index)"
+            ></button>
           </div>
-          <div class="context-menu-row highlight-row">
-            <div class="color-picker">
-              <button
-                v-for="(_, index) in selectionColors"
-                :key="index"
-                class="color-circle"
-                :class="{ selected: selectedColorIndex === index }"
-                :style="{ backgroundColor: selectionColors[index] }"
-                @click="selectColor(index)"
-              ></button>
-            </div>
-          </div>
-          <div class="context-menu-row">
-            <button class="context-menu-btn" @click="onDictionary" :disabled="isStreaming">Dictionary</button>
-            <button class="context-menu-btn" @click="onNote">{{ hasExistingItem ? (hasNote ? 'Edit Note' : 'Add Note') : 'Add Note' }}</button>
-            <button class="context-menu-btn" @click="onLinkToQuestion">Link to Question</button>
-          </div>
-          <div class="context-menu-row">
-            <button class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming">Deep Dive</button>
-          </div>
-          <div class="context-menu-row prompt-row">
-            <PromptInput
-              placeholder="Ask about selection..."
-              :disabled="isStreaming"
-              @submit="onSendCustomPrompt"
-              @ctrl-enter-submit="onCtrlEnterCustomPrompt"
-            />
-          </div>
-        </template>
-        <template v-else>
-          <div class="context-menu-row">
-            <button class="context-menu-btn" @click="onDictionary" :disabled="isStreaming">Dictionary</button>
-          </div>
-        </template>
+        </div>
+        <div v-if="!readOnly" class="context-menu-row">
+          <button class="context-menu-btn" @click="onNote">{{ hasExistingItem ? (hasNote ? 'Edit Note' : 'Add Note') : 'Add Note' }}</button>
+          <button class="context-menu-btn" @click="onLinkToQuestion">Link to Question</button>
+        </div>
+        <div class="context-menu-row">
+          <button class="context-menu-btn" @click="onDictionary" :disabled="isStreaming">Dictionary</button>
+          <button class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming">Explain</button>
+        </div>
+        <div class="context-menu-row prompt-row">
+          <PromptInput
+            placeholder="Ask about selection..."
+            :disabled="isStreaming"
+            @submit="onSendCustomPrompt"
+            @ctrl-enter-submit="onCtrlEnterCustomPrompt"
+          />
+        </div>
       </div>
     </template>
   </teleport>
@@ -123,22 +116,23 @@ onUnmounted(() => document.removeEventListener('keydown', onKeyDown))
 <style scoped>
 .context-menu {
   position: absolute;
-  width: 200px;
+  width: 220px;
   background: var(--color-bg-context-menu);
   border: 1px solid var(--color-border-context);
   box-shadow: 0 4px 12px var(--shadow-md);
   border-radius: 4px;
-  padding: 0.25rem 0.35rem;
-  font-size: 1.1rem;
+  padding: 0.15rem;
+  font-size: 0.95rem;
+  font-family: system-ui, -apple-system, sans-serif;
   color: var(--color-text-on-accent);
   z-index: 9999;
   user-select: none;
 }
 .context-menu-backdrop { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: transparent; z-index: 9998; }
-.context-menu-btn { width: 100%; text-align: left; font-size: 1.05rem; padding: 0.25rem 0.5rem; background: none; border: none; color: inherit; cursor: pointer; border-radius: 3px; }
+.context-menu-btn { width: 100%; text-align: left; font-size: 0.95rem; padding: 0.2rem 0.4rem; background: none; border: none; color: inherit; cursor: pointer; border-radius: 3px; }
 .context-menu-btn:hover { background: var(--color-bg-hover); }
 .context-menu-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.context-menu-row { padding: 0.5rem; border-bottom: 1px solid var(--color-border-context); }
+.context-menu-row { padding: 0.25rem 0.3rem; border-bottom: 1px solid var(--color-border-context); }
 .context-menu-row:last-child { border-bottom: none; }
 .context-menu-separator { border-bottom: 1px solid var(--color-border-context); margin: 0.15rem 0; }
 .highlight-row { display: flex; align-items: center; justify-content: flex-start; padding-left: 0.85rem; }
@@ -150,5 +144,5 @@ onUnmounted(() => document.removeEventListener('keydown', onKeyDown))
 }
 .color-circle:hover { transform: scale(1.15); }
 .color-circle.selected { border-color: var(--color-text-strong); box-shadow: 0 0 0 1px var(--color-bg-context-menu); }
-.prompt-row { padding: 0.35rem 0.5rem; }
+.prompt-row { padding: 0.25rem 0.25rem; }
 </style>
