@@ -455,14 +455,13 @@ export const useBooksStore = defineStore('books', {
     /** Replace remote coverUrl with cached data URL, downloading if needed */
     async resolveCachedCovers(): Promise<void> {
       const { BookStorage } = await import('@/services/BookStorage')
+      const uid = getFirebaseAuth()?.currentUser?.uid
 
       for (const book of this.books) {
         if (!book.id) continue
 
-        // Skip books that don't have a cover at all
-        if (!book.coverUrl) continue
-
-        // Check IndexedDB cache first
+        // Check IndexedDB cache first — covers may exist in cache even if
+        // coverUrl was stripped when the book came from Firestore
         try {
           const cached = await BookStorage.getCoverImage(book.id)
           if (cached && cached.byteLength > 100) {
@@ -472,7 +471,7 @@ export const useBooksStore = defineStore('books', {
         } catch {}
 
         // No cache — if there's a remote coverUrl, download and cache it
-        if (book.coverUrl.startsWith('https://')) {
+        if (book.coverUrl?.startsWith('https://')) {
           try {
             const resp = await fetch(book.coverUrl)
             if (resp.ok) {
@@ -482,6 +481,22 @@ export const useBooksStore = defineStore('books', {
                 book.coverUrl = arrayBufferToDataUrl(arrayBuf)
               } else {
                 book.coverUrl = ''
+              }
+            }
+          } catch {}
+        } else if (!book.coverUrl && uid) {
+          // coverUrl was stripped by Firestore — try to fetch from the known Storage path
+          try {
+            const { getStorage, ref, getDownloadURL } = await import('firebase/storage')
+            const storage = getStorage()
+            const coverRef = ref(storage, `users/${uid}/books/${book.id}/cover.jpg`)
+            const downloadUrl = await getDownloadURL(coverRef)
+            const resp = await fetch(downloadUrl)
+            if (resp.ok) {
+              const arrayBuf = await resp.arrayBuffer()
+              if (arrayBuf.byteLength > 100) {
+                await BookStorage.saveCoverImage(book.id, arrayBuf).catch(() => {})
+                book.coverUrl = arrayBufferToDataUrl(arrayBuf)
               }
             }
           } catch {}

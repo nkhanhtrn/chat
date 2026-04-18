@@ -2,7 +2,7 @@ import { openDB, type IDBPDatabase } from 'idb'
 import { debugLog } from '@/utils/debug'
 
 const DB_NAME = 'chat-clone-db'
-const DB_VERSION = 10
+const DB_VERSION = 11
 
 const STORE_NAME = 'app-data'
 const TOOLS_STORE = 'saved-tools'
