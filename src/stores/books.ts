@@ -1,13 +1,37 @@
 import { defineStore } from 'pinia'
 import type { BookData, BookCreateParams } from '@/types/book'
 import { syncBookList, syncBookContent, saveBookList, saveBook, deleteBook as deleteBookFromIndexedDB, resolveBookListConflict } from '@/services/BookSyncService'
-import { saveBookToFirestore, deleteBookFromFirestore, uploadBookFileToStorage, uploadCoverImage } from '@/services/firestore/firestore-books'
+import { saveBookToFirestore, deleteBookFromFirestore, uploadBookFileToStorage } from '@/services/firestore/firestore-books'
 import { getFirebaseAuth } from '@/services/firebase'
 import { debugLog } from '@/utils/debug'
 
 export interface PreloadedBookData {
   fileData: ArrayBuffer
   toc: unknown[]
+}
+
+function compressCover(coverData: ArrayBuffer, maxSize = 400, quality = 0.7): Promise<string> {
+  return new Promise((resolve) => {
+    const blob = new Blob([coverData])
+    const url = URL.createObjectURL(blob)
+    const img = new Image()
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height))
+      const w = Math.round(img.width * scale)
+      const h = Math.round(img.height * scale)
+      const canvas = document.createElement('canvas')
+      canvas.width = w
+      canvas.height = h
+      canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
+      resolve(canvas.toDataURL('image/jpeg', quality))
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      resolve('')
+    }
+    img.src = url
+  })
 }
 
 function arrayBufferToDataUrl(buf: ArrayBuffer, type = 'image/jpeg'): string {
@@ -152,6 +176,11 @@ export const useBooksStore = defineStore('books', {
 
         const index = this.books.findIndex(b => b.id === bookId)
         if (index !== -1) {
+          // Preserve in-memory coverUrl (may have been resolved from cache)
+          // if the IndexedDB version is missing it
+          if (!book.coverUrl && this.books[index].coverUrl) {
+            book.coverUrl = this.books[index].coverUrl
+          }
           this.books[index] = book
         }
 
@@ -183,17 +212,10 @@ export const useBooksStore = defineStore('books', {
 
       const { fileData, coverData, ...metadataOverrides } = bookData
 
-      // Convert cover bytes to data URL for immediate local display
+      // Compress cover to a small base64 data URL for Firestore storage
       let localCoverUrl = ''
       if (coverData) {
-        try {
-          const blob = new Blob([coverData], { type: 'image/jpeg' })
-          localCoverUrl = await new Promise<string>((resolve) => {
-            const reader = new FileReader()
-            reader.onload = () => resolve(reader.result as string)
-            reader.readAsDataURL(blob)
-          })
-        } catch {}
+        localCoverUrl = await compressCover(coverData)
       }
 
       const book: BookData & { fileData?: ArrayBuffer } = {
@@ -225,7 +247,7 @@ export const useBooksStore = defineStore('books', {
         await saveBook(bookMetadata)
         this.uploadProgress[bookId] = 0.2
 
-        await this.uploadBookFileToCloud(book.id, fileData, storagePath, coverData)
+        await this.uploadBookFileToCloud(book.id, fileData, storagePath)
       } catch (error) {
         // Remove the partial book on failure
         await this.deleteBook(bookId)
@@ -235,30 +257,16 @@ export const useBooksStore = defineStore('books', {
       return book
     },
 
-    async uploadBookFileToCloud(bookId: string, fileData: ArrayBuffer | undefined, _storagePath: string, coverData?: ArrayBuffer | null): Promise<void> {
+    async uploadBookFileToCloud(bookId: string, fileData: ArrayBuffer | undefined, _storagePath: string): Promise<void> {
       try {
         if (fileData) {
           await uploadBookFileToStorage(bookId, fileData, (progress) => {
-            // Map 0-1 upload progress to 0.2-0.85 range (reserving space for cover + metadata)
-            this.uploadProgress[bookId] = 0.2 + progress * 0.65
+            // Map 0-1 upload progress to 0.2-0.9 range
+            this.uploadProgress[bookId] = 0.2 + progress * 0.7
           })
         }
 
-        // Upload cover image to Storage and get a download URL, also cache locally
         const book = this.books.find(b => b.id === bookId)
-        if (book && coverData) {
-          this.uploadProgress[bookId] = 0.9
-          const coverUrl = await uploadCoverImage(bookId, coverData)
-          if (coverUrl) {
-            book.coverUrl = coverUrl
-          }
-          // Cache cover in IndexedDB for fast loading
-          try {
-            const { BookStorage } = await import('@/services/BookStorage')
-            await BookStorage.saveCoverImage(bookId, coverData)
-          } catch {}
-        }
-
         if (book) {
           book.fileInStorage = true
           book.updatedAt = Date.now()
@@ -452,40 +460,34 @@ export const useBooksStore = defineStore('books', {
       this.syncConflicts = []
     },
 
-    /** Replace remote coverUrl with cached data URL, downloading if needed */
+    /** Migrate old Storage-based cover URLs to base64 data URLs */
     async resolveCachedCovers(): Promise<void> {
       const { BookStorage } = await import('@/services/BookStorage')
       const uid = getFirebaseAuth()?.currentUser?.uid
+      let needsFirestoreUpdate = false
 
       for (const book of this.books) {
         if (!book.id) continue
 
-        // Check IndexedDB cache first — covers may exist in cache even if
-        // coverUrl was stripped when the book came from Firestore
-        try {
-          const cached = await BookStorage.getCoverImage(book.id)
-          if (cached && cached.byteLength > 100) {
-            book.coverUrl = arrayBufferToDataUrl(cached)
-            continue
-          }
-        } catch {}
+        // Covers are now stored as base64 in Firestore — skip books that already have data URLs
+        if (book.coverUrl?.startsWith('data:')) continue
 
-        // No cache — if there's a remote coverUrl, download and cache it
+        // Migration: convert old Storage URL or missing cover to base64
         if (book.coverUrl?.startsWith('https://')) {
           try {
             const resp = await fetch(book.coverUrl)
             if (resp.ok) {
               const arrayBuf = await resp.arrayBuffer()
               if (arrayBuf.byteLength > 100) {
-                await BookStorage.saveCoverImage(book.id, arrayBuf).catch(() => {})
                 book.coverUrl = arrayBufferToDataUrl(arrayBuf)
+                needsFirestoreUpdate = true
               } else {
                 book.coverUrl = ''
               }
             }
           } catch {}
         } else if (!book.coverUrl && uid) {
-          // coverUrl was stripped by Firestore — try to fetch from the known Storage path
+          // CoverUrl was stripped by old code — try Storage path
           try {
             const { getStorage, ref, getDownloadURL } = await import('firebase/storage')
             const storage = getStorage()
@@ -495,11 +497,17 @@ export const useBooksStore = defineStore('books', {
             if (resp.ok) {
               const arrayBuf = await resp.arrayBuffer()
               if (arrayBuf.byteLength > 100) {
-                await BookStorage.saveCoverImage(book.id, arrayBuf).catch(() => {})
                 book.coverUrl = arrayBufferToDataUrl(arrayBuf)
+                needsFirestoreUpdate = true
               }
             }
           } catch {}
+        }
+
+        // Persist migrated cover back to Firestore
+        if (needsFirestoreUpdate) {
+          await saveBookToFirestore(book).catch(() => {})
+          needsFirestoreUpdate = false
         }
       }
     },

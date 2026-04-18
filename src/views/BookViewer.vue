@@ -20,9 +20,9 @@
         <div class="book-header">
           <h2>{{ currentBook.title }}</h2>
           <p v-if="currentBook.author" class="book-author">by {{ currentBook.author }}</p>
-          <div v-if="progress > 0" class="progress-wrapper">
-            <ProgressBar :value="Math.round(progress * 100)" :max="100" />
-          </div>
+        </div>
+        <div v-if="progress > 0" class="progress-bar">
+          <ProgressBar :progress="Math.round(progress * 100)" />
         </div>
         <div class="viewer-container" ref="viewerContainer">
           <!-- EPUB renders here -->
@@ -45,6 +45,7 @@ import BookTocSidebar from '@/components/BookTocSidebar.vue'
 import ProgressBar from '@/components/ProgressBar.vue'
 import { useBooksStore } from '@/stores/books'
 import { EpubRenderer } from '@/services/epubRenderer'
+import { Settings } from '@/services/settings'
 import type { BookData } from '@/types/book'
 import type { NavItem } from 'epubjs'
 
@@ -63,6 +64,7 @@ const activeHref = ref<string | null>(null)
 
 let renderer: EpubRenderer | null = null
 let resizeObserver: ResizeObserver | null = null
+let styleObserver: MutationObserver | null = null
 
 const currentBook = computed<BookData | undefined>(() => {
   const bookId = (route.params.bookId ?? route.params.id) as string
@@ -100,12 +102,23 @@ async function loadFileData(bookId: string): Promise<ArrayBuffer | null> {
   return null
 }
 
-function getEpubTheme(): { bg: string; color: string } {
+function getEpubTheme(): { bg: string; color: string; accent: string; fontFamily?: string; fontSize?: number; lineHeight?: number } {
   const style = getComputedStyle(document.documentElement)
+  const settings = Settings.getAll()
   return {
     bg: style.getPropertyValue('--color-bg-page').trim() || '#ffffff',
     color: style.getPropertyValue('--color-text-base').trim() || '#000000',
+    accent: style.getPropertyValue('--color-primary').trim() || '#404040',
+    fontFamily: settings.fontFamily,
+    fontSize: settings.fontSize,
+    lineHeight: settings.lineHeight,
   }
+}
+
+function applyBookContentWidth() {
+  const settings = Settings.getAll()
+  const widthMap: Record<string, string> = { narrow: '600px', medium: '900px', wide: '100%' }
+  document.documentElement.style.setProperty('--book-max-width', widthMap[settings.contentWidth ?? 'medium'] ?? '900px')
 }
 
 async function renderBook(bookId: string, fileData: ArrayBuffer) {
@@ -120,8 +133,8 @@ async function renderBook(bookId: string, fileData: ArrayBuffer) {
     theme: getEpubTheme(),
     onLocationChange(location) {
       progress.value = location.percentage
-      canGoPrev.value = location.percentage > 0
-      canGoNext.value = location.percentage < 0.99
+      canGoPrev.value = !location.atStart
+      canGoNext.value = !location.atEnd
 
       booksStore.updateReadingPosition(bookId, location.cfi, location.percentage).catch(err => {
         console.warn('Failed to save reading position:', err)
@@ -164,6 +177,13 @@ async function renderBook(bookId: string, fileData: ArrayBuffer) {
     }
   })
   resizeObserver.observe(viewerContainer.value)
+
+  // Watch for style attribute changes on <html> (theme/font/line-height updates from settings)
+  styleObserver = new MutationObserver(() => {
+    renderer?.updateTheme(getEpubTheme())
+    applyBookContentWidth()
+  })
+  styleObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] })
 }
 
 async function handleTocNavigate(href: string) {
@@ -185,6 +205,10 @@ function destroyRenderer() {
     renderer.destroy()
     renderer = null
   }
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  styleObserver?.disconnect()
+  styleObserver = null
   toc.value = []
   activeHref.value = null
 }
@@ -205,6 +229,7 @@ onMounted(async () => {
   loading.value = true
   error.value = null
   booksStore.setCurrentBook(bookId)
+  applyBookContentWidth()
 
   try {
     await booksStore.loadBookContent(bookId)
@@ -236,10 +261,11 @@ onUnmounted(() => {
 .empty-state h2 { font-family: Georgia, serif; font-weight: 400; color: var(--color-text-message); margin: 0 0 0.5rem; }
 .empty-state a { color: var(--color-primary); }
 .book-header { padding: 1rem 2rem; border-bottom: 1px solid var(--color-border-base); flex-shrink: 0; }
-.book-header h2 { font-family: Georgia, serif; font-weight: 400; color: var(--color-text-message); margin: 0 0 0.25rem; }
+.book-header h2 { font-family: Georgia, serif; font-weight: 400; color: var(--color-text-message); margin: 0 0 0.25rem; font-size: 1.1rem; }
 .book-author { color: var(--color-text-muted); font-size: 0.9rem; margin: 0 0 0.5rem; }
-.progress-wrapper { max-width: 300px; }
-.viewer-container { flex: 1; overflow: hidden; }
+.progress-bar { flex-shrink: 0; }
+.viewer-container { flex: 1; overflow: hidden; max-width: var(--book-max-width, 100%); margin: 0 auto; width: 100%; display: flex; justify-content: center; }
+.viewer-container :deep(.epub-container) { margin: 0 auto; }
 .page-nav { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 2rem; border-top: 1px solid var(--color-border-base); flex-shrink: 0; }
 .nav-btn { padding: 0.4rem 1rem; background: var(--color-bg-base); border: 1px solid var(--color-border-base); border-radius: 4px; color: var(--color-text-message); cursor: pointer; }
 .nav-btn:hover:not(:disabled) { background: var(--color-bg-hover); }

@@ -17,9 +17,6 @@ export async function saveBookToFirestore(bookData: BookData): Promise<void> {
 
   // Serialize to plain object to strip Vue reactive proxies
   const serializable = JSON.parse(JSON.stringify(bookData))
-  // Don't store coverUrl in Firestore — covers can be large base64 data URLs
-  // that exceed Firestore's 1MB property limit. Covers are stored in Firebase Storage.
-  delete serializable.coverUrl
   await setDoc(bookRef, serializable, { merge: true })
 }
 

@@ -3,8 +3,8 @@ import ePub, { type Book, type Rendition, type NavItem } from 'epubjs'
 export interface EpubRendererOptions {
   width?: string | number
   height?: string | number
-  onLocationChange?: (location: { cfi: string; percentage: number }) => void
-  theme?: { bg: string; color: string; fontFamily?: string }
+  onLocationChange?: (location: { cfi: string; percentage: number; atStart: boolean; atEnd: boolean }) => void
+  theme?: { bg: string; color: string; accent: string; fontFamily?: string; fontSize?: number; lineHeight?: number }
 }
 
 export class EpubRenderer {
@@ -36,7 +36,8 @@ export class EpubRenderer {
     this.rendition = this.book.renderTo(this.container, {
       width: containerWidth + 'px',
       height: this.options.height ?? '100%',
-      spread: 'none',
+      spread: containerWidth >= 900 ? 'auto' : 'none',
+      minSpreadWidth: 900,
       flow: 'paginated',
     })
 
@@ -48,11 +49,24 @@ export class EpubRenderer {
           'background-color': t.bg,
           'color': t.color,
           'font-family': t.fontFamily ?? 'inherit',
-        },
-        'a': {
-          'color': t.color,
+          'font-size': t.fontSize ? `${t.fontSize}px` : undefined,
+          'line-height': t.lineHeight?.toString() ?? undefined,
         },
       })
+      // Register link styles with !important to override book CSS and browser defaults
+      const accent = t.accent || t.color
+      this.rendition.themes.register('links', {
+        'a, a:link': {
+          'color': `${accent} !important`,
+          'text-decoration': 'underline !important',
+          'text-decoration-color': `${accent}44 !important`,
+          'text-underline-offset': '2px !important',
+        },
+        'a:visited': {
+          'color': `${accent} !important`,
+        },
+      })
+      this.rendition.themes.select('links')
     }
 
     // Listen for location changes
@@ -65,6 +79,8 @@ export class EpubRenderer {
           this.options.onLocationChange?.({
             cfi: location.start.cfi,
             percentage,
+            atStart: location.atStart ?? false,
+            atEnd: location.atEnd ?? false,
           })
         }
       })
@@ -142,8 +158,37 @@ export class EpubRenderer {
     }
   }
 
+  updateTheme(theme: NonNullable<EpubRendererOptions['theme']>): void {
+    if (!this.rendition) return
+    this.rendition.themes.default({
+      'html, body': {
+        'background-color': theme.bg,
+        'color': theme.color,
+        'font-family': theme.fontFamily ?? 'inherit',
+        'font-size': theme.fontSize ? `${theme.fontSize}px` : undefined,
+        'line-height': theme.lineHeight?.toString() ?? undefined,
+      },
+    })
+    const accent = theme.accent || theme.color
+    this.rendition.themes.register('links', {
+      'a, a:link': {
+        'color': `${accent} !important`,
+        'text-decoration': 'underline !important',
+        'text-decoration-color': `${accent}44 !important`,
+        'text-underline-offset': '2px !important',
+      },
+      'a:visited': {
+        'color': `${accent} !important`,
+      },
+    })
+    this.rendition.themes.select('links')
+  }
+
   resize(width: number | string, height: number | string): void {
-    this.rendition?.resize(width, height)
+    if (!this.rendition) return
+    const w = typeof width === 'number' ? width : parseInt(width, 10)
+    this.rendition.spread(w >= 900 ? 'auto' : 'none')
+    this.rendition.resize(width, height)
   }
 
   destroy(): void {

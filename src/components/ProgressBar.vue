@@ -13,7 +13,7 @@ defineProps<{
 </script>
 
 <style scoped>
-.progress-bar-container { width: 80%; height: 7px; }
-.progress-bar { width: 100%; height: 100%; background: rgba(255, 255, 255, 0.3); border-radius: 4px; overflow: hidden; }
-.progress-fill { height: 100%; min-width: 3px; background: rgba(255, 255, 255, 0.9); transition: width 0.3s ease; }
+.progress-bar-container { width: 100%; height: 3px; }
+.progress-bar { width: 100%; height: 100%; background: var(--color-border-base, rgba(0,0,0,0.1)); border-radius: 2px; overflow: hidden; }
+.progress-fill { height: 100%; min-width: 3px; background: var(--color-primary, #404040); transition: width 0.3s ease; }
 </style>
