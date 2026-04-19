@@ -14,16 +14,15 @@ export class CerebrasProvider extends ProviderBase {
   readonly supportsStreaming = true
   readonly defaultBaseUrl = DEFAULT_BASE_URL
 
-  getDefaultModel(): string { return 'gpt-oss-120b' }
+  getDefaultModel(): string { return 'qwen-3-235b-a22b-instruct-2507' }
 
   async listModels(): Promise<Array<{ id: string; name: string }>> {
     const config = this.getResolvedConfig()
     const keyToUse = getNextApiKey((config.apiKeys ?? config.apiKey) as string | string[] | undefined)
     if (!keyToUse) return []
     return [
-      { id: 'gpt-oss-120b', name: 'GPT-OSS 120B' },
-      { id: 'llama-3.3-70b', name: 'Llama 3.3 70B' },
-      { id: 'qwen-3-32b', name: 'Qwen 3 32B' }
+      { id: 'llama3.1-8b', name: 'Llama 3.1 8B' },
+      { id: 'qwen-3-235b-a22b-instruct-2507', name: 'Qwen 3 235B' }
     ]
   }
 
