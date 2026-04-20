@@ -199,6 +199,14 @@ export const useBooksStore = defineStore('books', {
       let localCoverUrl = ''
       if (coverData) {
         localCoverUrl = await compressCover(coverData)
+        console.log('[CoverDebug] addBook compressCover result:', {
+          bookId,
+          coverDataSize: coverData.byteLength,
+          coverUrlLength: localCoverUrl.length,
+          coverUrlPrefix: localCoverUrl.substring(0, 40),
+        })
+      } else {
+        console.log('[CoverDebug] addBook no coverData for', bookId)
       }
 
       const book: BookData & { fileData?: ArrayBuffer } = {
@@ -259,6 +267,12 @@ export const useBooksStore = defineStore('books', {
           book.fileInStorage = true
           book.updatedAt = Date.now()
           await saveBook(book)
+          console.log('[CoverDebug] uploadBookFileToCloud before saveBookToFirestore:', {
+            bookId,
+            hasCoverUrl: !!book.coverUrl,
+            coverUrlLength: book.coverUrl?.length ?? 0,
+            coverUrlPrefix: book.coverUrl?.substring(0, 30),
+          })
           await saveBookToFirestore(book)
         }
 
