@@ -145,16 +145,6 @@ const initializeApp = async () => {
     }
   })
 
-  // Store conflict info for App.vue to handle
-  if (initResult.hasConflict) {
-    (window as any).__syncConflict = {
-      localChatCount: initResult.localChatCount,
-      cloudChatCount: initResult.cloudChatCount,
-      localChats: initResult.localChats,
-      cloudChats: initResult.cloudChats,
-    }
-  }
-
   // Mount app AFTER all initialization is complete
   app.mount('#app')
 
