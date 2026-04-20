@@ -16,13 +16,6 @@ export async function saveBookToFirestore(bookData: BookData): Promise<void> {
   const bookRef = doc(db, 'users', uid, 'books', bookData.id)
 
   const serializable = JSON.parse(JSON.stringify(bookData))
-  console.log('[CoverDebug] saveBookToFirestore', bookData.id, {
-    hasCoverUrl: !!bookData.coverUrl,
-    coverUrlLength: bookData.coverUrl?.length ?? 0,
-    coverUrlPrefix: bookData.coverUrl?.substring(0, 30),
-    serializableHasCoverUrl: !!serializable.coverUrl,
-    serializableCoverUrlLength: serializable.coverUrl?.length ?? 0,
-  })
   await setDoc(bookRef, serializable, { merge: true })
 }
 
@@ -87,20 +80,12 @@ export async function loadBooksFromFirestore(): Promise<BookData[]> {
 
   try {
     const snapshot = await getDocs(booksCol)
-    const books = snapshot.docs
+    return snapshot.docs
       .map(docSnap => {
         const data = docSnap.data() as Record<string, unknown>
         return { ...data, id: docSnap.id } as BookData
       })
       .filter(book => !(book as any).deletedAt)
-    console.log('[CoverDebug] loadBooksFromFirestore', books.length, 'books:', books.map(b => ({
-      id: b.id,
-      title: b.title,
-      hasCoverUrl: !!b.coverUrl,
-      coverUrlLength: b.coverUrl?.length ?? 0,
-      coverUrlPrefix: b.coverUrl?.substring(0, 30),
-    })))
-    return books
   } catch {
     return []
   }

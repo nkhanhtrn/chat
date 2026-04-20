@@ -28,13 +28,6 @@ export async function syncBookList(): Promise<Record<string, unknown>> {
       }
     }
 
-    console.log('[CoverDebug] syncBookList local:', localBooks.length, localBooks.map(b => ({
-      id: b.id, title: b.title, hasCoverUrl: !!b.coverUrl, coverUrlPrefix: b.coverUrl?.substring(0, 30),
-    })))
-    console.log('[CoverDebug] syncBookList cloud:', cloudBooks.length, cloudBooks.map(b => ({
-      id: b.id, title: b.title, hasCoverUrl: !!b.coverUrl, coverUrlPrefix: b.coverUrl?.substring(0, 30),
-    })))
-
     // Step 3: Merge - cloud wins for metadata, keep local-only books
     let mergedBooks: BookData[] = []
 
