@@ -6,6 +6,9 @@ set -e
 echo "Running type check..."
 npm run type-check
 
+echo "Running tests..."
+npx vitest run
+
 echo "Building application..."
 npm run build
 

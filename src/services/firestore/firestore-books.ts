@@ -15,8 +15,8 @@ export async function saveBookToFirestore(bookData: BookData): Promise<void> {
   const db = getFirestore()
   const bookRef = doc(db, 'users', uid, 'books', bookData.id)
 
-  // Serialize to plain object to strip Vue reactive proxies
   const serializable = JSON.parse(JSON.stringify(bookData))
+  delete serializable.coverUrl
   await setDoc(bookRef, serializable, { merge: true })
 }
 

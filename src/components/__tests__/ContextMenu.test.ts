@@ -171,10 +171,10 @@ describe('ContextMenu', () => {
   })
 
   describe('action buttons', () => {
-    it('emits ask-question when Deep Dive is clicked', async () => {
+    it('emits ask-question when Explain is clicked', async () => {
       const w = mountMenu({ highlightedText: 'deep dive this' })
       const buttons = getBody().querySelectorAll('.context-menu-btn')
-      const btn = Array.from(buttons).find(b => b.textContent === 'Deep Dive')!
+      const btn = Array.from(buttons).find(b => b.textContent === 'Explain')!
       btn.click()
       await nextTick()
       expect(w.emitted('ask-question')).toEqual([['deep dive this']])
@@ -214,10 +214,10 @@ describe('ContextMenu', () => {
       expect(btn.hasAttribute('disabled')).toBe(true)
     })
 
-    it('disables Deep Dive when isStreaming is true', () => {
+    it('disables Explain when isStreaming is true', () => {
       mountMenu({ isStreaming: true })
       const buttons = getBody().querySelectorAll('.context-menu-btn')
-      const btn = Array.from(buttons).find(b => b.textContent === 'Deep Dive')!
+      const btn = Array.from(buttons).find(b => b.textContent === 'Explain')!
       expect(btn.hasAttribute('disabled')).toBe(true)
     })
   })
@@ -246,18 +246,18 @@ describe('ContextMenu', () => {
   })
 
   describe('readOnly mode', () => {
-    it('only shows Dictionary button in readOnly mode', () => {
+    it('shows Copy, Dictionary, and Explain in readOnly mode', () => {
       mountMenu({ readOnly: true })
       const buttons = Array.from(getBody().querySelectorAll('.context-menu-btn')).map(b => b.textContent)
-      expect(buttons).toEqual(['Dictionary'])
+      expect(buttons).toEqual(['Copy', 'Dictionary', 'Explain'])
     })
 
-    it('does not show copy, highlight, or deep dive in readOnly mode', () => {
+    it('does not show Highlight or Note in readOnly mode', () => {
       mountMenu({ readOnly: true })
       const buttons = Array.from(getBody().querySelectorAll('.context-menu-btn')).map(b => b.textContent)
-      expect(buttons).not.toContain('Copy')
       expect(buttons).not.toContain('Highlight')
-      expect(buttons).not.toContain('Deep Dive')
+      expect(buttons).not.toContain('Add Note')
+      expect(buttons).not.toContain('Remove')
     })
   })
 
