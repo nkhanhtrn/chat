@@ -85,6 +85,9 @@
       <div v-if="editMenuBookId" class="context-menu-overlay" @click="closeEditMenu">
         <div class="context-menu" :style="editMenuStyle" @click.stop>
           <button class="context-menu-item" @click="startEdit">Edit Title/Author</button>
+          <button v-if="editMenuBook && editMenuBook.fileInStorage" class="context-menu-item" :disabled="isDownloadingLocal" @click="downloadToLocal">
+            {{ isDownloadingLocal ? `Downloading ${localDownloadProgress}%...` : 'Download to Local' }}
+          </button>
           <button class="context-menu-item danger" @click="confirmDelete">Delete Book</button>
         </div>
       </div>
@@ -144,6 +147,13 @@ const editBookId = ref<string | null>(null)
 const editTitle = ref('')
 const editAuthor = ref('')
 const editTitleInput = ref<HTMLInputElement | null>(null)
+const isDownloadingLocal = ref(false)
+const localDownloadProgress = ref(0)
+
+const editMenuBook = computed(() => {
+  if (!editMenuBookId.value) return null
+  return booksStore.getBookById(editMenuBookId.value)
+})
 
 const filteredBooks = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
@@ -334,6 +344,37 @@ async function confirmDelete() {
   const book = booksStore.getBookById(bookId)
   if (confirm(`Delete "${book?.title || 'this book'}"?`)) {
     await booksStore.deleteBook(bookId)
+  }
+}
+
+async function downloadToLocal() {
+  const bookId = editMenuBookId.value
+  if (!bookId) return
+  closeEditMenu()
+  isDownloadingLocal.value = true
+  localDownloadProgress.value = 0
+  try {
+    const { BookStorage } = await import('@/services/BookStorage')
+    const cached = await BookStorage.getBookFile(bookId).catch(() => null)
+    if (cached) {
+      localDownloadProgress.value = 100
+      return
+    }
+    const { downloadBookFileFromStorage } = await import('@/services/firestore/firestore-books')
+    const fileData = await downloadBookFileFromStorage(bookId, (p) => {
+      localDownloadProgress.value = Math.round(p)
+    })
+    if (fileData) {
+      await BookStorage.saveBookFile(bookId, fileData)
+    }
+  } catch (err) {
+    console.error('[BooksLibrary] Failed to download to local:', err)
+    alert('Failed to download: ' + (err as Error).message)
+  } finally {
+    setTimeout(() => {
+      isDownloadingLocal.value = false
+      localDownloadProgress.value = 0
+    }, 800)
   }
 }
 
