@@ -18,8 +18,7 @@
       </div>
       <template v-else>
         <div class="book-header">
-          <h2>{{ currentBook.title }}</h2>
-          <p v-if="currentBook.author" class="book-author">by {{ currentBook.author }}</p>
+          <h2>{{ currentBook.title }}<span v-if="currentBook.author" class="book-author"> by {{ currentBook.author }}</span></h2>
         </div>
         <div v-if="progress > 0" class="progress-bar">
           <ProgressBar :progress="Math.round(progress * 100)" />
@@ -34,7 +33,7 @@
               <button class="nav-btn zoom-btn" @click="zoomOut" :disabled="pdfScale <= 0.5">−</button>
               <span class="zoom-info">{{ Math.round(pdfScale * 100) }}%</span>
               <button class="nav-btn zoom-btn" @click="zoomIn" :disabled="pdfScale >= 4">+</button>
-              <span class="page-info">Page {{ currentPage }} of {{ totalPages }}</span>
+              <span class="page-info">{{ pageDisplayText }}</span>
             </div>
           </template>
           <template v-else>
@@ -100,8 +99,9 @@ const dictionary = reactive({ show: false, word: '', definition: '', streaming: 
 
 // PDF-specific state (plain variable — same pattern as epub renderer, avoids Vue reactive proxy wrapping pdfjs internals)
 let pdfRenderer: PdfRenderer | null = null
-const pdfScale = ref(1.5)
+const pdfScale = ref(1.0)
 const currentPage = ref(1)
+const pageEnd = ref<number | undefined>()
 const totalPages = ref(0)
 
 async function handleDictionary() {
@@ -231,6 +231,13 @@ const currentBook = computed<BookData | undefined>(() => {
 
 const bookFileType = computed<'epub' | 'pdf'>(() => currentBook.value?.fileType ?? 'epub')
 
+const pageDisplayText = computed(() => {
+  if (pageEnd.value && pageEnd.value !== currentPage.value) {
+    return `Pages ${currentPage.value}\u2013${pageEnd.value} of ${totalPages.value}`
+  }
+  return `Page ${currentPage.value} of ${totalPages.value}`
+})
+
 async function loadFileData(bookId: string): Promise<ArrayBuffer | null> {
   // Tier 1: In-memory preload cache
   const preloaded = booksStore.getPreloadedBook(bookId)
@@ -311,10 +318,11 @@ async function renderPdf(bookId: string, fileData: ArrayBuffer) {
     },
     onLocationChange(location) {
       currentPage.value = location.page
+      pageEnd.value = location.pageEnd
       totalPages.value = location.totalPages
       progress.value = location.percentage
       canGoPrev.value = location.page > 1
-      canGoNext.value = location.page < location.totalPages
+      canGoNext.value = (location.pageEnd ?? location.page) < location.totalPages
       contextMenu.visible = false
 
       if (positionSaveEnabled) {
@@ -348,6 +356,22 @@ async function renderPdf(bookId: string, fileData: ArrayBuffer) {
 
   // Now enable position saving for subsequent navigation
   positionSaveEnabled = true
+
+  // Observe container resizes for spread mode changes
+  let resizeSkipped = false
+  resizeObserver = new ResizeObserver((entries) => {
+    if (!resizeSkipped) {
+      resizeSkipped = true
+      return
+    }
+    for (const entry of entries) {
+      const { width, height } = entry.contentRect
+      if (width > 0 && height > 0) {
+        pdfRenderer?.resize(width, height)
+      }
+    }
+  })
+  resizeObserver.observe(viewerContainer.value!)
 }
 
 async function renderEpub(bookId: string, fileData: ArrayBuffer) {
@@ -536,13 +560,15 @@ onBeforeUnmount(() => {
 .loading-state, .error-state, .empty-state { text-align: center; padding: 4rem 2rem; color: var(--color-text-muted); }
 .empty-state h2 { font-family: Georgia, serif; font-weight: 400; color: var(--color-text-message); margin: 0 0 0.5rem; }
 .empty-state a { color: var(--color-primary); }
-.book-header { padding: 1rem 2rem; border-bottom: 1px solid var(--color-border-base); flex-shrink: 0; }
-.book-header h2 { font-family: Georgia, serif; font-weight: 400; color: var(--color-text-message); margin: 0 0 0.25rem; font-size: 1.1rem; }
-.book-author { color: var(--color-text-muted); font-size: 0.9rem; margin: 0 0 0.5rem; }
+.book-header { padding: 0.5rem 2rem; border-bottom: 1px solid var(--color-border-base); flex-shrink: 0; }
+.book-header h2 { font-family: Georgia, serif; font-weight: 400; color: var(--color-text-message); margin: 0; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.book-author { color: var(--color-text-muted); font-size: 0.85rem; font-weight: 400; }
 .progress-bar { flex-shrink: 0; }
 .viewer-container { flex: 1; overflow: auto; max-width: var(--book-max-width, 100%); margin: 0 auto; width: 100%; display: flex; justify-content: center; }
 .viewer-container :deep(.epub-container) { margin: 0 auto; }
 .viewer-container :deep(.pdf-page-wrapper) { position: relative; margin: 1rem auto; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+.viewer-container :deep(.pdf-spread) { display: flex; justify-content: center; gap: 1rem; margin: 1rem auto; }
+.viewer-container :deep(.pdf-spread .pdf-page-wrapper) { margin: 0; }
 .viewer-container :deep(.pdf-text-layer) { position: absolute; left: 0; top: 0; right: 0; bottom: 0; overflow: hidden; opacity: 0.25; line-height: 1.0; }
 .viewer-container :deep(.pdf-text-layer > span) { color: transparent; position: absolute; white-space: pre; cursor: text; }
 .page-nav { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 2rem; border-top: 1px solid var(--color-border-base); flex-shrink: 0; }

@@ -10,7 +10,7 @@ GlobalWorkerOptions.workerSrc = new URL(
 
 export interface PdfRendererOptions {
   scale?: number
-  onLocationChange?: (location: { page: number; totalPages: number; percentage: number }) => void
+  onLocationChange?: (location: { page: number; totalPages: number; percentage: number; pageEnd?: number }) => void
   onTextSelect?: (data: { text: string; x: number; y: number }) => void
 }
 
@@ -70,23 +70,26 @@ export class PdfRenderer {
     page = Math.max(1, Math.min(page, this._totalPages))
     await this.renderPage(page)
     if (this.destroyed) return
-    this._currentPage = page
     this.notifyLocationChange()
   }
 
   async prevPage(): Promise<void> {
     if (this._currentPage <= 1 || this.destroyed) return
-    await this.renderPage(this._currentPage - 1)
+    const step = this.isSpread ? 2 : 1
+    const newPage = Math.max(1, this._currentPage - step)
+    if (newPage === this._currentPage) return
+    await this.renderPage(newPage)
     if (this.destroyed) return
-    this._currentPage--
     this.notifyLocationChange()
   }
 
   async nextPage(): Promise<void> {
-    if (this._currentPage >= this._totalPages || this.destroyed) return
-    await this.renderPage(this._currentPage + 1)
     if (this.destroyed) return
-    this._currentPage++
+    const step = this.isSpread ? 2 : 1
+    const newPage = this._currentPage + step
+    if (newPage > this._totalPages) return
+    await this.renderPage(newPage)
+    if (this.destroyed) return
     this.notifyLocationChange()
   }
 
@@ -117,6 +120,17 @@ export class PdfRenderer {
     return this._totalPages
   }
 
+  private get isSpread(): boolean {
+    return (this.container.clientWidth || this.container.offsetWidth || 800) >= 900
+  }
+
+  resize(width: number, height: number): void {
+    if (this.destroyed || !this.pdfDoc || this.rendering) return
+    this.renderPage(this._currentPage).then(() => {
+      if (!this.destroyed) this.notifyLocationChange()
+    })
+  }
+
   destroy(): void {
     this.destroyed = true
     if (this.textSelectHandler) {
@@ -135,52 +149,97 @@ export class PdfRenderer {
     this.rendering = true
 
     try {
-      const page: PDFPageProxy = await this.pdfDoc.getPage(pageNum)
-      if (this.destroyed) return
+      if (this.isSpread) {
+        const leftPage = pageNum % 2 === 0 ? pageNum - 1 : pageNum
+        this._currentPage = Math.max(1, leftPage)
+        await this.renderSpread()
+      } else {
+        this._currentPage = pageNum
+        await this.renderSinglePage(pageNum)
+      }
 
-      const viewport = page.getViewport({ scale: this._scale })
-
-      // Canvas layer
-      const canvas = document.createElement('canvas')
-      canvas.width = viewport.width
-      canvas.height = viewport.height
-      const ctx = canvas.getContext('2d')!
-      await page.render({ canvasContext: ctx, viewport }).promise
-      if (this.destroyed) return
-
-      // Text layer for selection
-      const textLayerDiv = document.createElement('div')
-      textLayerDiv.className = 'pdf-text-layer'
-      textLayerDiv.style.width = viewport.width + 'px'
-      textLayerDiv.style.height = viewport.height + 'px'
-
-      const textContent = await page.getTextContent()
-      if (this.destroyed) return
-
-      const textLayer = new TextLayer({
-        textContentSource: textContent,
-        container: textLayerDiv,
-        viewport: viewport,
-      })
-      await textLayer.render()
-      if (this.destroyed) return
-
-      // Wrapper
-      const wrapper = document.createElement('div')
-      wrapper.className = 'pdf-page-wrapper'
-      wrapper.style.width = viewport.width + 'px'
-      wrapper.appendChild(canvas)
-      wrapper.appendChild(textLayerDiv)
-
-      // Clear and insert
-      this.container.innerHTML = ''
-      this.container.appendChild(wrapper)
-
-      // Scroll to top of viewer
       this.container.scrollTop = 0
     } finally {
       this.rendering = false
     }
+  }
+
+  private async renderSinglePage(pageNum: number): Promise<void> {
+    const containerWidth = this.container.clientWidth || this.container.offsetWidth
+    const maxWidth = containerWidth > 0 ? Math.max(100, containerWidth - 32) : 0
+    const wrapper = await this.createPageElement(pageNum, maxWidth)
+    if (!wrapper || this.destroyed) return
+    this.container.innerHTML = ''
+    this.container.appendChild(wrapper)
+  }
+
+  private async renderSpread(): Promise<void> {
+    const leftPage = this._currentPage
+    const rightPage = leftPage + 1
+
+    const containerWidth = this.container.clientWidth || this.container.offsetWidth
+    const maxWidth = containerWidth > 0 ? Math.max(100, (containerWidth - 16) / 2) : 0
+
+    const leftWrapper = await this.createPageElement(leftPage, maxWidth)
+    if (!leftWrapper || this.destroyed) return
+
+    let rightWrapper: HTMLElement | null = null
+    if (rightPage <= this._totalPages) {
+      rightWrapper = await this.createPageElement(rightPage, maxWidth)
+    }
+    if (this.destroyed) return
+
+    const spreadDiv = document.createElement('div')
+    spreadDiv.className = 'pdf-spread'
+    spreadDiv.appendChild(leftWrapper)
+    if (rightWrapper) spreadDiv.appendChild(rightWrapper)
+
+    this.container.innerHTML = ''
+    this.container.appendChild(spreadDiv)
+  }
+
+  private async createPageElement(pageNum: number, maxWidth: number): Promise<HTMLElement | null> {
+    if (!this.pdfDoc || this.destroyed) return null
+
+    const page: PDFPageProxy = await this.pdfDoc.getPage(pageNum)
+    if (this.destroyed) return null
+
+    const naturalViewport = page.getViewport({ scale: 1.0 })
+    const fitScale = maxWidth > 0 ? maxWidth / naturalViewport.width : 1
+    const effectiveScale = fitScale * this._scale
+
+    const viewport = page.getViewport({ scale: effectiveScale })
+
+    const canvas = document.createElement('canvas')
+    canvas.width = viewport.width
+    canvas.height = viewport.height
+    const ctx = canvas.getContext('2d')!
+    await page.render({ canvasContext: ctx, viewport }).promise
+    if (this.destroyed) return null
+
+    const textLayerDiv = document.createElement('div')
+    textLayerDiv.className = 'pdf-text-layer'
+    textLayerDiv.style.width = viewport.width + 'px'
+    textLayerDiv.style.height = viewport.height + 'px'
+
+    const textContent = await page.getTextContent()
+    if (this.destroyed) return null
+
+    const textLayer = new TextLayer({
+      textContentSource: textContent,
+      container: textLayerDiv,
+      viewport: viewport,
+    })
+    await textLayer.render()
+    if (this.destroyed) return null
+
+    const wrapper = document.createElement('div')
+    wrapper.className = 'pdf-page-wrapper'
+    wrapper.style.width = viewport.width + 'px'
+    wrapper.appendChild(canvas)
+    wrapper.appendChild(textLayerDiv)
+
+    return wrapper
   }
 
   private setupTextSelection(): void {
@@ -201,10 +260,14 @@ export class PdfRenderer {
   }
 
   private notifyLocationChange(): void {
+    const pageEnd = this.isSpread && this._currentPage + 1 <= this._totalPages
+      ? this._currentPage + 1
+      : undefined
     this.options.onLocationChange?.({
       page: this._currentPage,
       totalPages: this._totalPages,
       percentage: this._currentPage / this._totalPages,
+      pageEnd,
     })
   }
 
