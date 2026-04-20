@@ -8,7 +8,6 @@ const STORE_NAME = 'app-data'
 const TOOLS_STORE = 'saved-tools'
 const BOOKS_STORE = 'books'
 const BOOK_FILES_STORE = 'book-files'
-const BOOK_COVERS_STORE = 'book-covers'
 const TOOL_INSTANCES_STORE = 'tool-instances'
 const SESSION_CANVAS_STORE = 'session-canvas'
 const SESSION_TOOLS_STORE = 'session-tools'
@@ -68,9 +67,6 @@ export async function getDB(): Promise<IDBPDatabase> {
       // Always ensure these stores exist regardless of version
       if (!db.objectStoreNames.contains(BOOK_FILES_STORE)) {
         db.createObjectStore(BOOK_FILES_STORE)
-      }
-      if (!db.objectStoreNames.contains(BOOK_COVERS_STORE)) {
-        db.createObjectStore(BOOK_COVERS_STORE)
       }
     },
     blocked() {

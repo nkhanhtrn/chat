@@ -15,7 +15,6 @@ vi.mock('@/services/firestore/firestore-books', () => ({
   saveBookToFirestore: vi.fn().mockResolvedValue(undefined),
   deleteBookFromFirestore: vi.fn().mockResolvedValue(undefined),
   uploadBookFileToStorage: vi.fn().mockResolvedValue(undefined),
-  uploadCoverImage: vi.fn().mockResolvedValue('https://storage.example.com/cover.jpg'),
   downloadBookFileFromStorage: vi.fn().mockResolvedValue(null),
 }))
 
@@ -30,9 +29,6 @@ vi.mock('@/services/BookStorage', () => ({
     getBookFile: vi.fn().mockRejectedValue(new Error('not found')),
     saveBookFile: vi.fn().mockResolvedValue(undefined),
     deleteBookFile: vi.fn().mockResolvedValue(undefined),
-    getCoverImage: vi.fn().mockResolvedValue(null),
-    saveCoverImage: vi.fn().mockResolvedValue(undefined),
-    deleteCoverImage: vi.fn().mockResolvedValue(undefined),
   },
 }))
 

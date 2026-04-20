@@ -19,10 +19,7 @@ vi.mock('firebase/storage', () => ({
   getStorage: vi.fn().mockReturnValue({}),
   ref: vi.fn().mockReturnValue('mock-storage-ref'),
   uploadBytesResumable: vi.fn(),
-  uploadBytes: vi.fn().mockResolvedValue({}),
   getBlob: vi.fn(),
-  getDownloadURL: vi.fn().mockResolvedValue('https://storage.example.com/cover.jpg'),
-  getBytes: vi.fn(),
   deleteObject: vi.fn().mockResolvedValue(undefined),
 }))
 
@@ -83,23 +80,13 @@ describe('firestore-books', () => {
       )
     })
 
-    it('strips coverUrl from Firestore payload to avoid 1MB limit', async () => {
-      const largeBase64Cover = 'data:image/jpeg;base64,' + 'A'.repeat(2_000_000)
-      const book = makeBook({ coverUrl: largeBase64Cover })
+    it('preserves coverUrl in Firestore payload', async () => {
+      const book = makeBook({ coverUrl: 'data:image/jpeg;base64,abc123' })
 
       await saveBookToFirestore(book)
 
       const savedData = mockSetDoc.mock.calls[0][1]
-      expect(savedData.coverUrl).toBeUndefined()
-    })
-
-    it('strips coverUrl even when it is small', async () => {
-      const book = makeBook({ coverUrl: 'data:image/png;base64,abc123' })
-
-      await saveBookToFirestore(book)
-
-      const savedData = mockSetDoc.mock.calls[0][1]
-      expect(savedData.coverUrl).toBeUndefined()
+      expect(savedData.coverUrl).toBe('data:image/jpeg;base64,abc123')
     })
 
     it('preserves other fields when stripping coverUrl', async () => {
@@ -125,7 +112,6 @@ describe('firestore-books', () => {
 
     it('handles Vue reactive proxies by serializing to plain JSON', async () => {
       const book = makeBook()
-      // Simulate Vue reactive proxy behavior
       const reactiveBook = new Proxy(book, {
         get(target, prop) {
           return target[prop as keyof typeof target]
@@ -139,9 +125,8 @@ describe('firestore-books', () => {
         expect.objectContaining({ id: 'book-123', title: 'Test Book' }),
         { merge: true },
       )
-      // coverUrl should be stripped
       const savedData = mockSetDoc.mock.calls[0][1]
-      expect(savedData.coverUrl).toBeUndefined()
+      expect(savedData.coverUrl).toBe('data:image/jpeg;base64,/9j/4AAQSkZJ...')
     })
   })
 

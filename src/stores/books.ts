@@ -34,15 +34,6 @@ function compressCover(coverData: ArrayBuffer, maxSize = 400, quality = 0.7): Pr
   })
 }
 
-function arrayBufferToDataUrl(buf: ArrayBuffer, type = 'image/jpeg'): string {
-  const bytes = new Uint8Array(buf)
-  let binary = ''
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i])
-  }
-  return `data:${type};base64,${btoa(binary)}`
-}
-
 export const useBooksStore = defineStore('books', {
   state: () => ({
     books: [] as BookData[],
@@ -147,11 +138,6 @@ export const useBooksStore = defineStore('books', {
         this.books = (listData.books as BookData[]) ?? []
         this.lastCloudSyncAt = (listData.lastSyncedAt as number) ?? null
 
-        // Resolve covers from IndexedDB cache (non-blocking)
-        this.resolveCachedCovers().catch(err => {
-          console.warn('[BooksStore] Failed to resolve cached covers:', err)
-        })
-
         this.isInitialized = true
 
         debugLog(`[BooksStore] Initialized: ${this.books.length} books`)
@@ -176,11 +162,6 @@ export const useBooksStore = defineStore('books', {
 
         const index = this.books.findIndex(b => b.id === bookId)
         if (index !== -1) {
-          // Preserve in-memory coverUrl (may have been resolved from cache)
-          // if the IndexedDB version is missing it
-          if (!book.coverUrl && this.books[index].coverUrl) {
-            book.coverUrl = this.books[index].coverUrl
-          }
           this.books[index] = book
         }
 
@@ -337,10 +318,7 @@ export const useBooksStore = defineStore('books', {
       // Clean up cached cover and file
       try {
         const { BookStorage } = await import('@/services/BookStorage')
-        await Promise.all([
-          BookStorage.deleteCoverImage(bookId),
-          BookStorage.deleteBookFile(bookId),
-        ])
+        await BookStorage.deleteBookFile(bookId)
       } catch {}
     },
 
@@ -490,55 +468,5 @@ export const useBooksStore = defineStore('books', {
       this.syncConflicts = []
     },
 
-    /** Migrate old Storage-based cover URLs to base64 data URLs */
-    async resolveCachedCovers(): Promise<void> {
-      const { BookStorage } = await import('@/services/BookStorage')
-      const uid = getFirebaseAuth()?.currentUser?.uid
-      let needsFirestoreUpdate = false
-
-      for (const book of this.books) {
-        if (!book.id) continue
-
-        // Covers are now stored as base64 in Firestore — skip books that already have data URLs
-        if (book.coverUrl?.startsWith('data:')) continue
-
-        // Migration: convert old Storage URL or missing cover to base64
-        if (book.coverUrl?.startsWith('https://')) {
-          try {
-            const resp = await fetch(book.coverUrl)
-            if (resp.ok) {
-              const arrayBuf = await resp.arrayBuffer()
-              if (arrayBuf.byteLength > 100) {
-                book.coverUrl = await compressCover(arrayBuf)
-                needsFirestoreUpdate = true
-              } else {
-                book.coverUrl = ''
-              }
-            }
-          } catch {}
-        } else if (!book.coverUrl && uid) {
-          try {
-            const { getStorage, ref, getDownloadURL } = await import('firebase/storage')
-            const storage = getStorage()
-            const coverRef = ref(storage, `users/${uid}/books/${book.id}/cover.jpg`)
-            const downloadUrl = await getDownloadURL(coverRef)
-            const resp = await fetch(downloadUrl)
-            if (resp.ok) {
-              const arrayBuf = await resp.arrayBuffer()
-              if (arrayBuf.byteLength > 100) {
-                book.coverUrl = await compressCover(arrayBuf)
-                needsFirestoreUpdate = true
-              }
-            }
-          } catch {}
-        }
-
-        // Persist migrated cover back to Firestore
-        if (needsFirestoreUpdate) {
-          await saveBookToFirestore(book).catch(() => {})
-          needsFirestoreUpdate = false
-        }
-      }
-    },
   },
 })

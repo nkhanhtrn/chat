@@ -1,5 +1,5 @@
 import { getFirestore, doc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore'
-import { getStorage, ref, uploadBytesResumable, uploadBytes, getBlob, getDownloadURL, getBytes, deleteObject } from 'firebase/storage'
+import { getStorage, ref, uploadBytesResumable, getBlob, deleteObject } from 'firebase/storage'
 import { getFirebaseAuth } from '@/services/firebase'
 import type { BookData } from '@/types/book'
 
@@ -16,7 +16,6 @@ export async function saveBookToFirestore(bookData: BookData): Promise<void> {
   const bookRef = doc(db, 'users', uid, 'books', bookData.id)
 
   const serializable = JSON.parse(JSON.stringify(bookData))
-  delete serializable.coverUrl
   await setDoc(bookRef, serializable, { merge: true })
 }
 
@@ -39,7 +38,6 @@ export async function deleteBookFromFirestore(bookId: string): Promise<void> {
     await Promise.allSettled([
       deleteObject(ref(storage, `users/${uid}/books/${bookId}/book.epub`)),
       deleteObject(ref(storage, `users/${uid}/books/${bookId}/book.pdf`)),
-      deleteObject(ref(storage, `users/${uid}/books/${bookId}/cover.jpg`)),
     ])
   } catch {
     // Files may not exist in storage, that's fine
@@ -71,16 +69,6 @@ export function uploadBookFileToStorage(
       () => resolve(),
     )
   })
-}
-
-export async function uploadCoverImage(bookId: string, coverData: ArrayBuffer): Promise<string> {
-  const uid = getUid()
-  if (!uid) return ''
-
-  const storage = getStorage()
-  const coverRef = ref(storage, `users/${uid}/books/${bookId}/cover.jpg`)
-  await uploadBytes(coverRef, coverData)
-  return await getDownloadURL(coverRef)
 }
 
 export async function loadBooksFromFirestore(): Promise<BookData[]> {
