@@ -17,6 +17,7 @@ export class EpubRenderer {
   private _toc: NavItem[] = []
   private locationsReady = false
   private selectCleanup: (() => void) | null = null
+  private _destroyed = false
 
   constructor(container: HTMLElement, fileData: ArrayBuffer, options: EpubRendererOptions = {}) {
     this.container = container
@@ -93,7 +94,7 @@ export class EpubRenderer {
 
     // Detect text selection inside the EPUB iframe for context menu
     if (this.options.onTextSelect) {
-      this.rendition.on('selected', (_cfiRange: any, contents: any) => {
+      const onSelect = (_cfiRange: any, contents: any) => {
         const win = contents?.window as Window | undefined
         const doc = contents?.document as Document | undefined
         if (!win || !doc) return
@@ -107,21 +108,20 @@ export class EpubRenderer {
 
         const rect = range.getBoundingClientRect()
 
-        // Convert iframe-relative rect to main viewport coordinates
         const iframe = doc.defaultView?.frameElement as HTMLIFrameElement | null
         const iframeRect = iframe?.getBoundingClientRect()
         const x = rect.left + (iframeRect?.left ?? 0)
         const y = rect.top + (iframeRect?.top ?? 0) + rect.height
 
-        // Clamp to viewport
         const menuWidth = 220
         const vx = Math.min(x, window.innerWidth - menuWidth - 10)
         const vy = Math.min(y, window.innerHeight - 100)
 
         this.options.onTextSelect?.({ text, x: Math.max(10, vx), y: Math.max(10, vy) })
-      })
+      }
+      this.rendition.on('selected', onSelect)
       this.selectCleanup = () => {
-        this.rendition?.off('selected')
+        this.rendition?.off('selected', onSelect)
       }
     }
 
@@ -221,13 +221,14 @@ export class EpubRenderer {
   }
 
   resize(width: number | string, height: number | string): void {
-    if (!this.rendition) return
+    if (this._destroyed || !this.rendition) return
     const w = typeof width === 'number' ? width : parseInt(width, 10)
     this.rendition.spread(w >= 900 ? 'auto' : 'none')
     this.rendition.resize(width, height)
   }
 
   destroy(): void {
+    this._destroyed = true
     this.selectCleanup?.()
     this.selectCleanup = null
     this.rendition?.destroy()

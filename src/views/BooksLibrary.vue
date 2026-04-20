@@ -21,10 +21,9 @@
               <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
             </svg>
           </button>
-          <Button variant="primary" @click="triggerFilePicker" :disabled="uploading" class="add-book-btn">+ New Book</Button>
+          <Button variant="primary" @click="showAddModal = true" :disabled="uploading" class="add-book-btn">+ New Book</Button>
         </div>
-        <Button variant="primary" @click="triggerFilePicker" :disabled="uploading" class="add-book-btn mobile-only-btn">+</Button>
-        <input ref="fileInput" type="file" accept=".epub,.pdf" class="file-input" @change="handleFileSelect" />
+        <Button variant="primary" @click="showAddModal = true" :disabled="uploading" class="add-book-btn mobile-only-btn">+</Button>
       </div>
 
       <div class="search-container">
@@ -84,6 +83,13 @@
         </div>
       </div>
 
+      <BookSearchModal
+        :visible="showAddModal"
+        @close="showAddModal = false"
+        @upload="handleModalUpload"
+        @download="handleModalUpload"
+      />
+
       <!-- Inline edit modal -->
       <div v-if="isEditing" class="modal-overlay" @click.self="cancelEdit">
         <div class="modal-dialog">
@@ -111,8 +117,8 @@ import Button from '@/components/Button.vue'
 import ProgressBar from '@/components/ProgressBar.vue'
 import SlideTransition from '@/components/SlideTransition.vue'
 import { useBooksStore } from '@/stores/books'
-import { extractEpubInfo } from '@/services/epubRenderer'
-import { extractPdfInfo } from '@/services/pdfRenderer'
+import BookSearchModal from '@/components/modal/BookSearchModal.vue'
+import type { BookUploadData } from '@/components/modal/BookSearchModal.vue'
 import type { BookData } from '@/types/book'
 
 const router = useRouter()
@@ -121,7 +127,7 @@ const booksStore = useBooksStore()
 const searchQuery = ref('')
 const viewMode = ref<'grid' | 'list'>((localStorage.getItem('books-view-mode') as 'grid' | 'list') || 'grid')
 const uploading = ref(false)
-const fileInput = ref<HTMLInputElement | null>(null)
+const showAddModal = ref(false)
 
 // Edit state
 const editMenuBookId = ref<string | null>(null)
@@ -249,58 +255,18 @@ const openBook = async (book: BookData) => {
   }
 }
 
-function triggerFilePicker() {
-  fileInput.value?.click()
-}
-
-async function handleFileSelect(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  input.value = ''
-
+async function handleModalUpload(data: BookUploadData) {
   uploading.value = true
   try {
-    const arrayBuffer = await file.arrayBuffer()
-    const isPdf = file.name.toLowerCase().endsWith('.pdf')
-    const fallbackTitle = file.name.replace(/\.(epub|pdf)$/i, '')
-    let title = fallbackTitle
-    let author = ''
-    let coverData: ArrayBuffer | null = null
-    let totalPages: number | undefined
-
-    if (isPdf) {
-      try {
-        const info = await extractPdfInfo(arrayBuffer)
-        title = info.title || fallbackTitle
-        author = info.author
-        coverData = info.coverData
-        totalPages = info.totalPages
-      } catch (err) {
-        console.warn('[BooksLibrary] Failed to extract PDF info:', err)
-      }
-
-      await booksStore.addBook({
-        title, author, fileSize: file.size,
-        fileData: arrayBuffer, coverData,
-        fileType: 'pdf', totalPages,
-      })
-    } else {
-      try {
-        const info = await extractEpubInfo(arrayBuffer)
-        title = info.title || fallbackTitle
-        author = info.author
-        coverData = info.coverData
-      } catch (err) {
-        console.warn('[BooksLibrary] Failed to extract EPUB info:', err)
-      }
-
-      await booksStore.addBook({
-        title, author, fileSize: file.size,
-        fileData: arrayBuffer, coverData,
-        fileType: 'epub',
-      })
-    }
+    await booksStore.addBook({
+      title: data.title,
+      author: data.author,
+      fileSize: data.fileSize,
+      fileData: data.fileData,
+      coverData: data.coverData,
+      fileType: data.fileType,
+    })
+    showAddModal.value = false
   } catch (err) {
     console.error('[BooksLibrary] Failed to add book:', err)
     alert('Failed to add book: ' + (err as Error).message)

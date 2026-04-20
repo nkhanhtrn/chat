@@ -429,6 +429,10 @@ function zoomOut() {
 }
 
 function destroyRenderer() {
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  styleObserver?.disconnect()
+  styleObserver = null
   if (renderer) {
     renderer.destroy()
     renderer = null
@@ -437,10 +441,6 @@ function destroyRenderer() {
     pdfRenderer.destroy()
     pdfRenderer = null
   }
-  resizeObserver?.disconnect()
-  resizeObserver = null
-  styleObserver?.disconnect()
-  styleObserver = null
   toc.value = []
   activeHref.value = null
 }
@@ -483,7 +483,6 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  destroyRenderer()
 })
 
 // Keyboard navigation
@@ -503,6 +502,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  destroyRenderer()
   window.removeEventListener('keydown', handleKeydown)
 })
 </script>

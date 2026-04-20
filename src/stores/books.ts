@@ -509,7 +509,7 @@ export const useBooksStore = defineStore('books', {
             if (resp.ok) {
               const arrayBuf = await resp.arrayBuffer()
               if (arrayBuf.byteLength > 100) {
-                book.coverUrl = arrayBufferToDataUrl(arrayBuf)
+                book.coverUrl = await compressCover(arrayBuf)
                 needsFirestoreUpdate = true
               } else {
                 book.coverUrl = ''
@@ -517,7 +517,6 @@ export const useBooksStore = defineStore('books', {
             }
           } catch {}
         } else if (!book.coverUrl && uid) {
-          // CoverUrl was stripped by old code — try Storage path
           try {
             const { getStorage, ref, getDownloadURL } = await import('firebase/storage')
             const storage = getStorage()
@@ -527,7 +526,7 @@ export const useBooksStore = defineStore('books', {
             if (resp.ok) {
               const arrayBuf = await resp.arrayBuffer()
               if (arrayBuf.byteLength > 100) {
-                book.coverUrl = arrayBufferToDataUrl(arrayBuf)
+                book.coverUrl = await compressCover(arrayBuf)
                 needsFirestoreUpdate = true
               }
             }
