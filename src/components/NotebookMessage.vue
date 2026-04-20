@@ -52,6 +52,7 @@
       @remove="handleRemoveContent"
       @note="handleNote"
       @highlight="handleHighlight"
+      @summary="handleSummary"
     />
 
     <QuestionSearchModal
@@ -88,7 +89,7 @@ import QuestionSearchModal from './modal/QuestionSearchModal.vue'
 import DictionaryModal from './modal/DictionaryModal.vue'
 import lmService, { Category } from '@/services/llm/LMService'
 import { Message } from '@/models/Message'
-import { getMainPrompts, getDictionaryPrompts, getQuickExplainPrompts } from '@/services/extraPrompt'
+import { getMainPrompts, getDictionaryPrompts, getQuickExplainPrompts, getSummaryPrompts } from '@/services/extraPrompt'
 import { getSelectedTextAndPosition } from '@/services/DOMSelectionHelper'
 import { usePopupState } from '@/composables/usePopupState'
 import { useHighlights } from '@/composables/useHighlights'
@@ -444,6 +445,64 @@ async function handleDictionary() {
         appendToDefinition(vocabId, chunk)
       }
     )
+  } catch (err: any) {
+    error.value = err.message
+  } finally {
+    isDictionaryStreaming.value = false
+  }
+}
+
+async function handleSummary() {
+  const { selectedText, startOffset, endOffset, highlightId } = popup.state
+  if (!selectedText || startOffset === undefined || endOffset === undefined) return
+
+  closePopup()
+
+  isDictionaryStreaming.value = true
+  error.value = null
+
+  const previousMessages = buildConversationChain(treeStore.messagesById, currentMessage.value?.id)
+
+  dictionaryTitle.value = 'Summary'
+  dictionaryWord.value = selectedText
+  dictionaryDefinition.value = ''
+  dictionarySaveContext.value = {
+    selectedText,
+    startOffset,
+    endOffset,
+    parentId: currentMessage.value.id,
+    existingContentId: highlightId ?? undefined,
+  }
+  dictionaryEditMode.value = false
+  showDictionaryModal.value = true
+
+  let fullResponse = ''
+  try {
+    const messages = getSummaryPrompts(selectedText, previousMessages)
+    await lmService.sendByCategory(
+      Category.QUICK,
+      messages,
+      (chunk: string) => {
+        fullResponse += chunk
+        dictionaryDefinition.value = fullResponse
+      }
+    )
+    if (fullResponse) {
+      if (highlightId) {
+        highlights.updateContent(highlightId, {
+          hasNote: true,
+          noteContent: fullResponse,
+        } as any)
+      } else {
+        highlights.addNote({
+          text: selectedText,
+          startOffset,
+          endOffset,
+          noteContent: fullResponse,
+          colorIndex: selectionColorIndex.value,
+        })
+      }
+    }
   } catch (err: any) {
     error.value = err.message
   } finally {

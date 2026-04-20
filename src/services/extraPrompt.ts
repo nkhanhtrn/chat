@@ -38,3 +38,10 @@ export function getQuickExplainPrompts(text: string, _previousMessages: Array<Re
 export function getDictionaryPrompts(word: string, _previousMessages: Array<Record<string, unknown>> = []): Array<Record<string, unknown>> {
   return [{ role: 'user', content: `Define the word: ${word}` }]
 }
+
+export function getSummaryPrompts(text: string, _previousMessages: Array<Record<string, unknown>> = []): Array<Record<string, unknown>> {
+  return [
+    { role: 'system', content: 'You are a study assistant. Summarize the given text concisely, capturing the key points. Use markdown formatting.' },
+    { role: 'user', content: `Summarize the following text:\n\n${text}` }
+  ]
+}

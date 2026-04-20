@@ -27,6 +27,7 @@
         <div class="context-menu-row">
           <button class="context-menu-btn" @click="onDictionary" :disabled="isStreaming">Dictionary</button>
           <button class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming">Explain</button>
+          <button class="context-menu-btn" @click="onSummary" :disabled="isStreaming">Summary</button>
         </div>
         <div class="context-menu-row prompt-row">
           <PromptInput
@@ -76,8 +77,8 @@ const emit = defineEmits<{
   remove: []
   note: []
   highlight: []
+  summary: []
 }>()
-
 const hasExistingItem = computed(() => !!props.highlightId)
 const selectedColorIndex = ref(0)
 
@@ -99,6 +100,7 @@ function onCtrlEnterCustomPrompt(text: string) { emit('custom-prompt-deep-dive',
 function onRemove() { emit('remove') }
 function onNote() { emit('note') }
 function onHighlight() { emit('highlight') }
+function onSummary() { emit('summary') }
 
 async function onCopy() {
   if (props.highlightedText) { try { await navigator.clipboard.writeText(props.highlightedText); emit('close') } catch (err) { console.error('Failed to copy:', err) } }

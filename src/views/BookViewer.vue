@@ -53,6 +53,7 @@
       @close="contextMenu.visible = false"
       @dictionary="handleDictionary"
       @ask-question="handleExplain"
+      @summary="handleSummary"
       @custom-prompt="handleCustomPrompt"
       @custom-prompt-deep-dive="handleCustomPromptDeepDive"
     />
@@ -79,7 +80,7 @@ import { EpubRenderer } from '@/services/epubRenderer'
 import { PdfRenderer } from '@/services/pdfRenderer'
 import { Settings } from '@/services/settings'
 import lmService, { Category } from '@/services/llm/LMService'
-import { getDictionaryPrompts, getQuickExplainPrompts, getMainPrompts } from '@/services/extraPrompt'
+import { getDictionaryPrompts, getQuickExplainPrompts, getMainPrompts, getSummaryPrompts } from '@/services/extraPrompt'
 import type { BookData, TocItem } from '@/types/book'
 
 const route = useRoute()
@@ -143,6 +144,29 @@ async function handleExplain(text: string) {
   } catch (err) {
     console.error('[BookViewer] Explain failed:', err)
     if (!dictionary.definition) dictionary.definition = 'Failed to get explanation.'
+  } finally {
+    dictionary.streaming = false
+  }
+}
+
+async function handleSummary() {
+  contextMenu.visible = false
+  const text = contextMenu.text
+  if (!text) return
+
+  dictionary.word = text
+  dictionary.definition = ''
+  dictionary.streaming = true
+  dictionary.show = true
+
+  try {
+    const messages = getSummaryPrompts(text)
+    await lmService.sendByCategory(Category.QUICK, messages, (chunk: string) => {
+      dictionary.definition += chunk
+    })
+  } catch (err) {
+    console.error('[BookViewer] Summary failed:', err)
+    if (!dictionary.definition) dictionary.definition = 'Failed to generate summary.'
   } finally {
     dictionary.streaming = false
   }

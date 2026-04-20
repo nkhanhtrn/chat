@@ -189,6 +189,15 @@ describe('ContextMenu', () => {
       expect(w.emitted('dictionary')).toHaveLength(1)
     })
 
+    it('emits summary when Summary is clicked', async () => {
+      const w = mountMenu({ highlightedText: 'summarize this' })
+      const buttons = getBody().querySelectorAll('.context-menu-btn')
+      const btn = Array.from(buttons).find(b => b.textContent === 'Summary')!
+      btn.click()
+      await nextTick()
+      expect(w.emitted('summary')).toHaveLength(1)
+    })
+
     it('emits link-to-question when Link to Question is clicked', async () => {
       const w = mountMenu()
       const buttons = getBody().querySelectorAll('.context-menu-btn')
@@ -220,6 +229,13 @@ describe('ContextMenu', () => {
       const btn = Array.from(buttons).find(b => b.textContent === 'Explain')!
       expect(btn.hasAttribute('disabled')).toBe(true)
     })
+
+    it('disables Summary when isStreaming is true', () => {
+      mountMenu({ isStreaming: true })
+      const buttons = getBody().querySelectorAll('.context-menu-btn')
+      const btn = Array.from(buttons).find(b => b.textContent === 'Summary')!
+      expect(btn.hasAttribute('disabled')).toBe(true)
+    })
   })
 
   describe('note button label', () => {
@@ -246,10 +262,10 @@ describe('ContextMenu', () => {
   })
 
   describe('readOnly mode', () => {
-    it('shows Copy, Dictionary, and Explain in readOnly mode', () => {
+    it('shows Copy, Dictionary, Explain, and Summary in readOnly mode', () => {
       mountMenu({ readOnly: true })
       const buttons = Array.from(getBody().querySelectorAll('.context-menu-btn')).map(b => b.textContent)
-      expect(buttons).toEqual(['Copy', 'Dictionary', 'Explain'])
+      expect(buttons).toEqual(['Copy', 'Dictionary', 'Explain', 'Summary'])
     })
 
     it('does not show Highlight or Note in readOnly mode', () => {
