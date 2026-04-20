@@ -121,6 +121,7 @@
                   <div class="book-info">
                     <h3 class="book-title" :title="book.title">{{ book.title }}</h3>
                     <p class="book-author">{{ book.author }}</p>
+                    <p v-if="book.fileSize" class="book-size">{{ book.fileSize }}</p>
                   </div>
                 </div>
               </div>
@@ -707,6 +708,13 @@ function onClose() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.book-result-card .book-size {
+  margin: 0;
+  font-size: 0.55rem;
+  color: var(--color-text-muted, #999);
+  opacity: 0.8;
 }
 
 .format-badge {

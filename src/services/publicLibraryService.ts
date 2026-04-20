@@ -16,6 +16,7 @@ export interface BookSearchResult {
   detailUrl: string | null
   format: string
   source: string
+  fileSize?: string
 }
 
 export interface DownloadLink {
@@ -214,6 +215,9 @@ function parseSearchResults(html: string, baseUrl: string): BookSearchResult[] {
       }
     }
 
+    const sizeMatch = cardText.match(/(\d+\.?\d*)\s*(MB|KB|GB)/i)
+    const fileSize = sizeMatch ? `${sizeMatch[1]} ${sizeMatch[2]}` : undefined
+
     if (format && detailUrl) {
       results.push({
         id: `public-library-${index}`,
@@ -223,6 +227,7 @@ function parseSearchResults(html: string, baseUrl: string): BookSearchResult[] {
         detailUrl,
         format,
         source: 'public-library',
+        fileSize,
       })
     }
   })
@@ -248,6 +253,8 @@ function parseSearchResults(html: string, baseUrl: string): BookSearchResult[] {
       if (!fallbackTitle || fallbackTitle.length < 2) continue
 
       const fallbackCoverUrl = parent.querySelector('img')?.src || null
+      const fallbackSizeMatch = parentText.match(/(\d+\.?\d*)\s*(MB|KB|GB)/i)
+      const fallbackFileSize = fallbackSizeMatch ? `${fallbackSizeMatch[1]} ${fallbackSizeMatch[2]}` : undefined
 
       results.push({
         id: `public-library-${fallbackIndex++}`,
@@ -257,6 +264,7 @@ function parseSearchResults(html: string, baseUrl: string): BookSearchResult[] {
         detailUrl: `${baseUrl}${href}`,
         format: fallbackFormat,
         source: 'public-library',
+        fileSize: fallbackFileSize,
       })
 
       if (results.length >= 20) break
