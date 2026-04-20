@@ -172,6 +172,8 @@ function parseSearchResults(html: string, baseUrl: string): BookSearchResult[] {
 
     const cardText = card?.textContent || ''
     const hasEpub = /EPUB/i.test(cardText)
+    const hasPdf = /PDF/i.test(cardText)
+    const format = hasEpub ? 'EPUB' : hasPdf ? 'PDF' : null
 
     let author = 'Unknown'
 
@@ -212,14 +214,14 @@ function parseSearchResults(html: string, baseUrl: string): BookSearchResult[] {
       }
     }
 
-    if (hasEpub && detailUrl) {
+    if (format && detailUrl) {
       results.push({
         id: `public-library-${index}`,
         title,
         author,
         coverUrl,
         detailUrl,
-        format: 'EPUB',
+        format,
         source: 'public-library',
       })
     }
@@ -237,7 +239,10 @@ function parseSearchResults(html: string, baseUrl: string): BookSearchResult[] {
       if (!parent) continue
 
       const parentText = parent.textContent || ''
-      if (!/EPUB/i.test(parentText)) continue
+      const hasEpub = /EPUB/i.test(parentText)
+      const hasPdf = /PDF/i.test(parentText)
+      if (!hasEpub && !hasPdf) continue
+      const fallbackFormat = hasEpub ? 'EPUB' : 'PDF'
 
       const fallbackTitle = cleanText(link.textContent || parent.querySelector('h1, h2, h3, h4')?.textContent)
       if (!fallbackTitle || fallbackTitle.length < 2) continue
@@ -250,7 +255,7 @@ function parseSearchResults(html: string, baseUrl: string): BookSearchResult[] {
         author: 'Unknown',
         coverUrl: fallbackCoverUrl,
         detailUrl: `${baseUrl}${href}`,
-        format: 'EPUB',
+        format: fallbackFormat,
         source: 'public-library',
       })
 

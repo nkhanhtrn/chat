@@ -69,9 +69,28 @@
             </div>
 
             <template v-else>
-              <div class="results-info">
-                <span class="results-count">{{ results.length }} books found</span>
-                <span class="page-info">Page {{ currentPage }} of {{ totalPages }}</span>
+              <div class="results-header">
+                <div class="results-info">
+                  <span class="results-count">{{ formatFilteredResults.length }} books found</span>
+                  <span class="page-info">Page {{ currentPage }} of {{ totalPages }}</span>
+                </div>
+                <div class="format-filter">
+                  <button
+                    class="format-filter-btn"
+                    :class="{ active: formatFilter === 'all' }"
+                    @click="formatFilter = 'all'"
+                  >All</button>
+                  <button
+                    class="format-filter-btn epub"
+                    :class="{ active: formatFilter === 'EPUB' }"
+                    @click="formatFilter = 'EPUB'"
+                  >EPUB</button>
+                  <button
+                    class="format-filter-btn pdf"
+                    :class="{ active: formatFilter === 'PDF' }"
+                    @click="formatFilter = 'PDF'"
+                  >PDF</button>
+                </div>
               </div>
 
               <div class="results-grid">
@@ -90,6 +109,8 @@
                       @error="handleCoverError($event)"
                     >
                     <div v-else class="cover-placeholder">📖</div>
+
+                    <span class="format-badge" :class="book.format.toLowerCase()">{{ book.format }}</span>
 
                     <div v-if="downloadingBookId === book.id" class="download-overlay">
                       <div class="spinner"></div>
@@ -252,12 +273,18 @@ const downloadError = ref<string | null>(null)
 
 const currentPage = ref(1)
 const itemsPerPage = 4
+const formatFilter = ref<'all' | 'EPUB' | 'PDF'>('all')
 
-const totalPages = computed(() => Math.ceil(results.value.length / itemsPerPage))
+const formatFilteredResults = computed(() => {
+  if (formatFilter.value === 'all') return results.value
+  return results.value.filter(b => b.format === formatFilter.value)
+})
+
+const totalPages = computed(() => Math.ceil(formatFilteredResults.value.length / itemsPerPage))
 
 const paginatedResults = computed(() => {
   const start = (currentPage.value - 1) * itemsPerPage
-  return results.value.slice(start, start + itemsPerPage)
+  return formatFilteredResults.value.slice(start, start + itemsPerPage)
 })
 
 const visiblePages = computed(() => {
@@ -274,6 +301,10 @@ const visiblePages = computed(() => {
   return pages
 })
 
+watch(formatFilter, () => {
+  currentPage.value = 1
+})
+
 watch(() => props.visible, (isVisible) => {
   if (!isVisible) {
     searchQuery.value = ''
@@ -281,6 +312,7 @@ watch(() => props.visible, (isVisible) => {
     results.value = []
     searchError.value = null
     currentPage.value = 1
+    formatFilter.value = 'all'
 
     downloadingBookId.value = null
     downloadProgress.value = 0
@@ -446,7 +478,7 @@ async function handleDownload(book: BookSearchResult) {
       coverData,
       fileData: arrayBuffer,
       fileSize: arrayBuffer.byteLength,
-      fileType: 'epub',
+      fileType: book.format.toLowerCase() as 'epub' | 'pdf',
     })
 
     setTimeout(() => {
@@ -573,13 +605,10 @@ function onClose() {
   opacity: 0.7;
 }
 
-.results-info {
+.results-header .results-info {
   display: flex;
-  justify-content: space-between;
+  gap: 0.75rem;
   align-items: center;
-  padding: 0.25rem 0;
-  margin-top: 0.5rem;
-  margin-bottom: 0.5rem;
   font-size: 0.75rem;
   color: var(--color-text-muted, #999);
 }
@@ -678,6 +707,79 @@ function onClose() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.format-badge {
+  position: absolute;
+  top: 0.25rem;
+  left: 0.25rem;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  border-radius: 3px;
+  color: #fff;
+  z-index: 2;
+  text-transform: uppercase;
+  line-height: 1.4;
+}
+
+.format-badge.epub {
+  background: #6366f1;
+}
+
+.format-badge.pdf {
+  background: #ef4444;
+}
+
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.25rem 0;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.format-filter {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.format-filter-btn {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--color-border-base, #ddd);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-muted, #999);
+  font-size: 0.7rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.format-filter-btn:hover {
+  border-color: var(--color-border-accent, #6366f1);
+  color: var(--color-text-base, #333);
+}
+
+.format-filter-btn.active {
+  border-color: var(--color-primary, #6366f1);
+  color: var(--color-primary, #6366f1);
+  background: var(--color-primary-subtle, rgba(99, 102, 241, 0.1));
+}
+
+.format-filter-btn.epub.active {
+  border-color: #6366f1;
+  color: #6366f1;
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.format-filter-btn.pdf.active {
+  border-color: #ef4444;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
 }
 
 .pagination-footer {

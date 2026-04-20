@@ -28,6 +28,11 @@
 
       <div class="search-container">
         <input v-model="searchQuery" type="text" class="search-input" placeholder="Search books by title or author..." />
+        <div class="format-filter">
+          <button class="format-filter-btn" :class="{ active: fileTypeFilter === 'all' }" @click="fileTypeFilter = 'all'">All</button>
+          <button class="format-filter-btn epub" :class="{ active: fileTypeFilter === 'epub' }" @click="fileTypeFilter = 'epub'">EPUB</button>
+          <button class="format-filter-btn pdf" :class="{ active: fileTypeFilter === 'pdf' }" @click="fileTypeFilter = 'pdf'">PDF</button>
+        </div>
       </div>
 
       <SlideTransition appear direction="vertical">
@@ -42,6 +47,7 @@
               <div class="book-cover">
                 <img v-if="book.coverUrl" :src="book.coverUrl" :alt="book.title">
                 <img v-else :src="getDefaultCover(book.title, book.author)" :alt="book.title" class="default-cover">
+                <span class="format-badge" :class="book.fileType || 'epub'">{{ (book.fileType || 'epub').toUpperCase() }}</span>
                 <div v-if="booksStore.isBookUploading(book.id)" class="upload-overlay">
                   <ProgressBar :progress="Math.round(booksStore.getUploadProgress(book.id) * 100)" />
                 </div>
@@ -125,6 +131,7 @@ const router = useRouter()
 const booksStore = useBooksStore()
 
 const searchQuery = ref('')
+const fileTypeFilter = ref<'all' | 'epub' | 'pdf'>('all')
 const viewMode = ref<'grid' | 'list'>((localStorage.getItem('books-view-mode') as 'grid' | 'list') || 'grid')
 const uploading = ref(false)
 const showAddModal = ref(false)
@@ -141,6 +148,9 @@ const editTitleInput = ref<HTMLInputElement | null>(null)
 const filteredBooks = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
   let books = [...booksStore.books]
+  if (fileTypeFilter.value !== 'all') {
+    books = books.filter(b => (b.fileType || 'epub') === fileTypeFilter.value)
+  }
   if (query) {
     const words = query.split(/\s+/).filter(Boolean)
     books = books.filter(b => {
@@ -354,7 +364,17 @@ onMounted(() => {
 .view-icon { width: 18px; height: 18px; }
 .file-input { display: none; }
 
-.search-container { max-width: 1200px; margin: 0 auto 1.5rem; padding: 0 2rem; }
+.search-container { max-width: 1200px; margin: 0 auto 1.5rem; padding: 0 2rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.format-filter { display: flex; gap: 0.25rem; }
+.format-filter-btn {
+  padding: 0.25rem 0.75rem; border: 1px solid var(--color-border-base); border-radius: 6px;
+  background: transparent; color: var(--color-text-muted); font-size: 0.8rem; font-weight: 500;
+  cursor: pointer; transition: all 0.15s ease; font-family: system-ui, -apple-system, sans-serif;
+}
+.format-filter-btn:hover { border-color: var(--color-border-accent); color: var(--color-text-base); }
+.format-filter-btn.active { border-color: var(--color-primary); color: var(--color-primary); background: var(--color-primary-subtle, rgba(99, 102, 241, 0.1)); }
+.format-filter-btn.epub.active { border-color: #6366f1; color: #6366f1; background: rgba(99, 102, 241, 0.1); }
+.format-filter-btn.pdf.active { border-color: #ef4444; color: #ef4444; background: rgba(239, 68, 68, 0.1); }
 .search-input {
   width: 100%; padding: 0.75rem 1rem; font-size: 1rem;
   background-color: var(--color-bg-page); border: 1px solid var(--color-border-base);
@@ -378,6 +398,7 @@ onMounted(() => {
 .books-list .book-cover { width: 80px; height: 120px; flex-shrink: 0; }
 .books-list .book-title { font-size: 1rem; }
 .books-list .book-card:hover { transform: none; }
+.books-list .format-badge { font-size: 0.5rem; padding: 0.05rem 0.3rem; }
 
 /* Book card */
 .book-card {
@@ -389,8 +410,18 @@ onMounted(() => {
 .book-cover {
   width: 100%; aspect-ratio: 2/3; background: var(--color-bg-hover);
   display: flex; align-items: center; justify-content: center; overflow: hidden;
+  position: relative;
 }
 .book-cover img { width: 100%; height: 100%; object-fit: cover; }
+
+.format-badge {
+  position: absolute; top: 0.35rem; left: 0.35rem;
+  padding: 0.1rem 0.4rem; font-size: 0.6rem; font-weight: 700;
+  letter-spacing: 0.03em; border-radius: 3px; color: #fff;
+  z-index: 2; text-transform: uppercase; line-height: 1.4;
+}
+.format-badge.epub { background: #6366f1; }
+.format-badge.pdf { background: #ef4444; }
 
 .book-info { padding: 1rem; flex: 1; display: flex; flex-direction: column; }
 .book-title {
@@ -484,5 +515,6 @@ onMounted(() => {
   .search-container { padding: 0 1rem; margin-bottom: 1rem; }
   .books-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 1.25rem; padding: 0 1rem 1rem; }
   .books-list { grid-template-columns: 1fr; padding: 0 1rem 1rem; }
+  .format-badge { font-size: 0.5rem; padding: 0.05rem 0.3rem; }
 }
 </style>

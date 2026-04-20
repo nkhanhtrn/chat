@@ -106,9 +106,25 @@ describe('publicLibraryService', () => {
       expect(results[1].title).toBe('Test Book Two')
     })
 
-    it('skips results without EPUB format', async () => {
+    it('includes PDF-only results with PDF format', async () => {
       const html = makeSearchHtml([
         { title: 'PDF Only', href: '/md5/pdf1', format: 'PDF' },
+      ])
+
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        headers: { get: () => 'text/html' },
+        text: () => Promise.resolve(html),
+      })
+
+      const results = await searchBooks('test')
+      expect(results).toHaveLength(1)
+      expect(results[0].format).toBe('PDF')
+    })
+
+    it('skips results with no recognized format', async () => {
+      const html = makeSearchHtml([
+        { title: 'MOBI Only', href: '/md5/mobi1', format: 'MOBI' },
       ])
 
       globalThis.fetch = vi.fn().mockResolvedValue({
@@ -188,6 +204,45 @@ describe('publicLibraryService', () => {
       await expect(searchBooks('test')).rejects.toThrow()
     })
 
+    it('prefers EPUB format when both EPUB and PDF are present', async () => {
+      const html = `<html><body>
+        <div class="book-card">
+          <a href="/md5/dual1">Dual Format Book</a>
+          <span>EPUB 2.1 MB</span>
+          <span>PDF 5.3 MB</span>
+        </div>
+      </body></html>`
+
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        headers: { get: () => 'text/html' },
+        text: () => Promise.resolve(html),
+      })
+
+      const results = await searchBooks('test')
+      expect(results).toHaveLength(1)
+      expect(results[0].format).toBe('EPUB')
+    })
+
+    it('detects PDF format in search results', async () => {
+      const html = `<html><body>
+        <div class="book-card">
+          <a href="/md5/pdf1">PDF Book</a>
+          <span>PDF 3.2 MB</span>
+        </div>
+      </body></html>`
+
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        headers: { get: () => 'text/html' },
+        text: () => Promise.resolve(html),
+      })
+
+      const results = await searchBooks('test')
+      expect(results).toHaveLength(1)
+      expect(results[0].format).toBe('PDF')
+    })
+
     it('uses fallback parser when no div-wrapped results found', async () => {
       const html = `<html><body>
         <p><a href="/md5/fallback1">Fallback Book</a> EPUB 2.1 MB</p>
@@ -203,6 +258,23 @@ describe('publicLibraryService', () => {
       expect(results).toHaveLength(1)
       expect(results[0].title).toBe('Fallback Book')
       expect(results[0].author).toBe('Unknown')
+    })
+
+    it('fallback parser detects PDF format', async () => {
+      const html = `<html><body>
+        <p><a href="/md5/fallbackpdf">Fallback PDF Book</a> PDF 4.5 MB</p>
+      </body></html>`
+
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        headers: { get: () => 'text/html' },
+        text: () => Promise.resolve(html),
+      })
+
+      const results = await searchBooks('test')
+      expect(results).toHaveLength(1)
+      expect(results[0].title).toBe('Fallback PDF Book')
+      expect(results[0].format).toBe('PDF')
     })
   })
 })
