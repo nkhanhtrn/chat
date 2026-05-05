@@ -125,6 +125,14 @@ onMounted(async () => {
     } else {
       router.push({ name: 'home' })
     }
+  } else if (notebookId && treeStore.messagesById && Object.keys(treeStore.messagesById).length === 0) {
+    await notebookStore.switchToChat(notebookId)
+    if (questionId) {
+      showingOverview.value = false
+      if (!navigateToQuestion(questionId)) router.replace({ name: 'current-content', params: { type: 'notebook', id: notebookId } })
+    } else if (treeStore.rootMessageIds.length > 0) {
+      showingOverview.value = true
+    }
   }
 })
 
