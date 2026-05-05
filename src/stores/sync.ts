@@ -6,6 +6,9 @@ import { useVocabStore } from './vocab'
 import { debugLog } from '@/utils/debug'
 import type { SyncStatus } from '@/types/sync'
 
+let _firestoreSyncTimer: ReturnType<typeof setTimeout> | null = null
+const FIRESTORE_SYNC_DEBOUNCE_MS = 3000
+
 export const useSyncStore = defineStore('sync', {
   state: () => ({
     isSyncing: false,
@@ -122,6 +125,18 @@ export const useSyncStore = defineStore('sync', {
     /** Set loading-from-storage flag (prevents save loops during init) */
     setLoadingFromStorage(loading: boolean): void {
       this._isLoadingFromStorage = loading
+    },
+
+    scheduleFirestoreSync(): void {
+      if (!navigator.onLine) return
+      if (_firestoreSyncTimer) clearTimeout(_firestoreSyncTimer)
+      _firestoreSyncTimer = setTimeout(async () => {
+        try {
+          await this.syncToFirestore({ events: {} }, {})
+        } catch (error) {
+          console.error('[Sync] Debounced Firestore sync failed:', error)
+        }
+      }, FIRESTORE_SYNC_DEBOUNCE_MS)
     },
 
     clearSyncStatus(): void {

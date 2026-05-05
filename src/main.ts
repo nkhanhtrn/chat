@@ -120,6 +120,7 @@ const initializeApp = async () => {
     if (syncStore._isLoadingFromStorage) return
     try {
       await syncStore.persistChatList()
+      syncStore.scheduleFirestoreSync()
     } catch (error) {
       console.error('[Main] Notebook persistence failed:', error)
     }
@@ -130,6 +131,7 @@ const initializeApp = async () => {
     if (syncStore._isLoadingFromStorage) return
     try {
       await syncStore.persistChatMessages()
+      syncStore.scheduleFirestoreSync()
     } catch (error) {
       console.error('[Main] Message persistence failed:', error)
     }
@@ -140,6 +142,7 @@ const initializeApp = async () => {
     if (syncStore._isLoadingFromStorage) return
     try {
       await syncStore.persistChatList()
+      syncStore.scheduleFirestoreSync()
     } catch (error) {
       console.error('[Main] Vocab persistence failed:', error)
     }
