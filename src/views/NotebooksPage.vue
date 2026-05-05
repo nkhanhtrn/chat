@@ -80,6 +80,7 @@ const deleteNotebook = (id: string) => {
 .side-playground-wrapper { height: 100%; }
 .homepage { height: 100%; overflow-y: auto; background-color: var(--color-bg-base); padding: 2rem; }
 .homepage-header { display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto 2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--color-border-base); }
+.header-actions { display: flex; gap: 0.5rem; align-items: center; }
 .homepage-header h1 { font-family: Georgia, serif; font-size: 2rem; font-weight: 400; color: var(--color-text-message); margin: 0; }
 .search-container { max-width: 1200px; margin: 0 auto 1.5rem; }
 .search-input { width: 100%; padding: 0.75rem 1rem; font-size: 1rem; background: var(--color-bg-page); border: 1px solid var(--color-border-base); border-radius: 8px; color: var(--color-text-message); }

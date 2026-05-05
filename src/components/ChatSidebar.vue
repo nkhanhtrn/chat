@@ -6,8 +6,11 @@
       </div>
     </div>
     <div class="chat-list">
-      <div v-if="currentNotebook" class="overview-header-item" @click="navigateToNotebookOverview">
-        <span>{{ currentNotebook.title }}</span>
+      <div class="chat-list-header">
+        <div v-if="currentNotebook" class="overview-header-item" @click="navigateToNotebookOverview">
+          <span>{{ currentNotebook.title }}</span>
+        </div>
+        <button class="sort-btn" :class="{ asc: sortDir === 'asc', desc: sortDir === 'desc' }" @click="toggleSort" title="Sort">⇅</button>
       </div>
       <template v-if="searchQuery.trim()">
         <div v-if="searchResults.length > 0" class="search-results-list">
@@ -34,7 +37,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, toRef } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import QuestionTree from './QuestionTree.vue'
 import { useNotebookStore } from '@/stores/notebook'
@@ -60,6 +63,24 @@ const router = useRouter()
 const notebookStore = useNotebookStore()
 const treeStore = useMessageTreeStore()
 const searchQuery = ref('')
+const sortDir = ref<'none' | 'asc' | 'desc'>('none')
+
+const sortRootMessages = (dir: 'asc' | 'desc') => {
+  const sorted = [...treeStore.rootMessageIds].sort((a, b) => {
+    const ma = treeStore.getMessageById(a)
+    const mb = treeStore.getMessageById(b)
+    const ta = ma?.questionSummarized || ma?.question || ''
+    const tb = mb?.questionSummarized || mb?.question || ''
+    return dir === 'asc' ? ta.localeCompare(tb) : tb.localeCompare(ta)
+  })
+  treeStore.setRootMessageIds(sorted)
+  notebookStore.syncCurrentChat()
+}
+
+const toggleSort = () => {
+  sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
+  sortRootMessages(sortDir.value)
+}
 
 const currentNotebook = computed(() => props.chats.find(c => c.id === props.currentChatId))
 
@@ -93,7 +114,6 @@ const searchResults = computed(() => {
       results.push({ id, question: rm.question as string, questionSummarized: rm.questionSummarized as string | null })
     }
 
-    // Search children
     const msg = treeStore.getMessageById(id)
     if (msg?.childIds?.length) {
       for (const cid of msg.childIds) {
@@ -168,8 +188,14 @@ function navigateToNotebookOverview() {
 .chat-sidebar { width: 100%; height: 100%; background-color: var(--color-bg-base); display: flex; flex-direction: column; overflow: hidden; font-family: system-ui, -apple-system, sans-serif; }
 .sidebar-header { padding: 1rem; border-bottom: 1px solid var(--color-border-subtle); }
 
+.chat-list-header { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.75rem 0.25rem; }
+.sort-btn { padding: 0.15rem 0.5rem; font-size: 0.7rem; font-weight: 600; background: var(--color-bg-page); border: 1px solid var(--color-border-subtle); border-radius: 4px; color: var(--color-text-muted); cursor: pointer; transition: all 0.15s; flex-shrink: 0; }
+.sort-btn:hover { background: var(--color-bg-hover); }
+.sort-btn.asc, .sort-btn.desc { color: var(--color-border-accent); border-color: var(--color-border-accent); }
+.sort-btn.desc { transform: rotate(180deg); }
+
 /* Overview header item */
-.overview-header-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; margin-bottom: 0.25rem; cursor: pointer; border-radius: 4px; transition: background-color 0.15s; }
+.overview-header-item { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; border-radius: 4px; transition: background-color 0.15s; min-width: 0; }
 .overview-header-item:hover { background-color: var(--color-bg-hover); }
 .overview-header-item span { font-size: 0.9rem; font-weight: 600; color: var(--color-text-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
