@@ -114,22 +114,16 @@ onMounted(async () => {
   const notebookId = effectiveNotebookId.value
   const questionId = effectiveQuestionId.value
 
-  if (notebookId) {
+  if (notebookId && notebookStore.currentChatId !== notebookId) {
     const exists = notebookStore.chats.some(c => c.id === notebookId)
-    if (!exists) {
-      router.push({ name: 'home' })
-      return
-    }
-
-    if (notebookStore.currentChatId !== notebookId || Object.keys(treeStore.messagesById).length === 0) {
+    if (exists) {
       await notebookStore.switchToChat(notebookId)
-    }
-
-    if (questionId) {
-      showingOverview.value = false
-      if (!navigateToQuestion(questionId)) router.replace({ name: 'current-content', params: { type: 'notebook', id: notebookId } })
-    } else if (treeStore.rootMessageIds.length > 0) {
-      showingOverview.value = true
+      if (questionId) {
+        showingOverview.value = false
+        if (!navigateToQuestion(questionId)) router.replace({ name: 'current-content', params: { type: 'notebook', id: notebookId } })
+      } else if (treeStore.rootMessageIds.length > 0) showingOverview.value = true
+    } else {
+      router.push({ name: 'home' })
     }
   }
 })
