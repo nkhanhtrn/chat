@@ -47,25 +47,10 @@ export const useNotebookStore = defineStore('notebook', {
             rootIndex: chat.rootMessageIds.indexOf(msg.id),
           }))
 
-        if (chat.messageCount === undefined) {
-          const countWithChildren = (messageId: string): number => {
-            const m = treeStore.messagesById[messageId]
-            if (!m) return 1
-            let count = 1
-            if (m.childIds?.length) {
-              for (const childId of m.childIds) count += countWithChildren(childId)
-            }
-            return count
-          }
-          let total = 0
-          for (const rootId of chat.rootMessageIds) total += countWithChildren(rootId)
-          chat.messageCount = total
-        }
-
         return {
           id: chat.id,
           title: chat.name || 'New Subject',
-          messageCount: chat.messageCount,
+          messageCount: chat.rootMessageIds.length,
           questions,
         }
       })
