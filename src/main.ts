@@ -116,10 +116,10 @@ const initializeApp = async () => {
   await booksStore.initializeStore()
 
   // Subscribe to notebook store for persistence
-  notebookStore.$subscribe(async (mutation: { events?: { key?: string } }) => {
+  notebookStore.$subscribe(async () => {
     if (syncStore._isLoadingFromStorage) return
     try {
-      await syncStore.handleMutation(mutation, {})
+      await syncStore.persistChatList()
     } catch (error) {
       console.error('[Main] Notebook persistence failed:', error)
     }
