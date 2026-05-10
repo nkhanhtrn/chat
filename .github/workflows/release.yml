@@ -37,6 +37,11 @@ jobs:
       - name: Add .nojekyll
         run: touch dist/.nojekyll
 
+      - name: Configure git identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
       - name: Deploy to GitHub Pages
         run: npx gh-pages -d dist --no-history --dotfiles
         env:
