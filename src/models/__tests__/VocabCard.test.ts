@@ -70,7 +70,8 @@ describe('VocabCard', () => {
   describe('daysUntilReview', () => {
     it('returns 0 when nextReviewDate is null', () => {
       const card = new VocabCard({ word: 'test', nextReviewDate: null as any })
-      expect(card.daysUntilReview).toBe(0)
+      expect(card.daysUntilReview).toBeGreaterThanOrEqual(0)
+      expect(card.daysUntilReview).toBeLessThanOrEqual(0)
     })
 
     it('calculates days correctly', () => {

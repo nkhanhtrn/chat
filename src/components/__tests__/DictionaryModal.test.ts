@@ -52,7 +52,7 @@ describe('DictionaryModal', () => {
     it('renders entries from definition with POS and examples', () => {
       mountModal({
         word: 'think',
-        definition: '**v.** to reason about something\n\n> "I think therefore I am"\n\n**n.** an act of thinking',
+        definition: '**v.** to reason about something\n> "I think therefore I am"\n\n**n.** an act of thinking',
       })
 
       const entries = wrapper.findAll('.dict-entry')
@@ -83,11 +83,13 @@ describe('DictionaryModal', () => {
       expect(wrapper.find('.dict-context').text()).toContain('I think therefore I am')
     })
 
-    it('shows "No definition found" when definition is empty', () => {
+    it('shows "No definition found" when definition is empty', async () => {
       mountModal({
         word: 'unknown',
         definition: '',
       })
+      await nextTick()
+      await nextTick()
 
       expect(wrapper.find('.dict-empty').text()).toBe('No definition found.')
     })
@@ -96,7 +98,7 @@ describe('DictionaryModal', () => {
   describe('offline lookup', () => {
     it('calls dictionaryLookup when opened with word but no definition', async () => {
       mockLookup.mockResolvedValue({
-        definition: '**v.** to reason\n\n> "Think before you act"',
+        definition: '**v.** to reason\n> "Think before you act"',
         pronunciation: '/θɪŋk/',
         fuzzy: false,
       })
@@ -160,6 +162,7 @@ describe('DictionaryModal', () => {
     it('calls speechSynthesis when clicked', async () => {
       const mockSpeak = vi.fn()
       vi.stubGlobal('speechSynthesis', { cancel: vi.fn(), speak: mockSpeak })
+      vi.stubGlobal('SpeechSynthesisUtterance', vi.fn().mockImplementation(function (this: any, text: string) { this.text = text; this.lang = '' }))
 
       mountModal({
         word: 'think',

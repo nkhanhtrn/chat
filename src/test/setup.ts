@@ -5,6 +5,18 @@
 import { vi, beforeEach } from 'vitest'
 import { config } from '@vue/test-utils'
 
+if (typeof globalThis.localStorage === 'undefined') {
+  const store: Record<string, string> = {}
+  globalThis.localStorage = {
+    getItem: (key: string) => store[key] ?? null,
+    setItem: (key: string, value: string) => { store[key] = String(value) },
+    removeItem: (key: string) => { delete store[key] },
+    clear: () => { for (const k of Object.keys(store)) delete store[k] },
+    get length() { return Object.keys(store).length },
+    key: (index: number) => Object.keys(store)[index] ?? null,
+  }
+}
+
 // Provide a mock router globally
 config.global.mocks = {
   ...config.global.mocks,
@@ -114,5 +126,5 @@ vi.mock('@/services/auth', () => ({
 
 // Clear localStorage between tests
 beforeEach(() => {
-  localStorage.clear()
+  localStorage?.clear()
 })

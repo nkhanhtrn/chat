@@ -5,9 +5,11 @@ import type { ReviewQuality } from '@/types/vocab'
 
 describe('useVocabStore', () => {
   let store: ReturnType<typeof useVocabStore>
+  let uuidCounter: number
 
   beforeEach(() => {
-    vi.spyOn(crypto, 'randomUUID').mockReturnValue('test-uuid')
+    uuidCounter = 0
+    vi.spyOn(crypto, 'randomUUID').mockImplementation(() => `test-uuid-${uuidCounter++}`)
     setActivePinia(createPinia())
     store = useVocabStore()
   })
@@ -19,7 +21,7 @@ describe('useVocabStore', () => {
   describe('addVocabCard', () => {
     it('creates and stores a card', () => {
       const id = store.addVocabCard({ word: 'ephemeral', definition: 'short-lived', pronunciation: '/ɪˈfɛmərəl/' })
-      expect(id).toBe('test-uuid')
+      expect(id).toBe('test-uuid-0')
       expect(store.vocabData[id]).toBeDefined()
       expect(store.vocabData[id].word).toBe('ephemeral')
       expect(store.vocabData[id].pronunciation).toBe('/ɪˈfɛmərəl/')
@@ -136,8 +138,10 @@ describe('useVocabStore', () => {
 
   describe('allVocabCards', () => {
     it('returns all cards sorted by createdAt desc', () => {
-      store.addVocabCard({ word: 'first' })
-      store.addVocabCard({ word: 'second' })
+      const id1 = store.addVocabCard({ word: 'first' })
+      store.vocabData[id1].createdAt = 1000
+      const id2 = store.addVocabCard({ word: 'second' })
+      store.vocabData[id2].createdAt = 2000
 
       const all = store.allVocabCards
       expect(all).toHaveLength(2)
