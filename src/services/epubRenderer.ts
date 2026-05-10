@@ -4,7 +4,7 @@ export interface EpubRendererOptions {
   width?: string | number
   height?: string | number
   onLocationChange?: (location: { cfi: string; percentage: number; atStart: boolean; atEnd: boolean }) => void
-  onTextSelect?: (data: { text: string; x: number; y: number }) => void
+  onTextSelect?: (data: { text: string; x: number; y: number; context?: string }) => void
   theme?: { bg: string; color: string; accent: string; fontFamily?: string; fontSize?: number; lineHeight?: number }
 }
 
@@ -117,7 +117,24 @@ export class EpubRenderer {
         const vx = Math.min(x, window.innerWidth - menuWidth - 10)
         const vy = Math.min(y, window.innerHeight - 100)
 
-        this.options.onTextSelect?.({ text, x: Math.max(10, vx), y: Math.max(10, vy) })
+        let context = ''
+        try {
+          const container = range.commonAncestorContainer instanceof Element
+            ? range.commonAncestorContainer
+            : range.commonAncestorContainer.parentElement
+          if (container) {
+            const fullText = container.textContent || ''
+            const selStart = fullText.indexOf(text)
+            if (selStart !== -1) {
+              const ctxRadius = 80
+              const start = Math.max(0, selStart - ctxRadius)
+              const end = Math.min(fullText.length, selStart + text.length + ctxRadius)
+              context = fullText.slice(start, end).trim()
+            }
+          }
+        } catch {}
+
+        this.options.onTextSelect?.({ text, x: Math.max(10, vx), y: Math.max(10, vy), context })
       }
       this.rendition.on('selected', onSelect)
       this.selectCleanup = () => {

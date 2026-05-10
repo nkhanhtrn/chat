@@ -30,8 +30,8 @@
           v-for="(day, idx) in calendarDays"
           :key="idx"
           class="calendar-day"
-          :class="{ 'other-month': !day.currentMonth, 'today': day.isToday, 'has-questions': day.questionCount > 0 }"
-          @click="day.questionCount > 0 && openDayModal(day)"
+          :class="{ 'other-month': !day.currentMonth, 'today': day.isToday, 'has-questions': day.questionCount > 0, 'clickable': true }"
+          @click="openDayModal(day)"
         >
           <span class="day-number">{{ day.day || '' }}</span>
           <span v-if="day.questionCount > 0" class="question-badge">{{ day.questionCount }}</span>
@@ -72,10 +72,8 @@ const treeStore = useMessageTreeStore()
 const currentDate = ref(new Date())
 const showDayModal = ref(false)
 const selectedDate = ref<Date | null>(null)
-const selectedDayQuestions = ref<Array<Record<string, unknown>>>([])
-const showDatePicker = ref(false)
-const selectedMonth = ref(currentDate.value.getMonth())
-const selectedYear = ref(currentDate.value.getFullYear())
+const selectedDayQuestions = ref<Array<{ id: string; question: string; questionSummarized: string | null; chatId: string; notebookName: string }>>([])
+
 
 const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -85,7 +83,7 @@ const monthYearLabel = computed(() => {
 })
 
 const allMessagesWithNotebook = computed(() => {
-  const result: Array<{ id: string; question: string; timestamp: number; chatId: string; notebookTitle: string }> = []
+  const result: Array<{ id: string; question: string; questionSummarized: string | null; createdAt: number; chatId: string; notebookName: string }> = []
   for (const chat of notebookStore.chats) {
     for (const rootId of chat.rootMessageIds) {
       const msg = treeStore.getMessageById(rootId)
@@ -93,9 +91,10 @@ const allMessagesWithNotebook = computed(() => {
         result.push({
           id: msg.id,
           question: msg.question,
-          timestamp: msg.timestamp ?? 0,
+          questionSummarized: msg.questionSummarized,
+          createdAt: msg.createdAt ?? 0,
           chatId: chat.id,
-          notebookTitle: chat.title || 'Untitled'
+          notebookName: chat.name || 'Untitled'
         })
       }
     }
@@ -107,7 +106,7 @@ const availableYears = computed(() => {
   const years = new Set<number>()
   years.add(new Date().getFullYear())
   for (const msg of allMessagesWithNotebook.value) {
-    if (msg.timestamp) years.add(new Date(msg.timestamp).getFullYear())
+    if (msg.createdAt) years.add(new Date(msg.createdAt).getFullYear())
   }
   return Array.from(years).sort((a, b) => b - a)
 })
@@ -115,8 +114,8 @@ const availableYears = computed(() => {
 const messagesByDate = computed(() => {
   const map = new Map<string, typeof allMessagesWithNotebook.value>()
   for (const msg of allMessagesWithNotebook.value) {
-    if (!msg.timestamp) continue
-    const d = new Date(msg.timestamp)
+    if (!msg.createdAt) continue
+    const d = new Date(msg.createdAt)
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     if (!map.has(key)) map.set(key, [])
     map.get(key)!.push(msg)
@@ -210,15 +209,21 @@ const goToCurrentMonth = () => {
 const openDayModal = (day: DayInfo) => {
   selectedDate.value = day.date
   const key = `${day.date.getFullYear()}-${String(day.date.getMonth() + 1).padStart(2, '0')}-${String(day.date.getDate()).padStart(2, '0')}`
-  selectedDayQuestions.value = (messagesByDate.value.get(key) ?? []).map(m => ({ ...m, text: m.question, notebookTitle: m.notebookTitle }))
+  selectedDayQuestions.value = (messagesByDate.value.get(key) ?? []).map(m => ({
+    id: m.id,
+    question: m.question,
+    questionSummarized: m.questionSummarized,
+    chatId: m.chatId,
+    notebookName: m.notebookName
+  }))
   showDayModal.value = true
 }
 
-const handleOpenQuestion = (data: Record<string, unknown>) => {
-  const chatId = data.chatId as string
+const handleOpenQuestion = (data: { id: string; chatId: string }) => {
+  const chatId = data.chatId
   if (!chatId) return
   if (notebookStore.currentChatId !== chatId) notebookStore.switchToChat(chatId)
-  router.push({ name: 'current-content-question', params: { type: 'notebook', id: chatId, questionId: data.id as string } })
+  router.push({ name: 'current-content-question', params: { type: 'notebook', id: chatId, questionId: data.id } })
 }
 
 onMounted(async () => {
@@ -256,6 +261,8 @@ onMounted(async () => {
 .calendar-day.today { background: var(--color-bg-primary-subtle); border-color: var(--color-border-accent); }
 .calendar-day.has-questions { cursor: pointer; }
 .calendar-day.has-questions:hover { background: var(--color-bg-hover); }
+.calendar-day.clickable { cursor: pointer; }
+.calendar-day.clickable:hover { background: var(--color-bg-hover); }
 .day-number { font-size: 0.85rem; color: var(--color-text-message); }
 .question-badge { position: absolute; top: 0.25rem; right: 0.25rem; background: var(--color-primary); color: white; font-size: 0.7rem; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
 @media (max-width: 768px) { .calendar-page { padding: 1rem; } .calendar-day { min-height: 50px; } .calendar-header { flex-direction: column; gap: 1rem; } }

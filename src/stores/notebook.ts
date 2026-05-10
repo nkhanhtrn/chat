@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { useMessageTreeStore } from './messageTree'
+import { useVocabStore } from './vocab'
 import type { Notebook, NotebookListItem } from '@/types/notebook'
 import { syncChatList, syncChatMessages, getLocalChatMessages, resolveChatListConflict } from '@/services/sync/IndexedDBService'
 import { Message } from '@/models/Message'
@@ -103,6 +104,12 @@ export const useNotebookStore = defineStore('notebook', {
         this.currentModel = (listData.currentModel as string) ?? null
         this.lastSyncedAt = (listData.lastSyncedAt as number) ?? null
         this.isInitialized = true
+
+        const vd = listData.vocabData as Record<string, unknown> | undefined
+        if (vd && typeof vd === 'object' && Object.keys(vd).length > 0) {
+          const vocabStore = useVocabStore()
+          vocabStore._loadFromData(vd)
+        }
 
         debugLog(`[NotebookStore] Initialized: ${this.chats.length} notebooks`)
 

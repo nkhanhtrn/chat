@@ -18,6 +18,7 @@ describe('VocabCard', () => {
       expect(card.id).toBe('test-uuid')
       expect(card.definition).toBe('')
       expect(card.context).toBe('')
+      expect(card.pronunciation).toBe('')
     })
 
     it('accepts all fields', () => {
@@ -26,12 +27,14 @@ describe('VocabCard', () => {
         word: 'ephemeral',
         definition: 'lasting for a short time',
         context: 'The ephemeral beauty of cherry blossoms',
+        pronunciation: '/ɪˈfɛmərəl/',
         easiness: 3.0,
         interval: 6,
         repetitions: 2,
       })
       expect(card.id).toBe('custom-id')
       expect(card.definition).toBe('lasting for a short time')
+      expect(card.pronunciation).toBe('/ɪˈfɛmərəl/')
       expect(card.easiness).toBe(3.0)
       expect(card.interval).toBe(6)
       expect(card.repetitions).toBe(2)
@@ -139,6 +142,7 @@ describe('VocabCard', () => {
         word: 'ephemeral',
         definition: 'short-lived',
         context: 'ephemeral beauty',
+        pronunciation: '/ɪˈfɛmərəl/',
       })
       const json = card.toJSON()
       expect(json).toEqual({
@@ -146,6 +150,7 @@ describe('VocabCard', () => {
         word: 'ephemeral',
         definition: 'short-lived',
         context: 'ephemeral beauty',
+        pronunciation: '/ɪˈfɛmərəl/',
         messageId: null,
         highlightId: null,
         easiness: 2.5,

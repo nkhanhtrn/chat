@@ -7,6 +7,7 @@ export class VocabCard {
   word: string
   definition: string
   context: string
+  pronunciation: string
   messageId: string | null
   highlightId: string | null
   easiness: number
@@ -21,6 +22,7 @@ export class VocabCard {
     this.word = data.word
     this.definition = data.definition ?? ''
     this.context = data.context ?? ''
+    this.pronunciation = data.pronunciation ?? ''
     this.messageId = data.messageId ?? null
     this.highlightId = data.highlightId ?? null
     this.easiness = data.easiness ?? 2.5
@@ -76,6 +78,7 @@ export class VocabCard {
       word: this.word,
       definition: this.definition,
       context: this.context,
+      pronunciation: this.pronunciation,
       messageId: this.messageId,
       highlightId: this.highlightId,
       easiness: this.easiness,
