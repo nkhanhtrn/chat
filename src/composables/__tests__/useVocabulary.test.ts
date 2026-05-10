@@ -99,7 +99,9 @@ describe('useVocabulary', () => {
   describe('allVocabCards', () => {
     it('returns all cards sorted by createdAt desc', () => {
       const { addVocabCard, allVocabCards } = useVocabulary()
+      const nowSpy = vi.spyOn(Date, 'now')
       addVocabCard({ word: 'first' })
+      nowSpy.mockReturnValue(Date.now() + 1)
       addVocabCard({ word: 'second' })
 
       const cards = allVocabCards.value
