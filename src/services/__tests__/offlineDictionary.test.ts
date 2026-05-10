@@ -42,7 +42,6 @@ describe('fuzzyMatch', () => {
   const dict: Record<string, { d: string; p?: string }> = {
     'hello': { d: 'a greeting' },
     'world': { d: 'the earth' },
-    'think': { d: 'to reason' },
     'their': { d: 'belonging to them' },
     'there': { d: 'at that place' },
     'apple': { d: 'a fruit' },

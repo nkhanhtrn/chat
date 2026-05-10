@@ -4,8 +4,11 @@ import { useVocabulary } from '../useVocabulary'
 import type { ReviewQuality } from '@/types/vocab'
 
 describe('useVocabulary', () => {
+  let uuidCounter: number
+
   beforeEach(() => {
-    vi.spyOn(crypto, 'randomUUID').mockReturnValue('test-uuid')
+    uuidCounter = 0
+    vi.spyOn(crypto, 'randomUUID').mockImplementation(() => `test-uuid-${uuidCounter++}`)
     setActivePinia(createPinia())
   })
 
@@ -17,7 +20,7 @@ describe('useVocabulary', () => {
     it('adds card and returns id', () => {
       const { addVocabCard, totalVocabCount } = useVocabulary()
       const id = addVocabCard({ word: 'ephemeral', definition: 'short-lived', pronunciation: '/ɪˈfɛmərəl/' })
-      expect(id).toBe('test-uuid')
+      expect(id).toBe('test-uuid-0')
       expect(totalVocabCount.value).toBe(1)
     })
 
@@ -96,7 +99,9 @@ describe('useVocabulary', () => {
   describe('allVocabCards', () => {
     it('returns all cards sorted by createdAt desc', () => {
       const { addVocabCard, allVocabCards } = useVocabulary()
+      const nowSpy = vi.spyOn(Date, 'now')
       addVocabCard({ word: 'first' })
+      nowSpy.mockReturnValue(Date.now() + 1)
       addVocabCard({ word: 'second' })
 
       const cards = allVocabCards.value

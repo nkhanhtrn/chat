@@ -103,7 +103,7 @@ function fuzzyMatch(input: string, dict: DictData): string | null {
 
   let bestWord: string | null = null
   let bestScore = Infinity
-  const maxDist = Math.max(1, Math.floor(inputLower.length / 3))
+  const maxDist = Math.max(1, Math.ceil(inputLower.length / 3))
 
   for (const w of words) {
     if (Math.abs(w.length - inputLower.length) > maxDist) continue

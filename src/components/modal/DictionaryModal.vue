@@ -86,7 +86,7 @@ watch(() => props.visible, async (v) => {
     } catch {}
     loading.value = false
   }
-})
+}, { immediate: true })
 
 function speak() {
   if (!props.word || !window.speechSynthesis) return

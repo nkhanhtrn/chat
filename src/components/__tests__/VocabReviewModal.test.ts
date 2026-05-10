@@ -62,9 +62,12 @@ describe('VocabReviewModal', () => {
   })
 
   function seedCards() {
-    vocabStore.addVocabCard({ word: 'ephemeral', definition: '**adj.** short-lived', context: 'ephemeral beauty' })
-    vocabStore.addVocabCard({ word: 'ubiquitous', definition: '**adj.** present everywhere', context: 'ubiquitous computing' })
-    vocabStore.addVocabCard({ word: 'pragmatic', definition: '**adj.** practical', context: 'pragmatic approach' })
+    const id1 = vocabStore.addVocabCard({ word: 'ephemeral', definition: '**adj.** short-lived', context: 'ephemeral beauty' })
+    vocabStore.vocabData[id1].createdAt = 3000
+    const id2 = vocabStore.addVocabCard({ word: 'ubiquitous', definition: '**adj.** present everywhere', context: 'ubiquitous computing' })
+    vocabStore.vocabData[id2].createdAt = 2000
+    const id3 = vocabStore.addVocabCard({ word: 'pragmatic', definition: '**adj.** practical', context: 'pragmatic approach' })
+    vocabStore.vocabData[id3].createdAt = 1000
   }
 
   describe('empty state', () => {
