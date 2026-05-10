@@ -60,8 +60,17 @@
       :visible="dictionary.show"
       :word="dictionary.word"
       :definition="dictionary.definition"
-      :is-streaming="dictionary.streaming"
+      :pronunciation="dictionary.pronunciation"
+      :context="dictionary.context"
       @close="dictionary.show = false"
+      @lookup="handleDictionaryLookup"
+    />
+    <ResponseModal
+      :visible="response.show"
+      :title="response.title"
+      :content="response.content"
+      :is-streaming="response.streaming"
+      @close="response.show = false"
     />
   </AppLayout>
 </template>
@@ -74,17 +83,21 @@ import BookTocSidebar from '@/components/BookTocSidebar.vue'
 import ProgressBar from '@/components/ProgressBar.vue'
 import ContextMenu from '@/components/ContextMenu.vue'
 import DictionaryModal from '@/components/modal/DictionaryModal.vue'
+import ResponseModal from '@/components/modal/ResponseModal.vue'
 import { useBooksStore } from '@/stores/books'
 import { EpubRenderer } from '@/services/epubRenderer'
 import { PdfRenderer } from '@/services/pdfRenderer'
 import { Settings } from '@/services/settings'
 import lmService, { Category } from '@/services/llm/LMService'
-import { getDictionaryPrompts, getQuickExplainPrompts, getMainPrompts, getSummaryPrompts } from '@/services/extraPrompt'
+import { getQuickExplainPrompts, getMainPrompts, getSummaryPrompts } from '@/services/extraPrompt'
+import { useVocabulary } from '@/composables/useVocabulary'
+
 import type { BookData, TocItem } from '@/types/book'
 
 const route = useRoute()
 const router = useRouter()
 const booksStore = useBooksStore()
+const { addVocabCard, findByWord } = useVocabulary()
 
 const loading = ref(false)
 const error = ref<string | null>(null)
@@ -94,8 +107,9 @@ const canGoPrev = ref(false)
 const canGoNext = ref(true)
 const toc = ref<TocItem[]>([])
 const activeHref = ref<string | null>(null)
-const contextMenu = reactive({ visible: false, x: 0, y: 0, text: '' })
-const dictionary = reactive({ show: false, word: '', definition: '', streaming: false })
+const contextMenu = reactive({ visible: false, x: 0, y: 0, text: '', context: '' })
+const dictionary = reactive({ show: false, word: '', definition: '', pronunciation: '', context: '' })
+const response = reactive({ show: false, title: '', content: '', streaming: false })
 
 // PDF-specific state (plain variable — same pattern as epub renderer, avoids Vue reactive proxy wrapping pdfjs internals)
 let pdfRenderer: PdfRenderer | null = null
@@ -109,43 +123,44 @@ async function handleDictionary() {
   const word = contextMenu.text
   if (!word) return
 
+  const existingVocabCard = findByWord(word)
+
   dictionary.word = word
-  dictionary.definition = ''
-  dictionary.streaming = true
+  dictionary.definition = existingVocabCard?.definition || ''
+  dictionary.pronunciation = existingVocabCard?.pronunciation || ''
+  dictionary.context = contextMenu.context
+  dictionary.streaming = false
   dictionary.show = true
 
-  try {
-    const messages = getDictionaryPrompts(word)
-    await lmService.sendByCategory(Category.QUICK, messages, (chunk: string) => {
-      dictionary.definition += chunk
-    })
-  } catch (err) {
-    console.error('[BookViewer] Dictionary lookup failed:', err)
-    if (!dictionary.definition) dictionary.definition = 'Failed to look up definition.'
-  } finally {
-    dictionary.streaming = false
-  }
+  if (existingVocabCard?.definition) return
+}
+
+function handleDictionaryLookup(result: { definition: string; pronunciation: string }) {
+  const word = contextMenu.text
+  if (!word) return
+  dictionary.pronunciation = result.pronunciation
+  addVocabCard({ word, definition: result.definition, context: contextMenu.context, pronunciation: result.pronunciation })
 }
 
 async function handleExplain(text: string) {
   contextMenu.visible = false
   if (!text) return
 
-  dictionary.word = text
-  dictionary.definition = ''
-  dictionary.streaming = true
-  dictionary.show = true
+  response.title = text
+  response.content = ''
+  response.streaming = true
+  response.show = true
 
   try {
     const messages = getQuickExplainPrompts(`Explain this text: "${text}"`)
     await lmService.sendByCategory(Category.QUICK, messages, (chunk: string) => {
-      dictionary.definition += chunk
+      response.content += chunk
     })
   } catch (err) {
     console.error('[BookViewer] Explain failed:', err)
-    if (!dictionary.definition) dictionary.definition = 'Failed to get explanation.'
+    if (!response.content) response.content = 'Failed to get explanation.'
   } finally {
-    dictionary.streaming = false
+    response.streaming = false
   }
 }
 
@@ -154,21 +169,21 @@ async function handleSummary() {
   const text = contextMenu.text
   if (!text) return
 
-  dictionary.word = text
-  dictionary.definition = ''
-  dictionary.streaming = true
-  dictionary.show = true
+  response.title = text
+  response.content = ''
+  response.streaming = true
+  response.show = true
 
   try {
     const messages = getSummaryPrompts(text)
     await lmService.sendByCategory(Category.QUICK, messages, (chunk: string) => {
-      dictionary.definition += chunk
+      response.content += chunk
     })
   } catch (err) {
     console.error('[BookViewer] Summary failed:', err)
-    if (!dictionary.definition) dictionary.definition = 'Failed to generate summary.'
+    if (!response.content) response.content = 'Failed to generate summary.'
   } finally {
-    dictionary.streaming = false
+    response.streaming = false
   }
 }
 
@@ -177,21 +192,21 @@ async function handleCustomPrompt(prompt: string) {
   const text = contextMenu.text
   if (!text) return
 
-  dictionary.word = text
-  dictionary.definition = ''
-  dictionary.streaming = true
-  dictionary.show = true
+  response.title = prompt
+  response.content = ''
+  response.streaming = true
+  response.show = true
 
   try {
     const messages = getQuickExplainPrompts(`Regarding this text: "${text}"\n\n${prompt}`)
     await lmService.sendByCategory(Category.QUICK, messages, (chunk: string) => {
-      dictionary.definition += chunk
+      response.content += chunk
     })
   } catch (err) {
     console.error('[BookViewer] Custom prompt failed:', err)
-    if (!dictionary.definition) dictionary.definition = 'Failed to get response.'
+    if (!response.content) response.content = 'Failed to get response.'
   } finally {
-    dictionary.streaming = false
+    response.streaming = false
   }
 }
 
@@ -200,22 +215,22 @@ async function handleCustomPromptDeepDive(prompt: string) {
   const text = contextMenu.text
   if (!text) return
 
-  dictionary.word = text
-  dictionary.definition = ''
-  dictionary.streaming = true
-  dictionary.show = true
+  response.title = prompt
+  response.content = ''
+  response.streaming = true
+  response.show = true
 
   try {
     const question = `${prompt} (context: "${text}")`
     const messages = getMainPrompts(question)
     await lmService.sendByCategory(Category.DETAILS, messages, (chunk: string) => {
-      dictionary.definition += chunk
+      response.content += chunk
     })
   } catch (err) {
     console.error('[BookViewer] Deep dive failed:', err)
-    if (!dictionary.definition) dictionary.definition = 'Failed to get response.'
+    if (!response.content) response.content = 'Failed to get response.'
   } finally {
-    dictionary.streaming = false
+    response.streaming = false
   }
 }
 
@@ -314,6 +329,7 @@ async function renderPdf(bookId: string, fileData: ArrayBuffer) {
       contextMenu.x = data.x
       contextMenu.y = data.y
       contextMenu.text = data.text
+      contextMenu.context = data.context || ''
       contextMenu.visible = true
     },
     onLocationChange(location) {
@@ -381,6 +397,7 @@ async function renderEpub(bookId: string, fileData: ArrayBuffer) {
       contextMenu.x = data.x
       contextMenu.y = data.y
       contextMenu.text = data.text
+      contextMenu.context = data.context || ''
       contextMenu.visible = true
     },
     onLocationChange(location) {

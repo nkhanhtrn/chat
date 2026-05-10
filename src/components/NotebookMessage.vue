@@ -62,18 +62,26 @@
     />
     <DictionaryModal
       :visible="showDictionaryModal"
-      :title="dictionaryTitle"
       :word="dictionaryWord"
       :definition="dictionaryDefinition"
-      :is-streaming="isDictionaryStreaming"
-      :show-save="!!dictionarySaveContext"
-      :edit-mode="dictionaryEditMode"
-      :show-edit="!!dictionarySaveContext?.existingContentId"
-      save-label="Save as Note"
+      :pronunciation="dictionaryPronunciation"
+      :context="dictionaryContext"
       @close="closeDictionaryModal"
-      @save="handleDictionarySave"
-      @save-text="handleDictionarySaveText"
-      @edit="handleDictionaryEdit"
+      @lookup="handleDictionaryLookup"
+    />
+    <ResponseModal
+      :visible="showResponseModal"
+      :title="responseTitle"
+      :content="responseContent"
+      :is-streaming="isResponseStreaming"
+      :show-save="!!responseSaveContext"
+      :edit-mode="responseEditMode"
+      :show-edit="!!responseSaveContext?.existingContentId"
+      save-label="Save as Note"
+      @close="closeResponseModal"
+      @save="handleResponseSave"
+      @save-text="handleResponseSaveText"
+      @edit="handleResponseEdit"
     />
   </div>
 </template>
@@ -87,13 +95,15 @@ import ContextMenu from './ContextMenu.vue'
 import SlideTransition from './SlideTransition.vue'
 import QuestionSearchModal from './modal/QuestionSearchModal.vue'
 import DictionaryModal from './modal/DictionaryModal.vue'
+import ResponseModal from './modal/ResponseModal.vue'
 import lmService, { Category } from '@/services/llm/LMService'
 import { Message } from '@/models/Message'
-import { getMainPrompts, getDictionaryPrompts, getQuickExplainPrompts, getSummaryPrompts } from '@/services/extraPrompt'
+import { getMainPrompts, getQuickExplainPrompts, getSummaryPrompts } from '@/services/extraPrompt'
 import { getSelectedTextAndPosition } from '@/services/DOMSelectionHelper'
 import { usePopupState } from '@/composables/usePopupState'
 import { useHighlights } from '@/composables/useHighlights'
 import { useVocabulary } from '@/composables/useVocabulary'
+
 import { buildConversationChain, isMessageInTree } from '@/utils/highlightUtils'
 import type { CustomContent } from '@/types/message'
 
@@ -120,12 +130,17 @@ let selectionCheckTimeout: ReturnType<typeof setTimeout> | null = null
 
 // Dictionary modal state
 const showDictionaryModal = ref(false)
-const dictionaryTitle = ref('Dictionary')
 const dictionaryWord = ref('')
 const dictionaryDefinition = ref('')
-const isDictionaryStreaming = ref(false)
-const dictionaryEditMode = ref(false)
-const dictionarySaveContext = ref<{
+const dictionaryPronunciation = ref('')
+const dictionaryContext = ref('')
+
+const showResponseModal = ref(false)
+const responseTitle = ref('')
+const responseContent = ref('')
+const isResponseStreaming = ref(false)
+const responseEditMode = ref(false)
+const responseSaveContext = ref<{
   selectedText: string; startOffset: number; endOffset: number; parentId: string
   existingContentId?: string | null
 } | null>(null)
@@ -136,7 +151,7 @@ const selectionColorIndex = ref(0)
 // Use composables
 const popup = usePopupState()
 const highlights = useHighlights(treeStore, () => currentMessage.value)
-const { addVocabCard, appendToDefinition, findByWord } = useVocabulary()
+const { addVocabCard, findByWord } = useVocabulary()
 
 // Get the root message from props
 const rootMessage = computed(() => props.message)
@@ -207,19 +222,18 @@ function handleNoteClick(noteData: Record<string, unknown>) {
   const endOffset = noteData.endOffset as number
   if (!noteContent) return
 
-  dictionaryTitle.value = 'Note'
-  dictionaryWord.value = text
-  dictionaryDefinition.value = noteContent
-  dictionarySaveContext.value = {
+  responseTitle.value = 'Note'
+  responseContent.value = noteContent
+  responseSaveContext.value = {
     selectedText: text,
     startOffset,
     endOffset,
     parentId: currentMessage.value.id,
     existingContentId: noteId,
   }
-  isDictionaryStreaming.value = false
-  dictionaryEditMode.value = false
-  showDictionaryModal.value = true
+  isResponseStreaming.value = false
+  responseEditMode.value = false
+  showResponseModal.value = true
 }
 
 async function handleAskQuestion(question: string) {
@@ -298,17 +312,16 @@ async function handleCustomPrompt(prompt: string) {
 
   closePopup()
 
-  isDictionaryStreaming.value = true
+  isResponseStreaming.value = true
   error.value = null
 
   const previousMessages = buildConversationChain(treeStore.messagesById, currentMessage.value?.id)
 
-  dictionaryTitle.value = prompt
-  dictionaryWord.value = selectedText
-  dictionaryDefinition.value = ''
-  dictionarySaveContext.value = null
-  dictionaryEditMode.value = false
-  showDictionaryModal.value = true
+  responseTitle.value = prompt
+  responseContent.value = ''
+  responseSaveContext.value = null
+  responseEditMode.value = false
+  showResponseModal.value = true
 
   let fullResponse = ''
   try {
@@ -321,7 +334,7 @@ async function handleCustomPrompt(prompt: string) {
       messages,
       (chunk: string) => {
         fullResponse += chunk
-        dictionaryDefinition.value = fullResponse
+        responseContent.value = fullResponse
       }
     )
     // Save as note after streaming completes
@@ -346,7 +359,7 @@ async function handleCustomPrompt(prompt: string) {
   } catch (err: any) {
     error.value = err.message
   } finally {
-    isDictionaryStreaming.value = false
+    isResponseStreaming.value = false
   }
 }
 
@@ -405,51 +418,21 @@ async function handleDictionary() {
 
   const existingVocabCard = findByWord(selectedText)
 
-  dictionaryTitle.value = 'Dictionary'
   dictionaryWord.value = selectedText
   dictionaryDefinition.value = existingVocabCard?.definition || ''
-  dictionarySaveContext.value = {
-    selectedText, startOffset, endOffset,
-    parentId: currentMessage.value.id,
-  }
-  dictionaryEditMode.value = false
+  dictionaryPronunciation.value = existingVocabCard?.pronunciation || ''
+  dictionaryContext.value = currentMessage.value?.response?.substring(
+    Math.max(0, startOffset - 50),
+    Math.min(currentMessage.value.response.length, endOffset + 50)
+  ) || ''
   showDictionaryModal.value = true
+}
 
-  if (existingVocabCard && existingVocabCard.definition) {
-    isDictionaryStreaming.value = false
-    return
-  }
-
-  isDictionaryStreaming.value = true
-  error.value = null
-
-  const previousMessages = buildConversationChain(treeStore.messagesById, currentMessage.value?.id)
-
-  const vocabId = addVocabCard({
-    word: selectedText,
-    definition: '',
-    context: currentMessage.value?.response?.substring(
-      Math.max(0, startOffset - 50),
-      Math.min(currentMessage.value.response.length, endOffset + 50)
-    ) || '',
-    messageId: currentMessage.value?.id
-  })
-
-  try {
-    const messages = getDictionaryPrompts(selectedText, previousMessages)
-    await lmService.sendByCategory(
-      Category.QUICK,
-      messages,
-      (chunk: string) => {
-        dictionaryDefinition.value += chunk
-        appendToDefinition(vocabId, chunk)
-      }
-    )
-  } catch (err: any) {
-    error.value = err.message
-  } finally {
-    isDictionaryStreaming.value = false
-  }
+function handleDictionaryLookup(result: { definition: string; pronunciation: string }) {
+  const word = dictionaryWord.value
+  if (!word) return
+  dictionaryPronunciation.value = result.pronunciation
+  addVocabCard({ word, definition: result.definition, context: dictionaryContext.value, pronunciation: result.pronunciation, messageId: currentMessage.value?.id })
 }
 
 async function handleSummary() {
@@ -458,23 +441,22 @@ async function handleSummary() {
 
   closePopup()
 
-  isDictionaryStreaming.value = true
+  isResponseStreaming.value = true
   error.value = null
 
   const previousMessages = buildConversationChain(treeStore.messagesById, currentMessage.value?.id)
 
-  dictionaryTitle.value = 'Summary'
-  dictionaryWord.value = selectedText
-  dictionaryDefinition.value = ''
-  dictionarySaveContext.value = {
+  responseTitle.value = 'Summary'
+  responseContent.value = ''
+  responseSaveContext.value = {
     selectedText,
     startOffset,
     endOffset,
     parentId: currentMessage.value.id,
     existingContentId: highlightId ?? undefined,
   }
-  dictionaryEditMode.value = false
-  showDictionaryModal.value = true
+  responseEditMode.value = false
+  showResponseModal.value = true
 
   let fullResponse = ''
   try {
@@ -484,7 +466,7 @@ async function handleSummary() {
       messages,
       (chunk: string) => {
         fullResponse += chunk
-        dictionaryDefinition.value = fullResponse
+        responseContent.value = fullResponse
       }
     )
     if (fullResponse) {
@@ -506,57 +488,63 @@ async function handleSummary() {
   } catch (err: any) {
     error.value = err.message
   } finally {
-    isDictionaryStreaming.value = false
+    isResponseStreaming.value = false
   }
 }
 
 function closeDictionaryModal() {
   showDictionaryModal.value = false
-  dictionaryTitle.value = 'Dictionary'
   dictionaryWord.value = ''
   dictionaryDefinition.value = ''
-  isDictionaryStreaming.value = false
-  dictionaryEditMode.value = false
-  dictionarySaveContext.value = null
+  dictionaryPronunciation.value = ''
+  dictionaryContext.value = ''
 }
 
-function handleDictionarySaveText(text: string) {
-  if (!dictionarySaveContext.value?.existingContentId || !text) return
+function closeResponseModal() {
+  showResponseModal.value = false
+  responseTitle.value = ''
+  responseContent.value = ''
+  isResponseStreaming.value = false
+  responseEditMode.value = false
+  responseSaveContext.value = null
+}
 
-  highlights.updateContent(dictionarySaveContext.value.existingContentId, {
+function handleResponseSaveText(text: string) {
+  if (!responseSaveContext.value?.existingContentId || !text) return
+
+  highlights.updateContent(responseSaveContext.value.existingContentId, {
     hasNote: true,
     noteContent: text,
   } as any)
 
-  closeDictionaryModal()
+  closeResponseModal()
 }
 
-function handleDictionaryEdit() {
-  dictionaryEditMode.value = true
+function handleResponseEdit() {
+  responseEditMode.value = true
 }
 
-function handleDictionarySave() {
-  if (!dictionarySaveContext.value || !dictionaryDefinition.value) return
+function handleResponseSave() {
+  if (!responseSaveContext.value || !responseContent.value) return
 
-  const { selectedText, startOffset, endOffset, existingContentId } = dictionarySaveContext.value
+  const { selectedText, startOffset, endOffset, existingContentId } = responseSaveContext.value
 
   if (existingContentId) {
-    // Update note on existing content (note or question-link)
     highlights.updateContent(existingContentId, {
       hasNote: true,
-      noteContent: dictionaryDefinition.value,
+      noteContent: responseContent.value,
     } as any)
   } else {
     highlights.addNote({
       text: selectedText,
       startOffset,
       endOffset,
-      noteContent: dictionaryDefinition.value,
+      noteContent: responseContent.value,
       colorIndex: selectionColorIndex.value,
     })
   }
 
-  closeDictionaryModal()
+  closeResponseModal()
 }
 
 function handleRemoveContent() {
@@ -591,19 +579,18 @@ function handleNote() {
 
   closePopup()
 
-  dictionaryTitle.value = existingNote ? 'Edit Note' : 'Add Note'
-  dictionaryWord.value = selectedText
-  dictionaryDefinition.value = existingNote
-  dictionaryEditMode.value = true
-  dictionarySaveContext.value = {
+  responseTitle.value = existingNote ? 'Edit Note' : 'Add Note'
+  responseContent.value = existingNote
+  responseEditMode.value = true
+  responseSaveContext.value = {
     selectedText,
     startOffset,
     endOffset,
     parentId: currentMessage.value.id,
     existingContentId: contentId,
   }
-  isDictionaryStreaming.value = false
-  showDictionaryModal.value = true
+  isResponseStreaming.value = false
+  showResponseModal.value = true
 }
 
 function handleHighlight() {

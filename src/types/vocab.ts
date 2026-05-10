@@ -7,6 +7,7 @@ export interface VocabCardData {
   word: string
   definition: string
   context: string
+  pronunciation: string
   messageId: string | null
   highlightId: string | null
   easiness: number
@@ -22,6 +23,7 @@ export interface VocabCardCreateParams {
   word: string
   definition?: string
   context?: string
+  pronunciation?: string
   messageId?: string | null
   highlightId?: string | null
 }

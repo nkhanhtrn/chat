@@ -250,6 +250,7 @@ export class PdfRenderer {
       if (!text) return
       const range = selection.getRangeAt(0)
       const rect = range.getBoundingClientRect()
+
       this.options.onTextSelect?.({
         text,
         x: rect.left + rect.width / 2,

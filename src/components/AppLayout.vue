@@ -14,6 +14,10 @@
       <button class="nav-btn" :class="{ active: activePage === 'studio' }" @click="goTo('studio')" title="Studio"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg></button>
       <button class="nav-btn" :class="{ active: activePage === 'calendar' }" @click="goTo('calendar')" title="Calendar"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM9 10H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z"/></svg></button>
       <div class="nav-spacer"></div>
+      <button class="nav-btn" @click="showVocab = true" title="Vocabulary">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z"/></svg>
+        <span v-if="vocabDueCount > 0" class="nav-badge">{{ vocabDueCount }}</span>
+      </button>
       <button class="nav-btn" @click="showSettings = true" title="Settings"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97s-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1s.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66z"/></svg></button>
     </nav>
     <Transition name="slide-side">
@@ -28,6 +32,7 @@
     </Transition>
     <main class="main-panel"><slot></slot></main>
     <SettingsModal v-model="showSettings" />
+    <VocabReviewModal :visible="showVocab" @close="showVocab = false" />
   </div>
 </template>
 
@@ -38,6 +43,8 @@ import { useRouter, useRoute } from 'vue-router'
 import { useNotebookStore } from '@/stores/notebook'
 import { useBooksStore } from '@/stores/books'
 import SettingsModal from './modal/SettingsModal.vue'
+import VocabReviewModal from './modal/VocabReviewModal.vue'
+import { useVocabulary } from '@/composables/useVocabulary'
 
 const props = withDefaults(defineProps<{
   storageKey?: string
@@ -55,6 +62,7 @@ const slots = useSlots()
 const sideExpanded = ref(true)
 const sideWidth = ref(props.defaultSideWidth)
 const showSettings = ref(false)
+const showVocab = ref(false)
 const isDragging = ref(false)
 const startX = ref(0)
 const startWidth = ref(0)
@@ -76,6 +84,8 @@ const activePage = computed(() => {
 })
 
 const hasCurrentContent = computed(() => Boolean(notebookStore.currentChatId) || Boolean(booksStore.currentBookId))
+
+const { vocabDueCount } = useVocabulary()
 
 onMounted(() => {
   checkMobile()
@@ -161,6 +171,7 @@ defineExpose({ sideExpanded, toggleSide })
 .nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .nav-btn:disabled:hover { background: transparent; color: var(--color-text-muted); transform: none; }
 .nav-btn svg { width: 20px; height: 20px; }
+.nav-badge { position: absolute; top: 2px; right: 2px; background: var(--color-primary, var(--color-border-accent)); color: #fff; font-size: 0.6rem; font-weight: 700; min-width: 14px; height: 14px; border-radius: 7px; display: flex; align-items: center; justify-content: center; padding: 0 3px; }
 .expand-btn { margin-bottom: 0.5rem; }
 .expand-btn.is-expanded svg { transform: rotate(180deg); }
 .nav-spacer { flex: 1; }
