@@ -1,4 +1,4 @@
-name: CI
+name: Test Pipeline
 
 on:
   pull_request:
