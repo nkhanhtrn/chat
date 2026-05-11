@@ -12,6 +12,8 @@ vi.mock('@/services/offlineDictionary', () => ({
   _test: { editDistance: () => 0, fuzzyMatch: () => null, toResult: () => ({}) },
 }))
 
+vi.useFakeTimers()
+
 const ModalStub = {
   name: 'Modal',
   template: '<div class="modal-stub"><slot name="header" /><slot /><slot name="footer" /></div>',
@@ -22,7 +24,7 @@ const ModalStub = {
 const DictionaryModalStub = {
   name: 'DictionaryModal',
   template: '<div class="dict-modal-stub"><slot name="footer" /></div>',
-  props: ['visible', 'word', 'definition', 'context', 'pronunciation'],
+  props: ['visible', 'word', 'definition', 'context', 'pronunciation', 'embedded'],
   emits: ['close', 'lookup'],
 }
 
@@ -69,6 +71,74 @@ describe('VocabReviewModal', () => {
     const id3 = vocabStore.addVocabCard({ word: 'pragmatic', definition: '**adj.** practical', context: 'pragmatic approach' })
     vocabStore.vocabData[id3].createdAt = 1000
   }
+
+  describe('tabs', () => {
+    it('renders Cards and Scratchpad tab buttons', () => {
+      mountReviewModal()
+
+      const tabs = wrapper.findAll('.tab-button')
+      expect(tabs).toHaveLength(2)
+      expect(tabs[0].text()).toBe('Cards')
+      expect(tabs[1].text()).toBe('Scratchpad')
+    })
+
+    it('defaults to Cards tab', () => {
+      seedCards()
+      mountReviewModal()
+
+      const tabs = wrapper.findAll('.tab-button')
+      expect(tabs[0].classes()).toContain('active')
+      expect(tabs[1].classes()).not.toContain('active')
+    })
+
+    it('shows card content on Cards tab', () => {
+      seedCards()
+      mountReviewModal()
+
+      expect(wrapper.findComponent({ name: 'DictionaryModal' }).exists()).toBe(true)
+      expect(wrapper.find('.scratchpad-textarea').exists()).toBe(false)
+    })
+
+    it('switches to Scratchpad tab on click', async () => {
+      mountReviewModal()
+
+      const scratchpadTab = wrapper.findAll('.tab-button')[1]
+      await scratchpadTab.trigger('click')
+      await nextTick()
+
+      expect(wrapper.find('.scratchpad-textarea').exists()).toBe(true)
+      expect(wrapper.findComponent({ name: 'DictionaryModal' }).exists()).toBe(false)
+    })
+
+    it('shows scratchpad footer hint on Scratchpad tab', async () => {
+      mountReviewModal()
+
+      const scratchpadTab = wrapper.findAll('.tab-button')[1]
+      await scratchpadTab.trigger('click')
+      await nextTick()
+
+      expect(wrapper.find('.scratchpad-hint').exists()).toBe(true)
+    })
+
+    it('preserves card index when switching back from Scratchpad', async () => {
+      seedCards()
+      mountReviewModal()
+
+      const nextBtn = wrapper.findAll('.vocab-nav-btn')[1]
+      await nextBtn.trigger('click')
+      await nextTick()
+
+      const scratchpadTab = wrapper.findAll('.tab-button')[1]
+      await scratchpadTab.trigger('click')
+      await nextTick()
+
+      const cardsTab = wrapper.findAll('.tab-button')[0]
+      await cardsTab.trigger('click')
+      await nextTick()
+
+      expect(wrapper.find('.vocab-card-counter').text()).toBe('2 / 3')
+    })
+  })
 
   describe('empty state', () => {
     it('shows empty message when no cards', () => {
@@ -157,15 +227,70 @@ describe('VocabReviewModal', () => {
       expect(wrapper.find('.vocab-card-counter').text()).toBe('1 / 2')
     })
 
-    it('emits close when DictionaryModal emits close', async () => {
+    it('emits close when Modal emits close', async () => {
       seedCards()
       mountReviewModal()
 
-      const dictModal = wrapper.findComponent({ name: 'DictionaryModal' })
-      dictModal.vm.$emit('close')
+      const modal = wrapper.findComponent({ name: 'Modal' })
+      modal.vm.$emit('close')
       await nextTick()
 
       expect(wrapper.emitted('close')).toBeDefined()
+    })
+  })
+
+  describe('scratchpad', () => {
+    it('renders textarea with placeholder', async () => {
+      mountReviewModal()
+
+      const scratchpadTab = wrapper.findAll('.tab-button')[1]
+      await scratchpadTab.trigger('click')
+      await nextTick()
+
+      const textarea = wrapper.find('.scratchpad-textarea')
+      expect(textarea.exists()).toBe(true)
+      expect(textarea.attributes('placeholder')).toBe('Write your vocabulary notes here...')
+    })
+
+    it('loads existing scratchpad content from store', async () => {
+      vocabStore.updateScratchpad('existing notes')
+      mountReviewModal()
+
+      const scratchpadTab = wrapper.findAll('.tab-button')[1]
+      await scratchpadTab.trigger('click')
+      await nextTick()
+
+      const textarea = wrapper.find('.scratchpad-textarea')
+      expect((textarea.element as HTMLTextAreaElement).value).toBe('existing notes')
+    })
+
+    it('saves scratchpad content to store after debounce', async () => {
+      mountReviewModal()
+
+      const scratchpadTab = wrapper.findAll('.tab-button')[1]
+      await scratchpadTab.trigger('click')
+      await nextTick()
+
+      const textarea = wrapper.find('.scratchpad-textarea')
+      await textarea.setValue('my new notes')
+      vi.advanceTimersByTime(300)
+      await nextTick()
+
+      expect(vocabStore.scratchpad).toBe('my new notes')
+    })
+
+    it('reflects external store changes in textarea', async () => {
+      mountReviewModal()
+
+      const scratchpadTab = wrapper.findAll('.tab-button')[1]
+      await scratchpadTab.trigger('click')
+      await nextTick()
+
+      vocabStore.updateScratchpad('updated externally')
+      await nextTick()
+
+      const textarea = wrapper.find('.scratchpad-textarea')
+      expect((textarea.element as HTMLTextAreaElement).value).toBe('updated externally')
     })
   })
 })

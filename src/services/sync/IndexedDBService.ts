@@ -120,6 +120,7 @@ export async function saveChatList(listData: Record<string, unknown>): Promise<v
       currentChatId: listData.currentChatId ?? null,
       currentModel: listData.currentModel ?? null,
       vocabData: serializedVocabData,
+      vocabScratchpad: listData.vocabScratchpad ?? '',
       lastSyncedAt: listData.lastSyncedAt ?? Date.now()
     }
 
@@ -226,6 +227,7 @@ export async function syncChatList(): Promise<Record<string, unknown>> {
           currentChatId: od.currentChatId ?? null,
           currentModel: od.currentModel ?? null,
           vocabData: od.vocabData ?? {},
+          vocabScratchpad: od.vocabScratchpad ?? '',
           lastSyncedAt: od.lastSyncedAt ?? Date.now()
         }
         if (hasChatListStore) {
@@ -260,6 +262,7 @@ export async function syncChatList(): Promise<Record<string, unknown>> {
         currentChatId: localData?.currentChatId ?? null,
         currentModel: localData?.currentModel ?? null,
         vocabData: localData?.vocabData ?? {},
+        vocabScratchpad: localData?.vocabScratchpad ?? '',
         lastSyncedAt: localData?.lastSyncedAt ?? null,
         hasConflict,
         localChatCount,
@@ -270,11 +273,14 @@ export async function syncChatList(): Promise<Record<string, unknown>> {
     }
 
     if (cloudData) {
+      const localScratchpad = (localData?.vocabScratchpad as string) ?? ''
+      const cloudScratchpad = (cloudData.vocabScratchpad as string) ?? ''
       const result = {
         chats: cloudData.chats ?? [],
         currentChatId: cloudData.currentChatId ?? null,
         currentModel: cloudData.currentModel ?? null,
         vocabData: cloudData.vocabData ?? {},
+        vocabScratchpad: cloudScratchpad.length >= localScratchpad.length ? cloudScratchpad : localScratchpad,
         lastSyncedAt: cloudData.lastUpdated ?? Date.now(),
         hasConflict: false
       }
@@ -287,6 +293,7 @@ export async function syncChatList(): Promise<Record<string, unknown>> {
       currentChatId: localData?.currentChatId ?? null,
       currentModel: localData?.currentModel ?? null,
       vocabData: localData?.vocabData ?? {},
+      vocabScratchpad: localData?.vocabScratchpad ?? '',
       lastSyncedAt: localData?.lastSyncedAt ?? null,
       hasConflict: false
     }

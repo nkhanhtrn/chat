@@ -111,6 +111,12 @@ export const useNotebookStore = defineStore('notebook', {
           vocabStore._loadFromData(vd)
         }
 
+        const vs = listData.vocabScratchpad as string | undefined
+        if (vs !== undefined) {
+          const vocabStore = useVocabStore()
+          vocabStore.updateScratchpad(vs)
+        }
+
         debugLog(`[NotebookStore] Initialized: ${this.chats.length} notebooks`)
 
         return {

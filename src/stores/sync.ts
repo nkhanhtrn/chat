@@ -31,6 +31,7 @@ export const useSyncStore = defineStore('sync', {
           currentChatId: notebookStore.currentChatId,
           currentModel: notebookStore.currentModel,
           vocabData: vocabStore.vocabData,
+          vocabScratchpad: vocabStore.scratchpad,
           lastSyncedAt: notebookStore.lastSyncedAt ?? Date.now(),
         })
       } catch (error) {
@@ -86,6 +87,7 @@ export const useSyncStore = defineStore('sync', {
             currentChatId: notebookStore.currentChatId,
             currentModel: notebookStore.currentModel,
             vocabData: vocabStore.vocabData,
+            vocabScratchpad: vocabStore.scratchpad,
           },
           changedMessageIds.size > 0 ? changedMessageIds : null,
           deletedMessageIds.size > 0 ? deletedMessageIds : null,
@@ -108,7 +110,8 @@ export const useSyncStore = defineStore('sync', {
         const changedKey = mutation.events?.key
 
         if (changedKey === 'chats' || changedKey === 'currentChatId' ||
-            changedKey === 'currentModel' || changedKey === 'vocabData') {
+            changedKey === 'currentModel' || changedKey === 'vocabData' ||
+            changedKey === 'scratchpad') {
           await this.persistChatList()
         }
 
