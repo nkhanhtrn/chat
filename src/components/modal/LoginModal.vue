@@ -18,7 +18,7 @@
         </button>
       </form>
       <div class="login-info">
-        <p class="sync-note">Your data is stored locally on this device.</p>
+        <p class="sync-note">Sign in to sync your chats, books, and settings across devices.</p>
       </div>
     </div>
   </Modal>

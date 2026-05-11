@@ -1,4 +1,5 @@
 import type { Theme, ContentWidth } from '@/types/settings'
+import { loadSettingsFromCloud, saveSettingsToCloud } from '@/services/firestore/firestore-settings'
 
 const SETTINGS_KEY = 'user-settings'
 
@@ -26,6 +27,22 @@ class SettingsManager {
     const stored = localStorage.getItem(SETTINGS_KEY)
     if (stored) {
       try { this.cache = JSON.parse(stored) } catch { /* ignore */ }
+    }
+
+    this._syncFromCloud()
+  }
+
+  private async _syncFromCloud(): Promise<void> {
+    try {
+      const cloud = await loadSettingsFromCloud()
+      if (cloud && Object.keys(cloud).length > 0) {
+        this.cache = { ...this.cache, ...cloud }
+        this._persistToCloud()
+      } else if (Object.keys(this.cache).length > 0) {
+        await saveSettingsToCloud(this.cache)
+      }
+    } catch {
+      // offline or unavailable — local settings already loaded
     }
   }
 
@@ -59,11 +76,20 @@ class SettingsManager {
 
   clear(): void {
     this.cache = {}
-    localStorage.removeItem(SETTINGS_KEY)
+    this._persist()
   }
 
   private _persist(): void {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(this.cache))
+    if (Object.keys(this.cache).length === 0) {
+      localStorage.removeItem(SETTINGS_KEY)
+    } else {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(this.cache))
+    }
+    this._persistToCloud()
+  }
+
+  private _persistToCloud(): void {
+    saveSettingsToCloud(this.cache).catch(() => {})
   }
 }
 

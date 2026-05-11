@@ -71,6 +71,9 @@ const treeStore = useMessageTreeStore()
 
 const currentDate = ref(new Date())
 const showDayModal = ref(false)
+const showDatePicker = ref(false)
+const selectedMonth = ref(new Date().getMonth())
+const selectedYear = ref(new Date().getFullYear())
 const selectedDate = ref<Date | null>(null)
 const selectedDayQuestions = ref<Array<{ id: string; question: string; questionSummarized: string | null; chatId: string; notebookName: string }>>([])
 

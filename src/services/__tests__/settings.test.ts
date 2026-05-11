@@ -1,10 +1,22 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+
+const mockSaveSettingsToCloud = vi.fn().mockResolvedValue(undefined)
+const mockLoadSettingsFromCloud = vi.fn().mockResolvedValue(null)
+
+vi.mock('@/services/firestore/firestore-settings', () => ({
+  loadSettingsFromCloud: (...args: unknown[]) => mockLoadSettingsFromCloud(...args),
+  saveSettingsToCloud: (...args: unknown[]) => mockSaveSettingsToCloud(...args),
+}))
+
 import { Settings, setTheme, getTheme, initializeTheme, applyFontSize, applyFontFamily, applyLineHeight, applyContentWidth, applySettings } from '../settings'
 
 describe('SettingsManager', () => {
   beforeEach(() => {
     localStorage.clear()
     Settings.clear()
+    vi.clearAllMocks()
+    mockLoadSettingsFromCloud.mockResolvedValue(null)
+    mockSaveSettingsToCloud.mockResolvedValue(undefined)
   })
 
   describe('set / get / getAll', () => {
@@ -135,6 +147,96 @@ describe('SettingsManager', () => {
       localStorage.setItem('user-settings', '{invalid json')
       await Settings.initialize()
       expect(Settings.getAll()).toEqual({})
+    })
+
+    it('merges cloud settings over local on initialize', async () => {
+      localStorage.setItem('user-settings', JSON.stringify({ theme: 'light', fontSize: 14 }))
+      mockLoadSettingsFromCloud.mockResolvedValue({ theme: 'dark', fontSize: 18 })
+
+      await Settings.initialize()
+
+      expect(Settings.get('theme')).toBe('dark')
+      expect(Settings.get('fontSize')).toBe(18)
+    })
+
+    it('keeps local settings when cloud is empty', async () => {
+      localStorage.setItem('user-settings', JSON.stringify({ theme: 'dark' }))
+      mockLoadSettingsFromCloud.mockResolvedValue(null)
+
+      await Settings.initialize()
+
+      expect(Settings.get('theme')).toBe('dark')
+    })
+
+    it('pushes local settings to cloud when cloud is empty but local has data', async () => {
+      localStorage.setItem('user-settings', JSON.stringify({ theme: 'sepia' }))
+      mockLoadSettingsFromCloud.mockResolvedValue(null)
+
+      await Settings.initialize()
+
+      expect(mockSaveSettingsToCloud).toHaveBeenCalledWith(
+        expect.objectContaining({ theme: 'sepia' }),
+      )
+    })
+
+    it('syncs merged data to cloud after loading from cloud', async () => {
+      localStorage.setItem('user-settings', JSON.stringify({ theme: 'light' }))
+      mockLoadSettingsFromCloud.mockResolvedValue({ fontSize: 20 })
+
+      await Settings.initialize()
+      await new Promise(r => setTimeout(r, 10))
+
+      expect(mockSaveSettingsToCloud).toHaveBeenCalledWith(
+        expect.objectContaining({ theme: 'light', fontSize: 20 }),
+      )
+    })
+
+    it('uses local settings when cloud fetch fails', async () => {
+      localStorage.setItem('user-settings', JSON.stringify({ theme: 'dark' }))
+      mockLoadSettingsFromCloud.mockRejectedValue(new Error('offline'))
+
+      await Settings.initialize()
+
+      expect(Settings.get('theme')).toBe('dark')
+    })
+  })
+
+  describe('cloud sync', () => {
+    it('calls saveSettingsToCloud on set', () => {
+      Settings.set({ theme: 'dark' })
+
+      expect(mockSaveSettingsToCloud).toHaveBeenCalledWith(
+        expect.objectContaining({ theme: 'dark' }),
+      )
+    })
+
+    it('calls saveSettingsToCloud on delete', () => {
+      Settings.set({ theme: 'dark', fontSize: 18 })
+      mockSaveSettingsToCloud.mockClear()
+
+      Settings.delete('fontSize')
+
+      const synced = mockSaveSettingsToCloud.mock.calls[0][0] as Record<string, unknown>
+      expect(synced.theme).toBe('dark')
+      expect(synced).not.toHaveProperty('fontSize')
+    })
+
+    it('calls saveSettingsToCloud on clear', () => {
+      Settings.set({ theme: 'dark' })
+      mockSaveSettingsToCloud.mockClear()
+
+      Settings.clear()
+
+      expect(mockSaveSettingsToCloud).toHaveBeenCalledWith({})
+    })
+
+    it('still persists to localStorage when cloud fails', () => {
+      mockSaveSettingsToCloud.mockRejectedValue(new Error('fail'))
+
+      Settings.set({ theme: 'sepia' })
+
+      const stored = JSON.parse(localStorage.getItem('user-settings')!)
+      expect(stored.theme).toBe('sepia')
     })
   })
 })
