@@ -1,5 +1,5 @@
 <template>
-  <Modal :visible="visible" size="medium" :title-style="{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '340px' }" @close="$emit('close')">
+  <Modal v-if="!embedded" :visible="visible" size="medium" :title-style="{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '340px' }" @close="$emit('close')">
     <template #header>
       <div class="dict-header-info">
         <span class="dict-title-word">{{ word }}</span>
@@ -29,6 +29,29 @@
       <slot name="footer"></slot>
     </template>
   </Modal>
+  <div v-else class="dict-content">
+    <div class="dict-header-info embedded-header">
+      <span class="dict-title-word">{{ word }}</span>
+      <span v-if="effectivePronunciation || word" class="dict-title-pron-row">
+        <span v-if="effectivePronunciation" class="dict-title-pron">{{ effectivePronunciation }}</span>
+        <button v-if="word" class="dict-speak-btn" @click="speak" title="Pronounce">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+        </button>
+      </span>
+    </div>
+    <div v-if="context" class="dict-context">"{{ context }}"</div>
+    <div v-if="entries.length" class="dict-entries">
+      <div v-for="(entry, i) in entries" :key="i" class="dict-entry">
+        <div class="dict-pos">{{ entry.pos }}</div>
+        <div class="dict-def">{{ entry.def }}</div>
+        <div v-for="(ex, j) in entry.examples" :key="j" class="dict-example">"{{ ex }}"</div>
+      </div>
+    </div>
+    <div v-else-if="loading" class="dict-loading">
+      <span class="dict-cursor">▊</span>
+    </div>
+    <p v-else class="dict-empty">No definition found.</p>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -42,7 +65,8 @@ const props = withDefaults(defineProps<{
   definition?: string
   pronunciation?: string
   context?: string
-}>(), { visible: false, word: '', definition: '', pronunciation: '', context: '' })
+  embedded?: boolean
+}>(), { visible: false, word: '', definition: '', pronunciation: '', context: '', embedded: false })
 
 const emit = defineEmits<{ close: []; lookup: [result: { definition: string; pronunciation: string }] }>()
 
@@ -99,6 +123,7 @@ function speak() {
 
 <style scoped>
 .dict-header-info { text-align: left; }
+.embedded-header { margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--color-border-subtle); }
 .dict-title-word {
   font-size: 1.05rem; font-weight: 600; color: var(--color-text-strong);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block;

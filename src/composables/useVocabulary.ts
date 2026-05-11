@@ -9,6 +9,7 @@ export function useVocabulary() {
   const vocabDueCount = computed(() => vocabStore.vocabCardsDueCount)
   const allVocabCards = computed(() => vocabStore.allVocabCards)
   const totalVocabCount = computed(() => Object.keys(vocabStore.vocabData).length)
+  const scratchpad = computed(() => vocabStore.scratchpad)
 
   const addVocabCard = (params: { word: string; definition?: string; context?: string; messageId?: string | null }) => {
     return vocabStore.addVocabCard(params)
@@ -42,11 +43,16 @@ export function useVocabulary() {
     return !!vocabStore.findVocabCardByWord(word)
   }
 
+  const updateScratchpad = (content: string) => {
+    vocabStore.updateScratchpad(content)
+  }
+
   return {
     vocabCardsDue,
     vocabDueCount,
     allVocabCards,
     totalVocabCount,
+    scratchpad,
     addVocabCard,
     appendToDefinition,
     updateDefinition,
@@ -55,5 +61,6 @@ export function useVocabulary() {
     getCard,
     findByWord,
     wordExists,
+    updateScratchpad,
   }
 }

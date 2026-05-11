@@ -142,7 +142,7 @@ const initializeApp = async () => {
     if (syncStore._isLoadingFromStorage) return
     try {
       await syncStore.persistChatList()
-      syncStore.scheduleFirestoreSync()
+      await syncStore.syncToFirestore({ events: {} }, {})
     } catch (error) {
       console.error('[Main] Vocab persistence failed:', error)
     }

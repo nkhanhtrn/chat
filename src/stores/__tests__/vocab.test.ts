@@ -150,6 +150,29 @@ describe('useVocabStore', () => {
     })
   })
 
+  describe('scratchpad', () => {
+    it('defaults to empty string', () => {
+      expect(store.scratchpad).toBe('')
+    })
+
+    it('updates scratchpad content', () => {
+      store.updateScratchpad('my notes')
+      expect(store.scratchpad).toBe('my notes')
+    })
+
+    it('overwrites previous content', () => {
+      store.updateScratchpad('first')
+      store.updateScratchpad('second')
+      expect(store.scratchpad).toBe('second')
+    })
+
+    it('can be set to empty string', () => {
+      store.updateScratchpad('notes')
+      store.updateScratchpad('')
+      expect(store.scratchpad).toBe('')
+    })
+  })
+
   describe('_loadFromData', () => {
     it('reconstructs cards from plain data', () => {
       store._loadFromData({

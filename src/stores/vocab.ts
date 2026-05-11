@@ -5,6 +5,7 @@ import type { ReviewQuality, VocabCardData, VocabCardCreateParams } from '@/type
 export const useVocabStore = defineStore('vocab', {
   state: () => ({
     vocabData: {} as Record<string, VocabCard>,
+    scratchpad: '' as string,
   }),
 
   getters: {
@@ -74,6 +75,10 @@ export const useVocabStore = defineStore('vocab', {
         if (card.word.toLowerCase().trim() === normalized) return card
       }
       return null
+    },
+
+    updateScratchpad(content: string): void {
+      this.scratchpad = content
     },
 
     /** Reconstruct VocabCard objects from plain data (used during initialization) */

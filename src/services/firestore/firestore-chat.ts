@@ -24,6 +24,7 @@ export async function syncChatStateWithSubcollections(
       currentChatId: metaData.currentChatId ?? null,
       currentModel: metaData.currentModel ?? null,
       vocabData: JSON.parse(JSON.stringify(metaData.vocabData ?? {})),
+      vocabScratchpad: metaData.vocabScratchpad ?? '',
       lastUpdated: Date.now(),
     })
   } catch (error) {
