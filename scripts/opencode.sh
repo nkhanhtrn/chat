@@ -3,6 +3,7 @@ set -e
 
 PORT="${OPENCODE_PORT:-4096}"
 HOST="${OPENCODE_HOST:-127.0.0.1}"
+CORS_ORIGINS="${OPENCODE_CORS:-https://nkhanhtrn.github.io}"
 PID_FILE="/tmp/opencode-serve.pid"
 
 red='\033[0;31m'
@@ -38,8 +39,14 @@ case "${1:-start}" in
             exit 0
         fi
 
+        CORS_ARGS=()
+        for origin in $CORS_ORIGINS; do
+            CORS_ARGS+=(--cors "$origin")
+        done
+
         info "Starting opencode server on ${HOST}:${PORT}..."
-        nohup opencode serve --port "$PORT" --hostname "$HOST" > /tmp/opencode-serve.log 2>&1 &
+        info "CORS origins: ${CORS_ORIGINS}"
+        nohup opencode serve --port "$PORT" --hostname "$HOST" "${CORS_ARGS[@]}" > /tmp/opencode-serve.log 2>&1 &
         echo $! > "$PID_FILE"
         disown
 
