@@ -11,7 +11,7 @@
       <button class="nav-btn" :class="{ active: activePage === 'notebooks' }" @click="goTo('notebooks')" title="Notebooks"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"/></svg></button>
       <button class="nav-btn" :class="{ active: activePage === 'books' }" @click="goTo('books')" title="Books"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/></svg></button>
       <button class="nav-btn" :class="{ active: activePage === 'current-content' }" :disabled="!hasCurrentContent" @click="goTo('current-content')" title="Current Content"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z"/></svg></button>
-      <button class="nav-btn" :class="{ active: activePage === 'studio' }" @click="goTo('studio')" title="Studio"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg></button>
+      <button class="nav-btn" :class="{ active: activePage === 'projects' }" @click="goTo('projects')" title="Projects"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>
       <button class="nav-btn" :class="{ active: activePage === 'calendar' }" @click="goTo('calendar')" title="Calendar"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM9 10H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z"/></svg></button>
       <div class="nav-spacer"></div>
       <button class="nav-btn" @click="showVocab = true" title="Vocabulary">
@@ -78,7 +78,7 @@ const activePage = computed(() => {
   if (name === 'notebooks') return 'notebooks'
   if (name === 'notebook' || name === 'question' || name === 'current-content' || name === 'current-content-question') return 'current-content'
   if (name === 'calendar') return 'calendar'
-  if (name === 'studio') return 'studio'
+  if (name === 'projects' || name === 'project-detail') return 'projects'
   if (name === 'books') return 'books'
   return ''
 })
@@ -123,7 +123,7 @@ function goTo(page: string) {
     else if (notebookStore.currentChatId) router.push({ name: 'current-content', params: { type: 'notebook', id: notebookStore.currentChatId } })
   }
   else if (page === 'calendar') router.push({ name: 'calendar' })
-  else if (page === 'studio') router.push({ name: 'studio' })
+  else if (page === 'projects') router.push({ name: 'projects' })
 }
 
 function getClientX(event: MouseEvent | TouchEvent): number {
