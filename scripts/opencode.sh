@@ -39,6 +39,15 @@ case "${1:-start}" in
             exit 0
         fi
 
+        stale=$(pgrep -f "opencode serve" || true)
+        if [ -n "$stale" ]; then
+            warn "Killing stale opencode processes: $(echo $stale | tr '\n' ' ')"
+            kill $stale 2>/dev/null || true
+            sleep 0.5
+            stale=$(pgrep -f "opencode serve" || true)
+            [ -n "$stale" ] && kill -9 $stale 2>/dev/null || true
+        fi
+
         CORS_ARGS=()
         for origin in $CORS_ORIGINS; do
             CORS_ARGS+=(--cors "$origin")
@@ -65,15 +74,16 @@ case "${1:-start}" in
         ;;
 
     stop)
-        if is_running; then
-            pid=$(cat "$PID_FILE")
-            info "Stopping opencode server (PID ${pid})..."
-            kill "$pid"
-            rm -f "$PID_FILE"
-            info "Stopped."
-        else
-            warn "Not running."
+        pids=$(pgrep -f "opencode serve" || true)
+        if [ -n "$pids" ]; then
+            info "Killing opencode server processes: $(echo $pids | tr '\n' ' ')"
+            kill $pids 2>/dev/null || true
+            sleep 0.5
+            pids=$(pgrep -f "opencode serve" || true)
+            [ -n "$pids" ] && kill -9 $pids 2>/dev/null || true
         fi
+        rm -f "$PID_FILE"
+        info "Stopped."
         ;;
 
     restart)
