@@ -22,9 +22,9 @@
               <div class="action-icon">📚</div>
               <div class="action-text"><h3>Books</h3><p>expand your minds</p></div>
             </router-link>
-            <router-link to="/studio" class="action-card">
+            <router-link to="/projects" class="action-card">
               <div class="action-icon">🛠️</div>
-              <div class="action-text"><h3>Studio</h3><p>personalize your warfare</p></div>
+              <div class="action-text"><h3>Projects</h3><p>build & experiment</p></div>
             </router-link>
             <router-link to="/calendar" class="action-card">
               <div class="action-icon">📅</div>

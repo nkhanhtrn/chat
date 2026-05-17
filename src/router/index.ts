@@ -12,9 +12,14 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/NotebooksPage.vue')
   },
   {
-    path: '/studio',
-    name: 'studio',
-    component: () => import('@/views/StudioChat.vue')
+    path: '/projects',
+    name: 'projects',
+    component: () => import('@/views/ProjectsPage.vue')
+  },
+  {
+    path: '/projects/:id',
+    name: 'project-detail',
+    component: () => import('@/views/ProjectDetail.vue')
   },
   {
     path: '/calendar',
