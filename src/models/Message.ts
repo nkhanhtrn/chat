@@ -15,6 +15,7 @@ export class Message {
   createdAt: number
   chatId: string | null
   linkedFrom?: LinkedFromEntry[]
+  openCodeSessionId?: string | null
 
   static createChildMessage(
     parentId: string,
@@ -49,6 +50,7 @@ export class Message {
     this.scrollPosition = params.scrollPosition ?? 0
     this.createdAt = params.createdAt ?? Date.now()
     this.chatId = params.chatId ?? null
+    this.openCodeSessionId = params.openCodeSessionId ?? null
   }
 
   get hasChildren(): boolean {
@@ -85,7 +87,8 @@ export class Message {
       scrollPosition: this.scrollPosition,
       createdAt: this.createdAt,
       chatId: this.chatId,
-      ...(this.linkedFrom ? { linkedFrom: [...this.linkedFrom] } : {})
+      ...(this.linkedFrom ? { linkedFrom: [...this.linkedFrom] } : {}),
+      ...(this.openCodeSessionId ? { openCodeSessionId: this.openCodeSessionId } : {})
     }
   }
 }

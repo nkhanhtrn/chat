@@ -195,8 +195,13 @@ const handleSendMessage = async (userMessage: string) => {
   const messages = getMainPrompts(msg.question)
 
   try {
+    const sessionId = await lmService.ensureSession(msg.id, msg.openCodeSessionId, msg.question.slice(0, 80))
+    if (!msg.openCodeSessionId) {
+      msg.openCodeSessionId = sessionId
+      notebookStore.syncCurrentChat()
+    }
     await lmService.chat(
-      'stub',
+      sessionId,
       messages,
       (chunk) => { treeStore.appendToResponse(msg.id, chunk) }
     )

@@ -66,7 +66,9 @@
           <!-- LLM Tab -->
           <div v-else-if="activeTab === 'llm'" key="llm" class="settings-body">
             <div class="setting-item setting-item-vertical">
-              <span class="setting-hint">LLM provider will be configured in a future update.</span>
+              <label class="setting-label">OpenCode API URL</label>
+              <input type="text" v-model="codeApiUrl" placeholder="http://localhost:4096" class="api-key-input" @input="handleCodeApiUrlChange" />
+              <span class="setting-hint">URL of the opencode server (see <code>opencode serve</code>)</span>
             </div>
             <div class="setting-item setting-item-vertical">
               <label class="setting-label">Extra Services</label>
@@ -185,6 +187,7 @@ const widthOptions = [
 ]
 
 const restoreStatus = ref<ConnectionStatus | null>(null)
+const codeApiUrl = ref('')
 const customFetchUrl = ref('')
 const bookApiUrl = ref('')
 const bookApiKey = ref('')
@@ -228,6 +231,10 @@ function handleSetContentWidth(width: ContentWidth) {
 
 // ── LLM handlers ──
 
+function handleCodeApiUrlChange() {
+  Settings.set({ codeApiUrl: codeApiUrl.value })
+}
+
 function handleCustomFetchUrlChange() {
   Settings.set({ customFetchUrl: customFetchUrl.value })
 }
@@ -247,6 +254,7 @@ function handleSetExtraService(service: string) {
 
 function loadSettings() {
   const settings = Settings.getAll()
+  if (settings.codeApiUrl) codeApiUrl.value = settings.codeApiUrl as string
   if (settings.customFetchUrl) customFetchUrl.value = settings.customFetchUrl as string
   if (settings.bookApiUrl) bookApiUrl.value = settings.bookApiUrl as string
   if (settings.bookApiKey) bookApiKey.value = settings.bookApiKey as string
@@ -392,10 +400,13 @@ onMounted(async () => {
     contentWidth.value = settings.contentWidth as ContentWidth
     applyContentWidth(settings.contentWidth as string)
   }
+  if (settings.codeApiUrl) codeApiUrl.value = settings.codeApiUrl as string
   if (settings.customFetchUrl) customFetchUrl.value = settings.customFetchUrl as string
   if (settings.bookApiUrl) bookApiUrl.value = settings.bookApiUrl as string
   if (settings.bookApiKey) bookApiKey.value = settings.bookApiKey as string
   if (settings.extraService) extraService.value = settings.extraService as string
+
+  loadSettings()
 })
 
 onUnmounted(() => {
@@ -455,6 +466,7 @@ onUnmounted(() => {
 .font-size-value { min-width: 24px; font-size: 0.85rem; color: var(--color-text-muted); font-family: system-ui, -apple-system, sans-serif; text-align: right; }
 
 .api-key-input { flex: 1; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border-base); border-radius: 4px; background: var(--color-bg-elevated); color: var(--color-text-base); font-size: 0.9rem; font-family: monospace; }
+.api-key-input:focus { outline: none; border-color: var(--color-border-strong); }
 .api-key-input:focus { outline: none; border-color: var(--color-border-strong); }
 
 .setting-hint { font-size: 0.75rem; color: var(--color-text-muted); font-family: system-ui, -apple-system, sans-serif; margin-top: 0.25rem; }

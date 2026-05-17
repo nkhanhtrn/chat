@@ -26,8 +26,8 @@
         </div>
         <div class="context-menu-row">
           <button class="context-menu-btn" @click="onDictionary" :disabled="isStreaming">Dictionary</button>
-          <button class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming">Explain</button>
           <button class="context-menu-btn" @click="onSummary" :disabled="isStreaming">Summary</button>
+          <button class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming">Deepdive</button>
         </div>
         <div class="context-menu-row prompt-row">
           <PromptInput
