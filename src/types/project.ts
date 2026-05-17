@@ -12,15 +12,7 @@ export interface ProjectMessage {
   role: 'user' | 'assistant' | 'system'
   content: string
   timestamp: number
-  attachments?: ProjectAttachment[]
   isError?: boolean
-}
-
-export interface ProjectAttachment {
-  type: 'image' | 'code' | 'text' | 'url'
-  name: string
-  content: string
-  status?: 'loading' | 'success' | 'error'
 }
 
 export type WindowDisplayState = 'open' | 'minimized' | 'closed'

@@ -4,7 +4,7 @@ export type { ReviewQuality, VocabCardData, VocabCardCreateParams, VocabCardDue 
 export type { LLMMessage, SendMessageResult, CurrentModels, ProviderConfigs } from './llm'
 export type { SyncStatus, ConflictData, SyncState } from './sync'
 export type { StudioSession, StudioChatMessage, StudioAttachment, CanvasWindow, ToolInstance, StudioSessionData } from './studio'
-export type { Project, ProjectMessage, ProjectAttachment, ProjectWindow, WindowDisplayState, WindowType } from './project'
+export type { Project, ProjectMessage, ProjectWindow, WindowDisplayState, WindowType } from './project'
 export type { BookData, BookMetadata, BookWithData, BookCreateParams } from './book'
 export type { Theme, UserSettings, SettingsKey } from './settings'
 

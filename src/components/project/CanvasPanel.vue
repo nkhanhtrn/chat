@@ -1,6 +1,6 @@
 <template>
-  <div class="canvas-panel" @click.self="$emit('browse-windows')">
-    <div v-if="windows.length === 0" class="canvas-empty" @click="$emit('browse-windows')">
+  <div class="canvas-panel">
+    <div v-if="windows.length === 0" class="canvas-empty">
       <div class="empty-icon">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
           <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
@@ -23,17 +23,12 @@
       @bring-to-front="$emit('bring-to-front', win.id)"
       @clone="$emit('clone-window', win)"
     />
-    <MinimizedWindowsBar
-      :windows="minimizedWindows"
-      @restore="$emit('restore-window', $event)"
-    />
-  </div>
+   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import OutputWindow from './OutputWindow.vue'
-import MinimizedWindowsBar from './MinimizedWindowsBar.vue'
 import type { ProjectWindow } from '@/types/project'
 
 const props = defineProps<{
@@ -50,15 +45,10 @@ defineEmits<{
   'update-title': [windowId: string, title: string]
   'bring-to-front': [windowId: string]
   'clone-window': [window: ProjectWindow]
-  'browse-windows': []
 }>()
 
 const sortedWindows = computed(() =>
   [...props.windows].sort((a, b) => a.zIndex - b.zIndex)
-)
-
-const minimizedWindows = computed(() =>
-  props.windows.filter(w => w.displayState === 'minimized')
 )
 </script>
 

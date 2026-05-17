@@ -29,12 +29,6 @@
       />
       <span v-if="showCursor" class="cursor">|</span>
     </div>
-    <div v-if="msg.role === 'user' && msg.attachments && msg.attachments.length > 0" class="attachments-indicator">
-      <div v-for="(att, attIndex) in msg.attachments" :key="attIndex" class="attachment-badge">
-        <span class="attachment-icon">{{ getAttachmentIcon(att.type) }}</span>
-        <span class="attachment-name">{{ att.name }}</span>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -58,12 +52,6 @@ defineEmits<{
 const showCursor = computed(() =>
   props.isStreaming && props.isLastMessage && props.msg.role === 'assistant'
 )
-
-function getAttachmentIcon(type: string): string {
-  if (type === 'url') return '\uD83D\uDD17'
-  if (type === 'image') return '\uD83D\uDDBC\uFE0F'
-  return '\uD83D\uDCC4'
-}
 </script>
 
 <style scoped>
@@ -75,10 +63,6 @@ function getAttachmentIcon(type: string): string {
 .message.assistant .message-content { padding: 0.25rem 0; }
 .cursor { animation: blink 0.7s infinite; color: var(--color-primary); font-weight: bold; }
 @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
-.attachments-indicator { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.5rem; }
-.attachment-badge { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.2rem 0.4rem; background-color: var(--color-bg-hover); font-size: 0.7rem; font-family: system-ui, sans-serif; color: var(--color-text-muted); }
-.attachment-icon { font-size: 0.75rem; }
-.attachment-name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .retry-icon-btn { display: inline-flex; align-items: center; justify-content: center; margin-left: 0.35rem; padding: 2px; background: none; border: none; border-radius: 3px; color: var(--color-text-muted); cursor: pointer; opacity: 0; transition: all 0.15s; }
 .message:hover .retry-icon-btn { opacity: 0.6; }
 .retry-icon-btn:hover { opacity: 1; background-color: var(--color-bg-hover); color: var(--color-text-base); }

@@ -23,7 +23,7 @@
       </div>
     </template>
 
-    <div class="canvas-wrapper" @click="handleCanvasClick">
+    <div class="canvas-wrapper">
       <SlideTransition appear direction="vertical">
         <CanvasPanel
           :windows="projectStore.activeWindows"
@@ -36,19 +36,8 @@
           @update-title="handleUpdateTitle"
           @bring-to-front="handleBringToFront"
           @clone-window="handleCloneWindow"
-          @browse-windows="isBrowsingWindows = !isBrowsingWindows"
         />
       </SlideTransition>
-
-      <WindowBrowser
-        v-if="isBrowsingWindows"
-        :windows="projectStore.currentWindows"
-        @close="isBrowsingWindows = false"
-        @restore="handleRestoreWindow"
-        @delete="handleDeleteWindow"
-        @rename="handleUpdateTitle"
-        @click.stop
-      />
     </div>
   </AppLayout>
 </template>
@@ -63,7 +52,6 @@ import ProjectHeader from '@/components/project/ProjectHeader.vue'
 import MessageList from '@/components/project/MessageList.vue'
 import MessageInput from '@/components/project/MessageInput.vue'
 import CanvasPanel from '@/components/project/CanvasPanel.vue'
-import WindowBrowser from '@/components/project/WindowBrowser.vue'
 import type { ProjectMessage, ProjectWindow } from '@/types/project'
 
 const route = useRoute()
@@ -73,7 +61,6 @@ const projectId = route.params.id as string
 
 const inputText = ref('')
 const isStreaming = ref(false)
-const isBrowsingWindows = ref(false)
 const messageListRef = ref<InstanceType<typeof MessageList> | null>(null)
 const messageInputRef = ref<InstanceType<typeof MessageInput> | null>(null)
 const appLayoutRef = ref<InstanceType<typeof AppLayout> | null>(null)
@@ -179,18 +166,6 @@ function handleCloneWindow(window: ProjectWindow) {
     zIndex: projectStore.getNextZIndex(),
   }
   projectStore.addWindow(projectId, newWindow)
-}
-
-function handleCanvasClick() {
-  if (isBrowsingWindows.value) {
-    isBrowsingWindows.value = false
-  }
-}
-
-function handleRenameProject(newName: string) {
-  if (projectId && newName.trim()) {
-    projectStore.renameProject(projectId, newName.trim())
-  }
 }
 </script>
 
