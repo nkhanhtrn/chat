@@ -16,7 +16,7 @@ export function setDevToolbarEnabled(enabled: boolean): void {
 export function getDefaultQuestions(): string[] {
   const isDev = getIsDev()
   const answers = [
-    'Explain quantum physics in simple terms',
+    'Deepdive quantum physics in simple terms',
     'How does photosynthesis work?',
     'Teach me about the French Revolution',
   ]

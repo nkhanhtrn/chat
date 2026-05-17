@@ -1,7 +1,7 @@
 export type { CustomContentType, CustomContentBase, QuestionLink, NoteContent, CustomContent, LinkedFromEntry, MessageData, MessageCreateParams } from './message'
 export type { Notebook, NotebookListItem, NotebookListData, NotebookMessagesData } from './notebook'
 export type { ReviewQuality, VocabCardData, VocabCardCreateParams, VocabCardDue } from './vocab'
-export type { LLMMessage } from './llm'
+export type { LLMMessage, SendMessageResult, CurrentModels, ProviderConfigs } from './llm'
 export type { SyncStatus, ConflictData, SyncState } from './sync'
 export type { StudioSession, StudioChatMessage, StudioAttachment, CanvasWindow, ToolInstance, StudioSessionData } from './studio'
 export type { BookData, BookMetadata, BookWithData, BookCreateParams } from './book'

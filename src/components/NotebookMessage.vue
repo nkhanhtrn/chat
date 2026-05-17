@@ -236,6 +236,14 @@ function handleNoteClick(noteData: Record<string, unknown>) {
   showResponseModal.value = true
 }
 
+function getRootSessionId(messageId: string): string | null {
+  let msg = treeStore.getMessageById(messageId)
+  while (msg?.parentId) {
+    msg = treeStore.getMessageById(msg.parentId)
+  }
+  return msg?.openCodeSessionId ?? null
+}
+
 async function handleAskQuestion(question: string) {
   if (!question || isChildStreaming.value) return
 
@@ -267,13 +275,24 @@ async function handleAskQuestion(question: string) {
   const previousMessages = buildConversationChain(treeStore.messagesById, parentId)
 
   try {
+    const sessionId = getRootSessionId(parentId)
     const messages = getMainPrompts(question, previousMessages)
-    await lmService.ephemeralChat(
-      messages,
-      (chunk: string) => {
-        treeStore.appendToResponse(childMsg.id, chunk)
-      }
-    )
+    if (sessionId) {
+      await lmService.chat(
+        sessionId,
+        messages,
+        (chunk: string) => {
+          treeStore.appendToResponse(childMsg.id, chunk)
+        }
+      )
+    } else {
+      await lmService.ephemeralChat(
+        messages,
+        (chunk: string) => {
+          treeStore.appendToResponse(childMsg.id, chunk)
+        }
+      )
+    }
   } catch (err: any) {
     error.value = err.message
   } finally {
@@ -335,22 +354,6 @@ async function handleCustomPrompt(prompt: string) {
         responseContent.value = fullResponse
       }
     )
-    if (fullResponse) {
-      if (highlightId) {
-        highlights.updateContent(highlightId, {
-          hasNote: true,
-          noteContent: fullResponse,
-        } as any)
-      } else {
-        highlights.addNote({
-          text: selectedText,
-          startOffset,
-          endOffset,
-          noteContent: fullResponse,
-          colorIndex: selectionColorIndex.value,
-        })
-      }
-    }
   } catch (err: any) {
     error.value = err.message
   } finally {
@@ -389,13 +392,24 @@ async function handleCustomPromptDeepDive(prompt: string) {
   const previousMessages = buildConversationChain(treeStore.messagesById, parentId)
 
   try {
+    const sessionId = getRootSessionId(parentId)
     const messages = getMainPrompts(question, previousMessages)
-    await lmService.ephemeralChat(
-      messages,
-      (chunk: string) => {
-        treeStore.appendToResponse(childMsg.id, chunk)
-      }
-    )
+    if (sessionId) {
+      await lmService.chat(
+        sessionId,
+        messages,
+        (chunk: string) => {
+          treeStore.appendToResponse(childMsg.id, chunk)
+        }
+      )
+    } else {
+      await lmService.ephemeralChat(
+        messages,
+        (chunk: string) => {
+          treeStore.appendToResponse(childMsg.id, chunk)
+        }
+      )
+    }
   } catch (err: any) {
     error.value = err.message
   } finally {
@@ -462,22 +476,6 @@ async function handleSummary() {
         responseContent.value = fullResponse
       }
     )
-    if (fullResponse) {
-      if (highlightId) {
-        highlights.updateContent(highlightId, {
-          hasNote: true,
-          noteContent: fullResponse,
-        } as any)
-      } else {
-        highlights.addNote({
-          text: selectedText,
-          startOffset,
-          endOffset,
-          noteContent: fullResponse,
-          colorIndex: selectionColorIndex.value,
-        })
-      }
-    }
   } catch (err: any) {
     error.value = err.message
   } finally {

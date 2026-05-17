@@ -49,6 +49,7 @@ export interface MessageData {
   createdAt: number
   chatId: string | null
   linkedFrom?: LinkedFromEntry[]
+  openCodeSessionId?: string | null
 }
 
 /** Data needed to create a new message */
@@ -66,4 +67,5 @@ export interface MessageCreateParams {
   responseSummary?: string
   createdAt?: number
   chatId?: string | null
+  openCodeSessionId?: string | null
 }

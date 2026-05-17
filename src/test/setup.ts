@@ -56,6 +56,16 @@ vi.mock('@/services/auth', () => ({
   onAuthChange: vi.fn(() => () => {}),
 }))
 
+vi.mock('@/services/llm/providers/opencode', () => ({
+  openCodeProvider: {
+    createSession: vi.fn().mockResolvedValue('mock-session-id'),
+    deleteSession: vi.fn().mockResolvedValue(undefined),
+    send: vi.fn().mockResolvedValue('Mocked response'),
+    sendStream: vi.fn(),
+    invalidateClient: vi.fn(),
+  },
+}))
+
 beforeEach(() => {
   localStorage?.clear()
 })

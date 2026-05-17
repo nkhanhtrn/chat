@@ -10,6 +10,7 @@ export interface UserSettings {
   fontFamily: string
   lineHeight: number
   contentWidth: ContentWidth
+  codeApiUrl: string
   customFetchUrl: string
   bookApiUrl: string
   bookApiKey: string
