@@ -39,9 +39,7 @@
                 @save="(newName: string) => renameProject(project.id, newName)"
               />
               <div class="project-meta">
-                <span>{{ project.messageCount }} message{{ project.messageCount === 1 ? '' : 's' }}</span>
-                <span class="separator">•</span>
-                <span>{{ project.windowCount }} window{{ project.windowCount === 1 ? '' : 's' }}</span>
+                <span>{{ project.subprojects.length }} subproject{{ project.subprojects.length === 1 ? '' : 's' }}</span>
                 <span class="separator">•</span>
                 <span>{{ formatDate(project.updatedAt) }}</span>
               </div>
@@ -108,12 +106,16 @@ function formatDate(timestamp: number): string {
 function createNewProject() {
   const project = projectStore.createProject()
   projectStore.switchToProject(project.id)
-  router.push({ name: 'project-detail', params: { id: project.id } })
+  const subId = project.activeSubprojectId
+  router.push({ name: 'project-subproject', params: { id: project.id, subId } })
 }
 
 function openProject(id: string) {
+  const project = projectStore.projects.find(p => p.id === id)
+  if (!project) return
   projectStore.switchToProject(id)
-  router.push({ name: 'project-detail', params: { id } })
+  const subId = project.activeSubprojectId
+  router.push({ name: 'project-subproject', params: { id, subId } })
 }
 
 function deleteProject(id: string) {

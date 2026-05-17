@@ -3,6 +3,8 @@ import { Settings } from './settings'
 const URL_REGEX = /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi
 
 const NO_PROXY_DOMAINS = [
+  'localhost',
+  '127.0.0.1',
   'firestore.googleapis.com',
   'firebaseio.com',
   'firebase.googleapis.com',

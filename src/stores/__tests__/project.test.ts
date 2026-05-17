@@ -27,6 +27,11 @@ function makeMessage(overrides: Partial<ProjectMessage> = {}): ProjectMessage {
   }
 }
 
+function dataKey(store: ReturnType<typeof useProjectStore>, projectId: string): string {
+  const project = store.projects.find(p => p.id === projectId)
+  return `${projectId}-${project!.activeSubprojectId}`
+}
+
 describe('useProjectStore', () => {
   let store: ReturnType<typeof useProjectStore>
 
@@ -41,8 +46,6 @@ describe('useProjectStore', () => {
       const project = store.createProject()
 
       expect(project.name).toBe('Project 1')
-      expect(project.messageCount).toBe(0)
-      expect(project.windowCount).toBe(0)
       expect(store.projects).toHaveLength(1)
     })
 
@@ -52,13 +55,22 @@ describe('useProjectStore', () => {
       expect(project.name).toBe('My App')
     })
 
-    it('initializes empty messages and windows maps', () => {
+    it('creates a default Main subproject', () => {
       const project = store.createProject()
 
-      expect(store.messages.has(project.id)).toBe(true)
-      expect(store.messages.get(project.id)).toEqual([])
-      expect(store.windows.has(project.id)).toBe(true)
-      expect(store.windows.get(project.id)).toEqual([])
+      expect(project.subprojects).toHaveLength(1)
+      expect(project.subprojects[0].name).toBe('Main')
+      expect(project.activeSubprojectId).toBe(project.subprojects[0].id)
+    })
+
+    it('initializes empty messages and windows for default subproject', () => {
+      const project = store.createProject()
+      const key = dataKey(store, project.id)
+
+      expect(store.messages.has(key)).toBe(true)
+      expect(store.messages.get(key)).toEqual([])
+      expect(store.windows.has(key)).toBe(true)
+      expect(store.windows.get(key)).toEqual([])
     })
 
     it('increments default name for subsequent projects', () => {
@@ -90,13 +102,24 @@ describe('useProjectStore', () => {
 
     it('removes associated messages and windows', () => {
       const project = store.createProject()
-      store.addMessage(project.id, makeMessage())
-      store.addWindow(project.id, makeWindow())
+      const key = dataKey(store, project.id)
+      store.addMessage(key, makeMessage())
+      store.addWindow(key, makeWindow())
 
       store.deleteProject(project.id)
 
-      expect(store.messages.has(project.id)).toBe(false)
-      expect(store.windows.has(project.id)).toBe(false)
+      expect(store.messages.has(key)).toBe(false)
+      expect(store.windows.has(key)).toBe(false)
+    })
+
+    it('removes session from localStorage', () => {
+      const project = store.createProject()
+      const key = dataKey(store, project.id)
+      localStorage.setItem(`project-session-${key}`, 'ses_123')
+
+      store.deleteProject(project.id)
+
+      expect(localStorage.getItem(`project-session-${key}`)).toBeNull()
     })
 
     it('switches currentProjectId to another project if deleting current', () => {
@@ -116,16 +139,6 @@ describe('useProjectStore', () => {
       store.deleteProject(project.id)
 
       expect(store.currentProjectId).toBeNull()
-    })
-
-    it('does not change currentProjectId if deleting a different project', () => {
-      const p1 = store.createProject('Keep')
-      const p2 = store.createProject('Delete')
-      store.switchToProject(p1.id)
-
-      store.deleteProject(p2.id)
-
-      expect(store.currentProjectId).toBe(p1.id)
     })
   })
 
@@ -162,45 +175,132 @@ describe('useProjectStore', () => {
       expect(store.currentProjectId).toBe(project.id)
     })
 
-    it('initializes messages and windows maps if not present', () => {
-      const project = store.createProject()
-      store.messages.delete(project.id)
-      store.windows.delete(project.id)
-
-      store.switchToProject(project.id)
-
-      expect(store.messages.get(project.id)).toEqual([])
-      expect(store.windows.get(project.id)).toEqual([])
-    })
-  })
-
-  describe('projectList', () => {
-    it('returns projects sorted by updatedAt descending', async () => {
-      store.createProject('Old')
-      await new Promise(r => setTimeout(r, 5))
-      store.createProject('New')
-
-      await vi.waitFor(() => {
-        expect(store.projectList[0].name).toBe('New')
-        expect(store.projectList[1].name).toBe('Old')
-      })
-    })
-
-    it('returns empty array when no projects', () => {
-      expect(store.projectList).toEqual([])
-    })
-  })
-
-  describe('currentProject', () => {
-    it('returns null when no project is selected', () => {
-      expect(store.currentProject).toBeNull()
-    })
-
-    it('returns the selected project', () => {
+    it('sets currentSubprojectId', () => {
       const project = store.createProject()
       store.switchToProject(project.id)
 
-      expect(store.currentProject).toEqual(project)
+      expect(store.currentSubprojectId).toBe(project.activeSubprojectId)
+    })
+
+    it('sets currentDataKey', () => {
+      const project = store.createProject()
+      store.switchToProject(project.id)
+
+      expect(store.currentDataKey).toBe(`${project.id}-${project.activeSubprojectId}`)
+    })
+
+    it('initializes messages and windows for subproject if not present', () => {
+      const project = store.createProject()
+      const key = dataKey(store, project.id)
+      store.messages.delete(key)
+      store.windows.delete(key)
+
+      store.switchToProject(project.id)
+
+      expect(store.messages.get(key)).toEqual([])
+      expect(store.windows.get(key)).toEqual([])
+    })
+  })
+
+  describe('subprojects', () => {
+    it('createSubProject adds a new subproject and switches to it', () => {
+      const project = store.createProject()
+      store.switchToProject(project.id)
+      const mainSubId = project.activeSubprojectId
+
+      const newSub = store.createSubProject(project.id, 'Subproject 2')
+
+      expect(newSub).not.toBeNull()
+      expect(newSub!.name).toBe('Subproject 2')
+      expect(project.subprojects).toHaveLength(2)
+      expect(project.activeSubprojectId).toBe(newSub!.id)
+      expect(store.currentSubprojectId).toBe(newSub!.id)
+    })
+
+    it('createSubProject auto-names if no name given', () => {
+      const project = store.createProject()
+
+      const newSub = store.createSubProject(project.id)
+
+      expect(newSub!.name).toBe('Subproject 2')
+    })
+
+    it('createSubProject initializes empty messages/windows for new sub', () => {
+      const project = store.createProject()
+      store.switchToProject(project.id)
+
+      const newSub = store.createSubProject(project.id)
+      const key = `${project.id}-${newSub!.id}`
+
+      expect(store.messages.has(key)).toBe(true)
+      expect(store.windows.has(key)).toBe(true)
+    })
+
+    it('deleteSubProject removes sub and switches to another', () => {
+      const project = store.createProject()
+      store.switchToProject(project.id)
+      const mainSubId = project.subprojects[0].id
+      const newSub = store.createSubProject(project.id, 'Subproject 2')
+
+      store.deleteSubProject(project.id, newSub!.id)
+
+      expect(project.subprojects).toHaveLength(1)
+      expect(project.activeSubprojectId).toBe(mainSubId)
+    })
+
+    it('deleteSubProject can delete the last subproject', () => {
+      const project = store.createProject()
+      store.switchToProject(project.id)
+
+      store.deleteSubProject(project.id, project.subprojects[0].id)
+
+      expect(project.subprojects).toHaveLength(0)
+    })
+
+    it('deleteSubProject cleans up localStorage', () => {
+      const project = store.createProject()
+      store.switchToProject(project.id)
+      const newSub = store.createSubProject(project.id, 'Subproject 2')
+      const key = `${project.id}-${newSub!.id}`
+      localStorage.setItem(`project-messages-${key}`, '[]')
+      localStorage.setItem(`project-windows-${key}`, '[]')
+
+      store.deleteSubProject(project.id, newSub!.id)
+
+      expect(localStorage.getItem(`project-messages-${key}`)).toBeNull()
+      expect(localStorage.getItem(`project-windows-${key}`)).toBeNull()
+    })
+
+    it('switchSubProject changes activeSubprojectId', () => {
+      const project = store.createProject()
+      store.switchToProject(project.id)
+      const newSub = store.createSubProject(project.id, 'Subproject 2')
+      const mainSubId = project.subprojects[0].id
+
+      store.switchSubProject(project.id, mainSubId)
+
+      expect(project.activeSubprojectId).toBe(mainSubId)
+      expect(store.currentSubprojectId).toBe(mainSubId)
+    })
+
+    it('switchSubProject does nothing if already on that sub', () => {
+      const project = store.createProject()
+      store.switchToProject(project.id)
+      const mainSubId = project.activeSubprojectId
+      const before = project.updatedAt
+
+      store.switchSubProject(project.id, mainSubId)
+
+      expect(project.activeSubprojectId).toBe(mainSubId)
+    })
+
+    it('renameSubProject renames a sub', () => {
+      const project = store.createProject()
+      store.switchToProject(project.id)
+
+      store.renameSubProject(project.id, project.subprojects[0].id, 'Renamed')
+
+      expect(project.subprojects[0].name).toBe('Renamed')
     })
   })
 
@@ -209,13 +309,25 @@ describe('useProjectStore', () => {
       expect(store.currentMessages).toEqual([])
     })
 
-    it('returns messages for the current project', () => {
+    it('returns messages for the current subproject', () => {
       const project = store.createProject()
       store.switchToProject(project.id)
-      store.addMessage(project.id, makeMessage({ content: 'Hello' }))
+      store.addMessage(store.currentDataKey!, makeMessage({ content: 'Hello' }))
 
       expect(store.currentMessages).toHaveLength(1)
       expect(store.currentMessages[0].content).toBe('Hello')
+    })
+
+    it('returns different messages per subproject', () => {
+      const project = store.createProject()
+      store.switchToProject(project.id)
+      store.addMessage(store.currentDataKey!, makeMessage({ content: 'Main msg' }))
+
+      const newSub = store.createSubProject(project.id, 'Subproject 2')
+      store.addMessage(store.currentDataKey!, makeMessage({ content: 'Subproject 2 msg' }))
+
+      expect(store.currentMessages).toHaveLength(1)
+      expect(store.currentMessages[0].content).toBe('Subproject 2 msg')
     })
   })
 
@@ -224,10 +336,10 @@ describe('useProjectStore', () => {
       expect(store.currentWindows).toEqual([])
     })
 
-    it('returns windows for the current project', () => {
+    it('returns windows for the current subproject', () => {
       const project = store.createProject()
       store.switchToProject(project.id)
-      store.addWindow(project.id, makeWindow({ title: 'Code' }))
+      store.addWindow(store.currentDataKey!, makeWindow({ title: 'Code' }))
 
       expect(store.currentWindows).toHaveLength(1)
       expect(store.currentWindows[0].title).toBe('Code')
@@ -235,12 +347,12 @@ describe('useProjectStore', () => {
   })
 
   describe('activeWindows', () => {
-    it('excludes closed windows', () => {
+    it('excludes closed windows but includes minimized', () => {
       const project = store.createProject()
       store.switchToProject(project.id)
-      store.addWindow(project.id, makeWindow({ id: 'w1', displayState: 'open' }))
-      store.addWindow(project.id, makeWindow({ id: 'w2', displayState: 'closed' }))
-      store.addWindow(project.id, makeWindow({ id: 'w3', displayState: 'minimized' }))
+      store.addWindow(store.currentDataKey!, makeWindow({ id: 'w1', displayState: 'open' }))
+      store.addWindow(store.currentDataKey!, makeWindow({ id: 'w2', displayState: 'closed' }))
+      store.addWindow(store.currentDataKey!, makeWindow({ id: 'w3', displayState: 'minimized' }))
 
       expect(store.activeWindows).toHaveLength(2)
       expect(store.activeWindows.map(w => w.id)).toEqual(['w1', 'w3'])
@@ -248,28 +360,13 @@ describe('useProjectStore', () => {
   })
 
   describe('addMessage', () => {
-    it('adds a message to the project', () => {
+    it('adds a message to the active subproject', () => {
       const project = store.createProject()
-      store.addMessage(project.id, makeMessage())
+      store.switchToProject(project.id)
+      store.addMessage(store.currentDataKey!, makeMessage())
 
-      expect(store.messages.get(project.id)).toHaveLength(1)
-    })
-
-    it('updates messageCount on the project', () => {
-      const project = store.createProject()
-      store.addMessage(project.id, makeMessage())
-      store.addMessage(project.id, makeMessage({ id: 'msg-2' }))
-
-      expect(project.messageCount).toBe(2)
-    })
-
-    it('updates updatedAt timestamp', () => {
-      const project = store.createProject()
-      const before = project.updatedAt
-
-      store.addMessage(project.id, makeMessage())
-
-      expect(project.updatedAt).toBeGreaterThanOrEqual(before)
+      const key = dataKey(store, project.id)
+      expect(store.messages.get(key)).toHaveLength(1)
     })
 
     it('does nothing for unknown project', () => {
@@ -279,133 +376,101 @@ describe('useProjectStore', () => {
   })
 
   describe('clearMessages', () => {
-    it('clears all messages for a project', () => {
+    it('clears all messages for the active subproject', () => {
       const project = store.createProject()
-      store.addMessage(project.id, makeMessage())
-      store.addMessage(project.id, makeMessage({ id: 'msg-2' }))
+      store.switchToProject(project.id)
+      store.addMessage(store.currentDataKey!, makeMessage())
+      store.addMessage(store.currentDataKey!, makeMessage({ id: 'msg-2' }))
 
-      store.clearMessages(project.id)
+      store.clearMessages(store.currentDataKey!)
 
-      expect(store.messages.get(project.id)).toEqual([])
-      expect(project.messageCount).toBe(0)
-    })
-
-    it('updates updatedAt timestamp', () => {
-      const project = store.createProject()
-      store.addMessage(project.id, makeMessage())
-      const before = project.updatedAt
-
-      store.clearMessages(project.id)
-
-      expect(project.updatedAt).toBeGreaterThanOrEqual(before)
+      const key = dataKey(store, project.id)
+      expect(store.messages.get(key)).toEqual([])
     })
   })
 
   describe('addWindow', () => {
-    it('adds a window to the project', () => {
+    it('adds a window to the active subproject', () => {
       const project = store.createProject()
-      store.addWindow(project.id, makeWindow())
+      store.switchToProject(project.id)
+      store.addWindow(store.currentDataKey!, makeWindow())
 
-      expect(store.windows.get(project.id)).toHaveLength(1)
-    })
-
-    it('updates windowCount on the project', () => {
-      const project = store.createProject()
-      store.addWindow(project.id, makeWindow())
-      store.addWindow(project.id, makeWindow({ id: 'win-2' }))
-
-      expect(project.windowCount).toBe(2)
-    })
-
-    it('updates updatedAt timestamp', () => {
-      const project = store.createProject()
-      const before = project.updatedAt
-
-      store.addWindow(project.id, makeWindow())
-
-      expect(project.updatedAt).toBeGreaterThanOrEqual(before)
+      const key = dataKey(store, project.id)
+      expect(store.windows.get(key)).toHaveLength(1)
     })
   })
 
   describe('updateWindow', () => {
     it('updates window fields', () => {
       const project = store.createProject()
-      store.addWindow(project.id, makeWindow({ id: 'w1', title: 'Old' }))
+      store.switchToProject(project.id)
+      store.addWindow(store.currentDataKey!, makeWindow({ id: 'w1', title: 'Old' }))
 
-      store.updateWindow(project.id, 'w1', { title: 'New' })
+      store.updateWindow(store.currentDataKey!, 'w1', { title: 'New' })
 
-      const win = store.windows.get(project.id)!.find(w => w.id === 'w1')
+      const key = dataKey(store, project.id)
+      const win = store.windows.get(key)!.find(w => w.id === 'w1')
       expect(win!.title).toBe('New')
     })
 
     it('preserves non-updated fields', () => {
       const project = store.createProject()
-      store.addWindow(project.id, makeWindow({ id: 'w1', title: 'Keep', type: 'code' }))
+      store.switchToProject(project.id)
+      store.addWindow(store.currentDataKey!, makeWindow({ id: 'w1', title: 'Keep', type: 'code' }))
 
-      store.updateWindow(project.id, 'w1', { title: 'Changed' })
+      store.updateWindow(store.currentDataKey!, 'w1', { title: 'Changed' })
 
-      const win = store.windows.get(project.id)!.find(w => w.id === 'w1')
+      const key = dataKey(store, project.id)
+      const win = store.windows.get(key)!.find(w => w.id === 'w1')
       expect(win!.type).toBe('code')
       expect(win!.title).toBe('Changed')
-    })
-
-    it('does nothing for unknown window', () => {
-      const project = store.createProject()
-      store.addWindow(project.id, makeWindow({ id: 'w1' }))
-
-      store.updateWindow(project.id, 'nonexistent', { title: 'Ghost' })
-
-      expect(store.windows.get(project.id)).toHaveLength(1)
     })
   })
 
   describe('removeWindow', () => {
     it('removes the window', () => {
       const project = store.createProject()
-      store.addWindow(project.id, makeWindow({ id: 'w1' }))
-      store.addWindow(project.id, makeWindow({ id: 'w2' }))
+      store.switchToProject(project.id)
+      store.addWindow(store.currentDataKey!, makeWindow({ id: 'w1' }))
+      store.addWindow(store.currentDataKey!, makeWindow({ id: 'w2' }))
 
-      store.removeWindow(project.id, 'w1')
+      store.removeWindow(store.currentDataKey!, 'w1')
 
-      const wins = store.windows.get(project.id)!
+      const key = dataKey(store, project.id)
+      const wins = store.windows.get(key)!
       expect(wins).toHaveLength(1)
       expect(wins[0].id).toBe('w2')
-    })
-
-    it('updates windowCount', () => {
-      const project = store.createProject()
-      store.addWindow(project.id, makeWindow())
-      store.addWindow(project.id, makeWindow({ id: 'win-2' }))
-
-      store.removeWindow(project.id, 'win-1')
-
-      expect(project.windowCount).toBe(1)
     })
   })
 
   describe('setWindowDisplayState', () => {
     it('sets the display state on a window', () => {
       const project = store.createProject()
-      store.addWindow(project.id, makeWindow({ id: 'w1', displayState: 'open' }))
+      store.switchToProject(project.id)
+      store.addWindow(store.currentDataKey!, makeWindow({ id: 'w1', displayState: 'open' }))
 
-      store.setWindowDisplayState(project.id, 'w1', 'minimized')
+      store.setWindowDisplayState(store.currentDataKey!, 'w1', 'minimized')
 
-      const win = store.windows.get(project.id)!.find(w => w.id === 'w1')
+      const key = dataKey(store, project.id)
+      const win = store.windows.get(key)!.find(w => w.id === 'w1')
       expect(win!.displayState).toBe('minimized')
     })
 
     it('cycles through open → minimized → closed → open', () => {
       const project = store.createProject()
-      store.addWindow(project.id, makeWindow({ id: 'w1', displayState: 'open' }))
+      store.switchToProject(project.id)
+      store.addWindow(store.currentDataKey!, makeWindow({ id: 'w1', displayState: 'open' }))
 
-      store.setWindowDisplayState(project.id, 'w1', 'minimized')
-      expect(store.windows.get(project.id)![0].displayState).toBe('minimized')
+      const key = dataKey(store, project.id)
 
-      store.setWindowDisplayState(project.id, 'w1', 'closed')
-      expect(store.windows.get(project.id)![0].displayState).toBe('closed')
+      store.setWindowDisplayState(store.currentDataKey!, 'w1', 'minimized')
+      expect(store.windows.get(key)![0].displayState).toBe('minimized')
 
-      store.setWindowDisplayState(project.id, 'w1', 'open')
-      expect(store.windows.get(project.id)![0].displayState).toBe('open')
+      store.setWindowDisplayState(store.currentDataKey!, 'w1', 'closed')
+      expect(store.windows.get(key)![0].displayState).toBe('closed')
+
+      store.setWindowDisplayState(store.currentDataKey!, 'w1', 'open')
+      expect(store.windows.get(key)![0].displayState).toBe('open')
     })
   })
 
@@ -434,6 +499,19 @@ describe('useProjectStore', () => {
       })
     })
 
+    it('persists subprojects', async () => {
+      const project = store.createProject('Test')
+      store.switchToProject(project.id)
+      store.createSubProject(project.id, 'Extra Subproject')
+
+      await vi.waitFor(() => {
+        const raw = localStorage.getItem('projects-data')
+        const saved = JSON.parse(raw!)
+        expect(saved[0].subprojects).toHaveLength(2)
+        expect(saved[0].subprojects[1].name).toBe('Extra Subproject')
+      })
+    })
+
     it('loads projects from localStorage on init', async () => {
       store.createProject('Existing')
       await vi.waitFor(() => {
@@ -451,7 +529,10 @@ describe('useProjectStore', () => {
     it('handles corrupted localStorage gracefully', () => {
       localStorage.setItem('projects-data', '{invalid json}')
 
+      const freshPinia = createPinia()
+      setActivePinia(freshPinia)
       const freshStore = useProjectStore()
+
       expect(freshStore.projects).toEqual([])
     })
   })

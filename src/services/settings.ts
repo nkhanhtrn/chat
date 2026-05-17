@@ -148,5 +148,29 @@ export function exposeGlobally(): void {
 }
 
 export function exposeEchartsGlobally(): void {
-  // Echarts will be lazy-loaded and exposed when needed
+  Promise.all([
+    import('echarts/core'),
+    import('echarts/charts'),
+    import('echarts/components'),
+    import('echarts/renderers'),
+  ]).then(([core, charts, components, renderers]) => {
+    for (const entry of Object.values(charts)) {
+      if (typeof entry === 'function' || (typeof entry === 'object' && entry && 'install' in entry)) {
+        core.use(entry as any)
+      }
+    }
+    for (const entry of Object.values(components)) {
+      if (typeof entry === 'function' || (typeof entry === 'object' && entry && 'install' in entry)) {
+        core.use(entry as any)
+      }
+    }
+    for (const entry of Object.values(renderers)) {
+      if (typeof entry === 'function' || (typeof entry === 'object' && entry && 'install' in entry)) {
+        core.use(entry as any)
+      }
+    }
+    ;(window as any).echarts = core
+  }).catch(() => {
+    console.warn('[Settings] Failed to load echarts globally')
+  })
 }

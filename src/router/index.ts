@@ -22,6 +22,11 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/ProjectDetail.vue')
   },
   {
+    path: '/projects/:id/sub/:subId',
+    name: 'project-subproject',
+    component: () => import('@/views/ProjectDetail.vue')
+  },
+  {
     path: '/calendar',
     name: 'calendar',
     component: () => import('@/views/CalendarPage.vue')

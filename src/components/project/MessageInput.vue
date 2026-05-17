@@ -1,11 +1,18 @@
 <template>
   <div class="input-container">
+    <div v-if="pasteSnippets.length" class="paste-bar">
+      <div v-for="(snippet, i) in pasteSnippets" :key="i" class="paste-chip">
+        <span class="paste-preview">{{ snippet.preview }}</span>
+        <button class="paste-remove" @click="removeSnippet(i)" title="Remove">&times;</button>
+      </div>
+    </div>
     <div class="input-box">
       <textarea
         ref="textareaRef"
         :value="modelValue"
         @input="handleInput"
         @keydown.enter.exact.prevent="$emit('send')"
+        @paste="handlePaste"
         placeholder="Message..."
         :disabled="isStreaming"
         rows="1"
@@ -26,7 +33,7 @@
         <button
           v-if="!isStreaming"
           @click="$emit('send')"
-          :disabled="!modelValue.trim()"
+          :disabled="!modelValue.trim() && !pasteSnippets.length"
           class="action-btn send-btn"
           title="Send message"
         >
@@ -54,6 +61,13 @@
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
 
+const PASTE_THRESHOLD = 300
+
+interface PasteSnippet {
+  full: string
+  preview: string
+}
+
 const props = defineProps<{
   modelValue: string
   isStreaming?: boolean
@@ -68,10 +82,34 @@ const emit = defineEmits<{
 }>()
 
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
+const pasteSnippets = ref<PasteSnippet[]>([])
 
 function handleInput(event: Event) {
   emit('update:modelValue', (event.target as HTMLTextAreaElement).value)
   adjustHeight()
+}
+
+function handlePaste(event: ClipboardEvent) {
+  const text = event.clipboardData?.getData('text')
+  if (!text || text.length <= PASTE_THRESHOLD) return
+
+  event.preventDefault()
+  const snippet: PasteSnippet = {
+    full: text,
+    preview: text.length > 80 ? text.slice(0, 80) + '...' : text,
+  }
+  pasteSnippets.value.push(snippet)
+}
+
+function removeSnippet(index: number) {
+  pasteSnippets.value.splice(index, 1)
+}
+
+function consumeSnippets(): string {
+  if (!pasteSnippets.value.length) return ''
+  const parts = pasteSnippets.value.map(s => s.full)
+  pasteSnippets.value = []
+  return parts.join('\n\n')
 }
 
 function adjustHeight() {
@@ -91,11 +129,16 @@ function resetHeight() {
   })
 }
 
-defineExpose({ textareaRef, resetHeight })
+defineExpose({ textareaRef, resetHeight, consumeSnippets })
 </script>
 
 <style scoped>
 .input-container { padding: 0.75rem 1.25rem; border-top: 1px solid var(--color-border-subtle); background-color: var(--color-bg-base); }
+.paste-bar { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.4rem; }
+.paste-chip { display: flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.5rem; background: var(--color-bg-elevated); border: 1px solid var(--color-border-subtle); border-radius: 4px; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 0.7rem; color: var(--color-text-muted); max-width: 100%; }
+.paste-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
+.paste-remove { display: flex; align-items: center; justify-content: center; width: 14px; height: 14px; padding: 0; background: none; border: none; color: var(--color-text-muted); cursor: pointer; font-size: 0.85rem; line-height: 1; border-radius: 2px; flex-shrink: 0; }
+.paste-remove:hover { color: var(--color-error, #ef4444); background: var(--color-error-subtle, #fee2e2); }
 .input-box { display: flex; align-items: flex-end; gap: 0.5rem; background-color: var(--color-bg-base); border: 1px solid var(--color-border-base); padding: 0.5rem; transition: border-color 0.15s; }
 .input-box:focus-within { border-color: var(--color-border-strong); }
 textarea { flex: 1; padding: 0.5rem 0.75rem; border: none; font-size: 0.95rem; font-family: Georgia, serif; resize: none; min-height: 24px; max-height: 160px; overflow-y: auto; background-color: transparent; color: var(--color-text-base); line-height: 1.5; }

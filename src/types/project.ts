@@ -1,10 +1,22 @@
+export interface SubProject {
+  id: string
+  name: string
+  createdAt: number
+}
+
 export interface Project {
   id: string
   name: string
   createdAt: number
   updatedAt: number
-  messageCount: number
-  windowCount: number
+  subprojects: SubProject[]
+  activeSubprojectId: string
+}
+
+export interface WebSearchResult {
+  title: string
+  url: string
+  snippet: string
 }
 
 export interface ProjectMessage {
@@ -13,11 +25,13 @@ export interface ProjectMessage {
   content: string
   timestamp: number
   isError?: boolean
+  webSearchResults?: WebSearchResult[]
+  targetToolName?: string
 }
 
 export type WindowDisplayState = 'open' | 'minimized' | 'closed'
 
-export type WindowType = 'chart' | 'mermaid' | 'svg' | 'tool' | 'codeResult' | 'text'
+export type WindowType = 'chart' | 'mermaid' | 'svg' | 'tool' | 'codeResult' | 'text' | 'code' | 'html'
 
 export interface ProjectWindow {
   id: string
@@ -29,5 +43,6 @@ export interface ProjectWindow {
   size: { width: number; height: number }
   zIndex: number
   content?: Record<string, unknown>
+  code?: string
   toolInstanceId?: string
 }

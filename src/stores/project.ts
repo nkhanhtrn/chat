@@ -1,11 +1,18 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import type { Project, ProjectMessage, ProjectWindow, WindowDisplayState } from '@/types/project'
+import type { Project, SubProject, ProjectMessage, ProjectWindow, WindowDisplayState } from '@/types/project'
+import { deleteToolPersistence } from '@/services/builder/toolPersistence'
 
 const STORAGE_KEY = 'projects-data'
+const MESSAGES_KEY_PREFIX = 'project-messages-'
+const WINDOWS_KEY_PREFIX = 'project-windows-'
 
 function generateId(): string {
   return crypto.randomUUID()
+}
+
+function storageKey(projectId: string, subprojectId: string): string {
+  return `${projectId}-${subprojectId}`
 }
 
 function loadFromStorage(): Project[] {
@@ -19,6 +26,32 @@ function loadFromStorage(): Project[] {
 
 function saveToStorage(projects: Project[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(projects))
+}
+
+function loadMessages(key: string): ProjectMessage[] {
+  try {
+    const raw = localStorage.getItem(MESSAGES_KEY_PREFIX + key)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+function saveMessages(key: string, msgs: ProjectMessage[]) {
+  localStorage.setItem(MESSAGES_KEY_PREFIX + key, JSON.stringify(msgs))
+}
+
+function loadWindows(key: string): ProjectWindow[] {
+  try {
+    const raw = localStorage.getItem(WINDOWS_KEY_PREFIX + key)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+function saveWindows(key: string, wins: ProjectWindow[]) {
+  localStorage.setItem(WINDOWS_KEY_PREFIX + key, JSON.stringify(wins))
 }
 
 export const useProjectStore = defineStore('project', () => {
@@ -35,15 +68,24 @@ export const useProjectStore = defineStore('project', () => {
     projects.value.find(p => p.id === currentProjectId.value) ?? null
   )
 
+  const currentSubprojectId = computed(() =>
+    currentProject.value?.activeSubprojectId ?? null
+  )
+
+  const currentDataKey = computed(() => {
+    if (!currentProjectId.value || !currentSubprojectId.value) return null
+    return storageKey(currentProjectId.value, currentSubprojectId.value)
+  })
+
   const currentMessages = computed(() =>
-    currentProjectId.value
-      ? (messages.value.get(currentProjectId.value) ?? [])
+    currentDataKey.value
+      ? (messages.value.get(currentDataKey.value) ?? [])
       : []
   )
 
   const currentWindows = computed(() =>
-    currentProjectId.value
-      ? (windows.value.get(currentProjectId.value) ?? [])
+    currentDataKey.value
+      ? (windows.value.get(currentDataKey.value) ?? [])
       : []
   )
 
@@ -54,24 +96,32 @@ export const useProjectStore = defineStore('project', () => {
   watch(projects, (val) => saveToStorage(val), { deep: true })
 
   function createProject(name?: string): Project {
+    const defaultSub: SubProject = { id: generateId(), name: 'Main', createdAt: Date.now() }
     const project: Project = {
       id: generateId(),
       name: name ?? `Project ${projects.value.length + 1}`,
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      messageCount: 0,
-      windowCount: 0,
+      subprojects: [defaultSub],
+      activeSubprojectId: defaultSub.id,
     }
     projects.value.push(project)
-    messages.value.set(project.id, [])
-    windows.value.set(project.id, [])
+    const key = storageKey(project.id, defaultSub.id)
+    messages.value.set(key, [])
+    windows.value.set(key, [])
     return project
   }
 
   function deleteProject(id: string) {
+    const project = projects.value.find(p => p.id === id)
+    if (!project) return
+
+    const subIds = project.subprojects.map(s => s.id)
+    for (const subId of subIds) {
+      deleteSubProject(id, subId)
+    }
+
     projects.value = projects.value.filter(p => p.id !== id)
-    messages.value.delete(id)
-    windows.value.delete(id)
     if (currentProjectId.value === id) {
       currentProjectId.value = projects.value[0]?.id ?? null
     }
@@ -87,65 +137,155 @@ export const useProjectStore = defineStore('project', () => {
 
   function switchToProject(id: string) {
     currentProjectId.value = id
-    if (!messages.value.has(id)) messages.value.set(id, [])
-    if (!windows.value.has(id)) windows.value.set(id, [])
+    const project = projects.value.find(p => p.id === id)
+    if (!project) return
+    if (!project.activeSubprojectId && project.subprojects.length > 0) {
+      project.activeSubprojectId = project.subprojects[0].id
+    }
+    if (project.activeSubprojectId) {
+      loadSubData(id, project.activeSubprojectId)
+    }
   }
 
-  function addMessage(projectId: string, message: ProjectMessage) {
-    const list = messages.value.get(projectId)
-    if (list) {
-      list.push(message)
-      const project = projects.value.find(p => p.id === projectId)
-      if (project) {
-        project.messageCount = list.length
-        project.updatedAt = Date.now()
+  function loadSubData(projectId: string, subprojectId: string) {
+    const key = storageKey(projectId, subprojectId)
+    if (!messages.value.has(key)) {
+      messages.value.set(key, loadMessages(key))
+    }
+    if (!windows.value.has(key)) {
+      windows.value.set(key, loadWindows(key))
+    }
+  }
+
+  function createSubProject(projectId: string, name?: string): SubProject | null {
+    const project = projects.value.find(p => p.id === projectId)
+    if (!project) return null
+
+    const sub: SubProject = {
+      id: generateId(),
+      name: name ?? `Subproject ${project.subprojects.length + 1}`,
+      createdAt: Date.now(),
+    }
+    project.subprojects.push(sub)
+    project.updatedAt = Date.now()
+
+    const key = storageKey(projectId, sub.id)
+    messages.value.set(key, [])
+    windows.value.set(key, [])
+
+    switchSubProject(projectId, sub.id)
+    return sub
+  }
+
+  function deleteSubProject(projectId: string, subprojectId: string) {
+    const project = projects.value.find(p => p.id === projectId)
+    if (!project) return
+
+    const idx = project.subprojects.findIndex(s => s.id === subprojectId)
+    if (idx === -1) return
+
+    const key = storageKey(projectId, subprojectId)
+    const wins = windows.value.get(key) || []
+    for (const w of wins) {
+      deleteToolPersistence(key, w.id)
+    }
+    messages.value.delete(key)
+    windows.value.delete(key)
+    localStorage.removeItem(MESSAGES_KEY_PREFIX + key)
+    localStorage.removeItem(WINDOWS_KEY_PREFIX + key)
+    localStorage.removeItem(`project-session-${key}`)
+
+    project.subprojects.splice(idx, 1)
+    project.updatedAt = Date.now()
+
+    if (project.activeSubprojectId === subprojectId) {
+      if (project.subprojects.length > 0) {
+        const newIdx = Math.min(idx, project.subprojects.length - 1)
+        project.activeSubprojectId = project.subprojects[newIdx].id
+        loadSubData(projectId, project.activeSubprojectId)
       }
     }
   }
 
-  function clearMessages(projectId: string) {
-    messages.value.set(projectId, [])
+  function switchSubProject(projectId: string, subprojectId: string) {
     const project = projects.value.find(p => p.id === projectId)
-    if (project) {
-      project.messageCount = 0
+    if (!project) return
+    if (project.activeSubprojectId === subprojectId) return
+
+    project.activeSubprojectId = subprojectId
+    project.updatedAt = Date.now()
+    loadSubData(projectId, subprojectId)
+  }
+
+  function renameSubProject(projectId: string, subprojectId: string, name: string) {
+    const project = projects.value.find(p => p.id === projectId)
+    if (!project) return
+    const sub = project.subprojects.find(s => s.id === subprojectId)
+    if (sub) {
+      sub.name = name
       project.updatedAt = Date.now()
     }
   }
 
-  function addWindow(projectId: string, window: ProjectWindow) {
-    const list = windows.value.get(projectId)
-    if (list) {
-      list.push(window)
-      const project = projects.value.find(p => p.id === projectId)
-      if (project) {
-        project.windowCount = list.length
-        project.updatedAt = Date.now()
-      }
+  function addMessage(dataKey: string, message: ProjectMessage) {
+    if (!dataKey) return
+    const list = messages.value.get(dataKey)
+    if (!list) return
+    list.push(message)
+    if (currentProject.value) currentProject.value.updatedAt = Date.now()
+    saveMessages(dataKey, list)
+  }
+
+  function clearMessages(dataKey: string) {
+    if (!dataKey) return
+    messages.value.set(dataKey, [])
+    if (currentProject.value) currentProject.value.updatedAt = Date.now()
+    saveMessages(dataKey, [])
+  }
+
+  function truncateMessages(dataKey: string, upToIndex: number) {
+    if (!dataKey) return
+    const list = messages.value.get(dataKey)
+    if (!list) return
+    const kept = list.slice(0, upToIndex)
+    messages.value.set(dataKey, kept)
+    if (currentProject.value) currentProject.value.updatedAt = Date.now()
+    saveMessages(dataKey, kept)
+  }
+
+  function addWindow(dataKey: string, window: ProjectWindow) {
+    if (!dataKey) return
+    const list = windows.value.get(dataKey)
+    if (!list) return
+    list.push(window)
+    if (currentProject.value) currentProject.value.updatedAt = Date.now()
+    saveWindows(dataKey, list)
+  }
+
+  function updateWindow(dataKey: string, windowId: string, updates: Partial<ProjectWindow>) {
+    if (!dataKey) return
+    const list = windows.value.get(dataKey)
+    if (!list) return
+    const idx = list.findIndex(w => w.id === windowId)
+    if (idx !== -1) {
+      list[idx] = { ...list[idx], ...updates }
+      saveWindows(dataKey, list)
     }
   }
 
-  function updateWindow(projectId: string, windowId: string, updates: Partial<ProjectWindow>) {
-    const list = windows.value.get(projectId)
-    if (list) {
-      const idx = list.findIndex(w => w.id === windowId)
-      if (idx !== -1) {
-        list[idx] = { ...list[idx], ...updates }
-      }
-    }
+  function removeWindow(dataKey: string, windowId: string) {
+    if (!dataKey) return
+    const list = windows.value.get(dataKey)
+    if (!list) return
+    const win = list.find(w => w.id === windowId)
+    if (win) deleteToolPersistence(dataKey, win.id)
+    const filtered = list.filter(w => w.id !== windowId)
+    windows.value.set(dataKey, filtered)
+    saveWindows(dataKey, filtered)
   }
 
-  function removeWindow(projectId: string, windowId: string) {
-    const list = windows.value.get(projectId)
-    if (list) {
-      const filtered = list.filter(w => w.id !== windowId)
-      windows.value.set(projectId, filtered)
-      const project = projects.value.find(p => p.id === projectId)
-      if (project) project.windowCount = filtered.length
-    }
-  }
-
-  function setWindowDisplayState(projectId: string, windowId: string, state: WindowDisplayState) {
-    updateWindow(projectId, windowId, { displayState: state })
+  function setWindowDisplayState(dataKey: string, windowId: string, state: WindowDisplayState) {
+    updateWindow(dataKey, windowId, { displayState: state })
   }
 
   let nextZ = 100
@@ -156,6 +296,8 @@ export const useProjectStore = defineStore('project', () => {
   return {
     projects,
     currentProjectId,
+    currentSubprojectId,
+    currentDataKey,
     messages,
     windows,
     projectList,
@@ -167,8 +309,13 @@ export const useProjectStore = defineStore('project', () => {
     deleteProject,
     renameProject,
     switchToProject,
+    createSubProject,
+    deleteSubProject,
+    switchSubProject,
+    renameSubProject,
     addMessage,
     clearMessages,
+    truncateMessages,
     addWindow,
     updateWindow,
     removeWindow,
