@@ -96,7 +96,7 @@ import SlideTransition from './SlideTransition.vue'
 import QuestionSearchModal from './modal/QuestionSearchModal.vue'
 import DictionaryModal from './modal/DictionaryModal.vue'
 import ResponseModal from './modal/ResponseModal.vue'
-import lmService, { Category } from '@/services/llm/LMService'
+import lmService from '@/services/llm/LMService'
 import { Message } from '@/models/Message'
 import { getMainPrompts, getQuickExplainPrompts, getSummaryPrompts } from '@/services/extraPrompt'
 import { getSelectedTextAndPosition } from '@/services/DOMSelectionHelper'
@@ -267,9 +267,8 @@ async function handleAskQuestion(question: string) {
   const previousMessages = buildConversationChain(treeStore.messagesById, parentId)
 
   try {
-    const messages = getMainPrompts(`[DEEPDIVE] ${question}`, previousMessages)
-    await lmService.sendByCategory(
-      Category.DETAILS,
+    const messages = getMainPrompts(question, previousMessages)
+    await lmService.ephemeralChat(
       messages,
       (chunk: string) => {
         treeStore.appendToResponse(childMsg.id, chunk)
@@ -329,24 +328,20 @@ async function handleCustomPrompt(prompt: string) {
       `Regarding this text: "${selectedText}"\n\n${prompt}`,
       previousMessages
     )
-    await lmService.sendByCategory(
-      Category.QUICK,
+    await lmService.ephemeralChat(
       messages,
       (chunk: string) => {
         fullResponse += chunk
         responseContent.value = fullResponse
       }
     )
-    // Save as note after streaming completes
     if (fullResponse) {
       if (highlightId) {
-        // Update existing item's note
         highlights.updateContent(highlightId, {
           hasNote: true,
           noteContent: fullResponse,
         } as any)
       } else {
-        // Create new note
         highlights.addNote({
           text: selectedText,
           startOffset,
@@ -394,9 +389,8 @@ async function handleCustomPromptDeepDive(prompt: string) {
   const previousMessages = buildConversationChain(treeStore.messagesById, parentId)
 
   try {
-    const messages = getMainPrompts(`[DEEPDIVE] ${question}`, previousMessages)
-    await lmService.sendByCategory(
-      Category.DETAILS,
+    const messages = getMainPrompts(question, previousMessages)
+    await lmService.ephemeralChat(
       messages,
       (chunk: string) => {
         treeStore.appendToResponse(childMsg.id, chunk)
@@ -461,8 +455,7 @@ async function handleSummary() {
   let fullResponse = ''
   try {
     const messages = getSummaryPrompts(selectedText, previousMessages)
-    await lmService.sendByCategory(
-      Category.QUICK,
+    await lmService.ephemeralChat(
       messages,
       (chunk: string) => {
         fullResponse += chunk

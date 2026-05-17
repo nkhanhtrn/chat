@@ -73,7 +73,7 @@ import { useNotebookStore } from '@/stores/notebook'
 import { useMessageTreeStore } from '@/stores/messageTree'
 import { useStreamingStore } from '@/stores/streaming'
 import { getIsDev, getDefaultQuestions } from '@/composables/useEnvironment'
-import { lmService, Category } from '@/services/llm/LMService'
+import lmService from '@/services/llm/LMService'
 import { getMainPrompts } from '@/services/extraPrompt'
 
 const route = useRoute()
@@ -178,7 +178,7 @@ function navigateToQuestion(questionId: string): boolean {
 
 const scrollToBottom = () => { nextTick(() => { if (messagesContainer.value) messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight }) }
 
-const handleSendMessage = async (userMessage: string, contextQuestions: Array<Record<string, unknown>> = []) => {
+const handleSendMessage = async (userMessage: string) => {
   if (!userMessage.trim() || streamingStore.isStreaming) return
   error.value = null
   isAddingNewQuestion.value = false
@@ -192,18 +192,11 @@ const handleSendMessage = async (userMessage: string, contextQuestions: Array<Re
 
   streamingStore.startStreaming(msg.id)
 
-  // Build context from previous root messages
-  const previousMessages = treeStore.rootMessages
-    .slice(0, -1)
-    .map(m => ({ question: m.question }))
-
-  const isFirstMessage = treeStore.rootMessageIds.length === 1
-  const prefix = isFirstMessage ? '[NEWTOPIC]' : '[DEEPDIVE]'
-  const messages = getMainPrompts(`${prefix} ${msg.question}`, previousMessages, contextQuestions)
+  const messages = getMainPrompts(msg.question)
 
   try {
-    await lmService.sendByCategory(
-      Category.DETAILS,
+    await lmService.chat(
+      'stub',
       messages,
       (chunk) => { treeStore.appendToResponse(msg.id, chunk) }
     )
