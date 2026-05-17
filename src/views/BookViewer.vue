@@ -51,7 +51,7 @@
       :read-only="true"
       @close="contextMenu.visible = false"
       @dictionary="handleDictionary"
-      @ask-question="handleExplain"
+      @ask-question="handleDeepdive"
       @summary="handleSummary"
       @custom-prompt="handleCustomPrompt"
       @custom-prompt-deep-dive="handleCustomPromptDeepDive"
@@ -142,7 +142,7 @@ function handleDictionaryLookup(result: { definition: string; pronunciation: str
   addVocabCard({ word, definition: result.definition, context: contextMenu.context, pronunciation: result.pronunciation })
 }
 
-async function handleExplain(text: string) {
+async function handleDeepdive(text: string) {
   contextMenu.visible = false
   if (!text) return
 
@@ -157,7 +157,7 @@ async function handleExplain(text: string) {
       response.content += chunk
     })
   } catch (err) {
-    console.error('[BookViewer] Explain failed:', err)
+    console.error('[BookViewer] Deepdive failed:', err)
     if (!response.content) response.content = 'Failed to get explanation.'
   } finally {
     response.streaming = false

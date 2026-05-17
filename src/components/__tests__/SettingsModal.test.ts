@@ -154,8 +154,8 @@ describe('SettingsModal', () => {
       const llmTab = tabButtons.find(b => b.textContent === 'LLM')!
       llmTab.click()
       await nextTick()
-      // Should show LLM tab content
-      expect(getBody().querySelector('.settings-body')).not.toBeNull()
+      // Should show OpenCode API URL input in LLM section
+      expect(getBody().querySelector('input[placeholder="http://localhost:4096"]')).not.toBeNull()
     })
 
     it('switches to Account tab on click', async () => {
