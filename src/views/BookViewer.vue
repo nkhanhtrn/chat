@@ -88,7 +88,7 @@ import { useBooksStore } from '@/stores/books'
 import { EpubRenderer } from '@/services/epubRenderer'
 import { PdfRenderer } from '@/services/pdfRenderer'
 import { Settings } from '@/services/settings'
-import lmService, { Category } from '@/services/llm/LMService'
+import lmService from '@/services/llm/LMService'
 import { getQuickExplainPrompts, getMainPrompts, getSummaryPrompts } from '@/services/extraPrompt'
 import { useVocabulary } from '@/composables/useVocabulary'
 
@@ -153,7 +153,7 @@ async function handleExplain(text: string) {
 
   try {
     const messages = getQuickExplainPrompts(`Explain this text: "${text}"`)
-    await lmService.sendByCategory(Category.QUICK, messages, (chunk: string) => {
+    await lmService.ephemeralChat(messages, (chunk: string) => {
       response.content += chunk
     })
   } catch (err) {
@@ -176,7 +176,7 @@ async function handleSummary() {
 
   try {
     const messages = getSummaryPrompts(text)
-    await lmService.sendByCategory(Category.QUICK, messages, (chunk: string) => {
+    await lmService.ephemeralChat(messages, (chunk: string) => {
       response.content += chunk
     })
   } catch (err) {
@@ -199,7 +199,7 @@ async function handleCustomPrompt(prompt: string) {
 
   try {
     const messages = getQuickExplainPrompts(`Regarding this text: "${text}"\n\n${prompt}`)
-    await lmService.sendByCategory(Category.QUICK, messages, (chunk: string) => {
+    await lmService.ephemeralChat(messages, (chunk: string) => {
       response.content += chunk
     })
   } catch (err) {
@@ -223,7 +223,7 @@ async function handleCustomPromptDeepDive(prompt: string) {
   try {
     const question = `${prompt} (context: "${text}")`
     const messages = getMainPrompts(question)
-    await lmService.sendByCategory(Category.DETAILS, messages, (chunk: string) => {
+    await lmService.ephemeralChat(messages, (chunk: string) => {
       response.content += chunk
     })
   } catch (err) {

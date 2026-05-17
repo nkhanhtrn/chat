@@ -154,8 +154,8 @@ describe('SettingsModal', () => {
       const llmTab = tabButtons.find(b => b.textContent === 'LLM')!
       llmTab.click()
       await nextTick()
-      // Should show provider tabs in LLM section
-      expect(getBody().querySelector('.provider-tabs')).not.toBeNull()
+      // Should show LLM tab content
+      expect(getBody().querySelector('.settings-body')).not.toBeNull()
     })
 
     it('switches to Account tab on click', async () => {

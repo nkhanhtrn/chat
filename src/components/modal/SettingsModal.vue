@@ -65,25 +65,8 @@
 
           <!-- LLM Tab -->
           <div v-else-if="activeTab === 'llm'" key="llm" class="settings-body">
-            <div class="provider-tabs">
-              <button v-for="provider in providers" :key="provider.id" :class="['provider-tab', { active: currentProvider === provider.id }]" @click="handleSelectProvider(provider.id)">{{ provider.name }}</button>
-            </div>
             <div class="setting-item setting-item-vertical">
-              <div>
-                <label class="setting-label">Model</label>
-                <select v-model="currentModels[currentProvider]" @change="handleModelChange" class="model-select" :disabled="isLoadingModels">
-                  <option v-if="!providerModels[currentProvider]?.length" value="">{{ isLoadingModels ? 'Loading...' : 'No models available' }}</option>
-                  <option v-for="model in providerModels[currentProvider] || []" :key="model.id" :value="model.id">{{ model.name }}</option>
-                </select>
-              </div>
-              <div v-if="selectedProviderRequiresKey">
-                <ApiKeyInput v-if="currentProvider === 'google'" v-model="googleApiKeys" help-url="https://aistudio.google.com/apikey" @update:model-value="handleGoogleApiKeysChange" />
-                <ApiKeyInput v-else-if="currentProvider === 'cerebras'" v-model="cerebrasApiKeys" help-url="https://cloud.cerebras.ai/" @update:model-value="handleCerebrasApiKeysChange" />
-              </div>
-              <div v-if="!selectedProviderRequiresKey && currentProvider === 'lmstudio'" class="api-key-section">
-                <input type="text" v-model="baseUrl" placeholder="http://localhost:1234" class="api-key-input" @input="handleBaseUrlChange" />
-              </div>
-              <div v-if="connectionStatus" :class="['connection-status', connectionStatus.type]">{{ connectionStatus.message }}</div>
+              <span class="setting-hint">LLM provider will be configured in a future update.</span>
             </div>
             <div class="setting-item setting-item-vertical">
               <label class="setting-label">Extra Services</label>
@@ -151,9 +134,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, inject } from 'vue'
 import Modal from './Modal.vue'
 import LoginModal from './LoginModal.vue'
-import ApiKeyInput from '../ApiKeyInput.vue'
 import { onAuthChange, signOutUser } from '@/services/auth'
-import { lmService } from '@/services/llm/LMService'
 import { useNotebookStore } from '@/stores/notebook'
 import { useMessageTreeStore } from '@/stores/messageTree'
 import { useVocabStore } from '@/stores/vocab'
@@ -203,42 +184,16 @@ const widthOptions = [
   { label: 'Wide', value: 'wide' as ContentWidth },
 ]
 
-// LLM state
-const providers = ref<Array<{ id: string; name: string; category: string; requiresApiKey: boolean; supportsStreaming: boolean }>>([])
-const currentProvider = ref('lmstudio')
-const providerConfigs = ref<Record<string, any>>({
-  google: { apiKeys: [''] },
-  cerebras: { apiKeys: [''] },
-  lmstudio: { baseUrl: 'http://localhost:1234' },
-})
-const providerModels = ref<Record<string, Array<{ id: string; name: string }>>>({})
-const currentModels = ref<Record<string, string>>({})
-const isLoadingModels = ref(false)
-const googleApiKeys = ref([''])
-const cerebrasApiKeys = ref([''])
-const connectionStatus = ref<ConnectionStatus | null>(null)
 const restoreStatus = ref<ConnectionStatus | null>(null)
 const customFetchUrl = ref('')
 const bookApiUrl = ref('')
 const bookApiKey = ref('')
 const extraService = ref('public-library')
 
-const baseUrl = computed({
-  get: () => providerConfigs.value[currentProvider.value]?.baseUrl || 'http://localhost:1234',
-  set: (value: string) => {
-    if (!providerConfigs.value[currentProvider.value]) providerConfigs.value[currentProvider.value] = {}
-    providerConfigs.value[currentProvider.value].baseUrl = value
-  },
-})
+// Watch modal open to reload settings
 
-const selectedProviderRequiresKey = computed(() => {
-  const provider = providers.value.find(p => p.id === currentProvider.value)
-  return provider?.requiresApiKey ?? false
-})
-
-// Watch modal open to reload provider settings
 watch(() => props.modelValue, (v) => {
-  if (v) loadProviderSettings()
+  if (v) loadSettings()
 })
 
 // ── Theme handlers ──
@@ -273,146 +228,6 @@ function handleSetContentWidth(width: ContentWidth) {
 
 // ── LLM handlers ──
 
-function getCachedModels(providerId: string): Array<{ id: string; name: string }> | null {
-  try {
-    const cached = localStorage.getItem(`llm-models-cache-${providerId}`)
-    if (cached) {
-      const data = JSON.parse(cached)
-      return data.models || null
-    }
-  } catch { /* ignore */ }
-  return null
-}
-
-function setCachedModels(providerId: string, models: Array<{ id: string; name: string }>) {
-  try {
-    localStorage.setItem(`llm-models-cache-${providerId}`, JSON.stringify({ models, timestamp: Date.now() }))
-  } catch (e) {
-    console.warn('Failed to cache models:', e)
-  }
-}
-
-async function loadProviderSettings() {
-  providers.value = lmService.listProviders().filter(p => p.id !== 'codeapi')
-
-  const settings = Settings.getAll()
-  if (settings.providerConfigs) {
-    providerConfigs.value = { ...providerConfigs.value, ...settings.providerConfigs as Record<string, any> }
-  }
-  if (settings.currentModels) {
-    currentModels.value = { ...(settings.currentModels as Record<string, string>) }
-  }
-
-  // Load API keys
-  const googleConfig = providerConfigs.value.google || {}
-  if (googleConfig.apiKeys?.length) {
-    googleApiKeys.value = [...googleConfig.apiKeys]
-  } else if (googleConfig.apiKey) {
-    googleApiKeys.value = [googleConfig.apiKey]
-  } else {
-    googleApiKeys.value = ['']
-  }
-
-  const cerebrasConfig = providerConfigs.value.cerebras || {}
-  if (cerebrasConfig.apiKeys?.length) {
-    cerebrasApiKeys.value = [...cerebrasConfig.apiKeys]
-  } else if (cerebrasConfig.apiKey) {
-    cerebrasApiKeys.value = [cerebrasConfig.apiKey]
-  } else {
-    cerebrasApiKeys.value = ['']
-  }
-
-  connectionStatus.value = null
-
-  // Load cached models
-  for (const provider of providers.value) {
-    const cached = getCachedModels(provider.id)
-    if (cached) {
-      providerModels.value[provider.id] = cached
-      if (!currentModels.value[provider.id] && cached.length > 0) {
-        currentModels.value[provider.id] = cached[0].id
-      }
-    }
-  }
-
-  await loadModelsForProvider(currentProvider.value)
-}
-
-function buildCleanProviderConfigs(): Record<string, any> {
-  const clean: Record<string, any> = {}
-  for (const p of providers.value) {
-    const config = providerConfigs.value[p.id] || {}
-    if (p.requiresApiKey) {
-      if (p.id === 'google') {
-        const keys = googleApiKeys.value.filter((k: string) => k.trim() !== '')
-        clean[p.id] = { apiKeys: keys.length > 0 ? keys : [] }
-      } else if (p.id === 'cerebras') {
-        const keys = cerebrasApiKeys.value.filter((k: string) => k.trim() !== '')
-        clean[p.id] = { apiKeys: keys.length > 0 ? keys : [] }
-      } else {
-        clean[p.id] = { apiKey: config.apiKey || '' }
-      }
-    } else {
-      clean[p.id] = { baseUrl: config.baseUrl || 'http://localhost:1234' }
-    }
-  }
-  return clean
-}
-
-async function handleSelectProvider(providerId: string) {
-  currentProvider.value = providerId
-  await loadModelsForProvider(providerId)
-}
-
-async function loadModelsForProvider(providerId: string, forceRefresh = false) {
-  const provider = lmService.getProvider(providerId)
-  if (!provider) return
-
-  if (!forceRefresh) {
-    const cached = getCachedModels(providerId)
-    if (cached) {
-      providerModels.value[providerId] = cached
-      if (!currentModels.value[providerId] && cached.length > 0) {
-        currentModels.value[providerId] = cached[0].id
-        saveCurrentModels()
-      }
-      return
-    }
-  }
-
-  isLoadingModels.value = true
-  try {
-    const models = await provider.listModels()
-    providerModels.value[providerId] = models
-    setCachedModels(providerId, models)
-    if (!currentModels.value[providerId] && models.length > 0) {
-      currentModels.value[providerId] = models[0].id
-      saveCurrentModels()
-    }
-  } catch (error: any) {
-    console.warn(`Failed to load models for ${providerId}:`, error.message)
-    providerModels.value[providerId] = []
-  } finally {
-    isLoadingModels.value = false
-  }
-}
-
-function saveCurrentModels() {
-  Settings.set({ currentModels: { ...currentModels.value } })
-}
-
-function handleModelChange() {
-  saveCurrentModels()
-}
-
-async function handleBaseUrlChange() {
-  connectionStatus.value = null
-  Settings.set({ providerConfigs: buildCleanProviderConfigs() })
-  if (currentProvider.value === 'lmstudio') {
-    await loadModelsForProvider('lmstudio', true)
-  }
-}
-
 function handleCustomFetchUrlChange() {
   Settings.set({ customFetchUrl: customFetchUrl.value })
 }
@@ -430,24 +245,12 @@ function handleSetExtraService(service: string) {
   Settings.set({ extraService: service })
 }
 
-async function handleGoogleApiKeysChange(keys: string[]) {
-  googleApiKeys.value = keys
-  const filteredKeys = keys.filter(k => k.trim() !== '')
-  providerConfigs.value.google = { apiKeys: filteredKeys }
-  Settings.set({ providerConfigs: buildCleanProviderConfigs() })
-  if (currentProvider.value === 'google') {
-    await loadModelsForProvider('google', true)
-  }
-}
-
-async function handleCerebrasApiKeysChange(keys: string[]) {
-  cerebrasApiKeys.value = keys
-  const filteredKeys = keys.filter(k => k.trim() !== '')
-  providerConfigs.value.cerebras = { apiKeys: filteredKeys }
-  Settings.set({ providerConfigs: buildCleanProviderConfigs() })
-  if (currentProvider.value === 'cerebras') {
-    await loadModelsForProvider('cerebras', true)
-  }
+function loadSettings() {
+  const settings = Settings.getAll()
+  if (settings.customFetchUrl) customFetchUrl.value = settings.customFetchUrl as string
+  if (settings.bookApiUrl) bookApiUrl.value = settings.bookApiUrl as string
+  if (settings.bookApiKey) bookApiKey.value = settings.bookApiKey as string
+  if (settings.extraService) extraService.value = settings.extraService as string
 }
 
 // ── Account handlers ──
@@ -593,8 +396,6 @@ onMounted(async () => {
   if (settings.bookApiUrl) bookApiUrl.value = settings.bookApiUrl as string
   if (settings.bookApiKey) bookApiKey.value = settings.bookApiKey as string
   if (settings.extraService) extraService.value = settings.extraService as string
-
-  loadProviderSettings()
 })
 
 onUnmounted(() => {
@@ -653,15 +454,6 @@ onUnmounted(() => {
 .font-slider::-moz-range-thumb { width: 14px; height: 14px; background: var(--color-bg-elevated); border: 1px solid var(--color-border-strong); border-radius: 50%; cursor: pointer; }
 .font-size-value { min-width: 24px; font-size: 0.85rem; color: var(--color-text-muted); font-family: system-ui, -apple-system, sans-serif; text-align: right; }
 
-.provider-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--color-border-base); }
-.provider-tab { padding: 0.5rem 1rem; background: transparent; border: none; border-bottom: 2px solid transparent; cursor: pointer; font-size: 0.9rem; font-family: system-ui, -apple-system, sans-serif; color: var(--color-text-muted); transition: all 0.15s ease; }
-.provider-tab:hover { color: var(--color-text-base); }
-.provider-tab.active { color: var(--color-text-strong); border-bottom-color: var(--color-text-strong); }
-
-.model-select { flex: 1; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border-base); border-radius: 4px; background: var(--color-bg-elevated); color: var(--color-text-base); font-size: 0.9rem; cursor: pointer; max-width: 100%; }
-.model-select:focus { outline: none; border-color: var(--color-border-strong); }
-
-.api-key-section { display: flex; flex-direction: column; gap: 0.5rem; }
 .api-key-input { flex: 1; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border-base); border-radius: 4px; background: var(--color-bg-elevated); color: var(--color-text-base); font-size: 0.9rem; font-family: monospace; }
 .api-key-input:focus { outline: none; border-color: var(--color-border-strong); }
 

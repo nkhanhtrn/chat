@@ -9,13 +9,10 @@ interface SettingsData {
   fontFamily?: string
   lineHeight?: number
   contentWidth?: ContentWidth
-  codeApiUrl?: string
   customFetchUrl?: string
   bookApiUrl?: string
   bookApiKey?: string
   extraService?: string
-  currentModels?: Record<string, string>
-  providerConfigs?: Record<string, unknown>
   devToolbar?: boolean
   [key: string]: unknown
 }
