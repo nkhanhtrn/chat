@@ -39,6 +39,18 @@ export class OpenCodeProvider {
     } catch {}
   }
 
+  async validateSession(sessionId: string): Promise<string | null> {
+    const baseUrl = this.getBaseUrl()
+    try {
+      const res = await fetch(`${baseUrl}/session/${sessionId}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data?.id === sessionId) return sessionId
+      }
+    } catch {}
+    return null
+  }
+
   async send(sessionId: string, text: string): Promise<string> {
     const baseUrl = this.getBaseUrl()
     const res = await fetch(`${baseUrl}/session/${sessionId}/message`, {
@@ -93,6 +105,7 @@ export class OpenCodeProvider {
             if (event.type === 'message.part.delta') {
               const props = event.properties
               if (props?.field === 'text' && props?.delta) yield props.delta
+              if (props?.field === 'thinking' && props?.delta) continue
             }
             if (event.type === 'session.idle' && event.properties?.sessionID === sessionId) {
               return

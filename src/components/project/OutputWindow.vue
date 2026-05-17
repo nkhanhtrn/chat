@@ -13,18 +13,25 @@
         />
       </div>
       <div class="window-controls" @mousedown.stop>
+        <button v-if="window.type === 'tool' && window.code" class="control-btn" :class="{ active: showCode }" @click="toggleCodeView" title="View code">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="16 18 22 12 16 6"></polyline>
+            <polyline points="8 6 2 12 8 18"></polyline>
+          </svg>
+        </button>
         <button class="control-btn" @click="$emit('clone', window)" title="Clone">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
           </svg>
         </button>
-        <button class="control-btn" @click="$emit('minimize')" title="Minimize">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="5" y1="12" x2="19" y2="12"></line>
+        <button class="control-btn delete" @click="$emit('delete', window.id)" title="Delete">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
           </svg>
         </button>
-        <button class="control-btn close" @click="$emit('close')" title="Close">
+        <button class="control-btn close" @click="$emit('close')" title="Minimize">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -36,7 +43,37 @@
     <div class="resize-handle bottom" @mousedown.left.stop="startResize('s', $event)"></div>
     <div class="resize-handle corner" @mousedown.left.stop="startResize('se', $event)"></div>
     <div class="window-body">
-      <CodeDisplay v-if="window.type === 'code' || window.type === 'html'" :content="window.content" :language="window.type === 'html' ? 'html' : 'javascript'" />
+      <template v-if="window.type === 'tool' && window.code">
+        <CodeDisplay v-if="showCode && !editingCode" :content="window.code" language="vue" @edit="startEdit" />
+        <div v-else-if="showCode && editingCode" class="code-editor">
+          <div class="editor-toolbar">
+            <button class="toolbar-btn save" @click="handleSaveEdit" title="Save & re-render">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <span>Save</span>
+            </button>
+            <button class="toolbar-btn" @click="editingCode = false; editDraft = ''" title="Cancel">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+          <textarea v-model="editDraft" class="editor-textarea" spellcheck="false"></textarea>
+        </div>
+        <div v-else :data-tool-scope="scopeId" class="tool-mount">
+          <component :is="compiledComponent" v-if="compiledComponent" />
+          <div v-else-if="compilerError || runtimeError" class="compile-error">
+            <p>{{ runtimeError ? 'Runtime Error' : 'Compilation Error' }}</p>
+            <pre>{{ runtimeError || compilerError }}</pre>
+          </div>
+          <div v-else class="window-placeholder">
+            <p>Compiling...</p>
+          </div>
+        </div>
+      </template>
+      <CodeDisplay v-else-if="window.type === 'code' || window.type === 'html'" :content="window.content" :language="window.type === 'html' ? 'html' : 'javascript'" />
       <div v-else class="window-placeholder">
         <p>{{ window.type }} window</p>
       </div>
@@ -45,9 +82,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch, onErrorCaptured } from 'vue'
 import InlineEdit from '@/components/InlineEdit.vue'
 import CodeDisplay from './CodeDisplay.vue'
+import { useDynamicCompiler } from '@/composables/useDynamicCompiler'
 import type { ProjectWindow } from '@/types/project'
 
 const props = defineProps<{
@@ -57,12 +95,69 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
   minimize: []
+  delete: [windowId: string]
   'update:position': [position: { x: number; y: number }]
   'update:size': [size: { width: number; height: number }]
   'update:title': [title: string]
+  'update:code': [code: string]
   'bring-to-front': []
   clone: [window: ProjectWindow]
 }>()
+
+const showCode = ref(false)
+const editingCode = ref(false)
+const editDraft = ref('')
+
+function toggleCodeView() {
+  showCode.value = !showCode.value
+  editingCode.value = false
+  editDraft.value = ''
+}
+
+function startEdit() {
+  editDraft.value = props.window.code ?? ''
+  editingCode.value = true
+}
+
+function handleSaveEdit() {
+  emit('update:code', editDraft.value)
+  editingCode.value = false
+  editDraft.value = ''
+}
+
+const runtimeError = ref<string | null>(null)
+
+onErrorCaptured((err: any) => {
+  if (props.window.type === 'tool') {
+    runtimeError.value = err?.message || String(err)
+    return false
+  }
+})
+
+const compiler = props.window.type === 'tool' && props.window.code
+  ? useDynamicCompiler({ projectId: props.window.sessionId, windowId: props.window.id })
+  : null
+
+const compiledComponent = computed(() => compiler?.compiledComponent.value ?? null)
+const compilerError = computed(() => compiler?.error.value ?? null)
+const scopeId = computed(() => compiler?.scopeId ?? '')
+
+onMounted(() => {
+  if (props.window.type === 'tool' && props.window.code && compiler) {
+    compiler.compile(props.window.code)
+  }
+})
+
+onUnmounted(() => {
+  compiler?.cleanup()
+})
+
+watch(() => props.window.code, (newCode) => {
+  runtimeError.value = null
+  if (props.window.type === 'tool' && newCode && compiler) {
+    compiler.compile(newCode)
+  }
+})
 
 const windowStyle = computed(() => ({
   left: `${props.window.position.x}px`,
@@ -125,11 +220,24 @@ function startResize(direction: string, e: MouseEvent) {
 .window-controls { display: flex; gap: 0.25rem; flex-shrink: 0; }
 .control-btn { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; background: none; border: none; color: var(--color-text-muted); cursor: pointer; transition: all 0.15s; }
 .control-btn:hover { background: var(--color-bg-hover); color: var(--color-text-base); }
+.control-btn.active { color: var(--color-primary, #6366f1); background: var(--color-primary-subtle, rgba(99, 102, 241, 0.1)); }
 .control-btn.close:hover { background: var(--color-error-subtle, #fee2e2); color: var(--color-error, #ef4444); }
+.control-btn.delete:hover { background: var(--color-error-subtle, #fee2e2); color: var(--color-error, #ef4444); }
 .resize-handle { position: absolute; }
 .resize-handle.right { top: 0; right: -3px; width: 6px; height: 100%; cursor: ew-resize; }
 .resize-handle.bottom { bottom: -3px; left: 0; width: 100%; height: 6px; cursor: ns-resize; }
 .resize-handle.corner { bottom: -3px; right: -3px; width: 12px; height: 12px; cursor: nwse-resize; }
 .window-body { flex: 1; overflow: auto; position: relative; }
 .window-placeholder { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--color-text-muted); font-family: system-ui, sans-serif; font-size: 0.85rem; }
+.tool-mount { height: 100%; overflow: hidden; }
+.compile-error { padding: 0.75rem; color: var(--color-error, #ef4444); font-size: 0.8rem; }
+.compile-error p { font-weight: 600; margin-bottom: 0.5rem; }
+.compile-error pre { white-space: pre-wrap; word-break: break-word; font-size: 0.75rem; opacity: 0.8; }
+.code-editor { display: flex; flex-direction: column; height: 100%; background: var(--color-bg-base); }
+.editor-toolbar { display: flex; align-items: center; gap: 0.25rem; padding: 0.35rem 0.6rem; background: var(--color-bg-page); border-bottom: 1px solid var(--color-border-subtle); }
+.toolbar-btn { display: flex; align-items: center; gap: 0.25rem; padding: 0.2rem 0.5rem; background: none; border: 1px solid var(--color-border-base); color: var(--color-text-muted); cursor: pointer; font-family: system-ui, sans-serif; font-size: 0.7rem; border-radius: 4px; transition: all 0.15s; }
+.toolbar-btn:hover { background: var(--color-bg-hover); color: var(--color-text-base); }
+.toolbar-btn.save { border-color: var(--color-primary, #6366f1); color: var(--color-primary, #6366f1); }
+.toolbar-btn.save:hover { background: var(--color-primary, #6366f1); color: white; }
+.editor-textarea { flex: 1; padding: 0.75rem; border: none; outline: none; resize: none; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 0.8rem; line-height: 1.5; color: var(--color-text-base); background: transparent; }
 </style>
