@@ -1,6 +1,11 @@
 <template>
   <div class="book-toc-sidebar">
     <div class="sidebar-header">
+      <button class="back-btn" @click="$emit('back')" title="Back to library">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </button>
       <div v-if="bookTitle" class="book-title">{{ bookTitle }}</div>
     </div>
     <div class="sidebar-search">
@@ -52,6 +57,7 @@ const props = defineProps<{
 
 defineEmits<{
   navigate: [href: string]
+  back: []
 }>()
 
 const searchQuery = ref('')
@@ -83,8 +89,10 @@ const searchResults = computed(() => {
 
 <style scoped>
 .book-toc-sidebar { width: 100%; height: 100%; background-color: var(--color-bg-base); display: flex; flex-direction: column; overflow: hidden; font-family: system-ui, -apple-system, sans-serif; }
-.sidebar-header { padding: 0.75rem; border-bottom: 1px solid var(--color-border-subtle); }
-.book-title { font-size: 0.9rem; font-weight: 600; color: var(--color-text-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sidebar-header { display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; border-bottom: 1px solid var(--color-border-subtle); }
+.back-btn { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; background: none; border: none; color: var(--color-text-muted); cursor: pointer; flex-shrink: 0; transition: all 0.15s; }
+.back-btn:hover { background: var(--color-bg-hover); color: var(--color-text-base); }
+.book-title { font-size: 0.9rem; font-weight: 600; color: var(--color-text-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 
 .sidebar-search { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--color-border-subtle); }
 .search-input { width: 100%; padding: 0.5rem 0.75rem; font-size: 0.85rem; font-family: inherit; background-color: var(--color-bg-page); border: 1px solid var(--color-border-subtle); border-radius: 6px; color: var(--color-text-secondary); transition: border-color 0.2s, box-shadow 0.2s; }

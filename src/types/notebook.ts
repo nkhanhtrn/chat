@@ -5,6 +5,7 @@ export interface Notebook {
   rootMessageIds: string[]
   scratchpad?: string
   messageCount?: number
+  lastAccessedAt?: number
 }
 
 /** Computed list item for the notebooks home page */

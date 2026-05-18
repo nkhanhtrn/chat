@@ -3,6 +3,11 @@
     <template #side>
       <div class="chat-sidebar">
         <div class="sidebar-header">
+          <button class="back-btn" @click="router.push({ name: 'notebooks' })" title="Back to notebooks">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
           <div class="tab-navigation">
             <button class="tab-button" :class="{ active: activeTab === 'questions' }" @click="activeTab = 'questions'">Questions</button>
             <button class="tab-button" :class="{ active: activeTab === 'playground' }" @click="activeTab = 'playground'">Chat</button>
@@ -120,7 +125,7 @@ onMounted(async () => {
       await notebookStore.switchToChat(notebookId)
       if (questionId) {
         showingOverview.value = false
-        if (!navigateToQuestion(questionId)) router.replace({ name: 'current-content', params: { type: 'notebook', id: notebookId } })
+        if (!navigateToQuestion(questionId)) router.replace({ name: 'notebook', params: { id: notebookId } })
       } else if (treeStore.rootMessageIds.length > 0) showingOverview.value = true
     } else {
       router.push({ name: 'home' })
@@ -129,7 +134,7 @@ onMounted(async () => {
     await notebookStore.switchToChat(notebookId)
     if (questionId) {
       showingOverview.value = false
-      if (!navigateToQuestion(questionId)) router.replace({ name: 'current-content', params: { type: 'notebook', id: notebookId } })
+      if (!navigateToQuestion(questionId)) router.replace({ name: 'notebook', params: { id: notebookId } })
     } else if (treeStore.rootMessageIds.length > 0) {
       showingOverview.value = true
     }
@@ -187,7 +192,7 @@ const handleSendMessage = async (userMessage: string) => {
   const msg = treeStore.addRootMessage({ id: crypto.randomUUID(), question: userMessage, response: '' }, notebookStore.currentChatId)
   notebookStore.syncCurrentChat()
 
-  router.replace({ name: 'current-content-question', params: { type: 'notebook', id: notebookStore.currentChatId!, questionId: msg.id } })
+  router.replace({ name: 'question', params: { id: notebookStore.currentChatId!, questionId: msg.id } })
   scrollToBottom()
 
   streamingStore.startStreaming(msg.id)
@@ -221,7 +226,7 @@ const handleSelectQuestion = (question: { id: string; chatId: string }) => {
   isAddingNewQuestion.value = false
   showingOverview.value = false
   if (treeStore.currentMessageId) treeStore.saveScrollPosition(treeStore.currentMessageId, getScrollPosition())
-  router.push({ name: 'current-content-question', params: { type: 'notebook', id: question.chatId, questionId: question.id } })
+  router.push({ name: 'question', params: { id: question.chatId, questionId: question.id } })
   nextTick(() => { const scrollPos = treeStore.getMessageById(question.id)?.scrollPosition ?? 0; setScrollPosition(scrollPos) })
 }
 
@@ -234,7 +239,7 @@ const handleOverviewSelectQuestion = (data: Record<string, unknown>) => {
   const id = data.id as string
   if (id && notebookStore.currentChatId) {
     showingOverview.value = false
-    router.push({ name: 'current-content-question', params: { type: 'notebook', id: notebookStore.currentChatId, questionId: id } })
+    router.push({ name: 'question', params: { id: notebookStore.currentChatId, questionId: id } })
   }
 }
 
@@ -270,10 +275,13 @@ const handleOverviewDrop = (dropData: { messageId: string; targetId: string; pos
 
 <style scoped>
 .chat-sidebar { display: flex; flex-direction: column; height: 100%; }
-.tab-navigation { display: flex; gap: 0.25rem; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--color-border-base); }
+.sidebar-header { display: flex; align-items: center; border-bottom: 1px solid var(--color-border-base); }
+.tab-navigation { display: flex; gap: 0.25rem; flex: 1; padding: 0.5rem 0.75rem 0.5rem 0; }
 .tab-button { flex: 1; padding: 0.4rem 0.6rem; font-size: 0.75rem; font-weight: 500; background: transparent; border: none; border-radius: 4px; color: var(--color-text-muted); cursor: pointer; }
 .tab-button:hover { background: var(--color-bg-hover); }
 .tab-button.active { background: var(--color-bg-hover); color: var(--color-primary); }
+.back-btn { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; background: none; border: none; color: var(--color-text-muted); cursor: pointer; flex-shrink: 0; transition: all 0.15s; }
+.back-btn:hover { background: var(--color-bg-hover); color: var(--color-text-base); }
 .sidebar-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
 .chat-container { display: flex; flex-direction: column; height: 100%; min-width: 0; font-family: Georgia, serif; }
 .messages-container { flex: 1; overflow-y: auto; padding: 3rem 4rem; background-color: var(--color-bg-page); }

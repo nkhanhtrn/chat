@@ -226,7 +226,7 @@ const openBook = async (book: BookData) => {
   booksStore.setCurrentBook(book.id)
 
   const navigate = () => {
-    router.push({ name: 'current-content', params: { type: 'book', id: book.id } })
+    router.push({ name: 'book-viewer', params: { bookId: book.id } })
   }
 
   // Check if book file is already cached locally

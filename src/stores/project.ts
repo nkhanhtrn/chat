@@ -346,6 +346,7 @@ export const useProjectStore = defineStore('project', () => {
     currentProjectId.value = id
     const project = projects.value.find(p => p.id === id)
     if (!project) return
+    project.updatedAt = Date.now()
     if (!project.activeSubprojectId && project.subprojects.length > 0) {
       project.activeSubprojectId = project.subprojects[0].id
     }
