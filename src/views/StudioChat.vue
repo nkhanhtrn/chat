@@ -1,5 +1,5 @@
 <template>
-  <AppLayout storage-key="studio-layout">
+  <AppLayout storage-key="sidebar">
     <template #side>
       <div class="studio-sidebar">
         <div class="sidebar-header">

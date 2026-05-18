@@ -1,5 +1,5 @@
 <template>
-  <AppLayout ref="appLayoutRef" storage-key="project-layout">
+  <AppLayout ref="appLayoutRef" storage-key="sidebar">
     <template #side>
       <ProjectHeader
         :name="projectStore.currentProject?.name ?? 'Project'"

@@ -1,5 +1,5 @@
 <template>
-  <AppLayout storage-key="notebook-layout">
+  <AppLayout storage-key="sidebar">
     <template #side>
       <div class="chat-sidebar">
         <div class="sidebar-header">

@@ -1,5 +1,5 @@
 <template>
-  <AppLayout storage-key="book-layout">
+  <AppLayout storage-key="sidebar">
     <template #side>
       <BookTocSidebar
         :toc="toc"

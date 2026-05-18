@@ -1,5 +1,5 @@
 <template>
-  <AppLayout storage-key="calendar-layout">
+  <AppLayout storage-key="sidebar">
     <template #side><div class="side-playground-wrapper"><SideChatPlayground /></div></template>
     <div class="calendar-page">
       <div class="calendar-header">
