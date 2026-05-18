@@ -13,6 +13,11 @@
         />
       </div>
       <div class="window-controls" @mousedown.stop>
+        <button v-if="window.type === 'tool' && window.code" class="control-btn" @click="$emit('promote', window)" title="Save as global tool">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 19V5M5 12l7-7 7 7" />
+          </svg>
+        </button>
         <button v-if="window.type === 'tool' && window.code" class="control-btn" :class="{ active: showCode }" @click="toggleCodeView" title="View code">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="16 18 22 12 16 6"></polyline>
@@ -102,6 +107,7 @@ const emit = defineEmits<{
   'update:code': [code: string]
   'bring-to-front': []
   clone: [window: ProjectWindow]
+  promote: [window: ProjectWindow]
 }>()
 
 const showCode = ref(false)

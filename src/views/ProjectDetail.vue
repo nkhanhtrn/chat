@@ -55,6 +55,8 @@
           @clone-window="handleCloneWindow"
           @update-code="handleUpdateCode"
           @delete-window="handleDeleteWindow"
+          @instantiate-tool="handleInstantiateTool"
+          @promote-tool="handlePromoteTool"
         />
       </SlideTransition>
     </div>
@@ -65,6 +67,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
+import { useGlobalToolStore } from '@/stores/globalTool'
 import { useProjectChat } from '@/composables/useProjectChat'
 import AppLayout from '@/components/AppLayout.vue'
 import SlideTransition from '@/components/SlideTransition.vue'
@@ -74,10 +77,14 @@ import MessageInput from '@/components/project/MessageInput.vue'
 import CanvasPanel from '@/components/project/CanvasPanel.vue'
 import ToolTargetBar from '@/components/project/ToolTargetBar.vue'
 import type { ProjectWindow } from '@/types/project'
+import type { ToolTemplate } from '@/types/tool'
+import { useToast } from '@/composables/useToast'
 
 const route = useRoute()
 const router = useRouter()
 const projectStore = useProjectStore()
+const globalToolStore = useGlobalToolStore()
+const { showToast } = useToast()
 const projectId = route.params.id as string
 const dk = computed(() => projectStore.currentDataKey ?? '')
 
@@ -244,6 +251,43 @@ function handleCloneWindow(window: ProjectWindow) {
     toolInstanceId: window.type === 'tool' ? crypto.randomUUID() : window.toolInstanceId,
   }
   projectStore.addWindow(dk.value, newWindow)
+}
+
+function handleInstantiateTool(template: ToolTemplate) {
+  if (!dk.value) return
+  const wins = projectStore.windows.get(dk.value) || []
+  const baseX = 40 + (wins.length % 5) * 40
+  const baseY = 40 + (wins.length % 5) * 40
+  projectStore.addWindow(dk.value, {
+    id: crypto.randomUUID(),
+    sessionId: dk.value,
+    title: template.name,
+    type: 'tool',
+    displayState: 'open',
+    position: { x: baseX, y: baseY },
+    size: { width: 500, height: 450 },
+    zIndex: projectStore.getNextZIndex(),
+    code: template.code,
+    toolInstanceId: crypto.randomUUID(),
+    templateId: template.id,
+  })
+}
+
+function handlePromoteTool(win: ProjectWindow) {
+  if (!win.code) return
+  if (win.templateId) {
+    const existing = globalToolStore.getTemplate(win.templateId)
+    if (existing) {
+      globalToolStore.updateTemplate(existing.id, { code: win.code, name: win.title })
+      showToast(`Updated "${win.title}" in tool library`)
+      return
+    }
+  }
+  globalToolStore.createTemplate({
+    name: win.title,
+    code: win.code,
+  })
+  showToast(`"${win.title}" saved to tool library`)
 }
 </script>
 

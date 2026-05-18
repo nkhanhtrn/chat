@@ -1,6 +1,7 @@
 import { getFirestore, doc, setDoc, getDoc, deleteDoc, collection, getDocs, writeBatch } from 'firebase/firestore'
 import { getFirebaseAuth } from '@/services/firebase'
 import type { Project, ProjectMessage, ProjectWindow } from '@/types/project'
+import type { ToolTemplate } from '@/types/tool'
 
 function getUid(): string | null {
   const auth = getFirebaseAuth()
@@ -215,5 +216,54 @@ export async function deleteAllToolsFromCloud(dataKey: string): Promise<void> {
     if (batch._mutations.length > 0) await batch.commit()
   } catch (error) {
     console.error('[FirestoreStudio] Failed to delete tools:', error)
+  }
+}
+
+// ── Global Tool Templates ──
+
+export async function saveGlobalToolToCloud(template: ToolTemplate): Promise<void> {
+  const uid = getUid()
+  if (!uid) return
+
+  try {
+    const db = getFirestore()
+    const ref = doc(db, 'users', uid, 'studio-global-tools', template.id)
+    await setDoc(ref, {
+      ...JSON.parse(JSON.stringify(template)),
+      lastUpdated: Date.now(),
+    })
+  } catch (error) {
+    console.error('[FirestoreStudio] Failed to save global tool:', error)
+  }
+}
+
+export async function loadGlobalToolsFromCloud(): Promise<ToolTemplate[]> {
+  const uid = getUid()
+  if (!uid) return []
+
+  try {
+    const db = getFirestore()
+    const colRef = collection(db, 'users', uid, 'studio-global-tools')
+    const snap = await getDocs(colRef)
+    return snap.docs.map(d => {
+      const data = d.data()
+      delete (data as any).lastUpdated
+      return data as unknown as ToolTemplate
+    })
+  } catch (error) {
+    console.error('[FirestoreStudio] Failed to load global tools:', error)
+    return []
+  }
+}
+
+export async function deleteGlobalToolFromCloud(templateId: string): Promise<void> {
+  const uid = getUid()
+  if (!uid) return
+
+  try {
+    const db = getFirestore()
+    await deleteDoc(doc(db, 'users', uid, 'studio-global-tools', templateId))
+  } catch (error) {
+    console.error('[FirestoreStudio] Failed to delete global tool:', error)
   }
 }
