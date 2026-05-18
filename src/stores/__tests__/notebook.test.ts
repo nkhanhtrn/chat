@@ -3,12 +3,23 @@ import { createPinia, setActivePinia } from 'pinia'
 import { useNotebookStore } from '../notebook'
 import { useMessageTreeStore } from '../messageTree'
 
-// Mock sync services
 vi.mock('@/services/sync/IndexedDBService', () => ({
-  syncChatList: vi.fn().mockResolvedValue({ chats: [], currentChatId: null, currentModel: null, lastSyncedAt: null }),
-  syncChatMessages: vi.fn().mockResolvedValue({ messagesById: {}, lastSyncedAt: null }),
+  getLocalChatList: vi.fn().mockResolvedValue(null),
   getLocalChatMessages: vi.fn().mockResolvedValue(null),
-  resolveChatListConflict: vi.fn().mockResolvedValue({ chats: [], currentChatId: null, currentModel: null, lastSyncedAt: null }),
+  saveChatList: vi.fn().mockResolvedValue(undefined),
+  saveChatMessages: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock('@/services/firestore/firestore-chat', () => ({
+  saveChatMetadataToCloud: vi.fn().mockResolvedValue(undefined),
+  loadChatMetadataFromCloud: vi.fn().mockResolvedValue(null),
+  saveChatMessagesToCloud: vi.fn().mockResolvedValue(undefined),
+  loadChatMessagesFromCloud: vi.fn().mockResolvedValue({}),
+  deleteChatMessagesFromCloud: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock('@/services/auth', () => ({
+  getCurrentUser: () => null,
 }))
 
 describe('useNotebookStore', () => {
@@ -21,7 +32,6 @@ describe('useNotebookStore', () => {
     treeStore = useMessageTreeStore()
   })
 
-  // Helper: set up a notebook with messages in the tree store
   function setupNotebook(id = 'nb1', name = 'Test Notebook', rootIds: string[] = []) {
     store.chats.push({ id, name, rootMessageIds: rootIds, scratchpad: '' })
     return id
@@ -136,7 +146,6 @@ describe('useNotebookStore', () => {
 
     it('is a no-op when no current chat', () => {
       store.syncCurrentChat()
-      // Should not throw
     })
   })
 
@@ -196,9 +205,7 @@ describe('useNotebookStore', () => {
       expect(result).not.toBeNull()
       expect(result!.messageId).toBe('r1')
 
-      // Source should have no roots
       expect(store.chats.find(c => c.id === 'nb1')?.rootMessageIds).toEqual([])
-      // New notebook should exist with the message
       const newChat = store.chats.find(c => c.id === result!.newChatId)
       expect(newChat?.rootMessageIds).toContain('r1')
       expect(newChat?.name).toBe('Summary')

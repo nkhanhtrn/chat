@@ -347,7 +347,7 @@ async function restoreNotebooks(event: Event) {
       }
     }
 
-    await syncStore.persistAll()
+    await notebookStore.persistAll()
 
     restoreStatus.value = { type: 'success', message: `Restored ${addedCount} notebook(s)` }
     setTimeout(() => { restoreStatus.value = null }, 3000)

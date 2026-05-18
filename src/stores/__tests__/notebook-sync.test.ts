@@ -3,16 +3,34 @@ import { createPinia, setActivePinia } from 'pinia'
 import { useNotebookStore } from '../notebook'
 import { useMessageTreeStore } from '../messageTree'
 
-const mockSyncChatList = vi.fn()
-const mockSyncChatMessages = vi.fn()
+const mockGetLocalChatList = vi.fn()
 const mockGetLocalChatMessages = vi.fn()
-const mockResolveChatListConflict = vi.fn()
+const mockSaveChatList = vi.fn()
+const mockSaveChatMessages = vi.fn()
 
 vi.mock('@/services/sync/IndexedDBService', () => ({
-  syncChatList: (...args: unknown[]) => mockSyncChatList(...args),
-  syncChatMessages: (...args: unknown[]) => mockSyncChatMessages(...args),
+  getLocalChatList: (...args: unknown[]) => mockGetLocalChatList(...args),
   getLocalChatMessages: (...args: unknown[]) => mockGetLocalChatMessages(...args),
-  resolveChatListConflict: (...args: unknown[]) => mockResolveChatListConflict(...args),
+  saveChatList: (...args: unknown[]) => mockSaveChatList(...args),
+  saveChatMessages: (...args: unknown[]) => mockSaveChatMessages(...args),
+}))
+
+const mockSaveChatMetadataToCloud = vi.fn()
+const mockLoadChatMetadataFromCloud = vi.fn()
+const mockSaveChatMessagesToCloud = vi.fn()
+const mockLoadChatMessagesFromCloud = vi.fn()
+const mockDeleteChatMessagesFromCloud = vi.fn()
+
+vi.mock('@/services/firestore/firestore-chat', () => ({
+  saveChatMetadataToCloud: (...args: unknown[]) => mockSaveChatMetadataToCloud(...args),
+  loadChatMetadataFromCloud: (...args: unknown[]) => mockLoadChatMetadataFromCloud(...args),
+  saveChatMessagesToCloud: (...args: unknown[]) => mockSaveChatMessagesToCloud(...args),
+  loadChatMessagesFromCloud: (...args: unknown[]) => mockLoadChatMessagesFromCloud(...args),
+  deleteChatMessagesFromCloud: (...args: unknown[]) => mockDeleteChatMessagesFromCloud(...args),
+}))
+
+vi.mock('@/services/auth', () => ({
+  getCurrentUser: () => null,
 }))
 
 describe('Notebook sync on open', () => {
@@ -20,26 +38,24 @@ describe('Notebook sync on open', () => {
   let treeStore: ReturnType<typeof useMessageTreeStore>
 
   beforeEach(() => {
+    vi.useFakeTimers()
     setActivePinia(createPinia())
     store = useNotebookStore()
     treeStore = useMessageTreeStore()
 
-    mockSyncChatList.mockResolvedValue({
-      chats: [],
-      currentChatId: null,
-      currentModel: null,
-      lastSyncedAt: null,
-      hasConflict: false,
-    })
-    mockSyncChatMessages.mockResolvedValue({ messagesById: {}, lastSyncedAt: null })
+    mockGetLocalChatList.mockResolvedValue(null)
     mockGetLocalChatMessages.mockResolvedValue(null)
-    mockResolveChatListConflict.mockResolvedValue({
-      chats: [],
-      currentChatId: null,
-      currentModel: null,
-      lastSyncedAt: null,
-      hasConflict: false,
-    })
+    mockSaveChatList.mockResolvedValue(undefined)
+    mockSaveChatMessages.mockResolvedValue(undefined)
+    mockLoadChatMetadataFromCloud.mockResolvedValue(null)
+    mockLoadChatMessagesFromCloud.mockResolvedValue({})
+    mockSaveChatMetadataToCloud.mockResolvedValue(undefined)
+    mockSaveChatMessagesToCloud.mockResolvedValue(undefined)
+    mockDeleteChatMessagesFromCloud.mockResolvedValue(undefined)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   describe('creating a brand new notebook', () => {
@@ -60,25 +76,27 @@ describe('Notebook sync on open', () => {
       expect(treeStore.rootMessageIds).toEqual([])
     })
 
-    it('does NOT call syncChatMessages during creation', () => {
+    it('calls markChatList (saves to IndexedDB)', () => {
       store.createNewChat()
-      expect(mockSyncChatMessages).not.toHaveBeenCalled()
+
+      expect(mockSaveChatList).toHaveBeenCalled()
     })
   })
 
   describe('opening (switching to) a new notebook after creation', () => {
-    it('calls syncChatMessages to load messages from IndexedDB + Firestore', async () => {
+    it('loads messages from local IndexedDB + cloud', async () => {
       const chat = store.createNewChat()
 
-      mockSyncChatMessages.mockResolvedValue({
+      mockGetLocalChatMessages.mockResolvedValue({
         messagesById: {},
-        lastSyncedAt: 1000,
-        fromCache: false,
+      })
+      mockLoadChatMessagesFromCloud.mockResolvedValue({
+        msg1: { id: 'msg1', question: 'Q', response: 'A' },
       })
 
       await store.switchToChat(chat.id)
 
-      expect(mockSyncChatMessages).toHaveBeenCalledWith(chat.id)
+      expect(mockLoadChatMessagesFromCloud).toHaveBeenCalledWith(chat.id)
     })
 
     it('sets tree store rootMessageIds from the chat record', async () => {
@@ -89,15 +107,12 @@ describe('Notebook sync on open', () => {
       expect(treeStore.rootMessageIds).toEqual([])
     })
 
-    it('loads messages from sync result into tree store', async () => {
+    it('loads messages from cloud result into tree store', async () => {
       const chat = store.createNewChat()
       const msgId = 'msg-1'
 
-      mockSyncChatMessages.mockResolvedValue({
-        messagesById: {
-          [msgId]: { id: msgId, question: 'What is math?', response: 'Math is...' },
-        },
-        lastSyncedAt: 2000,
+      mockLoadChatMessagesFromCloud.mockResolvedValue({
+        [msgId]: { id: msgId, question: 'What is math?', response: 'Math is...' },
       })
 
       await store.switchToChat(chat.id)
@@ -115,7 +130,7 @@ describe('Notebook sync on open', () => {
       expect(store._chatLastLoadedAt[chat.id]).toBeGreaterThan(0)
     })
 
-    it('does not call syncChatMessages on second open (uses session cache)', async () => {
+    it('does not call loadChatMessagesFromCloud on second open (uses session cache)', async () => {
       const chat = store.createNewChat()
 
       mockGetLocalChatMessages.mockResolvedValue({
@@ -125,11 +140,11 @@ describe('Notebook sync on open', () => {
       })
 
       await store.switchToChat(chat.id)
-      mockSyncChatMessages.mockClear()
+      mockLoadChatMessagesFromCloud.mockClear()
 
       await store.switchToChat(chat.id)
 
-      expect(mockSyncChatMessages).not.toHaveBeenCalled()
+      expect(mockLoadChatMessagesFromCloud).not.toHaveBeenCalled()
       expect(mockGetLocalChatMessages).toHaveBeenCalledWith(chat.id)
     })
   })
@@ -139,18 +154,10 @@ describe('Notebook sync on open', () => {
 
     beforeEach(async () => {
       const initChat = { id: 'existing-nb-1', name: 'Physics', rootMessageIds: ['r1', 'r2'], scratchpad: 'notes' }
-      mockSyncChatList.mockResolvedValue({
+      mockGetLocalChatList.mockResolvedValue({
         chats: [initChat],
         currentChatId: 'existing-nb-1',
         currentModel: null,
-        lastSyncedAt: 5000,
-        hasConflict: false,
-      })
-      mockSyncChatMessages.mockResolvedValue({
-        messagesById: {
-          r1: { id: 'r1', question: 'Gravity?', response: 'Force of attraction' },
-          r2: { id: 'r2', question: 'Speed of light?', response: '3e8 m/s' },
-        },
         lastSyncedAt: 5000,
       })
 
@@ -158,7 +165,12 @@ describe('Notebook sync on open', () => {
       existingChatId = 'existing-nb-1'
     })
 
-    it('loads all messages for the notebook from sync', async () => {
+    it('loads all messages for the notebook', async () => {
+      mockLoadChatMessagesFromCloud.mockResolvedValue({
+        r1: { id: 'r1', question: 'Gravity?', response: 'Force of attraction' },
+        r2: { id: 'r2', question: 'Speed of light?', response: '3e8 m/s' },
+      })
+
       await store.switchToChat(existingChatId)
 
       expect(Object.keys(treeStore.messagesById)).toHaveLength(2)
@@ -179,60 +191,21 @@ describe('Notebook sync on open', () => {
     })
   })
 
-  describe('syncChatMessages merge behavior (IndexedDBService)', () => {
-    it('uses cloud data when cloud has messages', async () => {
-      mockSyncChatMessages.mockResolvedValue({
-        messagesById: { cloud1: { id: 'cloud1', question: 'Cloud Q', response: 'Cloud A' } },
-        lastSyncedAt: Date.now(),
-        fromCache: false,
-      })
-
-      const result = await mockSyncChatMessages('nb-1')
-      expect(result.messagesById).toHaveProperty('cloud1')
-      expect(result.fromCache).toBe(false)
-    })
-
-    it('keeps local data when cloud is empty but local has data', async () => {
-      mockSyncChatMessages.mockResolvedValue({
-        messagesById: { local1: { id: 'local1', question: 'Local Q', response: 'Local A' } },
-        lastSyncedAt: null,
-        fromCache: true,
-      })
-
-      const result = await mockSyncChatMessages('nb-1')
-      expect(result.messagesById).toHaveProperty('local1')
-      expect(result.fromCache).toBe(true)
-    })
-
-    it('returns empty when both local and cloud are empty', async () => {
-      mockSyncChatMessages.mockResolvedValue({
-        messagesById: {},
-        lastSyncedAt: Date.now(),
-        fromCache: false,
-      })
-
-      const result = await mockSyncChatMessages('new-nb')
-      expect(Object.keys(result.messagesById)).toHaveLength(0)
-    })
-  })
-
   describe('switching between notebooks', () => {
     it('loads correct messages when switching from notebook A to B', async () => {
       const nbA = store.createNewChat()
       const nbB = store.createNewChat()
 
-      mockSyncChatMessages.mockResolvedValueOnce({
-        messagesById: { a1: { id: 'a1', question: 'A question', response: 'A answer' } },
-        lastSyncedAt: 1000,
+      mockLoadChatMessagesFromCloud.mockResolvedValueOnce({
+        a1: { id: 'a1', question: 'A question', response: 'A answer' },
       })
 
       await store.switchToChat(nbA.id)
       expect(treeStore.messagesById['a1']).toBeDefined()
       expect(treeStore.rootMessageIds).toEqual([])
 
-      mockSyncChatMessages.mockResolvedValueOnce({
-        messagesById: { b1: { id: 'b1', question: 'B question', response: 'B answer' } },
-        lastSyncedAt: 2000,
+      mockLoadChatMessagesFromCloud.mockResolvedValueOnce({
+        b1: { id: 'b1', question: 'B question', response: 'B answer' },
       })
 
       await store.switchToChat(nbB.id)
@@ -245,20 +218,18 @@ describe('Notebook sync on open', () => {
       const nbA = store.createNewChat()
       const nbB = store.createNewChat()
 
-      mockSyncChatMessages.mockResolvedValue({
-        messagesById: { a1: { id: 'a1', question: 'Q', response: 'A' } },
-        lastSyncedAt: 1000,
+      mockLoadChatMessagesFromCloud.mockResolvedValue({
+        a1: { id: 'a1', question: 'Q', response: 'A' },
       })
 
       await store.switchToChat(nbA.id)
-      mockSyncChatMessages.mockClear()
+      mockLoadChatMessagesFromCloud.mockClear()
 
-      mockSyncChatMessages.mockResolvedValue({
-        messagesById: { b1: { id: 'b1', question: 'B Q', response: 'B A' } },
-        lastSyncedAt: 2000,
+      mockLoadChatMessagesFromCloud.mockResolvedValue({
+        b1: { id: 'b1', question: 'B Q', response: 'B A' },
       })
       await store.switchToChat(nbB.id)
-      mockSyncChatMessages.mockClear()
+      mockLoadChatMessagesFromCloud.mockClear()
 
       mockGetLocalChatMessages.mockResolvedValue({
         messagesById: { a1: { id: 'a1', question: 'Q', response: 'A' } },
@@ -266,14 +237,14 @@ describe('Notebook sync on open', () => {
 
       await store.switchToChat(nbA.id)
 
-      expect(mockSyncChatMessages).not.toHaveBeenCalled()
+      expect(mockLoadChatMessagesFromCloud).not.toHaveBeenCalled()
       expect(mockGetLocalChatMessages).toHaveBeenCalledWith(nbA.id)
     })
 
     it('returns early if chat ID does not exist', async () => {
       await store.switchToChat('nonexistent-id')
 
-      expect(mockSyncChatMessages).not.toHaveBeenCalled()
+      expect(mockLoadChatMessagesFromCloud).not.toHaveBeenCalled()
       expect(store.currentChatId).toBeNull()
     })
   })
@@ -300,10 +271,7 @@ describe('Notebook sync on open', () => {
     it('handles switchToChat for a new notebook with no messages', async () => {
       const chat = store.createNewChat()
 
-      mockSyncChatMessages.mockResolvedValue({
-        messagesById: {},
-        lastSyncedAt: Date.now(),
-      })
+      mockLoadChatMessagesFromCloud.mockResolvedValue({})
 
       await store.switchToChat(chat.id)
 
@@ -316,9 +284,9 @@ describe('Notebook sync on open', () => {
       const chat = store.createNewChat()
       let loadingDuringFetch = false
 
-      mockSyncChatMessages.mockImplementation(async () => {
+      mockLoadChatMessagesFromCloud.mockImplementation(async () => {
         loadingDuringFetch = store.isLoadingChatMessages
-        return { messagesById: {}, lastSyncedAt: Date.now() }
+        return {}
       })
 
       await store.switchToChat(chat.id)
@@ -329,7 +297,7 @@ describe('Notebook sync on open', () => {
 
     it('clears loading state even when sync fails', async () => {
       const chat = store.createNewChat()
-      mockSyncChatMessages.mockRejectedValue(new Error('Network error'))
+      mockLoadChatMessagesFromCloud.mockRejectedValue(new Error('Network error'))
 
       await store.switchToChat(chat.id)
 
@@ -342,14 +310,39 @@ describe('Notebook sync on open', () => {
 
       chatInStore.rootMessageIds = ['r1']
 
-      mockSyncChatMessages.mockResolvedValue({
-        messagesById: { r1: { id: 'r1', question: 'Q', response: 'A' } },
-        lastSyncedAt: Date.now(),
+      mockLoadChatMessagesFromCloud.mockResolvedValue({
+        r1: { id: 'r1', question: 'Q', response: 'A' },
       })
 
       await store.switchToChat(chat.id)
 
       expect(treeStore.rootMessageIds).toEqual(['r1'])
+    })
+  })
+
+  describe('markChatList debouncing', () => {
+    it('saves to IndexedDB immediately and debounces cloud save', () => {
+      mockSaveChatList.mockClear()
+      mockSaveChatMetadataToCloud.mockClear()
+
+      store.createNewChat()
+
+      expect(mockSaveChatList).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('syncMessagesNow', () => {
+    it('saves messages to both IndexedDB and cloud', () => {
+      vi.doMock('@/services/auth', () => ({
+        getCurrentUser: () => ({ uid: 'test-uid' }),
+      }))
+
+      const chat = store.createNewChat()
+      treeStore.messagesById = { m1: { id: 'm1', question: 'Q', response: 'A' } }
+
+      store.syncMessagesNow(chat.id)
+
+      expect(mockSaveChatMessages).toHaveBeenCalled()
     })
   })
 })

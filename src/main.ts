@@ -12,7 +12,7 @@ import { useNotebookStore } from './stores/notebook'
 import { useMessageTreeStore } from './stores/messageTree'
 import { useVocabStore } from './stores/vocab'
 import { useStreamingStore } from './stores/streaming'
-import { useSyncStore } from './stores/sync'
+
 import { useBooksStore } from './stores/books'
 import { debugLog } from './utils/debug'
 
@@ -97,7 +97,6 @@ const initializeApp = async () => {
   const treeStore = useMessageTreeStore(pinia)
   const vocabStore = useVocabStore(pinia)
   const streamingStore = useStreamingStore(pinia)
-  const syncStore = useSyncStore(pinia)
   const booksStore = useBooksStore(pinia)
 
   if (import.meta.env.DEV) {
@@ -105,7 +104,6 @@ const initializeApp = async () => {
     ;(window as any).treeStore = treeStore
     ;(window as any).vocabStore = vocabStore
     ;(window as any).streamingStore = streamingStore
-    ;(window as any).syncStore = syncStore
     ;(window as any).booksStore = booksStore
   }
 
@@ -115,38 +113,18 @@ const initializeApp = async () => {
   // Initialize books store
   await booksStore.initializeStore()
 
-  // Subscribe to notebook store for persistence
-  notebookStore.$subscribe(async () => {
-    if (syncStore._isLoadingFromStorage) return
-    try {
-      await syncStore.persistChatList()
-      syncStore.scheduleFirestoreSync()
-    } catch (error) {
-      console.error('[Main] Notebook persistence failed:', error)
-    }
-  })
+  // Initialize notebook sync (pull from cloud + auto-save)
+  notebookStore.initSync()
 
-  // Subscribe to message tree store for persistence
-  treeStore.$subscribe(async () => {
-    if (syncStore._isLoadingFromStorage) return
-    try {
-      await syncStore.persistChatMessages()
-      syncStore.scheduleFirestoreSync()
-    } catch (error) {
-      console.error('[Main] Message persistence failed:', error)
-    }
-  })
-
-  // Subscribe to vocab store for persistence
-  vocabStore.$subscribe(async () => {
-    if (syncStore._isLoadingFromStorage) return
-    try {
-      await syncStore.persistChatList()
-      await syncStore.syncToFirestore({ events: {} }, {})
-    } catch (error) {
-      console.error('[Main] Vocab persistence failed:', error)
-    }
-  })
+  // Initialize studio sync (load from cloud + auto-save)
+  try {
+    const { useProjectStore } = await import('./stores/project')
+    const projectStore = useProjectStore(pinia)
+    projectStore.initSync()
+    debugLog('[App] Studio sync initialized')
+  } catch (error) {
+    console.warn('Studio sync initialization failed:', error)
+  }
 
   // Initialize studio sync (load from cloud + auto-save)
   try {

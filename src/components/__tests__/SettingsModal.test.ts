@@ -29,10 +29,10 @@ vi.mock('@/composables/useEnvironment', () => ({
 
 // Mock the sync service for pinia store
 vi.mock('@/services/sync/IndexedDBService', () => ({
-  syncChatList: vi.fn().mockResolvedValue({ chats: [], currentChatId: null, currentModel: null, lastSyncedAt: null }),
-  syncChatMessages: vi.fn().mockResolvedValue({ messagesById: {}, lastSyncedAt: null }),
+  getLocalChatList: vi.fn().mockResolvedValue(null),
   getLocalChatMessages: vi.fn().mockResolvedValue(null),
-  resolveChatListConflict: vi.fn().mockResolvedValue({ chats: [], currentChatId: null, currentModel: null, lastSyncedAt: null }),
+  saveChatList: vi.fn().mockResolvedValue(undefined),
+  saveChatMessages: vi.fn().mockResolvedValue(undefined),
 }))
 
 // Stub child components

@@ -210,6 +210,9 @@ const handleSendMessage = async (userMessage: string) => {
     treeStore.removeRootMessage(msg.id)
   } finally {
     streamingStore.stopStreaming()
+    if (notebookStore.currentChatId) {
+      notebookStore.syncMessagesNow(notebookStore.currentChatId)
+    }
     scrollToBottom()
   }
 }
