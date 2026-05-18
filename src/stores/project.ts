@@ -143,6 +143,13 @@ export const useProjectStore = defineStore('project', () => {
       : ''
   )
 
+  const openSubprojects = computed(() => {
+    const project = currentProject.value
+    if (!project) return []
+    const closed = new Set(project.closedSubprojectIds ?? [])
+    return project.subprojects.filter(s => !closed.has(s.id))
+  })
+
   watch(projects, (val) => saveToStorage(val), { deep: true })
 
   // ── Cloud sync: single batched flush ──
@@ -472,6 +479,48 @@ export const useProjectStore = defineStore('project', () => {
     markProject(projectId)
   }
 
+  function closeSubProject(projectId: string, subprojectId: string) {
+    const project = projects.value.find(p => p.id === projectId)
+    if (!project) return
+    if (!project.closedSubprojectIds) project.closedSubprojectIds = []
+    if (!project.closedSubprojectIds.includes(subprojectId)) {
+      project.closedSubprojectIds.push(subprojectId)
+    }
+    if (project.activeSubprojectId === subprojectId) {
+      const closed = new Set(project.closedSubprojectIds)
+      const openSubs = project.subprojects.filter(s => !closed.has(s.id))
+      if (openSubs.length > 0) {
+        const idx = project.subprojects.findIndex(s => s.id === subprojectId)
+        const newIdx = Math.min(idx, openSubs.length - 1)
+        project.activeSubprojectId = openSubs[newIdx].id
+        loadSubData(projectId, project.activeSubprojectId)
+      } else {
+        project.activeSubprojectId = ''
+      }
+    }
+    project.updatedAt = Date.now()
+    markProject(projectId)
+  }
+
+  function reopenSubProject(projectId: string, subprojectId: string) {
+    const project = projects.value.find(p => p.id === projectId)
+    if (!project || !project.closedSubprojectIds) return
+    project.closedSubprojectIds = project.closedSubprojectIds.filter(id => id !== subprojectId)
+    project.updatedAt = Date.now()
+    markProject(projectId)
+  }
+
+  function reorderSubProjects(projectId: string, orderedIds: string[]) {
+    const project = projects.value.find(p => p.id === projectId)
+    if (!project) return
+    const map = new Map(project.subprojects.map(s => [s.id, s]))
+    project.subprojects = orderedIds
+      .filter(id => map.has(id))
+      .map(id => map.get(id)!)
+    project.updatedAt = Date.now()
+    markProject(projectId)
+  }
+
   function addMessage(dataKey: string, message: ProjectMessage) {
     if (!dataKey) return
     const list = messages.value.get(dataKey)
@@ -514,10 +563,29 @@ export const useProjectStore = defineStore('project', () => {
     if (!list) return
     const idx = list.findIndex(w => w.id === windowId)
     if (idx !== -1) {
+      if (updates.code !== undefined && updates.code !== list[idx].code) {
+        updates.previousCode = list[idx].code
+      }
       list[idx] = { ...list[idx], ...updates }
       saveWindows(dataKey, list)
       markTool(dataKey, windowId)
     }
+  }
+
+  function revertWindowCode(dataKey: string, windowId: string) {
+    if (!dataKey) return
+    const list = windows.value.get(dataKey)
+    if (!list) return
+    const idx = list.findIndex(w => w.id === windowId)
+    if (idx === -1) return
+    const win = list[idx]
+    if (!win.previousCode) return
+    const current = win.code
+    win.code = win.previousCode
+    win.previousCode = current
+    win.isReverted = !win.isReverted
+    saveWindows(dataKey, list)
+    markTool(dataKey, windowId)
   }
 
   function removeWindow(dataKey: string, windowId: string) {
@@ -563,6 +631,7 @@ export const useProjectStore = defineStore('project', () => {
     currentWindows,
     activeWindows,
     currentScratchpad,
+    openSubprojects,
     initSync,
     syncChatNow,
     createProject,
@@ -573,11 +642,15 @@ export const useProjectStore = defineStore('project', () => {
     deleteSubProject,
     switchSubProject,
     renameSubProject,
+    closeSubProject,
+    reopenSubProject,
+    reorderSubProjects,
     addMessage,
     clearMessages,
     truncateMessages,
     addWindow,
     updateWindow,
+    revertWindowCode,
     removeWindow,
     setWindowDisplayState,
     updateScratchpad,
