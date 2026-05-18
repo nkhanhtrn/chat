@@ -20,17 +20,24 @@
         </button>
       </div>
     </div>
-    <pre class="code-block"><code>{{ content }}</code></pre>
+    <div class="code-block">
+      <div v-for="(line, i) in lines" :key="i" class="code-line">
+        <span class="line-num">{{ i + 1 }}</span>
+        <span class="line-text">{{ line }}</span>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 const props = defineProps<{
   content: string
   language?: string
 }>()
+
+const lines = computed(() => (props.content || '').split('\n'))
 
 const copied = ref(false)
 
@@ -56,5 +63,8 @@ async function copyCode() {
 .language-badge { font-size: 0.65rem; font-family: system-ui, sans-serif; text-transform: uppercase; color: var(--color-text-muted); letter-spacing: 0.05em; }
 .copy-btn { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; background: none; border: none; color: var(--color-text-muted); cursor: pointer; }
 .copy-btn:hover { color: var(--color-text-base); }
-.code-block { flex: 1; margin: 0; padding: 0.75rem; overflow: auto; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 0.8rem; line-height: 1.5; color: var(--color-text-base); white-space: pre-wrap; word-break: break-word; }
+.code-block { flex: 1; margin: 0; overflow: auto; padding: 0.75rem 0; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 0.8rem; line-height: 1.5; color: var(--color-text-base); }
+.code-line { display: flex; padding-right: 0.75rem; }
+.line-num { flex-shrink: 0; width: 3.5em; padding-right: 0.75em; text-align: right; color: var(--color-text-muted); opacity: 0.45; user-select: none; font-variant-numeric: tabular-nums; }
+.line-text { flex: 1; white-space: pre-wrap; word-break: break-word; padding-left: 0.75rem; border-left: 1px solid var(--color-border-subtle); }
 </style>
