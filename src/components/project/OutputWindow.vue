@@ -65,7 +65,12 @@
               </svg>
             </button>
           </div>
-          <textarea v-model="editDraft" class="editor-textarea" spellcheck="false"></textarea>
+          <div class="editor-body">
+            <div class="line-numbers" ref="editorLineNumbers" @click="focusTextarea">
+              <div v-for="(_, i) in editorLines" :key="i" class="line-num">{{ i + 1 }}</div>
+            </div>
+            <textarea ref="editorTextarea" v-model="editDraft" class="editor-textarea" spellcheck="false" @scroll="syncEditorScroll"></textarea>
+          </div>
         </div>
         <div v-else :data-tool-scope="scopeId" class="tool-mount">
           <component :is="compiledComponent" v-if="compiledComponent" />
@@ -113,6 +118,20 @@ const emit = defineEmits<{
 const showCode = ref(false)
 const editingCode = ref(false)
 const editDraft = ref('')
+const editorLineNumbers = ref<HTMLElement | null>(null)
+const editorTextarea = ref<HTMLTextAreaElement | null>(null)
+
+const editorLines = computed(() => (editDraft.value || '').split('\n'))
+
+function syncEditorScroll() {
+  if (editorLineNumbers.value && editorTextarea.value) {
+    editorLineNumbers.value.scrollTop = editorTextarea.value.scrollTop
+  }
+}
+
+function focusTextarea() {
+  editorTextarea.value?.focus()
+}
 
 function toggleCodeView() {
   showCode.value = !showCode.value
@@ -245,5 +264,8 @@ function startResize(direction: string, e: MouseEvent) {
 .toolbar-btn:hover { background: var(--color-bg-hover); color: var(--color-text-base); }
 .toolbar-btn.save { border-color: var(--color-primary, #6366f1); color: var(--color-primary, #6366f1); }
 .toolbar-btn.save:hover { background: var(--color-primary, #6366f1); color: white; }
+.editor-body { flex: 1; display: flex; overflow: hidden; }
+.editor-body .line-numbers { flex-shrink: 0; padding: 0.75rem 0.5rem 0.75rem 0.6rem; text-align: right; color: var(--color-text-muted); opacity: 0.45; user-select: none; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 0.8rem; line-height: 1.5; font-variant-numeric: tabular-nums; overflow: hidden; border-right: 1px solid var(--color-border-subtle); cursor: text; }
+.editor-body .line-num { min-width: 1.5em; }
 .editor-textarea { flex: 1; padding: 0.75rem; border: none; outline: none; resize: none; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 0.8rem; line-height: 1.5; color: var(--color-text-base); background: transparent; }
 </style>

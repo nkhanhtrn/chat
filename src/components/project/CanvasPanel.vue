@@ -11,6 +11,19 @@
       <p>Canvas Area</p>
       <p class="hint">Windows will appear here</p>
     </div>
+    <div class="minimized-bar">
+      <GlobalToolMenu @select="(t) => $emit('instantiate-tool', t)" />
+      <div v-if="windows.length" class="minimized-separator" />
+      <template v-for="win in windows" :key="win.id">
+        <button
+          :class="['minimized-chip', { active: win.displayState === 'open' }]"
+          :title="win.title"
+          @click="$emit('toggle-window', win.id)"
+        >
+          <span class="chip-title">{{ win.title }}</span>
+        </button>
+      </template>
+    </div>
     <OutputWindow
       v-for="win in openWindows"
       :key="win.id"
@@ -26,19 +39,6 @@
       @update:code="(code) => $emit('update-code', win.id, code)"
       @promote="(win) => $emit('promote-tool', win)"
     />
-    <div class="minimized-bar">
-      <GlobalToolMenu @select="(t) => $emit('instantiate-tool', t)" />
-      <div v-if="windows.length" class="minimized-separator" />
-      <template v-for="win in windows" :key="win.id">
-        <button
-          :class="['minimized-chip', { active: win.displayState === 'open' }]"
-          :title="win.title"
-          @click="$emit('toggle-window', win.id)"
-        >
-          <span class="chip-title">{{ win.title }}</span>
-        </button>
-      </template>
-    </div>
   </div>
 </template>
 
@@ -88,7 +88,7 @@ const openWindows = computed(() =>
   gap: 0.3rem;
   padding: 0.3rem 0.5rem;
   background: var(--color-bg-base);
-  border-top: 1px solid var(--color-border-subtle);
+  border-bottom: 1px solid var(--color-border-subtle);
   flex-shrink: 0;
   overflow-x: auto;
   scrollbar-width: none;
