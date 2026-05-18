@@ -38,6 +38,7 @@
       @delete="(id) => $emit('delete-window', id)"
       @update:code="(code) => $emit('update-code', win.id, code)"
       @promote="(win) => $emit('promote-tool', win)"
+      @revert="(id) => $emit('revert-window', id)"
     />
   </div>
 </template>
@@ -68,6 +69,7 @@ defineEmits<{
   'delete-window': [windowId: string]
   'instantiate-tool': [template: ToolTemplate]
   'promote-tool': [window: ProjectWindow]
+  'revert-window': [windowId: string]
 }>()
 
 const openWindows = computed(() =>
