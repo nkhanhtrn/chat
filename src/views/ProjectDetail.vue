@@ -22,7 +22,7 @@
       <template v-if="isHome">
         <SubprojectHomePanel
           :subprojects="projectStore.currentProject?.subprojects ?? []"
-          :closedIds="projectStore.currentProject?.subprojects.filter(s => !projectStore.currentProject!.openSubprojectIds.includes(s.id)).map(s => s.id) ?? []"
+          :closedIds="getClosedIds()"
           @open-subproject="handleSwitchSubproject"
           @delete-subproject="handleDeleteSubproject"
           @reorder-subprojects="handleReorderSubprojects"
@@ -273,6 +273,13 @@ function handleRenameSubproject(subprojectId: string, name: string) {
 
 function handleReorderSubprojects(orderedIds: string[]) {
   if (projectId) projectStore.reorderSubProjects(projectId, orderedIds)
+}
+
+function getClosedIds(): string[] {
+  const proj = projectStore.currentProject
+  if (!proj) return []
+  const open = new Set(proj.openSubprojectIds ?? proj.subprojects.map(s => s.id))
+  return proj.subprojects.filter(s => !open.has(s.id)).map(s => s.id)
 }
 
 function handleCloseWindow(windowId: string) {

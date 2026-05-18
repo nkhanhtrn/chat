@@ -146,7 +146,7 @@ export const useProjectStore = defineStore('project', () => {
   const openSubprojects = computed(() => {
     const project = currentProject.value
     if (!project) return []
-    const open = new Set(project.openSubprojectIds)
+    const open = new Set(project.openSubprojectIds ?? project.subprojects.map(s => s.id))
     return project.subprojects.filter(s => open.has(s.id))
   })
 
@@ -484,9 +484,16 @@ export const useProjectStore = defineStore('project', () => {
     markProject(projectId)
   }
 
+  function ensureOpenIds(project: Project) {
+    if (!project.openSubprojectIds) {
+      project.openSubprojectIds = project.subprojects.map(s => s.id)
+    }
+  }
+
   function closeSubProject(projectId: string, subprojectId: string) {
     const project = projects.value.find(p => p.id === projectId)
     if (!project) return
+    ensureOpenIds(project)
     project.openSubprojectIds = project.openSubprojectIds.filter(id => id !== subprojectId)
     if (project.activeSubprojectId === subprojectId) {
       if (project.openSubprojectIds.length > 0) {
