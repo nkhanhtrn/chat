@@ -21,6 +21,11 @@
           <line x1="16" y1="17" x2="8" y2="17"></line>
         </svg>
       </button>
+      <button class="chat-tab-btn" :class="{ active: isChatTab }" @click="$emit('toggle-chat')" title="Chat">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+      </button>
     </div>
     <div class="subproject-bar">
       <div class="tabs-scroll">
@@ -95,6 +100,7 @@ const props = defineProps<{
   isHome: boolean
   isStreaming?: boolean
   hasScratchpad?: boolean
+  isChatTab?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -106,6 +112,7 @@ const emit = defineEmits<{
   'rename-subproject': [subprojectId: string, name: string]
   'open-scratchpad': []
   'reorder-subprojects': [orderedIds: string[]]
+  'toggle-chat': []
 }>()
 
 const inlineRefs = ref<Record<string, ComponentPublicInstance<{ startEditing: () => void }>>>({})
@@ -207,6 +214,22 @@ function onDrop(_e: DragEvent, dropIndex: number) {
 }
 .scratchpad-btn:hover { background: var(--color-bg-hover); color: var(--color-text-base); }
 .scratchpad-btn.active { color: var(--color-primary); }
+.chat-tab-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.chat-tab-btn:hover { background: var(--color-bg-hover); color: var(--color-text-base); }
+.chat-tab-btn.active { color: var(--color-primary); }
 .header-title {
   flex: 1;
   min-width: 0;
