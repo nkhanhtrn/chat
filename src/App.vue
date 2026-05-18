@@ -10,6 +10,7 @@
   />
 
   <router-view />
+  <Toaster />
 </template>
 
 <script setup lang="ts">
@@ -17,6 +18,7 @@ import { ref, provide, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import StaleDataBanner from '@/components/StaleDataBanner.vue'
 import DevToolbar from '@/components/DevToolbar.vue'
+import { Toaster } from 'vue-sonner'
 import { useNotebookStore } from '@/stores/notebook'
 import { useStaleDataDetection } from '@/composables/useStaleDataDetection'
 import { getDevToolbarEnabled, setDevToolbarEnabled } from '@/composables/useEnvironment'

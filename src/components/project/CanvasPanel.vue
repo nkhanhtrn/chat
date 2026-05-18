@@ -24,17 +24,20 @@
       @clone="$emit('clone-window', win)"
       @delete="(id) => $emit('delete-window', id)"
       @update:code="(code) => $emit('update-code', win.id, code)"
+      @promote="(win) => $emit('promote-tool', win)"
     />
-    <div v-if="windows.length" class="minimized-bar">
-      <button
-        v-for="win in windows"
-        :key="win.id"
-        :class="['minimized-chip', { active: win.displayState === 'open' }]"
-        :title="win.title"
-        @click="$emit('toggle-window', win.id)"
-      >
-        <span class="chip-title">{{ win.title }}</span>
-      </button>
+    <div class="minimized-bar">
+      <GlobalToolMenu @select="(t) => $emit('instantiate-tool', t)" />
+      <div v-if="windows.length" class="minimized-separator" />
+      <template v-for="win in windows" :key="win.id">
+        <button
+          :class="['minimized-chip', { active: win.displayState === 'open' }]"
+          :title="win.title"
+          @click="$emit('toggle-window', win.id)"
+        >
+          <span class="chip-title">{{ win.title }}</span>
+        </button>
+      </template>
     </div>
   </div>
 </template>
@@ -42,7 +45,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import OutputWindow from './OutputWindow.vue'
+import GlobalToolMenu from './GlobalToolMenu.vue'
 import type { ProjectWindow } from '@/types/project'
+import type { ToolTemplate } from '@/types/tool'
 
 const props = defineProps<{
   windows: ProjectWindow[]
@@ -61,6 +66,8 @@ defineEmits<{
   'bring-to-front': [windowId: string]
   'clone-window': [window: ProjectWindow]
   'delete-window': [windowId: string]
+  'instantiate-tool': [template: ToolTemplate]
+  'promote-tool': [window: ProjectWindow]
 }>()
 
 const openWindows = computed(() =>
@@ -87,6 +94,12 @@ const openWindows = computed(() =>
   scrollbar-width: none;
 }
 .minimized-bar::-webkit-scrollbar { display: none; }
+.minimized-separator {
+  width: 1px;
+  height: 16px;
+  background: var(--color-border-subtle);
+  flex-shrink: 0;
+}
 .minimized-chip {
   display: flex;
   align-items: center;

@@ -45,4 +45,5 @@ export interface ProjectWindow {
   content?: Record<string, unknown>
   code?: string
   toolInstanceId?: string
+  templateId?: string
 }
