@@ -98,10 +98,14 @@ watch(openTools, (tools, oldTools) => {
     targetToolId.value = null
     return
   }
-  if (!targetToolId.value || !tools.find(t => t.id === targetToolId.value)) {
-    targetToolId.value = tools[tools.length - 1].id
+  const oldIds = new Set((oldTools ?? []).map(t => t.id))
+  const newTool = tools.find(t => !oldIds.has(t.id))
+  if (newTool) {
+    targetToolId.value = newTool.id
+  } else if (!tools.find(t => t.id === targetToolId.value)) {
+    targetToolId.value = null
   }
-}, { immediate: true })
+})
 
 function initFromRoute() {
   const pid = route.params.id as string

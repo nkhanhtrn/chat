@@ -145,8 +145,33 @@ Output ONLY the code block with no other text when building. When discussing, re
 UPDATING EXISTING TOOLS:
 - When modifying an existing tool, use the SAME name in the @tool marker (e.g. <!-- @tool: Calculator 🧮 -->)
 - The tool will be updated in place instead of creating a duplicate
-- You can modify any part of the tool (template, script, style) and the update will be applied
-- Always output the COMPLETE updated code, not just the changed parts`
+- Only output tool code when explicitly asked to build, create, or modify a tool
+- For general questions or discussions, respond with text only — do NOT output tool code
+
+EDITING EXISTING TOOLS (PREFERRED over full rewrite):
+- Use the @edit format to send only the parts that changed — it's MUCH faster
+- Format:
+  <!-- @tool: Tool Name Emoji -->
+  <!-- @edit -->
+  <search>
+  exact lines from current code to find
+  </search>
+  <replace>
+  new lines to replace with
+  </replace>
+  (repeat search/replace blocks for each change)
+- The <search> block must match EXACTLY (copy-paste from the current code)
+- You can use multiple search/replace blocks for multiple changes
+- Example — changing a button color:
+  <!-- @tool: Calculator 🧮 -->
+  <!-- @edit -->
+  <search>
+        <button class="btn primary" @click="calculate">Go</button>
+  </search>
+  <replace>
+        <button class="btn primary" @click="calculate">Calculate</button>
+  </replace>
+- Only use full code output (without @edit) for NEW tools or major rewrites`
 
 export function buildToolContext(windows: { title: string; code?: string }[]): string {
   if (!windows.length) return ''

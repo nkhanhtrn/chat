@@ -74,6 +74,7 @@ export function useDynamicCompiler(options: DynamicCompilerOptions) {
   const watcherCleanups = ref<(() => void)[]>([])
 
   const scopeId = `tool-${Math.random().toString(36).slice(2, 9)}`
+  let lastCodeHash: string | null = null
 
   let persistApi: ToolPersistApi | null = null
 
@@ -218,16 +219,28 @@ export function useDynamicCompiler(options: DynamicCompilerOptions) {
 
   async function compile(code: string): Promise<void> {
     error.value = null
+
+    if (!code || typeof code !== 'string' || !code.trim()) {
+      lastCodeHash = null
+      cleanupWatchers()
+      if (styleEl.value) {
+        styleEl.value.remove()
+        styleEl.value = null
+      }
+      compiledComponent.value = null
+      error.value = 'Empty tool code'
+      return
+    }
+
+    const codeHash = code
+    if (codeHash === lastCodeHash && compiledComponent.value) return
+    lastCodeHash = codeHash
+
     cleanupWatchers()
 
     if (styleEl.value) {
       styleEl.value.remove()
       styleEl.value = null
-    }
-
-    if (!code || typeof code !== 'string' || !code.trim()) {
-      error.value = 'Empty tool code'
-      return
     }
 
     try {
@@ -277,6 +290,7 @@ export function useDynamicCompiler(options: DynamicCompilerOptions) {
   }
 
   function cleanup() {
+    lastCodeHash = null
     cleanupWatchers()
     if (styleEl.value) {
       styleEl.value.remove()

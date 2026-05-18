@@ -1,7 +1,7 @@
 import { ref, computed, watch } from 'vue'
 import { openCodeProvider } from '@/services/llm/providers/opencode'
 import { BUILDER_SYSTEM_PROMPT, buildToolContext } from '@/services/builder/systemPrompt'
-import { parseToolFromResponse } from '@/services/builder/sfcParser'
+import { parseToolFromResponse, parseToolEditFromResponse, applyToolEdits } from '@/services/builder/sfcParser'
 import { searchWeb, fetchResultContent, formatSearchResultsForPrompt, extractSearchQuery, type SearchResult } from '@/services/builder/webSearch'
 import { useProjectStore } from '@/stores/project'
 import type { ProjectMessage, ProjectWindow, WebSearchResult } from '@/types/project'
@@ -121,7 +121,7 @@ export function useProjectChat(): UseProjectChatReturn {
         const toolCtx = buildToolContext(projectStore.activeWindows)
         if (toolCtx) parts.push(toolCtx)
         if (targetTool && targetTool.code) {
-          parts.push(`TARGET TOOL: The user wants to modify "${targetTool.title}". Here is the CURRENT code:\n\n\`\`\`\n${targetTool.code}\n\`\`\`\n\nUse this EXACT @tool marker: <!-- @tool: ${targetTool.title} -->. Output the COMPLETE updated code with this exact marker.`)
+          parts.push(`TARGET TOOL: "${targetTool.title}" — current code:\n\n\`\`\`\n${targetTool.code}\n\`\`\`\n\nPrefer using @edit format for modifications (faster). Only output full code for major rewrites. Use marker: <!-- @tool: ${targetTool.title} -->`)
         }
         parts.push(content.trim())
         promptText = parts.join('\n\n')
@@ -196,27 +196,42 @@ export function useProjectChat(): UseProjectChatReturn {
     }
   }
 
-  function handleToolDetection(responseContent: string, assistantMessageId: string): void {
-    const parsed = parseToolFromResponse(responseContent)
-    if (!parsed) return
+  function findExistingTool(key: string, name: string): ProjectWindow | undefined {
+    const windows = projectStore.windows.get(key) || []
+    const normalized = name.replace(/[\p{Emoji_Presentation}\p{Emoji}\uFE0F]/gu, '').trim()
+    return windows.find(w => {
+      if (w.type !== 'tool' || !w.title) return false
+      const t = w.title.replace(/[\p{Emoji_Presentation}\p{Emoji}\uFE0F]/gu, '').trim()
+      return t === normalized || w.title === name || w.title.includes(name)
+    })
+  }
 
+  function handleToolDetection(responseContent: string, assistantMessageId: string): void {
     const key = dataKey.value
     if (!key) return
 
-    const existingWindows = projectStore.windows.get(key) || []
-    const normalizedName = parsed.name.replace(/[\p{Emoji_Presentation}\p{Emoji}\uFE0F]/gu, '').trim()
-    const existingTool = existingWindows.find(w => {
-      if (w.type !== 'tool' || !w.title) return false
-      const normalizedTitle = w.title.replace(/[\p{Emoji_Presentation}\p{Emoji}\uFE0F]/gu, '').trim()
-      return normalizedTitle === normalizedName || w.title === parsed.name || w.title.includes(parsed.name)
-    })
+    const edit = parseToolEditFromResponse(responseContent)
+    if (edit) {
+      const existing = findExistingTool(key, edit.name)
+      if (existing && existing.code) {
+        const patched = applyToolEdits(existing.code, edit)
+        projectStore.updateWindow(key, existing.id, { code: patched })
+        updateAssistantMessage(assistantMessageId, `Edited **${edit.name}** ${edit.emoji || ''}`)
+        return
+      }
+    }
 
+    const parsed = parseToolFromResponse(responseContent)
+    if (!parsed) return
+
+    const existingTool = findExistingTool(key, parsed.name)
     if (existingTool) {
       projectStore.updateWindow(key, existingTool.id, { code: parsed.code })
       updateAssistantMessage(assistantMessageId, `Updated **${parsed.name}** ${parsed.emoji || ''}`)
       return
     }
 
+    const existingWindows = projectStore.windows.get(key) || []
     const baseX = 40 + (existingWindows.length % 5) * 40
     const baseY = 40 + (existingWindows.length % 5) * 40
 

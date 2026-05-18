@@ -1,3 +1,51 @@
+export interface ToolEdit {
+  name: string
+  emoji: string | null
+  patches: { search: string; replace: string }[]
+}
+
+export function parseToolEditFromResponse(response: string): ToolEdit | null {
+  const toolMatch = response.match(/<!--\s*@tool:\s*(.+?)\s*-->/)
+  if (!toolMatch) return null
+
+  const hasEdit = /<!--\s*@edit\s*-->/.test(response)
+  if (!hasEdit) return null
+
+  let name: string | null = null
+  let emoji: string | null = null
+  const toolInfo = toolMatch[1].trim()
+  const emojiMatch = toolInfo.match(/(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)$/u)
+  if (emojiMatch) {
+    emoji = emojiMatch[0]
+    name = toolInfo.slice(0, -emoji.length).trim()
+  } else {
+    name = toolInfo
+  }
+
+  const patches: { search: string; replace: string }[] = []
+  const editBlockRegex = /<search>([\s\S]*?)<\/search>\s*<replace>([\s\S]*?)<\/replace>/g
+  let m
+  while ((m = editBlockRegex.exec(response)) !== null) {
+    const search = m[1].replace(/^\n|\n$/g, '')
+    const replace = m[2].replace(/^\n|\n$/g, '')
+    if (search.trim() && replace.trim()) {
+      patches.push({ search, replace })
+    }
+  }
+
+  if (!patches.length) return null
+
+  return { name: name || 'Tool', emoji, patches }
+}
+
+export function applyToolEdits(code: string, edits: ToolEdit): string {
+  let result = code
+  for (const { search, replace } of edits.patches) {
+    result = result.replace(search, replace)
+  }
+  return result
+}
+
 export interface ParsedTool {
   code: string
   name: string
