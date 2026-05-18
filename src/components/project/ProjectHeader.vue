@@ -25,12 +25,37 @@
     <div class="subproject-bar">
       <div class="tabs-scroll">
         <button
-          v-for="sub in subprojects"
+          class="subproject home-tab"
+          :class="{ active: isHome }"
+          @click="$emit('show-home')"
+          title="All subprojects"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+          </svg>
+        </button>
+        <div class="tabs-separator"></div>
+        <button
+          v-for="(sub, i) in openSubprojects"
           :key="sub.id"
           class="subproject"
-          :class="{ active: sub.id === activeSubprojectId }"
+          :class="{
+            active: sub.id === activeSubprojectId,
+            'drag-over-left': dragOverIndex === i && dragOverSide === 'left',
+            'drag-over-right': dragOverIndex === i && dragOverSide === 'right',
+            'is-dragging': draggedId === sub.id,
+          }"
+          draggable="true"
           @click="$emit('switch-subproject', sub.id)"
           @dblclick="startRename(sub.id)"
+          @dragstart="onDragStart($event, sub.id)"
+          @dragend="onDragEnd"
+          @dragover.prevent="onDragOver($event, i)"
+          @dragleave="onDragLeave"
+          @drop.prevent="onDrop($event, i)"
         >
           <InlineEdit
             :ref="(el: any) => { if (el) inlineRefs[sub.id] = el }"
@@ -40,10 +65,10 @@
             @save="(n: string) => $emit('rename-subproject', sub.id, n)"
           />
           <button
-            v-if="subprojects.length > 1 && !isStreaming"
+            v-if="!isStreaming"
             class="subproject-close"
-            @click.stop="$emit('delete-subproject', sub.id)"
-            title="Delete subproject"
+            @click.stop="$emit('close-subproject', sub.id)"
+            title="Close subproject"
           >&times;</button>
         </button>
       </div>
@@ -62,27 +87,75 @@ import { ref, type ComponentPublicInstance } from 'vue'
 import InlineEdit from '@/components/InlineEdit.vue'
 import type { SubProject } from '@/types/project'
 
-defineProps<{
+const props = defineProps<{
   name: string
   subprojects: SubProject[]
+  openSubprojects: SubProject[]
   activeSubprojectId: string
+  isHome: boolean
   isStreaming?: boolean
   hasScratchpad?: boolean
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   rename: [name: string]
+  'show-home': []
   'switch-subproject': [subprojectId: string]
   'add-subproject': []
-  'delete-subproject': [subprojectId: string]
+  'close-subproject': [subprojectId: string]
   'rename-subproject': [subprojectId: string, name: string]
   'open-scratchpad': []
+  'reorder-subprojects': [orderedIds: string[]]
 }>()
 
 const inlineRefs = ref<Record<string, ComponentPublicInstance<{ startEditing: () => void }>>>({})
 
 function startRename(subId: string) {
   inlineRefs.value[subId]?.startEditing()
+}
+
+const draggedId = ref<string | null>(null)
+const dragOverIndex = ref<number | null>(null)
+const dragOverSide = ref<'left' | 'right' | null>(null)
+
+function onDragStart(e: DragEvent, id: string) {
+  draggedId.value = id
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', id)
+  }
+}
+
+function onDragEnd() {
+  draggedId.value = null
+  dragOverIndex.value = null
+  dragOverSide.value = null
+}
+
+function onDragOver(e: DragEvent, index: number) {
+  if (!draggedId.value) return
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  const midX = rect.left + rect.width / 2
+  dragOverIndex.value = index
+  dragOverSide.value = e.clientX < midX ? 'left' : 'right'
+}
+
+function onDragLeave() {
+  dragOverIndex.value = null
+  dragOverSide.value = null
+}
+
+function onDrop(_e: DragEvent, dropIndex: number) {
+  if (!draggedId.value) return
+  const ids = props.openSubprojects.map(s => s.id)
+  const fromIdx = ids.indexOf(draggedId.value!)
+  if (fromIdx === -1) { onDragEnd(); return }
+  const toIdx = dragOverSide.value === 'left' ? dropIndex : dropIndex + 1
+  ids.splice(fromIdx, 1)
+  const adjustedTo = toIdx > fromIdx ? toIdx - 1 : toIdx
+  ids.splice(adjustedTo, 0, draggedId.value!)
+  emit('reorder-subprojects', ids)
+  onDragEnd()
 }
 </script>
 
@@ -170,6 +243,16 @@ function startRename(subId: string) {
   scrollbar-width: none;
 }
 .tabs-scroll::-webkit-scrollbar { display: none; }
+.tabs-separator {
+  width: 1px;
+  height: 16px;
+  background: var(--color-border-subtle);
+  margin: 0 0.15rem;
+  flex-shrink: 0;
+}
+.home-tab {
+  padding: 0.4rem 0.5rem !important;
+}
 .subproject {
   display: flex;
   align-items: center;
@@ -193,6 +276,29 @@ function startRename(subId: string) {
 .subproject.active {
   color: var(--color-text-base);
   border-bottom-color: var(--color-primary, var(--color-border-accent));
+}
+.subproject.is-dragging {
+  opacity: 0.4;
+}
+.subproject.drag-over-left::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: var(--color-primary);
+  border-radius: 1px;
+}
+.subproject.drag-over-right::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: var(--color-primary);
+  border-radius: 1px;
 }
 .subproject-name {
   max-width: 120px;
@@ -227,7 +333,7 @@ function startRename(subId: string) {
   transition: all 0.1s;
 }
 .subproject:hover .subproject-close { opacity: 0.6; }
-.subproject-close:hover { opacity: 1 !important; background: var(--color-bg-hover); color: var(--color-error, #ef4444); }
+.subproject-close:hover { opacity: 1 !important; background: var(--color-bg-hover); color: var(--color-text-base); }
 .subproject-add {
   display: flex;
   align-items: center;

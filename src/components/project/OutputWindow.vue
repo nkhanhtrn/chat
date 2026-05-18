@@ -18,6 +18,12 @@
             <path d="M12 19V5M5 12l7-7 7 7" />
           </svg>
         </button>
+        <button v-if="window.type === 'tool' && window.code" class="control-btn" :class="{ 'revert-active': window.previousCode }" :disabled="!window.previousCode" @click="$emit('revert', window.id)" :title="window.previousCode ? 'Switch version' : 'No previous version'">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :style="window.isReverted ? 'transform: scaleX(-1)' : ''">
+            <polyline points="1 4 1 10 7 10"></polyline>
+            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+          </svg>
+        </button>
         <button v-if="window.type === 'tool' && window.code" class="control-btn" :class="{ active: showCode }" @click="toggleCodeView" title="View code">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="16 18 22 12 16 6"></polyline>
@@ -113,6 +119,7 @@ const emit = defineEmits<{
   'bring-to-front': []
   clone: [window: ProjectWindow]
   promote: [window: ProjectWindow]
+  revert: [windowId: string]
 }>()
 
 const showCode = ref(false)
@@ -248,6 +255,8 @@ function startResize(direction: string, e: MouseEvent) {
 .control-btn.active { color: var(--color-primary, #6366f1); background: var(--color-primary-subtle, rgba(99, 102, 241, 0.1)); }
 .control-btn.close:hover { background: var(--color-error-subtle, #fee2e2); color: var(--color-error, #ef4444); }
 .control-btn.delete:hover { background: var(--color-error-subtle, #fee2e2); color: var(--color-error, #ef4444); }
+.control-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.control-btn.revert-active { color: var(--color-primary); }
 .resize-handle { position: absolute; }
 .resize-handle.right { top: 0; right: -3px; width: 6px; height: 100%; cursor: ew-resize; }
 .resize-handle.bottom { bottom: -3px; left: 0; width: 100%; height: 6px; cursor: ns-resize; }

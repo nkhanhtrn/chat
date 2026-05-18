@@ -11,6 +11,7 @@ export interface Project {
   updatedAt: number
   subprojects: SubProject[]
   activeSubprojectId: string
+  closedSubprojectIds?: string[]
 }
 
 export interface WebSearchResult {
@@ -44,6 +45,8 @@ export interface ProjectWindow {
   zIndex: number
   content?: Record<string, unknown>
   code?: string
+  previousCode?: string
+  isReverted?: boolean
   toolInstanceId?: string
   templateId?: string
 }

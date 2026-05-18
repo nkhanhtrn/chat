@@ -1,16 +1,5 @@
 <template>
   <div class="canvas-panel">
-    <div v-if="windows.length === 0" class="canvas-empty">
-      <div class="empty-icon">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-          <line x1="3" y1="9" x2="21" y2="9"></line>
-          <line x1="9" y1="21" x2="9" y2="9"></line>
-        </svg>
-      </div>
-      <p>Canvas Area</p>
-      <p class="hint">Windows will appear here</p>
-    </div>
     <div class="minimized-bar">
       <GlobalToolMenu @select="(t) => $emit('instantiate-tool', t)" />
       <div v-if="windows.length" class="minimized-separator" />
@@ -23,6 +12,17 @@
           <span class="chip-title">{{ win.title }}</span>
         </button>
       </template>
+    </div>
+    <div v-if="windows.length === 0" class="canvas-empty">
+      <div class="empty-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="3" y1="9" x2="21" y2="9"></line>
+          <line x1="9" y1="21" x2="9" y2="9"></line>
+        </svg>
+      </div>
+      <p>Canvas Area</p>
+      <p class="hint">Windows will appear here</p>
     </div>
     <OutputWindow
       v-for="win in openWindows"
@@ -38,6 +38,7 @@
       @delete="(id) => $emit('delete-window', id)"
       @update:code="(code) => $emit('update-code', win.id, code)"
       @promote="(win) => $emit('promote-tool', win)"
+      @revert="(id) => $emit('revert-window', id)"
     />
   </div>
 </template>
@@ -68,6 +69,7 @@ defineEmits<{
   'delete-window': [windowId: string]
   'instantiate-tool': [template: ToolTemplate]
   'promote-tool': [window: ProjectWindow]
+  'revert-window': [windowId: string]
 }>()
 
 const openWindows = computed(() =>
