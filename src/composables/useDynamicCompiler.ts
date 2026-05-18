@@ -132,12 +132,12 @@ export function useDynamicCompiler(options: DynamicCompilerOptions) {
       return defineComponent({ template })
     }
 
-    const match = script.match(/export\s+default\s+(\{[\s\S]*\})/)
-    if (!match) {
+    if (!/export\s+default\s+\{[\s\S]*\}/.test(script)) {
       return defineComponent({ template })
     }
 
-    const options = new Function(`return ${match[1]}`)()
+    const transformedScript = script.replace(/export\s+default\s+(?=\{)/, 'return ')
+    const options = new Function(transformedScript)()
     const persistKeys: string[] | undefined = options.persistKeys
 
     let savedState = (deepDeserialize(preLoadedState || {}) ?? {}) as Record<string, unknown>
