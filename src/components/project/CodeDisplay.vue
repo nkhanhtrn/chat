@@ -27,7 +27,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
-defineProps<{
+const props = defineProps<{
   content: string
   language?: string
 }>()
@@ -40,7 +40,7 @@ const emit = defineEmits<{
 
 async function copyCode() {
   try {
-    await navigator.clipboard.writeText('')
+    await navigator.clipboard.writeText(props.content)
     copied.value = true
     setTimeout(() => { copied.value = false }, 2000)
   } catch {

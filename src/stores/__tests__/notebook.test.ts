@@ -50,6 +50,30 @@ describe('useNotebookStore', () => {
       setupNotebook('nb1', '')
       expect(store.chatList[0].title).toBe('New Subject')
     })
+
+    it('sorts notebooks by lastAccessedAt descending', () => {
+      setupNotebook('nb1', 'Oldest')
+      setupNotebook('nb2', 'Middle')
+      setupNotebook('nb3', 'Newest')
+
+      store.chats[0].lastAccessedAt = 1000
+      store.chats[1].lastAccessedAt = 2000
+      store.chats[2].lastAccessedAt = 3000
+
+      const list = store.chatList
+      expect(list.map(n => n.title)).toEqual(['Newest', 'Middle', 'Oldest'])
+    })
+
+    it('places notebooks without lastAccessedAt at the end', () => {
+      setupNotebook('nb1', 'Recent')
+      setupNotebook('nb2', 'Never accessed')
+
+      store.chats[0].lastAccessedAt = 5000
+
+      const list = store.chatList
+      expect(list[0].title).toBe('Recent')
+      expect(list[1].title).toBe('Never accessed')
+    })
   })
 
   describe('currentChat', () => {
@@ -137,6 +161,28 @@ describe('useNotebookStore', () => {
     it('is a no-op when no current chat', () => {
       store.syncCurrentChat()
       // Should not throw
+    })
+  })
+
+  describe('switchToChat', () => {
+    it('sets lastAccessedAt on the switched-to notebook', async () => {
+      setupNotebook('nb1', 'Test')
+      expect(store.chats[0].lastAccessedAt).toBeUndefined()
+
+      await store.switchToChat('nb1')
+
+      expect(store.chats[0].lastAccessedAt).toBeTypeOf('number')
+      expect(store.chats[0].lastAccessedAt).toBeGreaterThan(0)
+    })
+
+    it('updates lastAccessedAt on subsequent switches', async () => {
+      setupNotebook('nb1', 'Test')
+
+      await store.switchToChat('nb1')
+      const firstAccess = store.chats[0].lastAccessedAt!
+
+      await store.switchToChat('nb1')
+      expect(store.chats[0].lastAccessedAt).toBeGreaterThanOrEqual(firstAccess)
     })
   })
 

@@ -37,7 +37,8 @@ export const useNotebookStore = defineStore('notebook', {
   getters: {
     chatList(state): NotebookListItem[] {
       const treeStore = useMessageTreeStore()
-      return state.chats.map(chat => {
+      const sorted = [...state.chats].sort((a, b) => (b.lastAccessedAt ?? 0) - (a.lastAccessedAt ?? 0))
+      return sorted.map(chat => {
         const questions = chat.rootMessageIds
           .map(id => treeStore.messagesById[id])
           .filter((m): m is Message => m != null)
@@ -172,6 +173,7 @@ export const useNotebookStore = defineStore('notebook', {
       if (!chat) return
 
       this.currentChatId = chatId
+      chat.lastAccessedAt = Date.now()
 
       const treeStore = useMessageTreeStore()
       treeStore.setRootMessageIds([...chat.rootMessageIds])

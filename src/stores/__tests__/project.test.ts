@@ -200,6 +200,35 @@ describe('useProjectStore', () => {
       expect(store.messages.get(key)).toEqual([])
       expect(store.windows.get(key)).toEqual([])
     })
+
+    it('updates updatedAt timestamp when switching', () => {
+      const project = store.createProject()
+      const originalUpdatedAt = project.updatedAt
+
+      store.switchToProject(project.id)
+
+      expect(project.updatedAt).toBeGreaterThanOrEqual(originalUpdatedAt)
+    })
+
+    it('projectList sorts by updatedAt descending', async () => {
+      vi.spyOn(Date, 'now').mockReturnValue(1000)
+      const p1 = store.createProject('Oldest')
+
+      vi.spyOn(Date, 'now').mockReturnValue(2000)
+      const p2 = store.createProject('Middle')
+
+      vi.spyOn(Date, 'now').mockReturnValue(3000)
+      const p3 = store.createProject('Newest')
+
+      expect(store.projectList.map(p => p.name)).toEqual(['Newest', 'Middle', 'Oldest'])
+
+      vi.spyOn(Date, 'now').mockReturnValue(4000)
+      store.switchToProject(p1.id)
+
+      expect(store.projectList.map(p => p.name)).toEqual(['Oldest', 'Newest', 'Middle'])
+
+      vi.restoreAllMocks()
+    })
   })
 
   describe('subprojects', () => {
