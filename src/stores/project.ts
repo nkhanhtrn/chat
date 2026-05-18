@@ -20,6 +20,7 @@ const STORAGE_KEY = 'projects-data'
 const MESSAGES_KEY_PREFIX = 'project-messages-'
 const WINDOWS_KEY_PREFIX = 'project-windows-'
 const TOOL_STATE_PREFIX = 'tool-state-'
+const SCRATCHPAD_KEY_PREFIX = 'project-scratchpad-'
 const SYNC_DEBOUNCE_MS = 1000
 
 function generateId(): string {
@@ -69,6 +70,18 @@ function saveWindows(key: string, wins: ProjectWindow[]) {
   localStorage.setItem(WINDOWS_KEY_PREFIX + key, JSON.stringify(wins))
 }
 
+function loadScratchpad(key: string): string {
+  try {
+    return localStorage.getItem(SCRATCHPAD_KEY_PREFIX + key) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+function saveScratchpad(key: string, content: string) {
+  localStorage.setItem(SCRATCHPAD_KEY_PREFIX + key, content)
+}
+
 let syncTimer: ReturnType<typeof setTimeout> | null = null
 let projectSyncTimer: ReturnType<typeof setTimeout> | null = null
 let isApplyingCloud = false
@@ -89,6 +102,7 @@ export const useProjectStore = defineStore('project', () => {
   const currentProjectId = ref<string | null>(null)
   const messages = ref<Map<string, ProjectMessage[]>>(new Map())
   const windows = ref<Map<string, ProjectWindow[]>>(new Map())
+  const scratchpads = ref<Map<string, string>>(new Map())
 
   const projectList = computed(() =>
     [...projects.value].sort((a, b) => b.updatedAt - a.updatedAt)
@@ -121,6 +135,12 @@ export const useProjectStore = defineStore('project', () => {
 
   const activeWindows = computed(() =>
     currentWindows.value.filter(w => w.displayState !== 'closed')
+  )
+
+  const currentScratchpad = computed(() =>
+    currentDataKey.value
+      ? (scratchpads.value.get(currentDataKey.value) ?? '')
+      : ''
   )
 
   watch(projects, (val) => saveToStorage(val), { deep: true })
@@ -363,6 +383,9 @@ export const useProjectStore = defineStore('project', () => {
     if (!windows.value.has(key)) {
       windows.value.set(key, loadWindows(key))
     }
+    if (!scratchpads.value.has(key)) {
+      scratchpads.value.set(key, loadScratchpad(key))
+    }
   }
 
   function createSubProject(projectId: string, name?: string): SubProject | null {
@@ -380,6 +403,7 @@ export const useProjectStore = defineStore('project', () => {
     const key = storageKey(projectId, sub.id)
     messages.value.set(key, [])
     windows.value.set(key, [])
+    scratchpads.value.set(key, '')
 
     switchSubProject(projectId, sub.id)
     markProject(projectId)
@@ -400,9 +424,11 @@ export const useProjectStore = defineStore('project', () => {
     }
     messages.value.delete(key)
     windows.value.delete(key)
+    scratchpads.value.delete(key)
     localStorage.removeItem(MESSAGES_KEY_PREFIX + key)
     localStorage.removeItem(WINDOWS_KEY_PREFIX + key)
     localStorage.removeItem(`project-session-${key}`)
+    localStorage.removeItem(SCRATCHPAD_KEY_PREFIX + key)
 
     project.subprojects.splice(idx, 1)
     project.updatedAt = Date.now()
@@ -488,10 +514,29 @@ export const useProjectStore = defineStore('project', () => {
     if (!list) return
     const idx = list.findIndex(w => w.id === windowId)
     if (idx !== -1) {
+      if (updates.code !== undefined && updates.code !== list[idx].code) {
+        updates.previousCode = list[idx].code
+      }
       list[idx] = { ...list[idx], ...updates }
       saveWindows(dataKey, list)
       markTool(dataKey, windowId)
     }
+  }
+
+  function revertWindowCode(dataKey: string, windowId: string) {
+    if (!dataKey) return
+    const list = windows.value.get(dataKey)
+    if (!list) return
+    const idx = list.findIndex(w => w.id === windowId)
+    if (idx === -1) return
+    const win = list[idx]
+    if (!win.previousCode) return
+    const current = win.code
+    win.code = win.previousCode
+    win.previousCode = current
+    win.isReverted = !win.isReverted
+    saveWindows(dataKey, list)
+    markTool(dataKey, windowId)
   }
 
   function removeWindow(dataKey: string, windowId: string) {
@@ -512,6 +557,12 @@ export const useProjectStore = defineStore('project', () => {
     updateWindow(dataKey, windowId, { displayState: state })
   }
 
+  function updateScratchpad(dataKey: string, content: string) {
+    if (!dataKey) return
+    scratchpads.value.set(dataKey, content)
+    saveScratchpad(dataKey, content)
+  }
+
   let nextZ = 100
   function getNextZIndex(): number {
     return ++nextZ
@@ -524,11 +575,13 @@ export const useProjectStore = defineStore('project', () => {
     currentDataKey,
     messages,
     windows,
+    scratchpads,
     projectList,
     currentProject,
     currentMessages,
     currentWindows,
     activeWindows,
+    currentScratchpad,
     initSync,
     syncChatNow,
     createProject,
@@ -544,8 +597,10 @@ export const useProjectStore = defineStore('project', () => {
     truncateMessages,
     addWindow,
     updateWindow,
+    revertWindowCode,
     removeWindow,
     setWindowDisplayState,
+    updateScratchpad,
     getNextZIndex,
   }
 })

@@ -13,6 +13,14 @@
         :modelValue="name"
         @save="(newName: string) => $emit('rename', newName)"
       />
+      <button class="scratchpad-btn" :class="{ active: hasScratchpad }" @click="$emit('open-scratchpad')" title="Context notes">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+        </svg>
+      </button>
     </div>
     <div class="subproject-bar">
       <div class="tabs-scroll">
@@ -59,6 +67,7 @@ defineProps<{
   subprojects: SubProject[]
   activeSubprojectId: string
   isStreaming?: boolean
+  hasScratchpad?: boolean
 }>()
 
 defineEmits<{
@@ -67,6 +76,7 @@ defineEmits<{
   'add-subproject': []
   'delete-subproject': [subprojectId: string]
   'rename-subproject': [subprojectId: string, name: string]
+  'open-scratchpad': []
 }>()
 
 const inlineRefs = ref<Record<string, ComponentPublicInstance<{ startEditing: () => void }>>>({})
@@ -107,6 +117,23 @@ function startRename(subId: string) {
   background: var(--color-bg-hover);
   color: var(--color-text-base);
 }
+.scratchpad-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s;
+  position: relative;
+}
+.scratchpad-btn:hover { background: var(--color-bg-hover); color: var(--color-text-base); }
+.scratchpad-btn.active { color: var(--color-primary); }
 .header-title {
   flex: 1;
   min-width: 0;

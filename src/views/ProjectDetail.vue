@@ -6,11 +6,20 @@
         :subprojects="projectStore.currentProject?.subprojects ?? []"
         :activeSubprojectId="projectStore.currentSubprojectId ?? ''"
         :isStreaming="chat.isStreaming.value"
+        :hasScratchpad="projectStore.currentScratchpad.trim().length > 0"
         @rename="handleRenameProject"
         @switch-subproject="handleSwitchSubproject"
         @add-subproject="handleAddSubproject"
         @delete-subproject="handleDeleteSubproject"
         @rename-subproject="handleRenameSubproject"
+        @open-scratchpad="scratchpadOpen = true"
+      />
+
+      <ScratchpadPanel
+        v-model:open="scratchpadOpen"
+        :model-value="projectStore.currentScratchpad"
+        :data-key="dk"
+        @update:model-value="handleUpdateScratchpad"
       />
 
       <MessageList
@@ -57,6 +66,7 @@
           @delete-window="handleDeleteWindow"
           @instantiate-tool="handleInstantiateTool"
           @promote-tool="handlePromoteTool"
+          @revert-window="handleRevertWindow"
         />
       </SlideTransition>
     </div>
@@ -76,6 +86,7 @@ import MessageList from '@/components/project/MessageList.vue'
 import MessageInput from '@/components/project/MessageInput.vue'
 import CanvasPanel from '@/components/project/CanvasPanel.vue'
 import ToolTargetBar from '@/components/project/ToolTargetBar.vue'
+import ScratchpadPanel from '@/components/project/ScratchpadPanel.vue'
 import type { ProjectWindow } from '@/types/project'
 import type { ToolTemplate } from '@/types/tool'
 import { useToast } from '@/composables/useToast'
@@ -91,6 +102,7 @@ const dk = computed(() => projectStore.currentDataKey ?? '')
 const chat = useProjectChat()
 
 const inputText = ref('')
+const scratchpadOpen = ref(false)
 const targetToolId = ref<string | null>(null)
 const messageListRef = ref<InstanceType<typeof MessageList> | null>(null)
 const messageInputRef = ref<InstanceType<typeof MessageInput> | null>(null)
@@ -160,6 +172,10 @@ async function handleEdit(index: number, newContent: string) {
 
 function handleRenameProject(name: string) {
   if (projectId) projectStore.renameProject(projectId, name)
+}
+
+function handleUpdateScratchpad(content: string) {
+  if (dk.value) projectStore.updateScratchpad(dk.value, content)
 }
 
 function handleSwitchSubproject(subprojectId: string) {
@@ -239,6 +255,10 @@ function handleUpdateTitle(windowId: string, title: string) {
 
 function handleUpdateCode(windowId: string, code: string) {
   if (dk.value) projectStore.updateWindow(dk.value, windowId, { code })
+}
+
+function handleRevertWindow(windowId: string) {
+  if (dk.value) projectStore.revertWindowCode(dk.value, windowId)
 }
 
 function handleCloneWindow(window: ProjectWindow) {
