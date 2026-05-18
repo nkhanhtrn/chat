@@ -9,7 +9,7 @@
         :isHome="isHome"
         :isStreaming="chat.isStreaming.value"
         :hasScratchpad="hasAnyScratchpad"
-        :isChatTab="sideTab === 'chat'"
+        :sideTab="sideTab"
         @rename="handleRenameProject"
         @show-home="handleShowHome"
         @switch-subproject="handleSwitchSubproject"
@@ -18,7 +18,7 @@
         @rename-subproject="handleRenameSubproject"
         @open-scratchpad="scratchpadOpen = true"
         @reorder-subprojects="handleReorderSubprojects"
-        @toggle-chat="sideTab = sideTab === 'chat' ? 'project' : 'chat'"
+        @switch-tab="sideTab = $event"
       />
 
       <div v-show="sideTab === 'project'" class="side-tab-content">
