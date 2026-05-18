@@ -514,10 +514,29 @@ export const useProjectStore = defineStore('project', () => {
     if (!list) return
     const idx = list.findIndex(w => w.id === windowId)
     if (idx !== -1) {
+      if (updates.code !== undefined && updates.code !== list[idx].code) {
+        updates.previousCode = list[idx].code
+      }
       list[idx] = { ...list[idx], ...updates }
       saveWindows(dataKey, list)
       markTool(dataKey, windowId)
     }
+  }
+
+  function revertWindowCode(dataKey: string, windowId: string) {
+    if (!dataKey) return
+    const list = windows.value.get(dataKey)
+    if (!list) return
+    const idx = list.findIndex(w => w.id === windowId)
+    if (idx === -1) return
+    const win = list[idx]
+    if (!win.previousCode) return
+    const current = win.code
+    win.code = win.previousCode
+    win.previousCode = current
+    win.isReverted = !win.isReverted
+    saveWindows(dataKey, list)
+    markTool(dataKey, windowId)
   }
 
   function removeWindow(dataKey: string, windowId: string) {
@@ -578,6 +597,7 @@ export const useProjectStore = defineStore('project', () => {
     truncateMessages,
     addWindow,
     updateWindow,
+    revertWindowCode,
     removeWindow,
     setWindowDisplayState,
     updateScratchpad,

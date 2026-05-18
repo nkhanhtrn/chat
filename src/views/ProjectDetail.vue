@@ -66,6 +66,7 @@
           @delete-window="handleDeleteWindow"
           @instantiate-tool="handleInstantiateTool"
           @promote-tool="handlePromoteTool"
+          @revert-window="handleRevertWindow"
         />
       </SlideTransition>
     </div>
@@ -254,6 +255,10 @@ function handleUpdateTitle(windowId: string, title: string) {
 
 function handleUpdateCode(windowId: string, code: string) {
   if (dk.value) projectStore.updateWindow(dk.value, windowId, { code })
+}
+
+function handleRevertWindow(windowId: string) {
+  if (dk.value) projectStore.revertWindowCode(dk.value, windowId)
 }
 
 function handleCloneWindow(window: ProjectWindow) {

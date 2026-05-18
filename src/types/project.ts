@@ -44,6 +44,8 @@ export interface ProjectWindow {
   zIndex: number
   content?: Record<string, unknown>
   code?: string
+  previousCode?: string
+  isReverted?: boolean
   toolInstanceId?: string
   templateId?: string
 }

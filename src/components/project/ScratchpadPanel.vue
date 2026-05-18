@@ -1,5 +1,5 @@
 <template>
-  <Modal :visible="open" title="Context Notes" size="small" @close="$emit('update:open', false)">
+  <Modal :visible="open" title="Project Context" size="small" @close="$emit('update:open', false)">
     <div class="scratchpad-body">
       <textarea
         ref="textareaRef"
