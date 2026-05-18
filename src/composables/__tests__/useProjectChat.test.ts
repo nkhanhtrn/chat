@@ -189,3 +189,114 @@ describe('useProjectChat - clearChat', () => {
     expect(store.currentWindows).toHaveLength(1)
   })
 })
+
+describe('useProjectChat - handleToolDetection with @edit', () => {
+  let store: ReturnType<typeof useProjectStore>
+  let chat: ReturnType<typeof useProjectChat>
+  let dataKey: string
+
+  const TOOL_CODE = `<template><div class="tool-container">
+  <div class="header"><h3>Counter</h3></div>
+  <div class="content"><button class="btn primary" @click="increment">Count: {{ count }}</button></div>
+</div></template>
+<script>
+export default { data() { return { count: 0 } }, methods: { increment() { this.count++ } } }
+</script>`
+
+  const EDIT_RESPONSE = `<!-- @tool: Counter -->
+<!-- @edit -->
+<search>
+count: 0
+</search>
+<replace>
+count: 10
+</replace>`
+
+  const FULL_UPDATE_RESPONSE = `<!-- @tool: Counter -->
+<template><div class="tool-container">
+  <div class="header"><h3>Counter</h3></div>
+  <div class="content"><button class="btn primary" @click="increment">Count: {{ count }}</button></div>
+</div></template>
+<script>
+export default { data() { return { count: 99 } }, methods: { increment() { this.count++ } } }
+</script>`
+
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    setActivePinia(createPinia())
+    localStorage.clear()
+    store = useProjectStore()
+    const project = store.createProject('Test')
+    store.switchToProject(project.id)
+    dataKey = store.currentDataKey!
+    chat = useProjectChat()
+  })
+
+  it('applies @edit patch to existing tool', async () => {
+    store.addWindow(dataKey, makeToolWindow({ title: 'Counter', code: TOOL_CODE }))
+    vi.spyOn(openCodeProvider, 'sendStream').mockReturnValue(mockStream([EDIT_RESPONSE]))
+    vi.spyOn(openCodeProvider, 'createSession').mockResolvedValue('ses_edit')
+
+    await chat.sendMessage('change count to 10')
+
+    const win = store.currentWindows.find(w => w.title === 'Counter')
+    expect(win).toBeDefined()
+    expect(win!.code).toContain('count: 10')
+    expect(win!.code).not.toContain('count: 0')
+  })
+
+  it('updates assistant message to say Edited', async () => {
+    store.addWindow(dataKey, makeToolWindow({ title: 'Counter', code: TOOL_CODE }))
+    vi.spyOn(openCodeProvider, 'sendStream').mockReturnValue(mockStream([EDIT_RESPONSE]))
+    vi.spyOn(openCodeProvider, 'createSession').mockResolvedValue('ses_edit')
+
+    await chat.sendMessage('change count')
+
+    const msgs = store.currentMessages
+    const last = msgs[msgs.length - 1]
+    expect(last.content).toContain('Edited')
+    expect(last.content).toContain('Counter')
+  })
+
+  it('falls back to full code replacement when no @edit marker', async () => {
+    store.addWindow(dataKey, makeToolWindow({ title: 'Counter', code: TOOL_CODE }))
+    vi.spyOn(openCodeProvider, 'sendStream').mockReturnValue(mockStream([FULL_UPDATE_RESPONSE]))
+    vi.spyOn(openCodeProvider, 'createSession').mockResolvedValue('ses_full')
+
+    await chat.sendMessage('rewrite the counter')
+
+    const win = store.currentWindows.find(w => w.title === 'Counter')
+    expect(win).toBeDefined()
+    expect(win!.code).toContain('count: 99')
+  })
+
+  it('creates new tool when @edit targets non-existent tool', async () => {
+    const NEW_TOOL_EDIT = `<!-- @tool: NewThing -->
+<!-- @edit -->
+<search>
+old code
+</search>
+<replace>
+new code
+</replace>`
+    vi.spyOn(openCodeProvider, 'sendStream').mockReturnValue(mockStream([NEW_TOOL_EDIT]))
+    vi.spyOn(openCodeProvider, 'createSession').mockResolvedValue('ses_new')
+
+    await chat.sendMessage('make something')
+
+    expect(store.currentWindows).toHaveLength(0)
+  })
+
+  it('full code creates new tool when no existing match', async () => {
+    const NEW_TOOL = `<!-- @tool: BrandNew -->
+<template><div>new tool</div></template>
+<script>export default {}</script>`
+    vi.spyOn(openCodeProvider, 'sendStream').mockReturnValue(mockStream([NEW_TOOL]))
+    vi.spyOn(openCodeProvider, 'createSession').mockResolvedValue('ses_new')
+
+    await chat.sendMessage('build a new tool')
+
+    expect(store.currentWindows).toHaveLength(1)
+    expect(store.currentWindows[0].title).toContain('BrandNew')
+  })
+})
