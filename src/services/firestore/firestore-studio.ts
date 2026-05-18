@@ -140,7 +140,7 @@ export async function saveToolToCloud(
     const ref = doc(db, 'users', uid, 'studio-tool', `${dataKey}-${windowId}`)
     await setDoc(ref, {
       window: JSON.parse(JSON.stringify(data.window)),
-      toolState: JSON.parse(JSON.stringify(data.toolState ?? {})),
+      toolStateJson: JSON.stringify(data.toolState ?? {}),
       lastUpdated: Date.now(),
     })
   } catch (error) {
@@ -168,9 +168,14 @@ export async function loadToolsFromCloud(dataKey: string): Promise<{
       const win = data.window as ProjectWindow
       if (win) {
         windows.push(win)
-        const state = data.toolState as Record<string, unknown> | undefined
-        if (state && Object.keys(state).length > 0) {
-          toolStates[win.id] = state
+        const raw = data.toolStateJson as string | undefined
+        if (raw) {
+          try {
+            const state = JSON.parse(raw) as Record<string, unknown>
+            if (Object.keys(state).length > 0) {
+              toolStates[win.id] = state
+            }
+          } catch { /* skip corrupt state */ }
         }
       }
     }

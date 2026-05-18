@@ -13,6 +13,7 @@ export interface UseProjectChatReturn {
   sendMessage: (content: string, targetTool?: ProjectWindow | null) => Promise<void>
   stopStreaming: () => void
   editAndResend: (index: number, newContent: string) => Promise<void>
+  compactChat: () => Promise<void>
   clearChat: () => Promise<void>
 }
 
@@ -247,6 +248,23 @@ export function useProjectChat(): UseProjectChatReturn {
     await sendMessage(newContent)
   }
 
+  async function compactChat(): Promise<void> {
+    if (!sessionId.value) {
+      const saved = loadSessionId()
+      if (saved) sessionId.value = saved
+    }
+    if (!sessionId.value) return
+
+    stopStreaming()
+    try {
+      await openCodeProvider.send(sessionId.value, '/compact')
+    } catch { /* ignore */ }
+
+    systemPromptSent.value = false
+    projectStore.clearMessages(dataKey.value)
+    if (dataKey.value) projectStore.syncChatNow(dataKey.value)
+  }
+
   async function clearChat(): Promise<void> {
     stopStreaming()
     if (sessionId.value) {
@@ -272,6 +290,7 @@ export function useProjectChat(): UseProjectChatReturn {
     sendMessage,
     stopStreaming,
     editAndResend,
+    compactChat,
     clearChat,
   }
 }
