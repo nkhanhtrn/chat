@@ -78,7 +78,7 @@ const activePage = computed(() => {
   if (name === 'notebooks') return 'notebooks'
   if (name === 'notebook' || name === 'question' || name === 'current-content' || name === 'current-content-question') return 'current-content'
   if (name === 'calendar') return 'calendar'
-  if (name === 'projects' || name === 'project-detail') return 'projects'
+  if (name === 'projects' || name === 'project-detail' || name === 'project-subproject') return 'projects'
   if (name === 'books') return 'books'
   return ''
 })
@@ -194,7 +194,7 @@ defineExpose({ sideExpanded, toggleSide })
   .nav-btn.active svg { transform: none; }
   .nav-btn { width: 44px; height: 44px; }
   .nav-btn svg { width: 24px; height: 24px; }
-  .side-panel.is-mobile { position: fixed; top: 0; left: 0; height: calc(100% - 70px); width: 350px !important; max-width: 85vw; z-index: 1000; background: var(--color-bg-base); box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15); }
+  .side-panel.is-mobile { position: fixed; top: 0; left: 0; height: calc(100% - 70px); width: 90vw !important; max-width: none; z-index: 1000; background: var(--color-bg-base); box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15); }
   .slide-side-enter-active, .slide-side-leave-active { transition: transform 0.25s ease, opacity 0.25s ease; }
   .slide-side-enter-from, .slide-side-leave-to { transform: translateX(-100%); opacity: 0; }
 }

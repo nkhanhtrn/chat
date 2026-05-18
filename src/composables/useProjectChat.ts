@@ -163,6 +163,7 @@ export function useProjectChat(): UseProjectChatReturn {
     } finally {
       isStreaming.value = false
       abortController.value = null
+      if (dataKey.value) projectStore.syncChatNow(dataKey.value)
     }
   }
 
@@ -255,6 +256,7 @@ export function useProjectChat(): UseProjectChatReturn {
     saveSessionId(null)
     systemPromptSent.value = false
     projectStore.clearMessages(dataKey.value)
+    projectStore.syncChatNow(dataKey.value)
   }
 
   watch(() => projectStore.currentDataKey, (newKey, oldKey) => {

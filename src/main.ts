@@ -148,6 +148,16 @@ const initializeApp = async () => {
     }
   })
 
+  // Initialize studio sync (load from cloud + auto-save)
+  try {
+    const { useProjectStore } = await import('./stores/project')
+    const projectStore = useProjectStore(pinia)
+    projectStore.initSync()
+    debugLog('[App] Studio sync initialized')
+  } catch (error) {
+    console.warn('Studio sync initialization failed:', error)
+  }
+
   // Mount app AFTER all initialization is complete
   app.mount('#app')
 
