@@ -110,6 +110,17 @@
               </div>
               <div v-if="restoreStatus" :class="['connection-status', restoreStatus.type]">{{ restoreStatus.message }}</div>
             </div>
+            <div class="setting-item setting-item-vertical tools-section">
+              <label class="setting-label">Studio Projects</label>
+              <div class="backup-buttons">
+                <button class="backup-btn" @click="downloadStudio">Download Studio</button>
+                <label class="backup-btn restore-btn">
+                  Restore Studio
+                  <input type="file" accept=".json" @change="restoreStudio" class="file-input" />
+                </label>
+              </div>
+              <div v-if="toolsRestoreStatus" :class="['connection-status', toolsRestoreStatus.type]">{{ toolsRestoreStatus.message }}</div>
+            </div>
             <div class="setting-item setting-item-vertical sync-section">
               <label class="setting-label">Cloud Sync</label>
               <button class="sync-btn" :disabled="syncStore.isSyncing" @click="handleSyncAll">
@@ -141,6 +152,8 @@ import { useNotebookStore } from '@/stores/notebook'
 import { useMessageTreeStore } from '@/stores/messageTree'
 import { useVocabStore } from '@/stores/vocab'
 import { useSyncStore } from '@/stores/sync'
+import { useGlobalToolStore } from '@/stores/globalTool'
+import { useProjectStore } from '@/stores/project'
 import { Settings, setTheme, getTheme, applyFontSize, applyFontFamily, applyLineHeight, applyContentWidth } from '@/services/settings'
 import type { Theme, ContentWidth, ConnectionStatus } from '@/types/settings'
 
@@ -157,6 +170,8 @@ const notebookStore = useNotebookStore()
 const treeStore = useMessageTreeStore()
 const vocabStore = useVocabStore()
 const syncStore = useSyncStore()
+const globalToolStore = useGlobalToolStore()
+const projectStore = useProjectStore()
 
 // Auth state
 const showLoginModal = ref(false)
@@ -187,6 +202,7 @@ const widthOptions = [
 ]
 
 const restoreStatus = ref<ConnectionStatus | null>(null)
+const toolsRestoreStatus = ref<ConnectionStatus | null>(null)
 const codeApiUrl = ref('')
 const customFetchUrl = ref('')
 const bookApiUrl = ref('')
@@ -360,6 +376,103 @@ async function restoreNotebooks(event: Event) {
   input.value = ''
 }
 
+function downloadStudio() {
+  const TOOL_STATE_PREFIX = 'tool-state-'
+  const projectData = projectStore.projects.map(project => {
+    const subprojects = project.subprojects.map(sub => {
+      const dataKey = `${project.id}-${sub.id}`
+      const wins = projectStore.windows.get(dataKey) ?? []
+      const sessionId = localStorage.getItem(`project-session-${dataKey}`) ?? null
+      const toolStates: Record<string, Record<string, unknown>> = {}
+      for (const w of wins) {
+        const raw = localStorage.getItem(`${TOOL_STATE_PREFIX}${dataKey}-${w.id}`)
+        if (raw) {
+          try { toolStates[w.id] = JSON.parse(raw) } catch { /* skip */ }
+        }
+      }
+      return { dataKey, windows: wins, sessionId, toolStates }
+    })
+    return { project, subprojects }
+  })
+
+  const data = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    templates: globalToolStore.templates,
+    projects: projectData,
+  }
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `studio-${new Date().toISOString().split('T')[0]}.json`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+async function restoreStudio(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  try {
+    const text = await file.text()
+    const data = JSON.parse(text)
+
+    if (data.version !== 1) {
+      throw new Error('Unsupported backup version')
+    }
+
+    const TOOL_STATE_PREFIX = 'tool-state-'
+    let toolCount = 0
+    let projectCount = 0
+
+    if (data.templates && Array.isArray(data.templates)) {
+      const existingIds = new Set(globalToolStore.templates.map(t => t.id))
+      for (const tpl of data.templates) {
+        if (!existingIds.has(tpl.id)) {
+          globalToolStore.templates.push(tpl)
+          toolCount++
+        }
+      }
+    }
+
+    if (data.projects && Array.isArray(data.projects)) {
+      const existingProjectIds = new Set(projectStore.projects.map(p => p.id))
+      for (const pd of data.projects) {
+        if (!existingProjectIds.has(pd.project.id)) {
+          projectStore.projects.push(pd.project)
+          projectCount++
+          for (const sub of pd.subprojects ?? []) {
+            projectStore.windows.set(sub.dataKey, sub.windows ?? [])
+            if (sub.sessionId) {
+              localStorage.setItem(`project-session-${sub.dataKey}`, sub.sessionId)
+            }
+            if (sub.toolStates && typeof sub.toolStates === 'object') {
+              for (const [wid, state] of Object.entries(sub.toolStates)) {
+                localStorage.setItem(`${TOOL_STATE_PREFIX}${sub.dataKey}-${wid}`, JSON.stringify(state))
+              }
+            }
+          }
+        }
+      }
+    }
+
+    const parts: string[] = []
+    if (projectCount > 0) parts.push(`${projectCount} project(s)`)
+    if (toolCount > 0) parts.push(`${toolCount} tool template(s)`)
+    toolsRestoreStatus.value = { type: 'success', message: parts.length ? `Restored ${parts.join(', ')}` : 'Everything already exists' }
+    setTimeout(() => { toolsRestoreStatus.value = null }, 3000)
+  } catch (error: any) {
+    toolsRestoreStatus.value = { type: 'error', message: error.message || 'Failed to restore studio' }
+    setTimeout(() => { toolsRestoreStatus.value = null }, 3000)
+  }
+
+  input.value = ''
+}
+
 async function handleSyncAll() {
   // TODO: implement downloadAllData when cloud sync is fully ported
 }
@@ -484,6 +597,7 @@ onUnmounted(() => {
 .file-input { display: none; }
 
 .sync-section { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--color-border-subtle); }
+.tools-section { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--color-border-subtle); }
 .sync-btn { display: flex; align-items: center; justify-content: center; gap: 0.5rem; width: 100%; padding: 0.625rem 1rem; border: 1px solid var(--color-border-base); border-radius: 6px; background: var(--color-bg-elevated); color: var(--color-text-base); font-size: 0.9rem; font-family: system-ui, -apple-system, sans-serif; cursor: pointer; transition: all 0.15s ease; }
 .sync-btn:hover:not(:disabled) { background: var(--color-bg-hover); border-color: var(--color-border-strong); }
 .sync-btn:disabled { opacity: 0.6; cursor: not-allowed; }

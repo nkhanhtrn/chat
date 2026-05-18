@@ -114,7 +114,9 @@ export function useProjectChat(): UseProjectChatReturn {
 
       let promptText: string
       if (!systemPromptSent.value) {
-        promptText = `[System]: ${BUILDER_SYSTEM_PROMPT}\n\n${content.trim()}`
+        const scratchpad = projectStore.currentScratchpad?.trim()
+        const ctx = scratchpad ? `\n\nUSER CONTEXT (persisted notes, carry across sessions):\n${scratchpad}\n` : ''
+        promptText = `[System]: ${BUILDER_SYSTEM_PROMPT}${ctx}\n\n${content.trim()}`
         systemPromptSent.value = true
       } else {
         const parts: string[] = []
