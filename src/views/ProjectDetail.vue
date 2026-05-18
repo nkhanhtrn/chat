@@ -4,50 +4,68 @@
       <ProjectHeader
         :name="projectStore.currentProject?.name ?? 'Project'"
         :subprojects="projectStore.currentProject?.subprojects ?? []"
+        :openSubprojects="projectStore.openSubprojects"
         :activeSubprojectId="projectStore.currentSubprojectId ?? ''"
+        :isHome="isHome"
         :isStreaming="chat.isStreaming.value"
-        :hasScratchpad="projectStore.currentScratchpad.trim().length > 0"
+        :hasScratchpad="hasAnyScratchpad"
         @rename="handleRenameProject"
+        @show-home="handleShowHome"
         @switch-subproject="handleSwitchSubproject"
         @add-subproject="handleAddSubproject"
-        @delete-subproject="handleDeleteSubproject"
+        @close-subproject="handleCloseSubproject"
         @rename-subproject="handleRenameSubproject"
         @open-scratchpad="scratchpadOpen = true"
+        @reorder-subprojects="handleReorderSubprojects"
       />
+
+      <template v-if="isHome">
+        <SubprojectHomePanel
+          :subprojects="projectStore.currentProject?.subprojects ?? []"
+          :closedIds="projectStore.currentProject?.subprojects.filter(s => !projectStore.currentProject!.openSubprojectIds.includes(s.id)).map(s => s.id) ?? []"
+          @open-subproject="handleSwitchSubproject"
+          @delete-subproject="handleDeleteSubproject"
+          @reorder-subprojects="handleReorderSubprojects"
+        />
+      </template>
+      <template v-else>
+        <MessageList
+          ref="messageListRef"
+          :messages="projectStore.currentMessages"
+          :is-streaming="chat.isStreaming.value"
+          @edit="handleEdit"
+        />
+
+        <div class="input-wrapper">
+          <ToolTargetBar
+            :tools="openTools"
+            :selectedId="targetToolId"
+            @update:selectedId="targetToolId = $event"
+          />
+          <MessageInput
+            ref="messageInputRef"
+            v-model="inputText"
+            :is-streaming="chat.isStreaming.value"
+            :messages-empty="projectStore.currentMessages.length === 0"
+            @send="handleSend"
+            @stop="handleStop"
+            @clear="handleClear"
+          />
+        </div>
+      </template>
 
       <ScratchpadPanel
         v-model:open="scratchpadOpen"
         :model-value="projectStore.currentScratchpad"
-        :data-key="dk"
+        :data-key="scratchpadDataKey"
+        :subprojects="isHome ? (projectStore.currentProject?.subprojects ?? []) : []"
+        :getScratchpadFn="scratchpadGetFn"
+        :updateScratchpadFn="scratchpadUpdateFn"
         @update:model-value="handleUpdateScratchpad"
       />
-
-      <MessageList
-        ref="messageListRef"
-        :messages="projectStore.currentMessages"
-        :is-streaming="chat.isStreaming.value"
-        @edit="handleEdit"
-      />
-
-      <div class="input-wrapper">
-        <ToolTargetBar
-          :tools="openTools"
-          :selectedId="targetToolId"
-          @update:selectedId="targetToolId = $event"
-        />
-        <MessageInput
-          ref="messageInputRef"
-          v-model="inputText"
-          :is-streaming="chat.isStreaming.value"
-          :messages-empty="projectStore.currentMessages.length === 0"
-          @send="handleSend"
-          @stop="handleStop"
-          @clear="handleClear"
-        />
-      </div>
     </template>
 
-    <div class="canvas-wrapper">
+    <div v-if="!isHome" class="canvas-wrapper">
       <SlideTransition appear direction="vertical">
         <CanvasPanel
           :key="projectStore.currentSubprojectId"
@@ -87,6 +105,7 @@ import MessageInput from '@/components/project/MessageInput.vue'
 import CanvasPanel from '@/components/project/CanvasPanel.vue'
 import ToolTargetBar from '@/components/project/ToolTargetBar.vue'
 import ScratchpadPanel from '@/components/project/ScratchpadPanel.vue'
+import SubprojectHomePanel from '@/components/project/SubprojectHomePanel.vue'
 import type { ProjectWindow } from '@/types/project'
 import type { ToolTemplate } from '@/types/tool'
 import { useToast } from '@/composables/useToast'
@@ -98,6 +117,32 @@ const globalToolStore = useGlobalToolStore()
 const { showToast } = useToast()
 const projectId = route.params.id as string
 const dk = computed(() => projectStore.currentDataKey ?? '')
+
+const isHome = computed(() => !route.params.subId)
+
+const scratchpadDataKey = computed(() => {
+  if (isHome.value && projectStore.currentProjectId) {
+    return `${projectStore.currentProjectId}-`
+  }
+  return dk.value
+})
+
+function scratchpadGetFn(dataKey: string): string {
+  return projectStore.scratchpads.get(dataKey) ?? ''
+}
+
+function scratchpadUpdateFn(dataKey: string, content: string) {
+  projectStore.updateScratchpad(dataKey, content)
+}
+
+const hasAnyScratchpad = computed(() => {
+  if (!projectStore.currentProject) return false
+  if (!isHome.value) return projectStore.currentScratchpad.trim().length > 0
+  return projectStore.currentProject.subprojects.some(sub => {
+    const key = `${projectStore.currentProjectId}-${sub.id}`
+    return (projectStore.scratchpads.get(key) ?? '').trim().length > 0
+  })
+})
 
 const chat = useProjectChat()
 
@@ -179,7 +224,15 @@ function handleUpdateScratchpad(content: string) {
 }
 
 function handleSwitchSubproject(subprojectId: string) {
+  const project = projectStore.projects.find(p => p.id === projectId)
+  if (project && !project.openSubprojectIds.includes(subprojectId)) {
+    projectStore.reopenSubProject(projectId, subprojectId)
+  }
   router.push({ name: 'project-subproject', params: { id: projectId, subId: subprojectId } })
+}
+
+function handleShowHome() {
+  router.push({ name: 'project-detail', params: { id: projectId } })
 }
 
 function handleAddSubproject() {
@@ -187,6 +240,17 @@ function handleAddSubproject() {
   const sub = projectStore.createSubProject(projectId)
   if (sub) {
     router.push({ name: 'project-subproject', params: { id: projectId, subId: sub.id } })
+  }
+}
+
+function handleCloseSubproject(subprojectId: string) {
+  if (!projectId) return
+  projectStore.closeSubProject(projectId, subprojectId)
+  const project = projectStore.projects.find(p => p.id === projectId)
+  if (project?.activeSubprojectId) {
+    router.push({ name: 'project-subproject', params: { id: projectId, subId: project.activeSubprojectId } })
+  } else {
+    router.push({ name: 'project-detail', params: { id: projectId } })
   }
 }
 
@@ -198,11 +262,17 @@ function handleDeleteSubproject(subprojectId: string) {
   const newActiveId = project.activeSubprojectId
   if (newActiveId) {
     router.push({ name: 'project-subproject', params: { id: projectId, subId: newActiveId } })
+  } else {
+    router.push({ name: 'project-detail', params: { id: projectId } })
   }
 }
 
 function handleRenameSubproject(subprojectId: string, name: string) {
   if (projectId) projectStore.renameSubProject(projectId, subprojectId, name)
+}
+
+function handleReorderSubprojects(orderedIds: string[]) {
+  if (projectId) projectStore.reorderSubProjects(projectId, orderedIds)
 }
 
 function handleCloseWindow(windowId: string) {

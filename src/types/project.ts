@@ -11,6 +11,7 @@ export interface Project {
   updatedAt: number
   subprojects: SubProject[]
   activeSubprojectId: string
+  openSubprojectIds: string[]
 }
 
 export interface WebSearchResult {

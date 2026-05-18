@@ -143,6 +143,13 @@ export const useProjectStore = defineStore('project', () => {
       : ''
   )
 
+  const openSubprojects = computed(() => {
+    const project = currentProject.value
+    if (!project) return []
+    const open = new Set(project.openSubprojectIds)
+    return project.subprojects.filter(s => open.has(s.id))
+  })
+
   watch(projects, (val) => saveToStorage(val), { deep: true })
 
   // ── Cloud sync: single batched flush ──
@@ -325,6 +332,7 @@ export const useProjectStore = defineStore('project', () => {
       updatedAt: Date.now(),
       subprojects: [defaultSub],
       activeSubprojectId: defaultSub.id,
+      openSubprojectIds: [defaultSub.id],
     }
     projects.value.push(project)
     const key = storageKey(project.id, defaultSub.id)
@@ -398,6 +406,9 @@ export const useProjectStore = defineStore('project', () => {
       createdAt: Date.now(),
     }
     project.subprojects.push(sub)
+    if (!project.openSubprojectIds.includes(sub.id)) {
+      project.openSubprojectIds.push(sub.id)
+    }
     project.updatedAt = Date.now()
 
     const key = storageKey(projectId, sub.id)
@@ -431,6 +442,7 @@ export const useProjectStore = defineStore('project', () => {
     localStorage.removeItem(SCRATCHPAD_KEY_PREFIX + key)
 
     project.subprojects.splice(idx, 1)
+    project.openSubprojectIds = project.openSubprojectIds.filter(id => id !== subprojectId)
     project.updatedAt = Date.now()
 
     if (project.activeSubprojectId === subprojectId) {
@@ -469,6 +481,43 @@ export const useProjectStore = defineStore('project', () => {
       sub.name = name
       project.updatedAt = Date.now()
     }
+    markProject(projectId)
+  }
+
+  function closeSubProject(projectId: string, subprojectId: string) {
+    const project = projects.value.find(p => p.id === projectId)
+    if (!project) return
+    project.openSubprojectIds = project.openSubprojectIds.filter(id => id !== subprojectId)
+    if (project.activeSubprojectId === subprojectId) {
+      if (project.openSubprojectIds.length > 0) {
+        project.activeSubprojectId = project.openSubprojectIds[0]
+        loadSubData(projectId, project.activeSubprojectId)
+      } else {
+        project.activeSubprojectId = ''
+      }
+    }
+    project.updatedAt = Date.now()
+    markProject(projectId)
+  }
+
+  function reopenSubProject(projectId: string, subprojectId: string) {
+    const project = projects.value.find(p => p.id === projectId)
+    if (!project) return
+    if (!project.openSubprojectIds.includes(subprojectId)) {
+      project.openSubprojectIds.push(subprojectId)
+    }
+    project.updatedAt = Date.now()
+    markProject(projectId)
+  }
+
+  function reorderSubProjects(projectId: string, orderedIds: string[]) {
+    const project = projects.value.find(p => p.id === projectId)
+    if (!project) return
+    const map = new Map(project.subprojects.map(s => [s.id, s]))
+    project.subprojects = orderedIds
+      .filter(id => map.has(id))
+      .map(id => map.get(id)!)
+    project.updatedAt = Date.now()
     markProject(projectId)
   }
 
@@ -582,6 +631,7 @@ export const useProjectStore = defineStore('project', () => {
     currentWindows,
     activeWindows,
     currentScratchpad,
+    openSubprojects,
     initSync,
     syncChatNow,
     createProject,
@@ -592,6 +642,9 @@ export const useProjectStore = defineStore('project', () => {
     deleteSubProject,
     switchSubProject,
     renameSubProject,
+    closeSubProject,
+    reopenSubProject,
+    reorderSubProjects,
     addMessage,
     clearMessages,
     truncateMessages,
