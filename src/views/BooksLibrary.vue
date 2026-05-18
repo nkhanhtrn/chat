@@ -1,5 +1,5 @@
 <template>
-  <AppLayout storage-key="books-layout">
+  <AppLayout storage-key="sidebar">
     <template #side><div class="side-playground-wrapper"><SideChatPlayground /></div></template>
     <div class="books-library">
       <div class="library-header">
