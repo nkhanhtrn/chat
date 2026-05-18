@@ -9,6 +9,7 @@
         :isHome="isHome"
         :isStreaming="chat.isStreaming.value"
         :hasScratchpad="hasAnyScratchpad"
+        :sideTab="sideTab"
         @rename="handleRenameProject"
         @show-home="handleShowHome"
         @switch-subproject="handleSwitchSubproject"
@@ -17,42 +18,49 @@
         @rename-subproject="handleRenameSubproject"
         @open-scratchpad="scratchpadOpen = true"
         @reorder-subprojects="handleReorderSubprojects"
+        @switch-tab="sideTab = $event"
       />
 
-      <template v-if="isHome">
-        <SubprojectHomePanel
-          :subprojects="projectStore.currentProject?.subprojects ?? []"
-          :closedIds="getClosedIds()"
-          @open-subproject="handleSwitchSubproject"
-          @delete-subproject="handleDeleteSubproject"
-          @reorder-subprojects="handleReorderSubprojects"
-        />
-      </template>
-      <template v-else>
-        <MessageList
-          ref="messageListRef"
-          :messages="projectStore.currentMessages"
-          :is-streaming="chat.isStreaming.value"
-          @edit="handleEdit"
-        />
-
-        <div class="input-wrapper">
-          <ToolTargetBar
-            :tools="openTools"
-            :selectedId="targetToolId"
-            @update:selectedId="targetToolId = $event"
+      <div v-show="sideTab === 'project'" class="side-tab-content">
+        <template v-if="isHome">
+          <SubprojectHomePanel
+            :subprojects="projectStore.currentProject?.subprojects ?? []"
+            :closedIds="getClosedIds()"
+            @open-subproject="handleSwitchSubproject"
+            @delete-subproject="handleDeleteSubproject"
+            @reorder-subprojects="handleReorderSubprojects"
           />
-          <MessageInput
-            ref="messageInputRef"
-            v-model="inputText"
+        </template>
+        <template v-else>
+          <MessageList
+            ref="messageListRef"
+            :messages="projectStore.currentMessages"
             :is-streaming="chat.isStreaming.value"
-            :messages-empty="projectStore.currentMessages.length === 0"
-            @send="handleSend"
-            @stop="handleStop"
-            @clear="handleClear"
+            @edit="handleEdit"
           />
-        </div>
-      </template>
+
+          <div class="input-wrapper">
+            <ToolTargetBar
+              :tools="openTools"
+              :selectedId="targetToolId"
+              @update:selectedId="targetToolId = $event"
+            />
+            <MessageInput
+              ref="messageInputRef"
+              v-model="inputText"
+              :is-streaming="chat.isStreaming.value"
+              :messages-empty="projectStore.currentMessages.length === 0"
+              @send="handleSend"
+              @stop="handleStop"
+              @clear="handleClear"
+            />
+          </div>
+        </template>
+      </div>
+
+      <div v-show="sideTab === 'chat'" class="side-tab-content">
+        <SideChatPlayground />
+      </div>
 
       <ScratchpadPanel
         v-model:open="scratchpadOpen"
@@ -106,6 +114,7 @@ import CanvasPanel from '@/components/project/CanvasPanel.vue'
 import ToolTargetBar from '@/components/project/ToolTargetBar.vue'
 import ScratchpadPanel from '@/components/project/ScratchpadPanel.vue'
 import SubprojectHomePanel from '@/components/project/SubprojectHomePanel.vue'
+import SideChatPlayground from '@/components/SideChatPlayground.vue'
 import type { ProjectWindow } from '@/types/project'
 import type { ToolTemplate } from '@/types/tool'
 import { useToast } from '@/composables/useToast'
@@ -147,6 +156,7 @@ const hasAnyScratchpad = computed(() => {
 const chat = useProjectChat()
 
 const inputText = ref('')
+const sideTab = ref<'project' | 'chat'>('project')
 const scratchpadOpen = ref(false)
 const targetToolId = ref<string | null>(null)
 const messageListRef = ref<InstanceType<typeof MessageList> | null>(null)
@@ -400,5 +410,12 @@ function handlePromoteTool(win: ProjectWindow) {
   flex-direction: column;
   padding: 0 1rem 0.5rem 1rem;
   background: var(--color-bg-base);
+}
+
+.side-tab-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 </style>
