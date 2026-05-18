@@ -138,8 +138,8 @@ function handleStop() {
   chat.stopStreaming()
 }
 
-function handleClear() {
-  if (dk.value) projectStore.clearMessages(dk.value)
+async function handleClear() {
+  await chat.compactChat()
 }
 
 async function handleEdit(index: number, newContent: string) {
