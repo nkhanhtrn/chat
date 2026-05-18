@@ -29,55 +29,27 @@
       <div v-if="store.error" class="error-msg">{{ store.error }}</div>
     </div>
 
-    <div class="input-container">
-      <div class="input-box">
-        <textarea
-          ref="inputRef"
-          v-model="inputText"
-          @keydown.enter.exact.prevent="handleSend"
-          @input="adjustHeight"
-          placeholder="Message..."
-          :disabled="store.isStreaming"
-          rows="1"
-        ></textarea>
-        <div class="input-actions">
-          <button
-            v-if="store.messages.length > 0 && !store.isStreaming"
-            @click="store.clearChat"
-            class="action-btn clear-btn"
-            title="Clear chat"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            </svg>
-          </button>
-          <div v-if="store.messages.length > 0 && !store.isStreaming" class="divider"></div>
-          <button
-            v-if="!store.isStreaming"
-            @click="handleSend"
-            :disabled="!inputText.trim()"
-            class="action-btn send-btn"
-            title="Send"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13"></line>
-              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-            </svg>
-          </button>
-          <button
-            v-else
-            @click="store.clearChat"
-            class="action-btn stop-btn"
-            title="Stop"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="6" y="6" width="12" height="12" rx="2"></rect>
-            </svg>
-          </button>
-        </div>
-      </div>
-    </div>
+    <ExpandableInput
+      v-model="inputText"
+      :is-streaming="store.isStreaming"
+      @send="handleSend"
+      @stop="store.clearChat"
+    >
+      <template #before-send>
+        <button
+          v-if="store.messages.length > 0 && !store.isStreaming"
+          @click="store.clearChat"
+          class="action-btn clear-btn"
+          title="Clear chat"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        </button>
+        <div v-if="store.messages.length > 0 && !store.isStreaming" class="divider"></div>
+      </template>
+    </ExpandableInput>
   </div>
 </template>
 
@@ -85,11 +57,11 @@
 import { ref, nextTick, watch } from 'vue'
 import { useSideChatStore } from '@/stores/sideChat'
 import MarkdownRenderer from './MarkdownRenderer.vue'
+import ExpandableInput from './ExpandableInput.vue'
 
 const store = useSideChatStore()
 
 const inputText = ref('')
-const inputRef = ref<HTMLTextAreaElement | null>(null)
 const messagesContainer = ref<HTMLElement | null>(null)
 
 const scrollToBottom = () => {
@@ -100,24 +72,11 @@ const scrollToBottom = () => {
   })
 }
 
-const adjustHeight = () => {
-  nextTick(() => {
-    if (inputRef.value) {
-      inputRef.value.style.height = 'auto'
-      inputRef.value.style.height = Math.min(inputRef.value.scrollHeight, 160) + 'px'
-    }
-  })
-}
-
 const handleSend = async () => {
   const text = inputText.value
   if (!text.trim() || store.isStreaming) return
 
   inputText.value = ''
-  nextTick(() => {
-    if (inputRef.value) inputRef.value.style.height = 'auto'
-  })
-
   await store.sendMessage(text)
   scrollToBottom()
 }
@@ -234,59 +193,6 @@ watch(() => store.messages.length, () => scrollToBottom())
   border-left: 3px solid var(--color-error-border);
 }
 
-.input-container {
-  padding: 0.75rem 1.25rem;
-  border-top: 1px solid var(--color-border-subtle);
-  background-color: var(--color-bg-base);
-}
-
-.input-box {
-  display: flex;
-  align-items: flex-end;
-  gap: 0.5rem;
-  background-color: var(--color-bg-base);
-  border: 1px solid var(--color-border-base);
-  padding: 0.5rem;
-  transition: border-color 0.15s;
-}
-
-.input-box:focus-within {
-  border-color: var(--color-border-strong);
-}
-
-textarea {
-  flex: 1;
-  padding: 0.5rem 0.75rem;
-  border: none;
-  font-size: 0.95rem;
-  font-family: Georgia, serif;
-  resize: none;
-  min-height: 24px;
-  max-height: 160px;
-  overflow-y: auto;
-  background-color: transparent;
-  color: var(--color-text-base);
-  line-height: 1.5;
-}
-
-textarea:focus { outline: none; }
-textarea:disabled { opacity: 0.6; cursor: not-allowed; }
-textarea::placeholder { color: var(--color-text-muted); }
-
-.input-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  flex-shrink: 0;
-}
-
-.divider {
-  width: 1px;
-  height: 20px;
-  background-color: var(--color-border-subtle);
-  margin: 0 0.25rem;
-}
-
 .action-btn {
   display: flex;
   align-items: center;
@@ -306,43 +212,18 @@ textarea::placeholder { color: var(--color-text-muted); }
   color: var(--color-text-base);
 }
 
-.action-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.send-btn {
-  background-color: var(--color-primary);
-  color: white;
-}
-
-.send-btn:hover:not(:disabled) {
-  background-color: var(--color-primary-hover);
-  color: white;
-}
-
-.send-btn:disabled {
-  background-color: var(--color-bg-hover);
-  color: var(--color-text-muted);
-  opacity: 1;
-}
-
-.stop-btn {
-  background-color: var(--color-error-subtle, #fee2e2);
-  color: var(--color-error, #ef4444);
-}
-
-.stop-btn:hover {
-  background-color: var(--color-error, #ef4444);
-  color: white;
-}
-
 .clear-btn:hover:not(:disabled) {
   color: var(--color-error, #ef4444);
 }
 
+.divider {
+  width: 1px;
+  height: 20px;
+  background-color: var(--color-border-subtle);
+  margin: 0 0.25rem;
+}
+
 @media (max-width: 768px) {
   .side-chat-messages { padding: 1rem; }
-  .input-container { padding: 0.75rem 1rem; }
 }
 </style>
