@@ -150,7 +150,7 @@ function handleStop() {
 }
 
 async function handleClear() {
-  await chat.compactChat()
+  await chat.clearChat()
 }
 
 async function handleEdit(index: number, newContent: string) {
