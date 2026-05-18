@@ -2,10 +2,25 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { Project, SubProject, ProjectMessage, ProjectWindow, WindowDisplayState } from '@/types/project'
 import { deleteToolPersistence } from '@/services/builder/toolPersistence'
+import {
+  saveProjectToCloud,
+  loadProjectsFromCloud,
+  deleteProjectFromCloud,
+  saveChatToCloud,
+  loadChatFromCloud,
+  deleteChatFromCloud,
+  saveToolToCloud,
+  loadToolsFromCloud,
+  deleteToolFromCloud,
+  deleteAllToolsFromCloud,
+} from '@/services/firestore/firestore-studio'
+import { getCurrentUser } from '@/services/auth'
 
 const STORAGE_KEY = 'projects-data'
 const MESSAGES_KEY_PREFIX = 'project-messages-'
 const WINDOWS_KEY_PREFIX = 'project-windows-'
+const TOOL_STATE_PREFIX = 'tool-state-'
+const SYNC_DEBOUNCE_MS = 1000
 
 function generateId(): string {
   return crypto.randomUUID()
@@ -54,6 +69,21 @@ function saveWindows(key: string, wins: ProjectWindow[]) {
   localStorage.setItem(WINDOWS_KEY_PREFIX + key, JSON.stringify(wins))
 }
 
+let syncTimer: ReturnType<typeof setTimeout> | null = null
+let projectSyncTimer: ReturnType<typeof setTimeout> | null = null
+let isApplyingCloud = false
+const loadedCloudKeys = new Set<string>()
+let syncInitialized = false
+const pendingProjectSync = new Set<string>()
+const pendingToolSync = new Set<string>()
+const pendingDeletes = new Set<{ type: 'chat' | 'tool'; key: string; windowId?: string }>()
+
+function getToolState(dataKey: string, windowId: string): Record<string, unknown> {
+  const raw = localStorage.getItem(`${TOOL_STATE_PREFIX}${dataKey}-${windowId}`)
+  if (!raw) return {}
+  try { return JSON.parse(raw) } catch { return {} }
+}
+
 export const useProjectStore = defineStore('project', () => {
   const projects = ref<Project[]>(loadFromStorage())
   const currentProjectId = ref<string | null>(null)
@@ -95,6 +125,177 @@ export const useProjectStore = defineStore('project', () => {
 
   watch(projects, (val) => saveToStorage(val), { deep: true })
 
+  // ── Cloud sync: single batched flush ──
+
+  async function flushSync(): Promise<void> {
+    const user = getCurrentUser()
+    if (!user || !navigator.onLine) return
+
+    for (const d of pendingDeletes) {
+      if (d.type === 'chat') await deleteChatFromCloud(d.key)
+      else if (d.type === 'tool' && d.windowId) await deleteToolFromCloud(d.key, d.windowId)
+    }
+    pendingDeletes.clear()
+
+    for (const key of pendingToolSync) {
+      const [dk, wid] = key.split(':')
+      const wins = windows.value.get(dk) ?? []
+      const win = wins.find(w => w.id === wid)
+      if (!win) continue
+      const toolState = getToolState(dk, wid)
+      await saveToolToCloud(dk, wid, { window: win, toolState })
+    }
+    pendingToolSync.clear()
+  }
+
+  function scheduleSync(): void {
+    if (syncTimer) clearTimeout(syncTimer)
+    syncTimer = setTimeout(() => {
+      flushSync().catch(err =>
+        console.error('[StudioSync] Flush failed:', err)
+      )
+    }, SYNC_DEBOUNCE_MS)
+  }
+
+  function markProject(projectId: string): void {
+    pendingProjectSync.add(projectId)
+    if (projectSyncTimer) clearTimeout(projectSyncTimer)
+    projectSyncTimer = setTimeout(async () => {
+      const user = getCurrentUser()
+      if (!user || !navigator.onLine) return
+      for (const pid of pendingProjectSync) {
+        const project = projects.value.find(p => p.id === pid)
+        if (project) await saveProjectToCloud(project)
+      }
+      pendingProjectSync.clear()
+    }, 100)
+  }
+
+  function syncChatNow(dataKey: string): void {
+    const user = getCurrentUser()
+    if (!user || !navigator.onLine) return
+    const msgs = messages.value.get(dataKey)
+    if (!msgs) return
+    const sessionId = localStorage.getItem(`project-session-${dataKey}`)
+    saveChatToCloud(dataKey, { messages: msgs, sessionId }).catch(err =>
+      console.error('[StudioSync] Chat sync failed:', err)
+    )
+  }
+
+  function markTool(dataKey: string, windowId: string): void {
+    pendingToolSync.add(`${dataKey}:${windowId}`)
+    scheduleSync()
+  }
+
+  function markDelete(type: 'chat' | 'tool', key: string, windowId?: string): void {
+    pendingDeletes.add({ type, key, windowId })
+    scheduleSync()
+  }
+
+  // ── Cloud sync: pull ──
+
+  async function pullProjectsFromCloud(): Promise<void> {
+    const user = getCurrentUser()
+    if (!user || !navigator.onLine) return
+
+    const cloudProjects = await loadProjectsFromCloud()
+    if (cloudProjects.length === 0) return
+
+    isApplyingCloud = true
+    try {
+      const localById = new Map(projects.value.map(p => [p.id, p]))
+      const result: Project[] = []
+
+      for (const cloud of cloudProjects) {
+        const local = localById.get(cloud.id)
+        localById.delete(cloud.id)
+        if (!local || cloud.updatedAt >= local.updatedAt) {
+          result.push(cloud)
+        } else {
+          result.push(local)
+        }
+      }
+      for (const local of localById.values()) {
+        result.push(local)
+      }
+      projects.value.splice(0, projects.value.length, ...result)
+    } finally {
+      isApplyingCloud = false
+    }
+  }
+
+  async function pullDataKeyFromCloud(dataKey: string): Promise<void> {
+    const user = getCurrentUser()
+    if (!user || !navigator.onLine) return
+    if (loadedCloudKeys.has(dataKey)) return
+    loadedCloudKeys.add(dataKey)
+
+    const [chatData, toolData] = await Promise.all([
+      loadChatFromCloud(dataKey),
+      loadToolsFromCloud(dataKey),
+    ])
+
+    isApplyingCloud = true
+    try {
+      if (chatData) {
+        messages.value.set(dataKey, chatData.messages)
+        if (chatData.sessionId) {
+          localStorage.setItem(`project-session-${dataKey}`, chatData.sessionId)
+        }
+        saveMessages(dataKey, chatData.messages)
+      }
+      if (toolData.windows.length > 0) {
+        windows.value.set(dataKey, toolData.windows)
+        saveWindows(dataKey, toolData.windows)
+        for (const [toolId, state] of Object.entries(toolData.toolStates)) {
+          localStorage.setItem(`${TOOL_STATE_PREFIX}${dataKey}-${toolId}`, JSON.stringify(state))
+        }
+      }
+    } finally {
+      isApplyingCloud = false
+    }
+  }
+
+  function handleOnline(): void {
+    flushSync().catch(err =>
+      console.error('[StudioSync] Online flush failed:', err)
+    )
+  }
+
+  function initSync(): void {
+    if (syncInitialized) return
+    syncInitialized = true
+
+    pullProjectsFromCloud().catch(err =>
+      console.error('[StudioSync] Initial pull failed:', err)
+    )
+
+    watch(currentDataKey, (dk) => {
+      if (dk) {
+        pullDataKeyFromCloud(dk).catch(err =>
+          console.error('[StudioSync] Data key pull failed:', err)
+        )
+      }
+    }, { immediate: true })
+
+    window.addEventListener('online', handleOnline)
+
+    if (import.meta.hot) {
+      import.meta.hot?.dispose(() => {
+        if (syncTimer) clearTimeout(syncTimer)
+        if (projectSyncTimer) clearTimeout(projectSyncTimer)
+        window.removeEventListener('online', handleOnline)
+        syncInitialized = false
+        loadedCloudKeys.clear()
+        pendingProjectSync.clear()
+        pendingToolSync.clear()
+        pendingDeletes.clear()
+      })
+    }
+  }
+
+  // ── CRUD ──
+
   function createProject(name?: string): Project {
     const defaultSub: SubProject = { id: generateId(), name: 'Main', createdAt: Date.now() }
     const project: Project = {
@@ -109,6 +310,7 @@ export const useProjectStore = defineStore('project', () => {
     const key = storageKey(project.id, defaultSub.id)
     messages.value.set(key, [])
     windows.value.set(key, [])
+    markProject(project.id)
     return project
   }
 
@@ -125,6 +327,10 @@ export const useProjectStore = defineStore('project', () => {
     if (currentProjectId.value === id) {
       currentProjectId.value = projects.value[0]?.id ?? null
     }
+
+    deleteProjectFromCloud(id).catch(err =>
+      console.error('[StudioSync] Cloud delete failed:', err)
+    )
   }
 
   function renameProject(id: string, name: string) {
@@ -133,6 +339,7 @@ export const useProjectStore = defineStore('project', () => {
       project.name = name
       project.updatedAt = Date.now()
     }
+    markProject(id)
   }
 
   function switchToProject(id: string) {
@@ -174,6 +381,7 @@ export const useProjectStore = defineStore('project', () => {
     windows.value.set(key, [])
 
     switchSubProject(projectId, sub.id)
+    markProject(projectId)
     return sub
   }
 
@@ -205,6 +413,14 @@ export const useProjectStore = defineStore('project', () => {
         loadSubData(projectId, project.activeSubprojectId)
       }
     }
+
+    Promise.all([
+      deleteChatFromCloud(key),
+      deleteAllToolsFromCloud(key),
+    ]).catch(err =>
+      console.error('[StudioSync] Cloud data delete failed:', err)
+    )
+    markProject(projectId)
   }
 
   function switchSubProject(projectId: string, subprojectId: string) {
@@ -215,6 +431,7 @@ export const useProjectStore = defineStore('project', () => {
     project.activeSubprojectId = subprojectId
     project.updatedAt = Date.now()
     loadSubData(projectId, subprojectId)
+    markProject(projectId)
   }
 
   function renameSubProject(projectId: string, subprojectId: string, name: string) {
@@ -225,6 +442,7 @@ export const useProjectStore = defineStore('project', () => {
       sub.name = name
       project.updatedAt = Date.now()
     }
+    markProject(projectId)
   }
 
   function addMessage(dataKey: string, message: ProjectMessage) {
@@ -260,6 +478,7 @@ export const useProjectStore = defineStore('project', () => {
     list.push(window)
     if (currentProject.value) currentProject.value.updatedAt = Date.now()
     saveWindows(dataKey, list)
+    markTool(dataKey, window.id)
   }
 
   function updateWindow(dataKey: string, windowId: string, updates: Partial<ProjectWindow>) {
@@ -270,6 +489,7 @@ export const useProjectStore = defineStore('project', () => {
     if (idx !== -1) {
       list[idx] = { ...list[idx], ...updates }
       saveWindows(dataKey, list)
+      markTool(dataKey, windowId)
     }
   }
 
@@ -282,6 +502,9 @@ export const useProjectStore = defineStore('project', () => {
     const filtered = list.filter(w => w.id !== windowId)
     windows.value.set(dataKey, filtered)
     saveWindows(dataKey, filtered)
+    deleteToolFromCloud(dataKey, windowId).catch(err =>
+      console.error('[StudioSync] Tool cloud delete failed:', err)
+    )
   }
 
   function setWindowDisplayState(dataKey: string, windowId: string, state: WindowDisplayState) {
@@ -305,6 +528,8 @@ export const useProjectStore = defineStore('project', () => {
     currentMessages,
     currentWindows,
     activeWindows,
+    initSync,
+    syncChatNow,
     createProject,
     deleteProject,
     renameProject,
