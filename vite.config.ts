@@ -4,6 +4,9 @@ import { VitePWA } from 'vite-plugin-pwa'
 import { resolve } from 'path'
 
 export default defineConfig({
+  define: {
+    __APP_BUILD_ID__: JSON.stringify(Date.now().toString(36)),
+  },
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),

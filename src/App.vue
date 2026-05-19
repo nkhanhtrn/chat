@@ -23,6 +23,7 @@ import 'vue-sonner/style.css'
 import type { Theme } from 'vue-sonner'
 import { useNotebookStore } from '@/stores/notebook'
 import { useStaleDataDetection } from '@/composables/useStaleDataDetection'
+import { checkAppUpdate } from '@/composables/useAppUpdate'
 import { getDevToolbarEnabled, setDevToolbarEnabled } from '@/composables/useEnvironment'
 
 const router = useRouter()
@@ -54,6 +55,8 @@ const toggleDevToolbar = (enabled: boolean) => {
 const notebookStore = useNotebookStore()
 
 const { showStaleDataBanner, isReadOnlyMode, refresh, dismissBanner, triggerBanner } = useStaleDataDetection()
+
+checkAppUpdate()
 
 provide('triggerStaleDataBanner', triggerBanner)
 provide('showDevToolbar', showDevToolbar)
