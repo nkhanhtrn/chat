@@ -68,7 +68,7 @@ export class OpenCodeProvider {
   async *sendStream(sessionId: string, text: string, signal?: AbortSignal): AsyncIterable<string> {
     const baseUrl = this.getBaseUrl()
 
-    const eventRes = await fetch(`${baseUrl}/event`, {
+    const eventRes = await fetch(`${baseUrl}/global/event`, {
       headers: { 'Accept': 'text/event-stream' },
       signal,
     })
@@ -98,10 +98,11 @@ export class OpenCodeProvider {
         for (const line of lines) {
           const trimmed = line.trim()
           if (!trimmed.startsWith('data: ')) continue
-          const payload = trimmed.slice(6)
+          const raw = trimmed.slice(6)
 
           try {
-            const event = JSON.parse(payload)
+            const outer = JSON.parse(raw)
+            const event = outer.payload ?? outer
             if (event.type === 'message.part.delta') {
               const props = event.properties
               if (props?.field === 'text' && props?.delta) yield props.delta

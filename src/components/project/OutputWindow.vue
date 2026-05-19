@@ -174,14 +174,24 @@ const compiledComponent = computed(() => compiler?.compiledComponent.value ?? nu
 const compilerError = computed(() => compiler?.error.value ?? null)
 const scopeId = computed(() => compiler?.scopeId ?? '')
 
+function handleDataUpdate(e: Event) {
+  const { dataKey, windowId, data } = (e as CustomEvent).detail
+  if (dataKey === props.window.sessionId && windowId === props.window.id && compiler) {
+    compiler.pushState(data)
+  }
+}
+
 onMounted(() => {
   if (props.window.type === 'tool' && props.window.code && compiler) {
     compiler.compile(props.window.code)
   }
+
+  window.addEventListener('tool-data-updated', handleDataUpdate)
 })
 
 onUnmounted(() => {
   compiler?.cleanup()
+  window.removeEventListener('tool-data-updated', handleDataUpdate)
 })
 
 watch(() => props.window.code, (newCode) => {

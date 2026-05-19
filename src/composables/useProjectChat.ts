@@ -3,6 +3,7 @@ import { openCodeProvider } from '@/services/llm/providers/opencode'
 import { BUILDER_SYSTEM_PROMPT, buildToolContext } from '@/services/builder/systemPrompt'
 import { parseToolFromResponse, parseToolEditFromResponse, applyToolEdits } from '@/services/builder/sfcParser'
 import { searchWeb, fetchResultContent, formatSearchResultsForPrompt, extractSearchQuery, type SearchResult } from '@/services/builder/webSearch'
+import { buildToolDataContext, parseToolDataFromResponse, writeToolData, findWindowByToolName, stripDataMarkers } from '@/services/builder/toolData'
 import { useProjectStore } from '@/stores/project'
 import type { ProjectMessage, ProjectWindow, WebSearchResult } from '@/types/project'
 
@@ -116,12 +117,15 @@ export function useProjectChat(): UseProjectChatReturn {
       if (!systemPromptSent.value) {
         const scratchpad = projectStore.currentScratchpad?.trim()
         const ctx = scratchpad ? `\n\nUSER CONTEXT (persisted notes, carry across sessions):\n${scratchpad}\n` : ''
-        promptText = `[System]: ${BUILDER_SYSTEM_PROMPT}${ctx}\n\n${content.trim()}`
+        const dataCtx = buildToolDataContext(dataKey.value, projectStore.activeWindows)
+        promptText = `[System]: ${BUILDER_SYSTEM_PROMPT}${ctx}${dataCtx}\n\n${content.trim()}`
         systemPromptSent.value = true
       } else {
         const parts: string[] = []
         const toolCtx = buildToolContext(projectStore.activeWindows)
         if (toolCtx) parts.push(toolCtx)
+        const dataCtx = buildToolDataContext(dataKey.value, projectStore.activeWindows)
+        if (dataCtx) parts.push(dataCtx)
         if (targetTool && targetTool.code) {
           parts.push(`TARGET TOOL: "${targetTool.title}" — current code:\n\n\`\`\`\n${targetTool.code}\n\`\`\`\n\nPrefer using @edit format for modifications (faster). Only output full code for major rewrites. Use marker: <!-- @tool: ${targetTool.title} -->`)
         }
@@ -154,6 +158,7 @@ export function useProjectChat(): UseProjectChatReturn {
         fullContent = await streamPrompt(sid, searchPrompt, assistantMessage.id, abortController.value.signal)
       }
 
+      handleDataMarkers(fullContent, assistantMessage.id)
       handleToolDetection(fullContent, assistantMessage.id)
     } catch (err: any) {
       if (err.name !== 'AbortError') {
@@ -206,6 +211,31 @@ export function useProjectChat(): UseProjectChatReturn {
       const t = w.title.replace(/[\p{Emoji_Presentation}\p{Emoji}\uFE0F]/gu, '').trim()
       return t === normalized || w.title === name || w.title.includes(name)
     })
+  }
+
+  function handleDataMarkers(responseContent: string, assistantMessageId: string): void {
+    const key = dataKey.value
+    if (!key) return
+
+    const markers = parseToolDataFromResponse(responseContent)
+    if (!markers.length) return
+
+    const allWindows = projectStore.windows.get(key) || []
+    const appliedNames: string[] = []
+
+    for (const marker of markers) {
+      const win = findWindowByToolName(allWindows, marker.toolName)
+      if (!win || win.type !== 'tool') continue
+
+      writeToolData(key, win.id, marker.data)
+      appliedNames.push(marker.toolName)
+    }
+
+    if (appliedNames.length > 0 && !parseToolFromResponse(responseContent) && !parseToolEditFromResponse(responseContent)) {
+      const cleanContent = stripDataMarkers(responseContent)
+      const update = cleanContent || `Updated data in ${appliedNames.join(', ')}`
+      updateAssistantMessage(assistantMessageId, update)
+    }
   }
 
   function handleToolDetection(responseContent: string, assistantMessageId: string): void {
