@@ -77,6 +77,7 @@ export function useDynamicCompiler(options: DynamicCompilerOptions) {
   let lastCodeHash: string | null = null
 
   let persistApi: ToolPersistApi | null = null
+  let componentInstance: any = null
 
   function getPersistApi(): ToolPersistApi {
     if (!persistApi) {
@@ -203,6 +204,7 @@ export function useDynamicCompiler(options: DynamicCompilerOptions) {
       methods: wrappedMethods,
       created: wrappedCreated,
       mounted(this: any) {
+        componentInstance = this
         const cleanup = setupAutoSaveWatchers(this, this.persistApi, options.persistKeys)
         watcherCleanups.value.push(cleanup)
         if (wrappedMounted) return wrappedMounted.call(this)
@@ -291,10 +293,24 @@ export function useDynamicCompiler(options: DynamicCompilerOptions) {
 
   function cleanup() {
     lastCodeHash = null
+    componentInstance = null
     cleanupWatchers()
     if (styleEl.value) {
       styleEl.value.remove()
       styleEl.value = null
+    }
+  }
+
+  function pushState(state: Record<string, unknown>): void {
+    if (!componentInstance?.$data) return
+    const persistKeys: string[] | undefined = (componentInstance.$options as any)?.persistKeys
+    const keysToApply = persistKeys
+      ? Object.entries(state).filter(([k]) => persistKeys.includes(k))
+      : Object.entries(state)
+    for (const [key, value] of keysToApply) {
+      if (key in componentInstance.$data) {
+        componentInstance.$data[key] = value
+      }
     }
   }
 
@@ -304,5 +320,6 @@ export function useDynamicCompiler(options: DynamicCompilerOptions) {
     scopeId,
     compile,
     cleanup,
+    pushState,
   }
 }

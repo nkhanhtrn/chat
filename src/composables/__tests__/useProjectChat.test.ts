@@ -300,3 +300,112 @@ new code
     expect(store.currentWindows[0].title).toContain('BrandNew')
   })
 })
+
+describe('useProjectChat - @data marker handling', () => {
+  let store: ReturnType<typeof useProjectStore>
+  let chat: ReturnType<typeof useProjectChat>
+  let dataKey: string
+
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    setActivePinia(createPinia())
+    localStorage.clear()
+    store = useProjectStore()
+    const project = store.createProject('Test')
+    store.switchToProject(project.id)
+    dataKey = store.currentDataKey!
+    chat = useProjectChat()
+  })
+
+  it('writes data to tool when AI returns @data marker', async () => {
+    const win = makeToolWindow({ id: 'win-1', title: 'Counter', sessionId: dataKey })
+    store.addWindow(dataKey, win)
+    vi.spyOn(openCodeProvider, 'sendStream').mockReturnValue(mockStream([
+      `I'll set the count.\n\n<!-- @data: Counter -->\n\`\`\`json\n{"count": 100}\n\`\`\`\n\nDone!`
+    ]))
+    vi.spyOn(openCodeProvider, 'createSession').mockResolvedValue('ses_data')
+
+    await chat.sendMessage('set count to 100')
+
+    const stored = JSON.parse(localStorage.getItem(`tool-state-${dataKey}-win-1`)!)
+    expect(stored.count).toBe(100)
+  })
+
+  it('updates assistant message when only @data markers are present', async () => {
+    const win = makeToolWindow({ id: 'win-1', title: 'Counter', sessionId: dataKey })
+    store.addWindow(dataKey, win)
+    vi.spyOn(openCodeProvider, 'sendStream').mockReturnValue(mockStream([
+      `<!-- @data: Counter -->\n\`\`\`json\n{"count": 50}\n\`\`\`\n`
+    ]))
+    vi.spyOn(openCodeProvider, 'createSession').mockResolvedValue('ses_data')
+
+    await chat.sendMessage('set count to 50')
+
+    const msgs = store.currentMessages
+    const last = msgs[msgs.length - 1]
+    expect(last.role).toBe('assistant')
+    expect(last.content).not.toContain('@data')
+  })
+
+  it('does not override assistant message when @tool code is also present', async () => {
+    const win = makeToolWindow({ id: 'win-1', title: 'Counter', sessionId: dataKey })
+    store.addWindow(dataKey, win)
+    const response = `<!-- @data: Counter -->\n\`\`\`json\n{"count": 5}\n\`\`\`\n\n<!-- @tool: Counter -->\n<template><div>updated</div></template>\n<script>export default {}</script>`
+    vi.spyOn(openCodeProvider, 'sendStream').mockReturnValue(mockStream([response]))
+    vi.spyOn(openCodeProvider, 'createSession').mockResolvedValue('ses_data')
+
+    await chat.sendMessage('update counter')
+
+    const msgs = store.currentMessages
+    const last = msgs[msgs.length - 1]
+    expect(last.content).toContain('Updated')
+    expect(last.content).toContain('Counter')
+  })
+
+  it('writes data to multiple tools', async () => {
+    const win1 = makeToolWindow({ id: 'win-1', title: 'Tool A', sessionId: dataKey })
+    const win2 = makeToolWindow({ id: 'win-2', title: 'Tool B', sessionId: dataKey })
+    store.addWindow(dataKey, win1)
+    store.addWindow(dataKey, win2)
+    vi.spyOn(openCodeProvider, 'sendStream').mockReturnValue(mockStream([
+      `<!-- @data: Tool A -->\n\`\`\`json\n{"val": 1}\n\`\`\`\n\n<!-- @data: Tool B -->\n\`\`\`json\n{"val": 2}\n\`\`\`\n`
+    ]))
+    vi.spyOn(openCodeProvider, 'createSession').mockResolvedValue('ses_data')
+
+    await chat.sendMessage('update both')
+
+    const stored1 = JSON.parse(localStorage.getItem(`tool-state-${dataKey}-win-1`)!)
+    const stored2 = JSON.parse(localStorage.getItem(`tool-state-${dataKey}-win-2`)!)
+    expect(stored1.val).toBe(1)
+    expect(stored2.val).toBe(2)
+  })
+
+  it('ignores @data marker for non-existent tool', async () => {
+    vi.spyOn(openCodeProvider, 'sendStream').mockReturnValue(mockStream([
+      `<!-- @data: Missing -->\n\`\`\`json\n{"x": 1}\n\`\`\`\n\nNo tool found.`
+    ]))
+    vi.spyOn(openCodeProvider, 'createSession').mockResolvedValue('ses_data')
+
+    await chat.sendMessage('update missing tool')
+
+    expect(store.currentWindows).toHaveLength(0)
+  })
+
+  it('includes tool data context in prompt', async () => {
+    const win = makeToolWindow({ id: 'win-1', title: 'Counter', sessionId: dataKey })
+    store.addWindow(dataKey, win)
+    localStorage.setItem(`tool-state-${dataKey}-win-1`, JSON.stringify({ count: 7 }))
+
+    let capturedText = ''
+    vi.spyOn(openCodeProvider, 'sendStream').mockImplementation(function*(sid: string, text: string) {
+      capturedText = text
+      return yield* mockStream(['Done']) as any
+    } as any)
+    vi.spyOn(openCodeProvider, 'createSession').mockResolvedValue('ses_data')
+
+    await chat.sendMessage('what is the count?')
+
+    expect(capturedText).toContain('count: 7')
+    expect(capturedText).toContain('Counter')
+  })
+})

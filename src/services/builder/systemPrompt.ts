@@ -171,7 +171,25 @@ EDITING EXISTING TOOLS (PREFERRED over full rewrite):
   <replace>
         <button class="btn primary" @click="calculate">Calculate</button>
   </replace>
-- Only use full code output (without @edit) for NEW tools or major rewrites`
+- Only use full code output (without @edit) for NEW tools or major rewrites
+
+TOOL DATA ACCESS (Reading & Writing tool state):
+You can READ and WRITE data that lives inside tools. Tool data is included in the conversation context so you can see the current state of each tool.
+
+To WRITE data to a tool (update its state), use the @data marker:
+<!-- @data: Tool Name -->
+\`\`\`json
+{"key1": "new value", "key2": 42}
+\`\`\`
+
+Rules for @data:
+- The tool name must match an existing tool's title (strip emoji if present)
+- The JSON object should contain only the keys you want to update
+- Only update keys that exist in the tool's data() function
+- You can combine @data with @tool/@edit in the same response
+- Use @data when the user asks you to set, update, or change data in a tool
+- You can use @data WITHOUT outputting any tool code — it only updates data
+- Example: user says "set the counter in my Calculator to 100" → use @data, no code needed`
 
 export function buildToolContext(windows: { title: string; code?: string }[]): string {
   if (!windows.length) return ''
