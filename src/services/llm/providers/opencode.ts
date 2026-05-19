@@ -85,6 +85,7 @@ export class OpenCodeProvider {
     })
 
     let buffer = ''
+    const reasoningParts = new Set<string>()
     try {
       while (true) {
         if (signal?.aborted) break
@@ -103,10 +104,17 @@ export class OpenCodeProvider {
           try {
             const outer = JSON.parse(raw)
             const event = outer.payload ?? outer
+            if (event.type === 'message.part.updated') {
+              const part = event.properties?.part
+              if (part?.type === 'reasoning' && part?.id) {
+                reasoningParts.add(part.id)
+              }
+            }
             if (event.type === 'message.part.delta') {
               const props = event.properties
-              if (props?.field === 'text' && props?.delta) yield props.delta
-              if (props?.field === 'thinking' && props?.delta) continue
+              if (!props?.delta) continue
+              if (reasoningParts.has(props.partID)) continue
+              if (props.field === 'text') yield props.delta
             }
             if (event.type === 'session.idle' && event.properties?.sessionID === sessionId) {
               return
