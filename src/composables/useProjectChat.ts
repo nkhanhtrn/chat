@@ -3,7 +3,7 @@ import { openCodeProvider } from '@/services/llm/providers/opencode'
 import { BUILDER_SYSTEM_PROMPT, buildToolContext } from '@/services/builder/systemPrompt'
 import { parseToolFromResponse, parseToolEditFromResponse, applyToolEdits } from '@/services/builder/sfcParser'
 import { searchWeb, fetchResultContent, formatSearchResultsForPrompt, extractSearchQuery, type SearchResult } from '@/services/builder/webSearch'
-import { buildToolDataContext, parseToolDataFromResponse, writeToolData, findWindowByToolName, stripDataMarkers } from '@/services/builder/toolData'
+import { buildToolDataContext, getToolState, parseToolDataFromResponse, writeToolData, findWindowByToolName, stripDataMarkers } from '@/services/builder/toolData'
 import { useProjectStore } from '@/stores/project'
 import type { ProjectMessage, ProjectWindow, WebSearchResult } from '@/types/project'
 
@@ -127,7 +127,11 @@ export function useProjectChat(): UseProjectChatReturn {
         const dataCtx = buildToolDataContext(dataKey.value, projectStore.activeWindows)
         if (dataCtx) parts.push(dataCtx)
         if (targetTool && targetTool.code) {
-          parts.push(`TARGET TOOL: "${targetTool.title}" — current code:\n\n\`\`\`\n${targetTool.code}\n\`\`\`\n\nPrefer using @edit format for modifications (faster). Only output full code for major rewrites. Use marker: <!-- @tool: ${targetTool.title} -->`)
+          const toolData = getToolState(dataKey.value, targetTool.id)
+          const dataStr = Object.keys(toolData).length > 0
+            ? `\n\nCurrent tool data: ${JSON.stringify(toolData, null, 2)}`
+            : ''
+          parts.push(`TARGET TOOL: "${targetTool.title}" — current code:\n\n\`\`\`\n${targetTool.code}\n\`\`\`${dataStr}\n\nPrefer using @edit format for modifications (faster). Only output full code for major rewrites. Use marker: <!-- @tool: ${targetTool.title} -->`)
         }
         parts.push(content.trim())
         promptText = parts.join('\n\n')
