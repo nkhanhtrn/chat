@@ -105,14 +105,18 @@ export class OpenCodeProvider {
             const outer = JSON.parse(raw)
             const event = outer.payload ?? outer
             if (event.type === 'message.part.updated') {
-              const part = event.properties?.part
-              if (part?.type === 'reasoning' && part?.id) {
-                reasoningParts.add(part.id)
+              const props = event.properties
+              if (props?.sessionID === sessionId) {
+                const part = props?.part
+                if (part?.type === 'reasoning' && part?.id) {
+                  reasoningParts.add(part.id)
+                }
               }
             }
             if (event.type === 'message.part.delta') {
               const props = event.properties
               if (!props?.delta) continue
+              if (props.sessionID !== sessionId) continue
               if (reasoningParts.has(props.partID)) continue
               if (props.field === 'text') yield props.delta
             }
