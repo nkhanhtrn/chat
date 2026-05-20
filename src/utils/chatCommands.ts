@@ -188,15 +188,9 @@ export function matchAll(prefix: string, tools?: ToolRef[]): SuggestionItem[] {
 export function extractToolRefs(text: string, tools: ToolRef[]): ToolRef[] {
   const refs: ToolRef[] = []
   const seen = new Set<string>()
-  const re = /\/([^\s/]+)/g
-  let m: RegExpExecArray | null
-  while ((m = re.exec(text)) !== null) {
-    const ref = m[1].toLowerCase()
-    const tool = tools.find(t => {
-      const name = t.title.replace(/[\p{Emoji_Presentation}\p{Emoji}\uFE0F]/gu, '').trim().toLowerCase()
-      return name === ref || t.title.toLowerCase() === ref
-    })
-    if (tool && !seen.has(tool.id)) {
+  const lower = text.toLowerCase()
+  for (const tool of tools) {
+    if (lower.includes(`/${tool.title.toLowerCase()}`) && !seen.has(tool.id)) {
       seen.add(tool.id)
       refs.push(tool)
     }
@@ -207,9 +201,8 @@ export function extractToolRefs(text: string, tools: ToolRef[]): ToolRef[] {
 export function stripToolRefs(text: string, tools: ToolRef[]): string {
   let result = text
   for (const tool of tools) {
-    const name = tool.title.replace(/[\p{Emoji_Presentation}\p{Emoji}\uFE0F]/gu, '').trim()
-    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    result = result.replace(new RegExp(`\\/?${escaped}`, 'gi'), '').trim()
+    const escaped = tool.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    result = result.replace(new RegExp(`\\/?${escaped}`, 'g'), '')
   }
   return result.replace(/\s+/g, ' ').trim()
 }
