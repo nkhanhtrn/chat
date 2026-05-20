@@ -19,11 +19,9 @@
           <polyline points="18 15 12 9 6 15"></polyline>
         </svg>
       </button>
-      <div v-if="detectedToolNames.length" class="detected-tools-bar">
-        <span v-for="name in detectedToolNames" :key="name" class="detected-tool-chip">{{ name }}</span>
-      </div>
       <div class="input-row">
         <div class="textarea-wrap">
+          <div class="input-backdrop" ref="backdropRef" v-html="highlightedHtml"></div>
           <textarea
             ref="inputRef"
             :value="modelValue"
@@ -94,6 +92,7 @@ const activeIndex = ref(0)
 const showSuggestions = ref(false)
 const cursorPos = ref(0)
 const slashRange = ref<{ start: number; prefix: string } | null>(null)
+const backdropRef = ref<HTMLElement | null>(null)
 
 const detectedToolNames = computed(() => {
   if (!props.tools.length) return []
@@ -102,6 +101,21 @@ const detectedToolNames = computed(() => {
     .filter(t => lower.includes(`/${t.title.toLowerCase()}`))
     .map(t => t.title)
 })
+
+const highlightedHtml = computed(() => {
+  const val = props.modelValue
+  if (!detectedToolNames.value.length) return escapeHtml(val) + '\n'
+  const escaped = detectedToolNames.value.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  const re = new RegExp(`(${escaped.map(e => `\\/?${e}`).join('|')})`, 'gi')
+  return escapeHtml(val).replace(
+    new RegExp(`(${escaped.map(e => `\\/?${e}`).join('|')})`, 'gi'),
+    '<span class="hl-tool">$1</span>',
+  ) + '\n'
+})
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
 
 function updateCursor() {
   if (inputRef.value) {
@@ -310,26 +324,6 @@ defineExpose({ inputRef, resetHeight })
   white-space: nowrap;
 }
 
-.detected-tools-bar {
-  display: flex;
-  gap: 0.3rem;
-  flex-wrap: wrap;
-  padding: 0.25rem 0.5rem 0;
-}
-
-.detected-tool-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.15rem 0.4rem;
-  border-radius: 3px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  font-family: system-ui, sans-serif;
-  background: var(--color-bg-hover);
-  color: var(--color-text-muted);
-  border: 1px solid var(--color-border-subtle);
-}
-
 .input-box {
   display: flex;
   flex-direction: column;
@@ -389,11 +383,40 @@ defineExpose({ inputRef, resetHeight })
   max-height: 120px;
   overflow-y: auto;
   transition: min-height 0.25s ease, max-height 0.25s ease;
+  position: relative;
 }
 
 .input-box.expanded .textarea-wrap {
   min-height: 120px;
   max-height: 280px;
+}
+
+.input-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.9rem;
+  font-family: Georgia, serif;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: transparent;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.input-backdrop :deep(.hl-tool) {
+  display: inline;
+  padding: 0.1rem 0.25rem;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: system-ui, sans-serif;
+  background: var(--color-bg-hover);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border-subtle);
 }
 
 textarea {
@@ -410,6 +433,9 @@ textarea {
   color: var(--color-text-base);
   line-height: 1.5;
   box-sizing: border-box;
+  position: relative;
+  z-index: 1;
+  caret-color: var(--color-text-base);
 }
 
 textarea:focus { outline: none; }
