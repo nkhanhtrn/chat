@@ -252,7 +252,7 @@ async function handleSend() {
 
   const resolved = resolveToolMessage(text, toolRefs.value, toolResolver)
   if (resolved.toolNames.length > 0) {
-    await chat.sendMessage(resolved.displayText, resolveTargetTool(), undefined, resolved.toolNames, resolved.promptText)
+    await chat.sendMessage(text, resolveTargetTool(), undefined, resolved.toolNames, resolved.promptText)
     return
   }
 
