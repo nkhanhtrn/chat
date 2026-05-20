@@ -19,6 +19,9 @@
           <polyline points="18 15 12 9 6 15"></polyline>
         </svg>
       </button>
+      <div v-if="detectedToolNames.length" class="detected-tools-bar">
+        <span v-for="name in detectedToolNames" :key="name" class="detected-tool-chip">{{ name }}</span>
+      </div>
       <div class="input-row">
         <div class="textarea-wrap">
           <textarea
@@ -91,6 +94,14 @@ const activeIndex = ref(0)
 const showSuggestions = ref(false)
 const cursorPos = ref(0)
 const slashRange = ref<{ start: number; prefix: string } | null>(null)
+
+const detectedToolNames = computed(() => {
+  if (!props.tools.length) return []
+  const lower = props.modelValue.toLowerCase()
+  return props.tools
+    .filter(t => lower.includes(`/${t.title.toLowerCase()}`))
+    .map(t => t.title)
+})
 
 function updateCursor() {
   if (inputRef.value) {
@@ -297,6 +308,26 @@ defineExpose({ inputRef, resetHeight })
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.detected-tools-bar {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  padding: 0.25rem 0.5rem 0;
+}
+
+.detected-tool-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-family: system-ui, sans-serif;
+  background: var(--color-bg-hover);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border-subtle);
 }
 
 .input-box {
