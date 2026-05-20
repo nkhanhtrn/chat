@@ -1,5 +1,18 @@
 <template>
-  <div class="input-container">
+  <div class="input-container" ref="containerRef">
+    <div v-if="suggestions.length && showSuggestions" class="cmd-suggestions">
+      <template v-for="(item, i) in suggestions" :key="item.key">
+        <div v-if="i > 0 && item.kind !== suggestions[i - 1].kind" class="cmd-separator" />
+        <div
+          :class="['cmd-item', { active: i === activeIndex }]"
+          @mousedown.prevent="applySuggestion(item)"
+          @mouseenter="activeIndex = i"
+        >
+          <span :class="['cmd-name', { 'cmd-tool': item.kind === 'tool' }]">{{ item.label }}</span>
+          <span class="cmd-desc">{{ item.description }}</span>
+        </div>
+      </template>
+    </div>
     <div :class="['input-box', { expanded: isExpanded }]">
       <button class="expand-btn" @click="toggleExpand" :title="isExpanded ? 'Collapse' : 'Expand'">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{ rotated: isExpanded }">
@@ -8,11 +21,14 @@
       </button>
       <div class="input-row">
         <div class="textarea-wrap">
+          <div class="input-backdrop" ref="backdropRef" v-html="highlightedHtml"></div>
           <textarea
             ref="inputRef"
             :value="modelValue"
             @input="handleInput"
             @keydown="handleKeydown"
+            @click="updateCursor"
+            @keyup="updateCursor"
             placeholder="Message..."
             :disabled="disabled || isStreaming"
             rows="1"
@@ -49,15 +65,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
+import { matchAll, type SuggestionItem, type ToolRef } from '@/utils/chatCommands'
 
 const props = withDefaults(defineProps<{
   modelValue: string
   isStreaming?: boolean
   disabled?: boolean
+  tools?: ToolRef[]
 }>(), {
   isStreaming: false,
   disabled: false,
+  tools: () => [],
 })
 
 const emit = defineEmits<{
@@ -67,18 +86,173 @@ const emit = defineEmits<{
 }>()
 
 const inputRef = ref<HTMLTextAreaElement | null>(null)
+const containerRef = ref<HTMLElement | null>(null)
 const isExpanded = ref(false)
+const activeIndex = ref(0)
+const showSuggestions = ref(false)
+const cursorPos = ref(0)
+const slashRange = ref<{ start: number; prefix: string } | null>(null)
+const backdropRef = ref<HTMLElement | null>(null)
+
+const detectedToolNames = computed(() => {
+  if (!props.tools.length) return []
+  const lower = props.modelValue.toLowerCase()
+  return props.tools
+    .filter(t => lower.includes(`/${t.title.toLowerCase()}`))
+    .map(t => t.title)
+})
+
+const highlightedHtml = computed(() => {
+  const val = props.modelValue
+  if (!detectedToolNames.value.length) return escapeHtml(val) + '\n'
+  const escaped = detectedToolNames.value.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  const re = new RegExp(`(${escaped.map(e => `\\/?${e}`).join('|')})`, 'gi')
+  return escapeHtml(val).replace(
+    new RegExp(`(${escaped.map(e => `\\/?${e}`).join('|')})`, 'gi'),
+    '<span class="hl-tool">$1</span>',
+  ) + '\n'
+})
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function updateCursor() {
+  if (inputRef.value) {
+    cursorPos.value = inputRef.value.selectionStart ?? 0
+  }
+  detectSlash()
+}
+
+function detectSlash() {
+  const val = props.modelValue
+  const pos = cursorPos.value
+  if (pos < 1) {
+    slashRange.value = null
+    showSuggestions.value = false
+    return
+  }
+
+  let slashIdx = -1
+  for (let i = pos - 1; i >= 0; i--) {
+    if (val[i] === ' ' || val[i] === '\n') break
+    if (val[i] === '/') {
+      slashIdx = i
+      break
+    }
+  }
+
+  if (slashIdx === -1) {
+    slashRange.value = null
+    showSuggestions.value = false
+    return
+  }
+
+  const prefix = val.slice(slashIdx, pos)
+  if (prefix.includes(' ') || prefix.includes('\n')) {
+    slashRange.value = null
+    showSuggestions.value = false
+    return
+  }
+
+  slashRange.value = { start: slashIdx, prefix }
+}
+
+const suggestions = computed(() => {
+  if (!slashRange.value) return []
+  return matchAll(slashRange.value.prefix, props.tools)
+})
+
+watch(suggestions, (v) => {
+  if (v.length !== suggestions.value.length || v.length === 0) activeIndex.value = 0
+  showSuggestions.value = v.length > 0
+})
 
 const toggleExpand = () => {
   isExpanded.value = !isExpanded.value
 }
 
+function findToolRefAt(text: string, cursorPos: number, tools: ToolRef[]): { start: number; end: number } | null {
+  for (const tool of tools) {
+    const lower = text.toLowerCase()
+    const search = `/${tool.title.toLowerCase()}`
+    let idx = lower.indexOf(search)
+    while (idx !== -1) {
+      const end = idx + search.length
+      if (cursorPos === end) return { start: idx, end }
+      idx = lower.indexOf(search, idx + 1)
+    }
+  }
+  return null
+}
+
 const handleInput = (e: Event) => {
-  emit('update:modelValue', (e.target as HTMLTextAreaElement).value)
+  const val = (e.target as HTMLTextAreaElement).value
+  emit('update:modelValue', val)
+  cursorPos.value = (e.target as HTMLTextAreaElement).selectionStart ?? val.length
+  nextTick(() => detectSlash())
   adjustHeight()
 }
 
+function applySuggestion(item: SuggestionItem) {
+  if (!slashRange.value || !inputRef.value) return
+  const before = props.modelValue.slice(0, slashRange.value.start)
+  const after = props.modelValue.slice(cursorPos.value)
+  const newVal = before + item.replaceText + after
+  emit('update:modelValue', newVal)
+  showSuggestions.value = false
+  slashRange.value = null
+  nextTick(() => {
+    if (inputRef.value) {
+      const newPos = before.length + item.replaceText.length
+      inputRef.value.focus()
+      inputRef.value.setSelectionRange(newPos, newPos)
+    }
+  })
+}
+
 const handleKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Backspace' && inputRef.value) {
+    const pos = inputRef.value.selectionStart ?? 0
+    if (pos > 0 && pos === (inputRef.value.selectionEnd ?? pos)) {
+      const ref = findToolRefAt(props.modelValue, pos, props.tools)
+      if (ref) {
+        e.preventDefault()
+        const newVal = props.modelValue.slice(0, ref.start) + props.modelValue.slice(ref.end)
+        emit('update:modelValue', newVal)
+        nextTick(() => {
+          if (inputRef.value) inputRef.value.setSelectionRange(ref.start, ref.start)
+        })
+        return
+      }
+    }
+  }
+
+  if (showSuggestions.value && suggestions.value.length > 0) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      activeIndex.value = (activeIndex.value + 1) % suggestions.value.length
+      return
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      activeIndex.value = (activeIndex.value - 1 + suggestions.value.length) % suggestions.value.length
+      return
+    }
+    if (e.key === 'Tab' || e.key === 'Enter') {
+      if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault()
+        applySuggestion(suggestions.value[activeIndex.value])
+        return
+      }
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      showSuggestions.value = false
+      return
+    }
+  }
+
   if (e.key !== 'Enter') return
 
   if (isExpanded.value) {
@@ -122,6 +296,62 @@ defineExpose({ inputRef, resetHeight })
   padding: 0.75rem 1.25rem;
   border-top: 1px solid var(--color-border-subtle);
   background-color: var(--color-bg-base);
+  position: relative;
+}
+
+.cmd-suggestions {
+  position: absolute;
+  bottom: 100%;
+  left: 1.25rem;
+  right: 1.25rem;
+  background: var(--color-bg-elevated, var(--color-bg-base));
+  border: 1px solid var(--color-border-base);
+  border-radius: 6px;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.12);
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 50;
+  padding: 0.25rem 0;
+}
+
+.cmd-separator {
+  height: 1px;
+  background: var(--color-border-subtle);
+  margin: 0.25rem 0.75rem;
+}
+
+.cmd-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+  transition: background 0.1s;
+  font-size: 0.82rem;
+}
+
+.cmd-item:hover,
+.cmd-item.active {
+  background: var(--color-bg-hover);
+}
+
+.cmd-name {
+  font-weight: 600;
+  color: var(--color-primary);
+  white-space: nowrap;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.8rem;
+}
+
+.cmd-name.cmd-tool {
+  color: var(--color-success, #10b981);
+}
+
+.cmd-desc {
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .input-box {
@@ -183,11 +413,40 @@ defineExpose({ inputRef, resetHeight })
   max-height: 120px;
   overflow-y: auto;
   transition: min-height 0.25s ease, max-height 0.25s ease;
+  position: relative;
 }
 
 .input-box.expanded .textarea-wrap {
   min-height: 120px;
   max-height: 280px;
+}
+
+.input-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.9rem;
+  font-family: Georgia, serif;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: var(--color-text-base);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.input-backdrop :deep(.hl-tool) {
+  display: inline;
+  padding: 0.1rem 0.25rem;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: system-ui, sans-serif;
+  background: var(--color-bg-hover);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border-subtle);
 }
 
 textarea {
@@ -201,9 +460,12 @@ textarea {
   min-height: 24px;
   overflow-y: auto;
   background-color: transparent;
-  color: var(--color-text-base);
+  color: transparent;
   line-height: 1.5;
   box-sizing: border-box;
+  position: relative;
+  z-index: 1;
+  caret-color: var(--color-text-base);
 }
 
 textarea:focus { outline: none; }
@@ -276,5 +538,6 @@ textarea::placeholder { color: var(--color-text-muted); }
 
 @media (max-width: 768px) {
   .input-container { padding: 0.75rem 1rem; }
+  .cmd-suggestions { left: 1rem; right: 1rem; }
 }
 </style>

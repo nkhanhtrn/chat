@@ -10,6 +10,7 @@
       ref="expandableRef"
       :model-value="modelValue"
       :is-streaming="isStreaming"
+      :tools="tools"
       @update:model-value="$emit('update:modelValue', $event)"
       @send="handleSend"
       @stop="$emit('stop')"
@@ -36,6 +37,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import ExpandableInput from '../ExpandableInput.vue'
+import type { ToolRef } from '@/utils/chatCommands'
 
 const PASTE_THRESHOLD = 300
 
@@ -48,6 +50,7 @@ const props = defineProps<{
   modelValue: string
   isStreaming?: boolean
   messagesEmpty?: boolean
+  tools?: ToolRef[]
 }>()
 
 const emit = defineEmits<{

@@ -66,7 +66,14 @@
             textClass="user-message-text"
             inputClass="user-message-input"
             @save="(newContent: string) => $emit('edit', newContent)"
-          />
+          >
+            <template #default>
+              <template v-for="(seg, i) in parseToolSegments(msg.content, msg.toolRefs ?? [])" :key="i">
+                <span v-if="seg.type === 'tool'" class="tool-ref-badge">{{ seg.text }}</span>
+                <span v-else>{{ seg.text }}</span>
+              </template>
+            </template>
+          </InlineEdit>
         </div>
         <button v-if="isUserLong" class="collapse-toggle" @click="isUserCollapsed = !isUserCollapsed">
           {{ isUserCollapsed ? 'Show more' : 'Show less' }}
@@ -98,6 +105,23 @@ const sourcesOpen = ref(false)
 const isUserCollapsed = ref(true)
 
 const isUserLong = computed(() => props.msg.role === 'user' && props.msg.content.length > 300)
+
+function parseToolSegments(content: string, toolRefs: string[]) {
+  if (!toolRefs.length) return [{ type: 'text' as const, text: content }]
+  const segments: Array<{ type: 'text' | 'tool'; text: string }> = []
+  const escaped = toolRefs.map(r => r.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  const re = new RegExp(`(${escaped.map(e => `\\/?${e}`).join('|')})`, 'gi')
+  let last = 0
+  let m: RegExpExecArray | null
+  while ((m = re.exec(content)) !== null) {
+    if (m.index > last) segments.push({ type: 'text', text: content.slice(last, m.index) })
+    const name = toolRefs.find(r => m![1].toLowerCase().endsWith(r.toLowerCase())) ?? m[1]
+    segments.push({ type: 'tool', text: name })
+    last = m.index + m[0].length
+  }
+  if (last < content.length) segments.push({ type: 'text', text: content.slice(last) })
+  return segments
+}
 
 const showCursor = computed(() =>
   props.isStreaming && props.isLastMessage && props.msg.role === 'assistant'
@@ -158,4 +182,7 @@ function faviconUrl(url: string): string {
 .source-fallback-small { width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: 600; color: var(--color-text-muted); flex-shrink: 0; border-radius: 2px; background: var(--color-bg-elevated); }
 .source-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; color: var(--color-text-base); }
 .source-domain { color: var(--color-text-muted); font-size: 0.65rem; flex-shrink: 0; }
+
+.target-badge { display: inline-block; padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.6rem; font-weight: 600; font-family: system-ui, sans-serif; margin-left: 0.3rem; vertical-align: middle; background: var(--color-primary-subtle, color-mix(in srgb, var(--color-primary) 15%, transparent)); color: var(--color-primary); }
+.tool-ref-badge { display: inline-block; padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.7rem; font-weight: 600; font-family: system-ui, sans-serif; vertical-align: middle; background: var(--color-bg-hover); color: var(--color-text-muted); border: 1px solid var(--color-border-subtle); }
 </style>

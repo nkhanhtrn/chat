@@ -45,11 +45,13 @@
               :selectedId="targetToolId"
               @update:selectedId="targetToolId = $event"
             />
+            <div v-if="commandFeedback" class="command-feedback">{{ commandFeedback }}</div>
             <MessageInput
               ref="messageInputRef"
               v-model="inputText"
               :is-streaming="chat.isStreaming.value"
               :messages-empty="projectStore.currentMessages.length === 0"
+              :tools="toolRefs"
               @send="handleSend"
               @stop="handleStop"
               @clear="handleClear"
@@ -105,6 +107,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import { useGlobalToolStore } from '@/stores/globalTool'
 import { useProjectChat } from '@/composables/useProjectChat'
+import { handleCommand, resolveToolMessage, type CommandContext, type CommandResult, type ToolRef, type ToolDataResolver } from '@/utils/chatCommands'
+import { getToolState } from '@/services/builder/toolData'
+import { searchWeb, fetchResultContent, formatSearchResultsForPrompt } from '@/services/builder/webSearch'
 import AppLayout from '@/components/AppLayout.vue'
 import SlideTransition from '@/components/SlideTransition.vue'
 import ProjectHeader from '@/components/project/ProjectHeader.vue'
@@ -159,12 +164,34 @@ const inputText = ref('')
 const sideTab = ref<'project' | 'chat'>('project')
 const scratchpadOpen = ref(false)
 const targetToolId = ref<string | null>(null)
+const commandFeedback = ref('')
 const messageListRef = ref<InstanceType<typeof MessageList> | null>(null)
 const messageInputRef = ref<InstanceType<typeof MessageInput> | null>(null)
 const appLayoutRef = ref<InstanceType<typeof AppLayout> | null>(null)
 
+const cmdCtx: CommandContext = {
+  clearChat: () => chat.clearChat(),
+  compactChat: () => chat.compactChat(),
+  async searchWeb(query): Promise<CommandResult> {
+    try {
+      let results = await searchWeb(query)
+      results = await fetchResultContent(results)
+      const webResults = results.map(r => ({ title: r.title, url: r.url, snippet: r.snippet }))
+      const prompt = formatSearchResultsForPrompt(results) + '\n\nRespond to the user\'s query using these search results.'
+      await chat.sendMessage(`/search ${query}`, null, { query, results: webResults, prompt })
+      return { type: 'handled' }
+    } catch (err: any) {
+      return { type: 'error', message: `Search failed: ${err.message}` }
+    }
+  },
+}
+
 const openTools = computed(() =>
   projectStore.activeWindows.filter(w => w.type === 'tool' && w.code)
+)
+
+const toolRefs = computed<ToolRef[]>(() =>
+  openTools.value.map(t => ({ id: t.id, title: t.title }))
 )
 
 watch(openTools, (tools, oldTools) => {
@@ -199,6 +226,17 @@ watch(() => [route.params.id, route.params.subId] as const, () => {
   initFromRoute()
 })
 
+function showFeedback(msg: string) {
+  commandFeedback.value = msg
+  setTimeout(() => { commandFeedback.value = '' }, 3000)
+}
+
+function resolveTargetTool() {
+  return targetToolId.value
+    ? openTools.value.find(t => t.id === targetToolId.value) ?? null
+    : null
+}
+
 async function handleSend() {
   if (chat.isStreaming.value) return
   const snippets = messageInputRef.value?.consumeSnippets?.() ?? ''
@@ -206,10 +244,27 @@ async function handleSend() {
   if (!text) return
   inputText.value = ''
   messageInputRef.value?.resetHeight()
-  const targetTool = targetToolId.value
-    ? openTools.value.find(t => t.id === targetToolId.value)
-    : null
-  await chat.sendMessage(text, targetTool ?? null)
+
+  const toolResolver: ToolDataResolver = {
+    getCode: (id) => openTools.value.find(w => w.id === id)?.code,
+    getData: (id) => getToolState(dk.value, id),
+  }
+
+  const resolved = resolveToolMessage(text, toolRefs.value, toolResolver)
+  if (resolved.toolNames.length > 0) {
+    await chat.sendMessage(text, resolveTargetTool(), undefined, resolved.toolNames, resolved.promptText)
+    return
+  }
+
+  const result = await handleCommand(text.trim(), cmdCtx)
+  if (result) {
+    if (result.type === 'handled' && result.feedback) showFeedback(result.feedback)
+    else if (result.type === 'error') showFeedback(result.message)
+    else if (result.type === 'message') await chat.sendMessage(result.text, resolveTargetTool())
+    return
+  }
+
+  await chat.sendMessage(text, resolveTargetTool())
 }
 
 function handleStop() {
@@ -410,6 +465,18 @@ function handlePromoteTool(win: ProjectWindow) {
   flex-direction: column;
   padding: 0 1rem 0.5rem 1rem;
   background: var(--color-bg-base);
+}
+
+.command-feedback {
+  background: var(--color-bg-hover);
+  color: var(--color-text-base);
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  margin-bottom: 0.35rem;
+  border-left: 3px solid var(--color-primary);
+  white-space: pre-wrap;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
 }
 
 .side-tab-content {

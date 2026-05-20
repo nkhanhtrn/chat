@@ -11,7 +11,7 @@ const MAX_SEARCH_ROUNDS = 3
 
 export interface UseProjectChatReturn {
   isStreaming: ReturnType<typeof ref<boolean>>
-  sendMessage: (content: string, targetTool?: ProjectWindow | null) => Promise<void>
+  sendMessage: (content: string, targetTool?: ProjectWindow | null, searchContext?: { query: string; results: WebSearchResult[]; prompt: string }, toolRefs?: string[], toolPrompt?: string) => Promise<void>
   stopStreaming: () => void
   editAndResend: (index: number, newContent: string) => Promise<void>
   compactChat: () => Promise<void>
@@ -87,7 +87,13 @@ export function useProjectChat(): UseProjectChatReturn {
     return stripThinking(fullContent)
   }
 
-  async function sendMessage(content: string, targetTool?: ProjectWindow | null): Promise<void> {
+  async function sendMessage(
+    content: string,
+    targetTool?: ProjectWindow | null,
+    searchContext?: { query: string; results: WebSearchResult[]; prompt: string },
+    toolRefs?: string[],
+    toolPrompt?: string,
+  ): Promise<void> {
     if (!content.trim() || isStreaming.value) return
 
     const userMessage: ProjectMessage = {
@@ -96,6 +102,7 @@ export function useProjectChat(): UseProjectChatReturn {
       content: content.trim(),
       timestamp: Date.now(),
       targetToolName: targetTool?.title || undefined,
+      toolRefs: toolRefs?.length ? toolRefs : undefined,
     }
     projectStore.addMessage(dataKey.value, userMessage)
 
@@ -111,6 +118,10 @@ export function useProjectChat(): UseProjectChatReturn {
     abortController.value = new AbortController()
 
     try {
+      if (searchContext) {
+        updateAssistantMessageWithSearch(assistantMessage.id, `Searching: "${searchContext.query}"...`, searchContext.results)
+      }
+
       const sid = await ensureSession()
 
       let promptText: string
@@ -133,7 +144,8 @@ export function useProjectChat(): UseProjectChatReturn {
             : ''
           parts.push(`TARGET TOOL: "${targetTool.title}" — current code:\n\n\`\`\`\n${targetTool.code}\n\`\`\`${dataStr}\n\nPrefer using @edit format for modifications (faster). Only output full code for major rewrites. Use marker: <!-- @tool: ${targetTool.title} -->`)
         }
-        parts.push(content.trim())
+        parts.push(toolPrompt?.trim() || content.trim())
+        if (searchContext) parts.push(searchContext.prompt)
         promptText = parts.join('\n\n')
       }
 
