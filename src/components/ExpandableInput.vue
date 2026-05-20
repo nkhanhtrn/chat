@@ -172,6 +172,20 @@ const toggleExpand = () => {
   isExpanded.value = !isExpanded.value
 }
 
+function findToolRefAt(text: string, cursorPos: number, tools: ToolRef[]): { start: number; end: number } | null {
+  for (const tool of tools) {
+    const lower = text.toLowerCase()
+    const search = `/${tool.title.toLowerCase()}`
+    let idx = lower.indexOf(search)
+    while (idx !== -1) {
+      const end = idx + search.length
+      if (cursorPos === end) return { start: idx, end }
+      idx = lower.indexOf(search, idx + 1)
+    }
+  }
+  return null
+}
+
 const handleInput = (e: Event) => {
   const val = (e.target as HTMLTextAreaElement).value
   emit('update:modelValue', val)
@@ -198,6 +212,22 @@ function applySuggestion(item: SuggestionItem) {
 }
 
 const handleKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Backspace' && inputRef.value) {
+    const pos = inputRef.value.selectionStart ?? 0
+    if (pos > 0 && pos === (inputRef.value.selectionEnd ?? pos)) {
+      const ref = findToolRefAt(props.modelValue, pos, props.tools)
+      if (ref) {
+        e.preventDefault()
+        const newVal = props.modelValue.slice(0, ref.start) + props.modelValue.slice(ref.end)
+        emit('update:modelValue', newVal)
+        nextTick(() => {
+          if (inputRef.value) inputRef.value.setSelectionRange(ref.start, ref.start)
+        })
+        return
+      }
+    }
+  }
+
   if (showSuggestions.value && suggestions.value.length > 0) {
     if (e.key === 'ArrowDown') {
       e.preventDefault()
