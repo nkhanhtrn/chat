@@ -402,7 +402,7 @@ defineExpose({ inputRef, resetHeight })
   line-height: 1.5;
   white-space: pre-wrap;
   word-wrap: break-word;
-  color: transparent;
+  color: var(--color-text-base);
   pointer-events: none;
   overflow: hidden;
 }
@@ -430,7 +430,7 @@ textarea {
   min-height: 24px;
   overflow-y: auto;
   background-color: transparent;
-  color: var(--color-text-base);
+  color: transparent;
   line-height: 1.5;
   box-sizing: border-box;
   position: relative;
