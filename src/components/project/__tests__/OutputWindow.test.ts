@@ -29,15 +29,29 @@ function createWindow(overrides: Partial<ProjectWindow> = {}): ProjectWindow {
 }
 
 function mountComponent(overrides: Partial<ProjectWindow> = {}) {
+  const el = document.createElement('div')
+  document.body.appendChild(el)
   return mount(OutputWindow, {
     props: {
       window: createWindow(overrides),
     },
+    attachTo: el,
   })
 }
 
-describe('OutputWindow editor line numbers', () => {
-  it('renders line numbers when editing code', async () => {
+describe('OutputWindow', () => {
+  it('renders CodeDisplay when viewing code', async () => {
+    const wrapper = mountComponent()
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('[title="View code"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.code-display').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('shows CodeEditor when editing code', async () => {
     const wrapper = mountComponent()
     await wrapper.vm.$nextTick()
 
@@ -47,33 +61,12 @@ describe('OutputWindow editor line numbers', () => {
     await wrapper.find('[title="Edit code"]').trigger('click')
     await wrapper.vm.$nextTick()
 
-    const lineNums = wrapper.findAll('.editor-body .line-num')
-    expect(lineNums.length).toBeGreaterThanOrEqual(1)
-    expect(lineNums[0].text()).toBe('1')
+    expect(wrapper.find('.code-editor').exists()).toBe(true)
+    expect(wrapper.find('.cm-editor').exists()).toBe(true)
+    wrapper.unmount()
   })
 
-  it('updates line numbers as user types', async () => {
-    const wrapper = mountComponent({ code: 'a' })
-    await wrapper.vm.$nextTick()
-
-    await wrapper.find('[title="View code"]').trigger('click')
-    await wrapper.vm.$nextTick()
-
-    await wrapper.find('[title="Edit code"]').trigger('click')
-    await wrapper.vm.$nextTick()
-
-    const textarea = wrapper.find('.editor-textarea')
-    await textarea.setValue('line1\nline2\nline3')
-    await wrapper.vm.$nextTick()
-
-    const lineNums = wrapper.findAll('.editor-body .line-num')
-    expect(lineNums).toHaveLength(3)
-    expect(lineNums[0].text()).toBe('1')
-    expect(lineNums[1].text()).toBe('2')
-    expect(lineNums[2].text()).toBe('3')
-  })
-
-  it('syncs line numbers scroll with textarea scroll', async () => {
+  it('shows save and cancel buttons when editing', async () => {
     const wrapper = mountComponent()
     await wrapper.vm.$nextTick()
 
@@ -83,19 +76,12 @@ describe('OutputWindow editor line numbers', () => {
     await wrapper.find('[title="Edit code"]').trigger('click')
     await wrapper.vm.$nextTick()
 
-    const textarea = wrapper.find<HTMLTextAreaElement>('.editor-textarea')
-    const lineNumsEl = wrapper.find<HTMLElement>('.editor-body .line-numbers')
-
-    expect(lineNumsEl.exists()).toBe(true)
-    expect(textarea.exists()).toBe(true)
-
-    Object.defineProperty(textarea.element, 'scrollTop', { value: 42, writable: true })
-    await textarea.trigger('scroll')
-
-    expect(lineNumsEl.element.scrollTop).toBe(42)
+    expect(wrapper.find('[title="Save & re-render"]').exists()).toBe(true)
+    expect(wrapper.find('[title="Cancel"]').exists()).toBe(true)
+    wrapper.unmount()
   })
 
-  it('focuses textarea when clicking line numbers gutter', async () => {
+  it('emits update:code when saving edit', async () => {
     const wrapper = mountComponent()
     await wrapper.vm.$nextTick()
 
@@ -105,11 +91,34 @@ describe('OutputWindow editor line numbers', () => {
     await wrapper.find('[title="Edit code"]').trigger('click')
     await wrapper.vm.$nextTick()
 
-    const textarea = wrapper.find<HTMLTextAreaElement>('.editor-textarea')
-    const focusSpy = vi.spyOn(textarea.element, 'focus')
+    await wrapper.find('[title="Save & re-render"]').trigger('click')
 
-    await wrapper.find('.editor-body .line-numbers').trigger('click')
+    expect(wrapper.emitted('update:code')).toBeTruthy()
+    wrapper.unmount()
+  })
 
-    expect(focusSpy).toHaveBeenCalled()
+  it('cancels edit and clears draft', async () => {
+    const wrapper = mountComponent()
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('[title="View code"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('[title="Edit code"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('[title="Cancel"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.code-editor').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('shows live preview when not viewing code', async () => {
+    const wrapper = mountComponent()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.tool-mount').exists()).toBe(true)
+    wrapper.unmount()
   })
 })
