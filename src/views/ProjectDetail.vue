@@ -214,6 +214,17 @@ watch(() => [route.params.id, route.params.subId] as const, () => {
   initFromRoute()
 })
 
+function showFeedback(msg: string) {
+  commandFeedback.value = msg
+  setTimeout(() => { commandFeedback.value = '' }, 3000)
+}
+
+function resolveTargetTool() {
+  return targetToolId.value
+    ? openTools.value.find(t => t.id === targetToolId.value) ?? null
+    : null
+}
+
 async function handleSend() {
   if (chat.isStreaming.value) return
   const snippets = messageInputRef.value?.consumeSnippets?.() ?? ''
@@ -224,30 +235,17 @@ async function handleSend() {
 
   const result = await handleCommand(text.trim(), cmdCtx)
   if (result) {
-    if (result.type === 'handled') {
-      if (result.feedback) {
-        commandFeedback.value = result.feedback
-        setTimeout(() => { commandFeedback.value = '' }, 3000)
-      }
-    } else if (result.type === 'message') {
-      const targetTool = targetToolId.value
-        ? openTools.value.find(t => t.id === targetToolId.value)
-        : null
-      await chat.sendMessage(result.text, targetTool ?? null)
-    } else if (result.type === 'search') {
+    if (result.type === 'handled' && result.feedback) showFeedback(result.feedback)
+    else if (result.type === 'error') showFeedback(result.message)
+    else if (result.type === 'message') await chat.sendMessage(result.text, resolveTargetTool())
+    else if (result.type === 'search') {
       try {
         let results = await searchWeb(result.query)
         results = await fetchResultContent(results)
         const webResults = results.map(r => ({ title: r.title, url: r.url, snippet: r.snippet }))
-        const prompt = formatSearchResultsForPrompt(results) + `\n\nRespond to the user's query using these search results.`
+        const prompt = formatSearchResultsForPrompt(results) + '\n\nRespond to the user\'s query using these search results.'
         await chat.sendMessage(`/search ${result.query}`, null, { query: result.query, results: webResults, prompt })
-      } catch (err: any) {
-        commandFeedback.value = `Search failed: ${err.message}`
-        setTimeout(() => { commandFeedback.value = '' }, 3000)
-      }
-    } else if (result.type === 'error') {
-      commandFeedback.value = result.message
-      setTimeout(() => { commandFeedback.value = '' }, 3000)
+      } catch (err: any) { showFeedback(`Search failed: ${err.message}`) }
     }
     return
   }
@@ -272,10 +270,7 @@ async function handleSend() {
     messageText = `${messageText}\n\n[Referenced tools]:\n${toolDataContext}`
   }
 
-  const targetTool = targetToolId.value
-    ? openTools.value.find(t => t.id === targetToolId.value)
-    : null
-  await chat.sendMessage(messageText, targetTool ?? null)
+  await chat.sendMessage(messageText, resolveTargetTool())
 }
 
 function handleStop() {
