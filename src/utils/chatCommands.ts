@@ -221,4 +221,42 @@ export function stripToolRefs(text: string, tools: ToolRef[]): string {
   return result.replace(/\s+/g, ' ').trim()
 }
 
+export interface ToolDataResolver {
+  getCode: (toolId: string) => string | undefined
+  getData: (toolId: string) => Record<string, unknown>
+}
+
+export interface ResolveToolResult {
+  displayText: string
+  promptText: string
+  toolNames: string[]
+}
+
+export function resolveToolMessage(
+  text: string,
+  tools: ToolRef[],
+  resolver: ToolDataResolver,
+): ResolveToolResult {
+  const refs = extractToolRefs(text, tools)
+  if (refs.length === 0) {
+    return { displayText: text, promptText: text, toolNames: [] }
+  }
+
+  const displayText = stripToolRefs(text, refs)
+  const toolNames = refs.map(r => r.title)
+  const parts = refs.map(ref => {
+    const code = resolver.getCode(ref.id)
+    if (!code) return ''
+    const data = resolver.getData(ref.id)
+    const dataStr = Object.keys(data).length > 0 ? `\nData: ${JSON.stringify(data, null, 2)}` : ''
+    return `Tool "${ref.title}" code:\n\`\`\`\n${code}\n\`\`\`${dataStr}`
+  }).filter(Boolean)
+
+  const promptText = parts.length > 0
+    ? `${displayText}\n\n[Referenced tools]:\n${parts.join('\n\n')}`
+    : displayText
+
+  return { displayText, promptText, toolNames }
+}
+
 export { COMMANDS }

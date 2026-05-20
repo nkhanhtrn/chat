@@ -28,6 +28,7 @@ export interface ProjectMessage {
   isError?: boolean
   webSearchResults?: WebSearchResult[]
   targetToolName?: string
+  toolRefs?: string[]
 }
 
 export type WindowDisplayState = 'open' | 'minimized' | 'closed'

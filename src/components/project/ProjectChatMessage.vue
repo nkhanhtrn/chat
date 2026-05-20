@@ -3,6 +3,9 @@
     <div class="message-role">
       {{ msg.role === 'user' ? 'You' : 'AI' }}
       <span v-if="msg.role === 'user' && msg.targetToolName" class="target-badge">{{ msg.targetToolName }}</span>
+      <template v-if="msg.role === 'user' && msg.toolRefs?.length">
+        <span v-for="name in msg.toolRefs" :key="name" class="tool-ref-badge">{{ name }}</span>
+      </template>
       <button
         v-if="msg.role === 'user' && !isStreaming && isLastUserMessage"
         class="retry-icon-btn"
@@ -158,4 +161,8 @@ function faviconUrl(url: string): string {
 .source-fallback-small { width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: 600; color: var(--color-text-muted); flex-shrink: 0; border-radius: 2px; background: var(--color-bg-elevated); }
 .source-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; color: var(--color-text-base); }
 .source-domain { color: var(--color-text-muted); font-size: 0.65rem; flex-shrink: 0; }
+
+.target-badge, .tool-ref-badge { display: inline-block; padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.6rem; font-weight: 600; font-family: system-ui, sans-serif; margin-left: 0.3rem; vertical-align: middle; }
+.target-badge { background: var(--color-primary-subtle, color-mix(in srgb, var(--color-primary) 15%, transparent)); color: var(--color-primary); }
+.tool-ref-badge { background: var(--color-bg-hover); color: var(--color-text-muted); border: 1px solid var(--color-border-subtle); }
 </style>

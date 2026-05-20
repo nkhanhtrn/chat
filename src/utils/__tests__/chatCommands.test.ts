@@ -5,9 +5,11 @@ import {
   matchAll,
   extractToolRefs,
   stripToolRefs,
+  resolveToolMessage,
   COMMANDS,
   type CommandContext,
   type ToolRef,
+  type ToolDataResolver,
 } from '../chatCommands'
 
 const mockCtx: CommandContext = {
@@ -282,5 +284,59 @@ describe('stripToolRefs', () => {
 
   it('collapses whitespace', () => {
     expect(stripToolRefs('fix /Chart  now', tools)).toBe('fix now')
+  })
+})
+
+describe('resolveToolMessage', () => {
+  const tools: ToolRef[] = [
+    { id: '1', title: 'Chart' },
+    { id: '2', title: 'Counter' },
+  ]
+
+  const resolver: ToolDataResolver = {
+    getCode: (id) => id === '1' ? '<template>chart</template>' : id === '2' ? '<template>counter</template>' : undefined,
+    getData: (id) => id === '1' ? { count: 5 } : {},
+  }
+
+  it('returns original text when no tool refs', () => {
+    const r = resolveToolMessage('hello world', tools, resolver)
+    expect(r.displayText).toBe('hello world')
+    expect(r.promptText).toBe('hello world')
+    expect(r.toolNames).toEqual([])
+  })
+
+  it('injects tool code and data into promptText', () => {
+    const r = resolveToolMessage('fix the /Chart', tools, resolver)
+    expect(r.promptText).toContain('[Referenced tools]')
+    expect(r.promptText).toContain('Tool "Chart"')
+    expect(r.promptText).toContain('<template>chart</template>')
+    expect(r.promptText).toContain('"count": 5')
+  })
+
+  it('strips the tool ref from displayText', () => {
+    const r = resolveToolMessage('fix the /Chart', tools, resolver)
+    expect(r.displayText).toBe('fix the')
+  })
+
+  it('returns tool names', () => {
+    const r = resolveToolMessage('fix /Chart and /Counter', tools, resolver)
+    expect(r.toolNames).toEqual(['Chart', 'Counter'])
+  })
+
+  it('handles multiple tool refs in promptText', () => {
+    const r = resolveToolMessage('fix /Chart and /Counter', tools, resolver)
+    expect(r.promptText).toContain('Tool "Chart"')
+    expect(r.promptText).toContain('Tool "Counter"')
+  })
+
+  it('strips ref from displayText even when tools have no code', () => {
+    const noCodeResolver: ToolDataResolver = {
+      getCode: () => undefined,
+      getData: () => ({}),
+    }
+    const r = resolveToolMessage('fix /Chart', tools, noCodeResolver)
+    expect(r.displayText).toBe('fix')
+    expect(r.promptText).toBe('fix')
+    expect(r.toolNames).toEqual(['Chart'])
   })
 })

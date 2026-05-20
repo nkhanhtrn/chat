@@ -107,7 +107,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import { useGlobalToolStore } from '@/stores/globalTool'
 import { useProjectChat } from '@/composables/useProjectChat'
-import { handleCommand, extractToolRefs, stripToolRefs, type CommandContext, type CommandResult, type ToolRef } from '@/utils/chatCommands'
+import { handleCommand, resolveToolMessage, type CommandContext, type CommandResult, type ToolRef, type ToolDataResolver } from '@/utils/chatCommands'
 import { getToolState } from '@/services/builder/toolData'
 import { searchWeb, fetchResultContent, formatSearchResultsForPrompt } from '@/services/builder/webSearch'
 import AppLayout from '@/components/AppLayout.vue'
@@ -245,6 +245,17 @@ async function handleSend() {
   inputText.value = ''
   messageInputRef.value?.resetHeight()
 
+  const toolResolver: ToolDataResolver = {
+    getCode: (id) => openTools.value.find(w => w.id === id)?.code,
+    getData: (id) => getToolState(dk.value, id),
+  }
+
+  const resolved = resolveToolMessage(text, toolRefs.value, toolResolver)
+  if (resolved.toolNames.length > 0) {
+    await chat.sendMessage(resolved.displayText, resolveTargetTool(), undefined, resolved.toolNames, resolved.promptText)
+    return
+  }
+
   const result = await handleCommand(text.trim(), cmdCtx)
   if (result) {
     if (result.type === 'handled' && result.feedback) showFeedback(result.feedback)
@@ -253,27 +264,7 @@ async function handleSend() {
     return
   }
 
-  const refs = extractToolRefs(text, toolRefs.value)
-  let messageText = text
-  let toolDataContext = ''
-
-  if (refs.length > 0) {
-    messageText = stripToolRefs(text, refs)
-    const parts = refs.map(ref => {
-      const win = openTools.value.find(w => w.id === ref.id)
-      if (!win) return ''
-      const toolData = getToolState(dk.value, win.id)
-      const dataStr = Object.keys(toolData).length > 0 ? `\nData: ${JSON.stringify(toolData, null, 2)}` : ''
-      return `Tool "${ref.title}" code:\n\`\`\`\n${win.code}\n\`\`\`${dataStr}`
-    }).filter(Boolean)
-    toolDataContext = parts.join('\n\n')
-  }
-
-  if (toolDataContext) {
-    messageText = `${messageText}\n\n[Referenced tools]:\n${toolDataContext}`
-  }
-
-  await chat.sendMessage(messageText, resolveTargetTool())
+  await chat.sendMessage(text, resolveTargetTool())
 }
 
 function handleStop() {
