@@ -10,12 +10,12 @@ export interface ChatCommand {
 export type CommandResult =
   | { type: 'handled'; feedback?: string }
   | { type: 'message'; text: string }
-  | { type: 'search'; query: string }
   | { type: 'error'; message: string }
 
 export interface CommandContext {
   clearChat: () => void
   compactChat?: () => Promise<void>
+  searchWeb?: (query: string) => Promise<CommandResult>
 }
 
 export interface ParsedCommand {
@@ -107,10 +107,11 @@ const COMMANDS: ChatCommand[] = [
     description: 'Search the web and answer with results',
     usage: '/search <query>',
     requiresArgs: true,
-    execute(args) {
+    async execute(args, ctx) {
       const query = args.trim()
       if (!query) return { type: 'error', message: 'Usage: /search <query>' }
-      return { type: 'search', query }
+      if (!ctx.searchWeb) return { type: 'error', message: 'Web search is only available in project chat.' }
+      return ctx.searchWeb(query)
     },
   },
 ]

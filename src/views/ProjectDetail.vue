@@ -107,7 +107,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import { useGlobalToolStore } from '@/stores/globalTool'
 import { useProjectChat } from '@/composables/useProjectChat'
-import { handleCommand, extractToolRefs, stripToolRefs, type CommandContext, type ToolRef } from '@/utils/chatCommands'
+import { handleCommand, extractToolRefs, stripToolRefs, type CommandContext, type CommandResult, type ToolRef } from '@/utils/chatCommands'
 import { getToolState } from '@/services/builder/toolData'
 import { searchWeb, fetchResultContent, formatSearchResultsForPrompt } from '@/services/builder/webSearch'
 import AppLayout from '@/components/AppLayout.vue'
@@ -172,6 +172,18 @@ const appLayoutRef = ref<InstanceType<typeof AppLayout> | null>(null)
 const cmdCtx: CommandContext = {
   clearChat: () => chat.clearChat(),
   compactChat: () => chat.compactChat(),
+  async searchWeb(query): Promise<CommandResult> {
+    try {
+      let results = await searchWeb(query)
+      results = await fetchResultContent(results)
+      const webResults = results.map(r => ({ title: r.title, url: r.url, snippet: r.snippet }))
+      const prompt = formatSearchResultsForPrompt(results) + '\n\nRespond to the user\'s query using these search results.'
+      await chat.sendMessage(`/search ${query}`, null, { query, results: webResults, prompt })
+      return { type: 'handled' }
+    } catch (err: any) {
+      return { type: 'error', message: `Search failed: ${err.message}` }
+    }
+  },
 }
 
 const openTools = computed(() =>
@@ -238,15 +250,6 @@ async function handleSend() {
     if (result.type === 'handled' && result.feedback) showFeedback(result.feedback)
     else if (result.type === 'error') showFeedback(result.message)
     else if (result.type === 'message') await chat.sendMessage(result.text, resolveTargetTool())
-    else if (result.type === 'search') {
-      try {
-        let results = await searchWeb(result.query)
-        results = await fetchResultContent(results)
-        const webResults = results.map(r => ({ title: r.title, url: r.url, snippet: r.snippet }))
-        const prompt = formatSearchResultsForPrompt(results) + '\n\nRespond to the user\'s query using these search results.'
-        await chat.sendMessage(`/search ${result.query}`, null, { query: result.query, results: webResults, prompt })
-      } catch (err: any) { showFeedback(`Search failed: ${err.message}`) }
-    }
     return
   }
 

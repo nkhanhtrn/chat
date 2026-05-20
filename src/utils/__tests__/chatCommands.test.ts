@@ -120,20 +120,31 @@ describe('handleCommand', () => {
   })
 
   describe('/search', () => {
-    it('returns search result with query', async () => {
-      const result = await handleCommand('/search latest Vue.js features', mockCtx)
-      expect(result).toEqual({ type: 'search', query: 'latest Vue.js features' })
+    it('delegates to ctx.searchWeb', async () => {
+      const searchFn = vi.fn().mockResolvedValue({ type: 'handled' })
+      const ctx: CommandContext = { clearChat: vi.fn(), searchWeb: searchFn }
+      const result = await handleCommand('/search latest Vue.js features', ctx)
+      expect(result?.type).toBe('handled')
+      expect(searchFn).toHaveBeenCalledWith('latest Vue.js features')
     })
 
     it('works with alias /web', async () => {
-      const result = await handleCommand('/web react vs vue', mockCtx)
-      expect(result).toEqual({ type: 'search', query: 'react vs vue' })
+      const searchFn = vi.fn().mockResolvedValue({ type: 'handled' })
+      const ctx: CommandContext = { clearChat: vi.fn(), searchWeb: searchFn }
+      const result = await handleCommand('/web react vs vue', ctx)
+      expect(searchFn).toHaveBeenCalledWith('react vs vue')
     })
 
     it('returns error without query', async () => {
       const result = await handleCommand('/search', mockCtx)
       expect(result?.type).toBe('error')
       expect((result as { message: string }).message).toContain('Usage: /search <query>')
+    })
+
+    it('returns error when searchWeb is not available', async () => {
+      const result = await handleCommand('/search something', mockCtx)
+      expect(result?.type).toBe('error')
+      expect((result as { message: string }).message).toContain('only available in project chat')
     })
   })
 })

@@ -87,16 +87,11 @@ const handleSend = async () => {
 
   const result = await handleCommand(text.trim(), cmdCtx)
   if (result) {
-    if (result.type === 'handled') {
-      if (result.feedback) {
-        commandFeedback.value = result.feedback
-        setTimeout(() => { commandFeedback.value = '' }, 3000)
-      }
+    if (result.type === 'handled' && result.feedback) {
+      commandFeedback.value = result.feedback
+      setTimeout(() => { commandFeedback.value = '' }, 3000)
     } else if (result.type === 'message') {
       await store.sendMessage(result.text)
-    } else if (result.type === 'search') {
-      commandFeedback.value = 'Web search is only available in project chat.'
-      setTimeout(() => { commandFeedback.value = '' }, 3000)
     } else if (result.type === 'error') {
       commandFeedback.value = result.message
       setTimeout(() => { commandFeedback.value = '' }, 3000)
