@@ -27,6 +27,7 @@
       </div>
 
       <div v-if="store.error" class="error-msg">{{ store.error }}</div>
+      <div v-if="commandFeedback" class="command-feedback">{{ commandFeedback }}</div>
     </div>
 
     <ExpandableInput
@@ -56,12 +57,14 @@
 <script setup lang="ts">
 import { ref, nextTick, watch } from 'vue'
 import { useSideChatStore } from '@/stores/sideChat'
+import { handleCommand, type CommandContext } from '@/utils/chatCommands'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import ExpandableInput from './ExpandableInput.vue'
 
 const store = useSideChatStore()
 
 const inputText = ref('')
+const commandFeedback = ref('')
 const messagesContainer = ref<HTMLElement | null>(null)
 
 const scrollToBottom = () => {
@@ -72,11 +75,33 @@ const scrollToBottom = () => {
   })
 }
 
+const cmdCtx: CommandContext = {
+  clearChat: () => store.clearChat(),
+}
+
 const handleSend = async () => {
   const text = inputText.value
   if (!text.trim() || store.isStreaming) return
 
   inputText.value = ''
+
+  const result = await handleCommand(text.trim(), cmdCtx)
+  if (result) {
+    if (result.type === 'handled') {
+      if (result.feedback) {
+        commandFeedback.value = result.feedback
+        setTimeout(() => { commandFeedback.value = '' }, 3000)
+      }
+    } else if (result.type === 'message') {
+      await store.sendMessage(result.text)
+    } else if (result.type === 'error') {
+      commandFeedback.value = result.message
+      setTimeout(() => { commandFeedback.value = '' }, 3000)
+    }
+    scrollToBottom()
+    return
+  }
+
   await store.sendMessage(text)
   scrollToBottom()
 }
@@ -191,6 +216,18 @@ watch(() => store.messages.length, () => scrollToBottom())
   font-size: 0.85rem;
   margin-bottom: 0.75rem;
   border-left: 3px solid var(--color-error-border);
+}
+
+.command-feedback {
+  background: var(--color-bg-hover);
+  color: var(--color-text-base);
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+  border-left: 3px solid var(--color-primary);
+  white-space: pre-wrap;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
 }
 
 .action-btn {

@@ -45,11 +45,13 @@
               :selectedId="targetToolId"
               @update:selectedId="targetToolId = $event"
             />
+            <div v-if="commandFeedback" class="command-feedback">{{ commandFeedback }}</div>
             <MessageInput
               ref="messageInputRef"
               v-model="inputText"
               :is-streaming="chat.isStreaming.value"
               :messages-empty="projectStore.currentMessages.length === 0"
+              :tools="toolRefs"
               @send="handleSend"
               @stop="handleStop"
               @clear="handleClear"
@@ -105,6 +107,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import { useGlobalToolStore } from '@/stores/globalTool'
 import { useProjectChat } from '@/composables/useProjectChat'
+import { handleCommand, extractToolRefs, stripToolRefs, type CommandContext, type ToolRef } from '@/utils/chatCommands'
+import { getToolState } from '@/services/builder/toolData'
 import AppLayout from '@/components/AppLayout.vue'
 import SlideTransition from '@/components/SlideTransition.vue'
 import ProjectHeader from '@/components/project/ProjectHeader.vue'
@@ -159,12 +163,22 @@ const inputText = ref('')
 const sideTab = ref<'project' | 'chat'>('project')
 const scratchpadOpen = ref(false)
 const targetToolId = ref<string | null>(null)
+const commandFeedback = ref('')
 const messageListRef = ref<InstanceType<typeof MessageList> | null>(null)
 const messageInputRef = ref<InstanceType<typeof MessageInput> | null>(null)
 const appLayoutRef = ref<InstanceType<typeof AppLayout> | null>(null)
 
+const cmdCtx: CommandContext = {
+  clearChat: () => chat.clearChat(),
+  compactChat: () => chat.compactChat(),
+}
+
 const openTools = computed(() =>
   projectStore.activeWindows.filter(w => w.type === 'tool' && w.code)
+)
+
+const toolRefs = computed<ToolRef[]>(() =>
+  openTools.value.map(t => ({ id: t.id, title: t.title }))
 )
 
 watch(openTools, (tools, oldTools) => {
@@ -206,10 +220,50 @@ async function handleSend() {
   if (!text) return
   inputText.value = ''
   messageInputRef.value?.resetHeight()
+
+  const result = await handleCommand(text.trim(), cmdCtx)
+  if (result) {
+    if (result.type === 'handled') {
+      if (result.feedback) {
+        commandFeedback.value = result.feedback
+        setTimeout(() => { commandFeedback.value = '' }, 3000)
+      }
+    } else if (result.type === 'message') {
+      const targetTool = targetToolId.value
+        ? openTools.value.find(t => t.id === targetToolId.value)
+        : null
+      await chat.sendMessage(result.text, targetTool ?? null)
+    } else if (result.type === 'error') {
+      commandFeedback.value = result.message
+      setTimeout(() => { commandFeedback.value = '' }, 3000)
+    }
+    return
+  }
+
+  const refs = extractToolRefs(text, toolRefs.value)
+  let messageText = text
+  let toolDataContext = ''
+
+  if (refs.length > 0) {
+    messageText = stripToolRefs(text, refs)
+    const parts = refs.map(ref => {
+      const win = openTools.value.find(w => w.id === ref.id)
+      if (!win) return ''
+      const toolData = getToolState(dk.value, win.id)
+      const dataStr = Object.keys(toolData).length > 0 ? `\nData: ${JSON.stringify(toolData, null, 2)}` : ''
+      return `Tool "${ref.title}" code:\n\`\`\`\n${win.code}\n\`\`\`${dataStr}`
+    }).filter(Boolean)
+    toolDataContext = parts.join('\n\n')
+  }
+
+  if (toolDataContext) {
+    messageText = `${messageText}\n\n[Referenced tools]:\n${toolDataContext}`
+  }
+
   const targetTool = targetToolId.value
     ? openTools.value.find(t => t.id === targetToolId.value)
     : null
-  await chat.sendMessage(text, targetTool ?? null)
+  await chat.sendMessage(messageText, targetTool ?? null)
 }
 
 function handleStop() {
@@ -410,6 +464,18 @@ function handlePromoteTool(win: ProjectWindow) {
   flex-direction: column;
   padding: 0 1rem 0.5rem 1rem;
   background: var(--color-bg-base);
+}
+
+.command-feedback {
+  background: var(--color-bg-hover);
+  color: var(--color-text-base);
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  margin-bottom: 0.35rem;
+  border-left: 3px solid var(--color-primary);
+  white-space: pre-wrap;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
 }
 
 .side-tab-content {
