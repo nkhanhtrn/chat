@@ -118,6 +118,24 @@ describe('handleCommand', () => {
       expect((result as { text: string }).text).toContain('the button is broken')
     })
   })
+
+  describe('/search', () => {
+    it('returns search result with query', async () => {
+      const result = await handleCommand('/search latest Vue.js features', mockCtx)
+      expect(result).toEqual({ type: 'search', query: 'latest Vue.js features' })
+    })
+
+    it('works with alias /web', async () => {
+      const result = await handleCommand('/web react vs vue', mockCtx)
+      expect(result).toEqual({ type: 'search', query: 'react vs vue' })
+    })
+
+    it('returns error without query', async () => {
+      const result = await handleCommand('/search', mockCtx)
+      expect(result?.type).toBe('error')
+      expect((result as { message: string }).message).toContain('Usage: /search <query>')
+    })
+  })
 })
 
 describe('matchAll', () => {

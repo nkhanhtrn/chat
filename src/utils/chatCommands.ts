@@ -10,6 +10,7 @@ export interface ChatCommand {
 export type CommandResult =
   | { type: 'handled'; feedback?: string }
   | { type: 'message'; text: string }
+  | { type: 'search'; query: string }
   | { type: 'error'; message: string }
 
 export interface CommandContext {
@@ -98,6 +99,18 @@ const COMMANDS: ChatCommand[] = [
         ? `There is an issue with your previous response: ${args.trim()}. Please fix it and provide the corrected version.`
         : 'Review your previous response for any errors, inconsistencies, or issues, and provide a corrected version.'
       return { type: 'message', text: prompt }
+    },
+  },
+  {
+    name: 'search',
+    aliases: ['web'],
+    description: 'Search the web and answer with results',
+    usage: '/search <query>',
+    requiresArgs: true,
+    execute(args) {
+      const query = args.trim()
+      if (!query) return { type: 'error', message: 'Usage: /search <query>' }
+      return { type: 'search', query }
     },
   },
 ]

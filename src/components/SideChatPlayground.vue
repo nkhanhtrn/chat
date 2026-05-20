@@ -94,6 +94,9 @@ const handleSend = async () => {
       }
     } else if (result.type === 'message') {
       await store.sendMessage(result.text)
+    } else if (result.type === 'search') {
+      commandFeedback.value = 'Web search is only available in project chat.'
+      setTimeout(() => { commandFeedback.value = '' }, 3000)
     } else if (result.type === 'error') {
       commandFeedback.value = result.message
       setTimeout(() => { commandFeedback.value = '' }, 3000)
