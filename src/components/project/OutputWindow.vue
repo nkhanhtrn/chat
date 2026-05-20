@@ -71,12 +71,7 @@
               </svg>
             </button>
           </div>
-          <div class="editor-body">
-            <div class="line-numbers" ref="editorLineNumbers" @click="focusTextarea">
-              <div v-for="(_, i) in editorLines" :key="i" class="line-num">{{ i + 1 }}</div>
-            </div>
-            <textarea ref="editorTextarea" v-model="editDraft" class="editor-textarea" spellcheck="false" @scroll="syncEditorScroll"></textarea>
-          </div>
+          <CodeEditor v-model="editDraft" language="vue" />
         </div>
         <div v-else :data-tool-scope="scopeId" class="tool-mount">
           <component :is="compiledComponent" v-if="compiledComponent" />
@@ -101,6 +96,7 @@
 import { computed, ref, onMounted, onUnmounted, watch, onErrorCaptured } from 'vue'
 import InlineEdit from '@/components/InlineEdit.vue'
 import CodeDisplay from './CodeDisplay.vue'
+import CodeEditor from './CodeEditor.vue'
 import { useDynamicCompiler } from '@/composables/useDynamicCompiler'
 import type { ProjectWindow } from '@/types/project'
 
@@ -125,20 +121,6 @@ const emit = defineEmits<{
 const showCode = ref(false)
 const editingCode = ref(false)
 const editDraft = ref('')
-const editorLineNumbers = ref<HTMLElement | null>(null)
-const editorTextarea = ref<HTMLTextAreaElement | null>(null)
-
-const editorLines = computed(() => (editDraft.value || '').split('\n'))
-
-function syncEditorScroll() {
-  if (editorLineNumbers.value && editorTextarea.value) {
-    editorLineNumbers.value.scrollTop = editorTextarea.value.scrollTop
-  }
-}
-
-function focusTextarea() {
-  editorTextarea.value?.focus()
-}
 
 function toggleCodeView() {
   showCode.value = !showCode.value

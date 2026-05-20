@@ -3,6 +3,12 @@
     <div class="code-header">
       <span class="language-badge">{{ language }}</span>
       <div class="code-actions">
+        <button class="copy-btn" @click="handleSearch" title="Search (Ctrl+F)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </button>
         <button class="copy-btn" @click="$emit('edit')" title="Edit code">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -20,26 +26,28 @@
         </button>
       </div>
     </div>
-    <div class="code-block">
-      <div v-for="(line, i) in lines" :key="i" class="code-line">
-        <span class="line-num">{{ i + 1 }}</span>
-        <span class="line-text">{{ line }}</span>
-      </div>
-    </div>
+    <CodeEditor ref="editorRef" :model-value="content" read-only :language="resolvedLanguage" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import CodeEditor from './CodeEditor.vue'
 
 const props = defineProps<{
   content: string
   language?: string
 }>()
 
-const lines = computed(() => (props.content || '').split('\n'))
+const resolvedLanguage = computed(() => {
+  if (props.language === 'html') return 'html' as const
+  if (props.language === 'css') return 'css' as const
+  if (props.language === 'javascript') return 'javascript' as const
+  return 'vue' as const
+})
 
 const copied = ref(false)
+const editorRef = ref<InstanceType<typeof CodeEditor> | null>(null)
 
 const emit = defineEmits<{
   edit: []
@@ -54,17 +62,17 @@ async function copyCode() {
     // noop
   }
 }
+
+function handleSearch() {
+  editorRef.value?.openSearch()
+}
 </script>
 
 <style scoped>
 .code-display { height: 100%; display: flex; flex-direction: column; background: var(--color-bg-base); }
-.code-header { display: flex; align-items: center; justify-content: space-between; padding: 0.35rem 0.6rem; background: var(--color-bg-page); border-bottom: 1px solid var(--color-border-subtle); }
+.code-header { display: flex; align-items: center; justify-content: space-between; padding: 0.35rem 0.6rem; background: var(--color-bg-page); border-bottom: 1px solid var(--color-border-subtle); flex-shrink: 0; }
 .code-actions { display: flex; gap: 0.15rem; }
 .language-badge { font-size: 0.65rem; font-family: system-ui, sans-serif; text-transform: uppercase; color: var(--color-text-muted); letter-spacing: 0.05em; }
 .copy-btn { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; background: none; border: none; color: var(--color-text-muted); cursor: pointer; }
 .copy-btn:hover { color: var(--color-text-base); }
-.code-block { flex: 1; margin: 0; overflow: auto; padding: 0.75rem 0; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 0.8rem; line-height: 1.5; color: var(--color-text-base); }
-.code-line { display: flex; padding-right: 0.75rem; }
-.line-num { flex-shrink: 0; width: 3.5em; padding-right: 0.75em; text-align: right; color: var(--color-text-muted); opacity: 0.45; user-select: none; font-variant-numeric: tabular-nums; }
-.line-text { flex: 1; white-space: pre-wrap; word-break: break-word; padding-left: 0.75rem; border-left: 1px solid var(--color-border-subtle); }
 </style>
