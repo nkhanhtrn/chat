@@ -109,6 +109,7 @@ import { useGlobalToolStore } from '@/stores/globalTool'
 import { useProjectChat } from '@/composables/useProjectChat'
 import { handleCommand, extractToolRefs, stripToolRefs, type CommandContext, type ToolRef } from '@/utils/chatCommands'
 import { getToolState } from '@/services/builder/toolData'
+import { searchWeb, fetchResultContent, formatSearchResultsForPrompt } from '@/services/builder/webSearch'
 import AppLayout from '@/components/AppLayout.vue'
 import SlideTransition from '@/components/SlideTransition.vue'
 import ProjectHeader from '@/components/project/ProjectHeader.vue'
@@ -234,7 +235,16 @@ async function handleSend() {
         : null
       await chat.sendMessage(result.text, targetTool ?? null)
     } else if (result.type === 'search') {
-      await chat.sendWithSearch(result.query)
+      try {
+        let results = await searchWeb(result.query)
+        results = await fetchResultContent(results)
+        const webResults = results.map(r => ({ title: r.title, url: r.url, snippet: r.snippet }))
+        const prompt = formatSearchResultsForPrompt(results) + `\n\nRespond to the user's query using these search results.`
+        await chat.sendMessage(`/search ${result.query}`, null, { query: result.query, results: webResults, prompt })
+      } catch (err: any) {
+        commandFeedback.value = `Search failed: ${err.message}`
+        setTimeout(() => { commandFeedback.value = '' }, 3000)
+      }
     } else if (result.type === 'error') {
       commandFeedback.value = result.message
       setTimeout(() => { commandFeedback.value = '' }, 3000)

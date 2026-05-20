@@ -11,8 +11,7 @@ const MAX_SEARCH_ROUNDS = 3
 
 export interface UseProjectChatReturn {
   isStreaming: ReturnType<typeof ref<boolean>>
-  sendMessage: (content: string, targetTool?: ProjectWindow | null) => Promise<void>
-  sendWithSearch: (query: string) => Promise<void>
+  sendMessage: (content: string, targetTool?: ProjectWindow | null, searchContext?: { query: string; results: WebSearchResult[]; prompt: string }) => Promise<void>
   stopStreaming: () => void
   editAndResend: (index: number, newContent: string) => Promise<void>
   compactChat: () => Promise<void>
@@ -88,7 +87,11 @@ export function useProjectChat(): UseProjectChatReturn {
     return stripThinking(fullContent)
   }
 
-  async function sendMessage(content: string, targetTool?: ProjectWindow | null): Promise<void> {
+  async function sendMessage(
+    content: string,
+    targetTool?: ProjectWindow | null,
+    searchContext?: { query: string; results: WebSearchResult[]; prompt: string },
+  ): Promise<void> {
     if (!content.trim() || isStreaming.value) return
 
     const userMessage: ProjectMessage = {
@@ -112,6 +115,10 @@ export function useProjectChat(): UseProjectChatReturn {
     abortController.value = new AbortController()
 
     try {
+      if (searchContext) {
+        updateAssistantMessageWithSearch(assistantMessage.id, `Searching: "${searchContext.query}"...`, searchContext.results)
+      }
+
       const sid = await ensureSession()
 
       let promptText: string
@@ -135,6 +142,7 @@ export function useProjectChat(): UseProjectChatReturn {
           parts.push(`TARGET TOOL: "${targetTool.title}" — current code:\n\n\`\`\`\n${targetTool.code}\n\`\`\`${dataStr}\n\nPrefer using @edit format for modifications (faster). Only output full code for major rewrites. Use marker: <!-- @tool: ${targetTool.title} -->`)
         }
         parts.push(content.trim())
+        if (searchContext) parts.push(searchContext.prompt)
         promptText = parts.join('\n\n')
       }
 
@@ -289,60 +297,6 @@ export function useProjectChat(): UseProjectChatReturn {
     updateAssistantMessage(assistantMessageId, `Built **${parsed.name}** ${parsed.emoji || ''}`)
   }
 
-  async function sendWithSearch(query: string): Promise<void> {
-    if (isStreaming.value || !query.trim()) return
-
-    const userMessage: ProjectMessage = {
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: `/search ${query.trim()}`,
-      timestamp: Date.now(),
-    }
-    projectStore.addMessage(dataKey.value, userMessage)
-
-    const assistantMessage: ProjectMessage = {
-      id: crypto.randomUUID(),
-      role: 'assistant',
-      content: '',
-      timestamp: Date.now(),
-    }
-    projectStore.addMessage(dataKey.value, assistantMessage)
-
-    isStreaming.value = true
-    abortController.value = new AbortController()
-
-    try {
-      updateAssistantMessage(assistantMessage.id, `Searching: "${query.trim()}"...`)
-
-      let results: SearchResult[]
-      try {
-        results = await searchWeb(query.trim())
-        results = await fetchResultContent(results)
-      } catch (err: any) {
-        updateAssistantMessage(assistantMessage.id, `Search failed: ${err.message}`)
-        return
-      }
-
-      const webResults: WebSearchResult[] = results.map(r => ({ title: r.title, url: r.url, snippet: r.snippet }))
-      updateAssistantMessageWithSearch(assistantMessage.id, '', webResults)
-
-      const sid = await ensureSession()
-      const searchPrompt = formatSearchResultsForPrompt(results) + `\n\nA user asked you to search for "${query.trim()}". Respond using these search results.`
-      const fullContent = await streamPrompt(sid, searchPrompt, assistantMessage.id, abortController.value.signal)
-
-      handleDataMarkers(fullContent, assistantMessage.id)
-      handleToolDetection(fullContent, assistantMessage.id)
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        updateAssistantMessage(assistantMessage.id, `Error: ${err.message || 'Failed to get response'}`, true)
-      }
-    } finally {
-      isStreaming.value = false
-      abortController.value = null
-      if (dataKey.value) projectStore.syncChatNow(dataKey.value)
-    }
-  }
-
   function stopStreaming(): void {
     abortController.value?.abort()
     isStreaming.value = false
@@ -394,7 +348,6 @@ export function useProjectChat(): UseProjectChatReturn {
   return {
     isStreaming,
     sendMessage,
-    sendWithSearch,
     stopStreaming,
     editAndResend,
     compactChat,
