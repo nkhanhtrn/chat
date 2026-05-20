@@ -164,7 +164,7 @@ const suggestions = computed(() => {
 })
 
 watch(suggestions, (v) => {
-  if (v.length !== suggestions.value.length || v.length === 0) activeIndex.value = 0
+  if (v.length === 0 || activeIndex.value >= v.length) activeIndex.value = 0
   showSuggestions.value = v.length > 0
 })
 
