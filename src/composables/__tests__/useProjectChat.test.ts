@@ -270,7 +270,7 @@ export default { data() { return { count: 99 } }, methods: { increment() { this.
     expect(win!.code).toContain('count: 99')
   })
 
-  it('creates new tool when @edit targets non-existent tool', async () => {
+  it('surfaces error when @edit targets non-existent tool', async () => {
     const NEW_TOOL_EDIT = `<!-- @tool: NewThing -->
 <!-- @edit -->
 <search>
@@ -285,6 +285,9 @@ new code
     await chat.sendMessage('make something')
 
     expect(store.currentWindows).toHaveLength(0)
+    const msgs = store.currentMessages
+    const last = msgs[msgs.length - 1]
+    expect(last.content).toContain('not found')
   })
 
   it('full code creates new tool when no existing match', async () => {

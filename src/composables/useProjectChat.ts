@@ -262,11 +262,18 @@ export function useProjectChat(): UseProjectChatReturn {
     if (edit) {
       const existing = findExistingTool(key, edit.name)
       if (existing && existing.code) {
-        const patched = applyToolEdits(existing.code, edit)
-        projectStore.updateWindow(key, existing.id, { code: patched })
-        updateAssistantMessage(assistantMessageId, `Edited **${edit.name}** ${edit.emoji || ''}`)
+        const result = applyToolEdits(existing.code, edit)
+        projectStore.updateWindow(key, existing.id, { code: result.code })
+        if (result.failed > 0) {
+          const summary = `Edited **${edit.name}** ${edit.emoji || ''} (${result.applied}/${result.applied + result.failed} patches applied)`
+          updateAssistantMessage(assistantMessageId, summary)
+        } else {
+          updateAssistantMessage(assistantMessageId, `Edited **${edit.name}** ${edit.emoji || ''}`)
+        }
         return
       }
+      updateAssistantMessage(assistantMessageId, `Could not edit **${edit.name}** — tool not found on canvas.`)
+      return
     }
 
     const parsed = parseToolFromResponse(responseContent)

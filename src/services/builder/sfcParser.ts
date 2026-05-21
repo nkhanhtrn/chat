@@ -38,12 +38,25 @@ export function parseToolEditFromResponse(response: string): ToolEdit | null {
   return { name: name || 'Tool', emoji, patches }
 }
 
-export function applyToolEdits(code: string, edits: ToolEdit): string {
+export interface EditResult {
+  code: string
+  applied: number
+  failed: number
+}
+
+export function applyToolEdits(code: string, edits: ToolEdit): EditResult {
   let result = code
+  let applied = 0
+  let failed = 0
   for (const { search, replace } of edits.patches) {
-    result = result.replace(search, replace)
+    if (result.includes(search)) {
+      result = result.replace(search, replace)
+      applied++
+    } else {
+      failed++
+    }
   }
-  return result
+  return { code: result, applied, failed }
 }
 
 export interface ParsedTool {

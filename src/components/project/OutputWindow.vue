@@ -102,6 +102,7 @@ import type { ProjectWindow } from '@/types/project'
 
 const props = defineProps<{
   window: ProjectWindow
+  topBoundary: number
 }>()
 
 const emit = defineEmits<{
@@ -168,6 +169,10 @@ onMounted(() => {
     compiler.compile(props.window.code)
   }
 
+  if (props.window.position.y < props.topBoundary) {
+    emit('update:position', { ...props.window.position, y: props.topBoundary })
+  }
+
   window.addEventListener('tool-data-updated', handleDataUpdate)
 })
 
@@ -199,7 +204,7 @@ function startDrag(e: MouseEvent) {
   function onMouseMove(e: MouseEvent) {
     emit('update:position', {
       x: startPos.x + (e.clientX - startX),
-      y: startPos.y + (e.clientY - startY),
+      y: Math.max(props.topBoundary, startPos.y + (e.clientY - startY)),
     })
   }
 

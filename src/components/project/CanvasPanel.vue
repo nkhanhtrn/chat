@@ -1,6 +1,6 @@
 <template>
   <div class="canvas-panel">
-    <div class="minimized-bar">
+    <div ref="barRef" class="minimized-bar">
       <GlobalToolMenu @select="(t) => $emit('instantiate-tool', t)" />
       <div v-if="windows.length" class="minimized-separator" />
       <template v-for="win in windows" :key="win.id">
@@ -28,6 +28,7 @@
       v-for="win in openWindows"
       :key="win.id"
       :window="win"
+      :top-boundary="barHeight"
       @close="$emit('close-window', win.id)"
       @minimize="$emit('minimize-window', win.id)"
       @update:position="(pos) => $emit('update-position', win.id, pos)"
@@ -44,7 +45,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import OutputWindow from './OutputWindow.vue'
 import GlobalToolMenu from './GlobalToolMenu.vue'
 import type { ProjectWindow } from '@/types/project'
@@ -54,6 +55,9 @@ const props = defineProps<{
   windows: ProjectWindow[]
   sessionId: string
 }>()
+
+const barRef = ref<HTMLElement | null>(null)
+const barHeight = computed(() => barRef.value?.offsetHeight ?? 30)
 
 defineEmits<{
   'close-window': [windowId: string]

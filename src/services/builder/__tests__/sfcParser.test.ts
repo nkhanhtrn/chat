@@ -152,7 +152,9 @@ describe('applyToolEdits', () => {
 <button>{{ count }}</button>
 </replace>`)!
     const result = applyToolEdits(code, edit)
-    expect(result).toBe('<template>\n<button>{{ count }}</button>\n</template>')
+    expect(result.code).toBe('<template>\n<button>{{ count }}</button>\n</template>')
+    expect(result.applied).toBe(1)
+    expect(result.failed).toBe(0)
   })
 
   it('applies multiple patches in order', () => {
@@ -172,13 +174,15 @@ describe('applyToolEdits', () => {
 <p>Universe</p>
 </replace>`)!
     const result = applyToolEdits(code, edit)
-    expect(result).toContain('<h1>Hi</h1>')
-    expect(result).toContain('<p>Universe</p>')
-    expect(result).not.toContain('Hello')
-    expect(result).not.toContain('World')
+    expect(result.code).toContain('<h1>Hi</h1>')
+    expect(result.code).toContain('<p>Universe</p>')
+    expect(result.code).not.toContain('Hello')
+    expect(result.code).not.toContain('World')
+    expect(result.applied).toBe(2)
+    expect(result.failed).toBe(0)
   })
 
-  it('leaves code unchanged when search not found', () => {
+  it('reports failed patches when search not found', () => {
     const code = '<template><button>0</button></template>'
     const edit = parseToolEditFromResponse(`<!-- @tool: Test -->
 <!-- @edit -->
@@ -189,6 +193,8 @@ not found text
 replacement
 </replace>`)!
     const result = applyToolEdits(code, edit)
-    expect(result).toBe(code)
+    expect(result.code).toBe(code)
+    expect(result.applied).toBe(0)
+    expect(result.failed).toBe(1)
   })
 })
