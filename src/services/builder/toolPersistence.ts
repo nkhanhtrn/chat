@@ -1,5 +1,21 @@
 const STORAGE_PREFIX = 'tool-state'
 
+function isPlainObject(val: unknown): val is Record<string, unknown> {
+  return typeof val === 'object' && val !== null && !Array.isArray(val) && Object.getPrototypeOf(val) === Object.prototype
+}
+
+function deepMerge(target: Record<string, unknown>, source: Record<string, unknown>): void {
+  for (const key of Object.keys(source)) {
+    const sv = source[key]
+    const tv = target[key]
+    if (isPlainObject(sv) && isPlainObject(tv)) {
+      deepMerge(tv, sv)
+    } else {
+      target[key] = sv
+    }
+  }
+}
+
 function storageKey(projectId: string, toolId: string): string {
   return `${STORAGE_PREFIX}-${projectId}-${toolId}`
 }
@@ -50,7 +66,7 @@ export function createToolPersistence(projectId: string, toolId: string): ToolPe
     },
     async update(updates: Record<string, unknown>): Promise<void> {
       const state = loadState()
-      Object.assign(state, updates)
+      deepMerge(state, updates)
       saveState(state)
     },
     async remove(k: string): Promise<void> {
