@@ -28,7 +28,19 @@
 
       <div v-if="store.error" class="error-msg">{{ store.error }}</div>
       <div v-if="commandFeedback" class="command-feedback">{{ commandFeedback }}</div>
+
     </div>
+
+    <button
+      v-if="store.messages.length > 0"
+      class="scroll-to-bottom-btn"
+      @click="scrollToBottom(true)"
+      :class="{ 'is-visible': showScrollBtn }"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="6 9 12 15 18 9"></polyline>
+      </svg>
+    </button>
 
     <ExpandableInput
       v-model="inputText"
@@ -55,7 +67,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, watch } from 'vue'
+import { ref, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useSideChatStore } from '@/stores/sideChat'
 import { handleCommand, type CommandContext } from '@/utils/chatCommands'
 import MarkdownRenderer from './MarkdownRenderer.vue'
@@ -66,12 +78,30 @@ const store = useSideChatStore()
 const inputText = ref('')
 const commandFeedback = ref('')
 const messagesContainer = ref<HTMLElement | null>(null)
+const showScrollBtn = ref(false)
 
-const scrollToBottom = () => {
+const checkScroll = () => {
+  const el = messagesContainer.value
+  if (!el) return
+  const threshold = 80
+  showScrollBtn.value = el.scrollHeight - el.scrollTop - el.clientHeight > threshold
+}
+
+onMounted(() => {
+  messagesContainer.value?.addEventListener('scroll', checkScroll)
+})
+
+onBeforeUnmount(() => {
+  messagesContainer.value?.removeEventListener('scroll', checkScroll)
+})
+
+const scrollToBottom = (smooth = false) => {
   nextTick(() => {
-    if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-    }
+    if (!messagesContainer.value) return
+    messagesContainer.value.scrollTo({
+      top: messagesContainer.value.scrollHeight,
+      behavior: smooth ? 'smooth' : 'instant',
+    })
   })
 }
 
@@ -114,6 +144,7 @@ watch(() => store.messages.length, () => scrollToBottom())
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+  position: relative;
 }
 
 .side-chat-messages {
@@ -256,6 +287,33 @@ watch(() => store.messages.length, () => scrollToBottom())
   height: 20px;
   background-color: var(--color-border-subtle);
   margin: 0 0.25rem;
+}
+
+.scroll-to-bottom-btn {
+  position: absolute;
+  bottom: 5rem;
+  right: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: var(--color-bg-elevated, #fff);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 50%;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s;
+  z-index: 1;
+  opacity: 0.5;
+}
+
+.scroll-to-bottom-btn:hover,
+.scroll-to-bottom-btn.is-visible {
+  color: var(--color-text-base);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  opacity: 1;
 }
 
 @media (max-width: 768px) {
