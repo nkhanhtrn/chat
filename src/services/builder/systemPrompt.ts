@@ -173,6 +173,9 @@ EDITING EXISTING TOOLS (PREFERRED over full rewrite):
   </replace>
 - Only use full code output (without @edit) for NEW tools or major rewrites
 
+AVAILABLE COMPONENTS:
+- <MarkdownRenderer content="..." /> — renders markdown string as formatted HTML. Supports headings, lists, code blocks, math ($$...$$), tables, links, bold/italic, and more. Use it in templates to display markdown content, e.g. for notes, documentation, or AI-generated text within a tool.
+
 TOOL DATA ACCESS (Reading & Writing tool state):
 You can READ and WRITE data that lives inside tools. Tool data is included in the conversation context so you can see the current state of each tool.
 

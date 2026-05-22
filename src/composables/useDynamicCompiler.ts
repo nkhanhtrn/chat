@@ -2,6 +2,7 @@ import { ref, shallowRef, defineComponent, nextTick, watch as vueWatch, compile 
 import { parseToolCode, validateTemplate, scopeStyles } from '@/utils/toolCompiler'
 import { createToolPersistence, type ToolPersistApi } from '@/services/builder/toolPersistence'
 import { createProxiedFetch } from '@/services/builder/toolFetch'
+import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
 
 const TYPE_MARKERS = {
   DATE: '__date__',
@@ -130,11 +131,11 @@ export function useDynamicCompiler(options: DynamicCompilerOptions) {
     preLoadedState: Record<string, unknown> | null,
   ): Component {
     if (!script) {
-      return defineComponent({ template })
+      return defineComponent({ template, components: { MarkdownRenderer } })
     }
 
     if (!/export\s+default\s+\{[\s\S]*\}/.test(script)) {
-      return defineComponent({ template })
+      return defineComponent({ template, components: { MarkdownRenderer } })
     }
 
     const transformedScript = script.replace(/export\s+default\s+(?=\{)/, 'return ')
@@ -199,6 +200,7 @@ export function useDynamicCompiler(options: DynamicCompilerOptions) {
 
     return defineComponent({
       ...options,
+      components: { ...options.components, MarkdownRenderer },
       data: wrappedData,
       template,
       methods: wrappedMethods,
