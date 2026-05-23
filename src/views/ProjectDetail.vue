@@ -221,17 +221,11 @@ function initFromRoute() {
 }
 
 function handleToolOpenRequest(e: Event) {
-  const { toolName, sourceWindowId, data } = (e as CustomEvent).detail
+  const { toolName, data } = (e as CustomEvent).detail
   if (!dk.value) return
 
-  const name = typeof toolName === 'string' ? toolName.replace(/^\S+\s/, '').trim() : ''
-
   const allWins = projectStore.windows.get(dk.value) || []
-  const normalize = (s: string) => s.replace(/\p{Emoji}/gu, '').trim().toLowerCase()
-  const existing = allWins.find(w =>
-    w.type === 'tool' &&
-    (w.id === toolName || normalize(w.title) === normalize(name)),
-  )
+  const existing = allWins.find(w => w.type === 'tool' && w.id === toolName)
 
   if (existing) {
     if (existing.displayState !== 'open') {
@@ -244,16 +238,6 @@ function handleToolOpenRequest(e: Event) {
         detail: { dataKey: dk.value, windowId: existing.id, data },
       }))
     }
-    return
-  }
-
-  const allTemplates = globalToolStore.templates
-  const tpl = allTemplates.find(t =>
-    t.id === toolName || normalize(t.name) === normalize(name),
-  )
-  if (tpl) {
-    handleInstantiateTool(tpl)
-    return
   }
 }
 

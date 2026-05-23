@@ -5,7 +5,6 @@ import { parseToolFromResponse, parseToolEditFromResponse, applyToolEdits } from
 import { searchWeb, fetchResultContent, formatSearchResultsForPrompt, extractSearchQuery, type SearchResult } from '@/services/builder/webSearch'
 import { buildToolDataContext, getToolState, parseToolDataFromResponse, writeToolData, findWindowByToolName, stripDataMarkers, parseToolOpenFromResponse, stripOpenMarkers } from '@/services/builder/toolData'
 import { useProjectStore } from '@/stores/project'
-import { useGlobalToolStore } from '@/stores/globalTool'
 import type { ProjectMessage, ProjectWindow, WebSearchResult } from '@/types/project'
 
 const MAX_SEARCH_ROUNDS = 3
@@ -21,7 +20,6 @@ export interface UseProjectChatReturn {
 
 export function useProjectChat(): UseProjectChatReturn {
   const projectStore = useProjectStore()
-  const globalToolStore = useGlobalToolStore()
   const isStreaming = ref(false)
   const abortController = ref<AbortController | null>(null)
   const sessionId = ref<string | null>(null)
@@ -266,8 +264,7 @@ export function useProjectChat(): UseProjectChatReturn {
 
     for (const marker of markers) {
       const allWins = projectStore.windows.get(key) || []
-      const byId = allWins.find(w => w.type === 'tool' && w.id === marker.toolName)
-      const existing = byId || findWindowByToolName(allWins, marker.toolName)
+      const existing = allWins.find(w => w.type === 'tool' && w.id === marker.toolName)
 
       if (existing) {
         if (existing.displayState !== 'open') {
@@ -277,30 +274,6 @@ export function useProjectChat(): UseProjectChatReturn {
         if (marker.data) {
           writeToolData(key, existing.id, marker.data)
         }
-        continue
-      }
-
-      const normalize = (s: string) => s.replace(/[\p{Emoji_Presentation}\p{Emoji}\uFE0F]/gu, '').trim().toLowerCase()
-      const tpl = globalToolStore.templates.find(t =>
-        t.id === marker.toolName || normalize(t.name) === normalize(marker.toolName),
-      )
-      if (tpl) {
-        const wins = projectStore.windows.get(key) || []
-        const baseX = 40 + (wins.length % 5) * 40
-        const baseY = 40 + (wins.length % 5) * 40
-        projectStore.addWindow(key, {
-          id: crypto.randomUUID(),
-          sessionId: key,
-          title: tpl.name,
-          type: 'tool',
-          displayState: 'open',
-          position: { x: baseX, y: baseY },
-          size: { width: 500, height: 450 },
-          zIndex: projectStore.getNextZIndex(),
-          code: tpl.code,
-          toolInstanceId: crypto.randomUUID(),
-          templateId: tpl.id,
-        })
       }
     }
   }

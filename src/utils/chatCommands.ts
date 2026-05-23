@@ -249,7 +249,7 @@ export function resolveToolMessage(
     if (!code) return ''
     const data = resolver.getData(ref.id)
     const dataStr = Object.keys(data).length > 0 ? `\nData: ${JSON.stringify(data, null, 2)}` : ''
-    return `Tool "${ref.title}" code:\n\`\`\`\n${code}\n\`\`\`${dataStr}`
+    return `Tool "${ref.title}" (id: ${ref.id}) code:\n\`\`\`\n${code}\n\`\`\`${dataStr}`
   }).filter(Boolean)
 
   const promptText = parts.length > 0

@@ -73,11 +73,11 @@ CHARTING with ECHARTS (v6.0.0):
 
 TOOL-TO-TOOL NAVIGATION (canvasApi):
 - Every tool has access to \`this.canvasApi\` in methods and templates
-- Use \`canvasApi.openTool(name)\` to open/focus another tool by name or ID (from the canvas or global library)
-- Use \`canvasApi.openTool(name, data)\` to also push initial data into the target tool
-- In templates: \`@click="canvasApi.openTool('Other Tool')"\` or \`@click="canvasApi.openTool(otherToolId)"\`
-- In methods: \`this.canvasApi.openTool('Notes', { text: 'hello' })\` or \`this.canvasApi.openTool(someId, { text: 'hello' })\`
-- Name must match an existing tool title or a template in the global tool library; ID must match a window id
+- Use \`canvasApi.openTool(id)\` to open/focus another tool by its window ID
+- Use \`canvasApi.openTool(id, data)\` to also push initial data into the target tool
+- In templates: \`@click="canvasApi.openTool(otherToolId)"\`
+- In methods: \`this.canvasApi.openTool(someId, { text: 'hello' })\`
+- The ID must match an existing tool window ID (exposed as toolInstanceId on each tool)
 - This lets you build dashboards, navigation hubs, or linked tool workflows
 
 EXAMPLE:
@@ -206,22 +206,22 @@ Rules for @data:
 - Example: user says "set the counter in my Calculator to 100" → use @data, no code needed
 
 OPENING TOOLS (Bringing tools into view):
-You can open or focus existing tools, or instantiate tools from the global library, using the @open marker:
-<!-- @open: Tool Name -->
-This will bring the named tool window to the front (opening it if minimized). If no tool with that name exists on the canvas, it will look for a matching template in the global tool library and create a new instance.
+You can open or focus existing tools using the @open marker with the tool's ID:
+<!-- @open: tool-id-here -->
+This will bring the tool window to the front (opening it if minimized). The ID is listed next to each tool in the EXISTING TOOLS context above.
 You can also pass initial data:
-<!-- @open: Tool Name {"key1": "value1"} -->
+<!-- @open: tool-id-here {"key1": "value1"} -->
 Rules for @open:
-- The tool name must match an existing tool's title (strip emoji if present) or a global template name
+- The ID must match an existing tool window ID exactly
 - Use it when the user wants to see or switch to a specific tool
 - You can combine @open with @data or @tool in the same response
 - Use @open to cross-reference tools, e.g. "let me open your Notes tool so you can see the data"`
 
-export function buildToolContext(windows: { title: string; code?: string }[]): string {
+export function buildToolContext(windows: { id: string; title: string; code?: string }[]): string {
   if (!windows.length) return ''
   const tools = windows
     .filter(w => w.code)
-    .map(w => `- **${w.title}** (already built, use same name to update)`)
+    .map(w => `- **${w.title}** (id: ${w.id}, already built, use same name to update)`)
     .join('\n')
-  return `\n\nEXISTING TOOLS in this project:\n${tools}\nIf the user asks to modify one of these, output the updated code with the SAME @tool name.`
+  return `\n\nEXISTING TOOLS in this project:\n${tools}\nIf the user asks to modify one of these, output the updated code with the SAME @tool name.\nTo open/focus a tool, use its id with @open: <!-- @open: ${windows.filter(w => w.code)[0]?.id ?? 'tool-id'} -->`
 }
