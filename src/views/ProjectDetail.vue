@@ -102,7 +102,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import { useGlobalToolStore } from '@/stores/globalTool'
@@ -220,7 +220,51 @@ function initFromRoute() {
   }
 }
 
-onMounted(initFromRoute)
+function handleToolOpenRequest(e: Event) {
+  const { toolName, sourceWindowId, data } = (e as CustomEvent).detail
+  if (!dk.value) return
+
+  const name = typeof toolName === 'string' ? toolName.replace(/^\S+\s/, '').trim() : ''
+
+  const allWins = projectStore.windows.get(dk.value) || []
+  const normalize = (s: string) => s.replace(/\p{Emoji}/gu, '').trim().toLowerCase()
+  const existing = allWins.find(w =>
+    w.type === 'tool' &&
+    (w.id === toolName || normalize(w.title) === normalize(name)),
+  )
+
+  if (existing) {
+    if (existing.displayState !== 'open') {
+      projectStore.setWindowDisplayState(dk.value, existing.id, 'open')
+    }
+    projectStore.updateWindow(dk.value, existing.id, { zIndex: projectStore.getNextZIndex() })
+    targetToolId.value = existing.id
+    if (data) {
+      window.dispatchEvent(new CustomEvent('tool-data-updated', {
+        detail: { dataKey: dk.value, windowId: existing.id, data },
+      }))
+    }
+    return
+  }
+
+  const allTemplates = globalToolStore.templates
+  const tpl = allTemplates.find(t =>
+    t.id === toolName || normalize(t.name) === normalize(name),
+  )
+  if (tpl) {
+    handleInstantiateTool(tpl)
+    return
+  }
+}
+
+onMounted(() => {
+  initFromRoute()
+  window.addEventListener('tool-open-request', handleToolOpenRequest)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('tool-open-request', handleToolOpenRequest)
+})
 
 watch(() => [route.params.id, route.params.subId] as const, () => {
   initFromRoute()

@@ -6,6 +6,8 @@ import {
   writeToolData,
   findWindowByToolName,
   stripDataMarkers,
+  parseToolOpenFromResponse,
+  stripOpenMarkers,
   type ToolDataMarker,
 } from '../toolData'
 import type { ProjectWindow } from '@/types/project'
@@ -234,5 +236,74 @@ describe('stripDataMarkers', () => {
     expect(result).not.toContain('@data')
     expect(result).not.toContain('"a":1')
     expect(result).not.toContain('"b":2')
+  })
+})
+
+describe('parseToolOpenFromResponse', () => {
+  it('returns empty array when no @open markers', () => {
+    expect(parseToolOpenFromResponse('just some text')).toEqual([])
+    expect(parseToolOpenFromResponse('')).toEqual([])
+  })
+
+  it('parses a single @open marker', () => {
+    const markers = parseToolOpenFromResponse('I will open it.\n\n<!-- @open: Calculator -->\n\nDone!')
+    expect(markers).toHaveLength(1)
+    expect(markers[0].toolName).toBe('Calculator')
+    expect(markers[0].data).toBeUndefined()
+  })
+
+  it('parses @open marker with emoji in name', () => {
+    const markers = parseToolOpenFromResponse('<!-- @open: 🧮 Calculator -->')
+    expect(markers).toHaveLength(1)
+    expect(markers[0].toolName).toBe('🧮 Calculator')
+  })
+
+  it('parses multiple @open markers', () => {
+    const response = '<!-- @open: Tool A -->\n\n<!-- @open: Tool B -->\n'
+    const markers = parseToolOpenFromResponse(response)
+    expect(markers).toHaveLength(2)
+    expect(markers[0].toolName).toBe('Tool A')
+    expect(markers[1].toolName).toBe('Tool B')
+  })
+
+  it('parses @open marker with inline JSON data', () => {
+    const markers = parseToolOpenFromResponse('<!-- @open: Notes {"text": "hello"} -->')
+    expect(markers).toHaveLength(1)
+    expect(markers[0].toolName).toBe('Notes')
+    expect(markers[0].data).toEqual({ text: 'hello' })
+  })
+
+  it('parses @open marker with numeric data', () => {
+    const markers = parseToolOpenFromResponse('<!-- @open: Counter {"count": 42} -->')
+    expect(markers).toHaveLength(1)
+    expect(markers[0].toolName).toBe('Counter')
+    expect(markers[0].data).toEqual({ count: 42 })
+  })
+
+  it('falls back to plain name when JSON parse fails', () => {
+    const markers = parseToolOpenFromResponse('<!-- @open: Tool Name {invalid} -->')
+    expect(markers).toHaveLength(1)
+    expect(markers[0].toolName).toBe('Tool Name {invalid}')
+    expect(markers[0].data).toBeUndefined()
+  })
+})
+
+describe('stripOpenMarkers', () => {
+  it('returns unchanged text when no markers', () => {
+    expect(stripOpenMarkers('hello world')).toBe('hello world')
+  })
+
+  it('removes @open markers', () => {
+    const input = 'Some text\n\n<!-- @open: Calculator -->\n\nMore text'
+    const result = stripOpenMarkers(input)
+    expect(result).not.toContain('@open')
+    expect(result).toContain('Some text')
+    expect(result).toContain('More text')
+  })
+
+  it('removes multiple @open markers', () => {
+    const input = '<!-- @open: A -->\n<!-- @open: B -->\n'
+    const result = stripOpenMarkers(input)
+    expect(result).not.toContain('@open')
   })
 })

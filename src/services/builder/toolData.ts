@@ -103,3 +103,34 @@ export function findWindowByToolName(windows: ProjectWindow[], name: string): Pr
 export function stripDataMarkers(response: string): string {
   return response.replace(/<!--\s*@data:\s*(.+?)\s*-->\s*\n[\s\S]*?(?=<!--\s*@|$)/g, '').trim()
 }
+
+export interface ToolOpenMarker {
+  toolName: string
+  data?: Record<string, unknown>
+}
+
+const OPEN_MARKER_RE = /<!--\s*@open:\s*(.+?)\s*-->/g
+
+export function parseToolOpenFromResponse(response: string): ToolOpenMarker[] {
+  const markers: ToolOpenMarker[] = []
+  let match: RegExpExecArray | null
+
+  while ((match = OPEN_MARKER_RE.exec(response)) !== null) {
+    const raw = match[1].trim()
+    const jsonMatch = raw.match(/^(.+?)\s+\{(.+)\}\s*$/)
+    if (jsonMatch) {
+      try {
+        const data = JSON.parse(`{${jsonMatch[2]}}`)
+        markers.push({ toolName: jsonMatch[1].trim(), data })
+        continue
+      } catch { /* fall through */ }
+    }
+    markers.push({ toolName: raw })
+  }
+
+  return markers
+}
+
+export function stripOpenMarkers(response: string): string {
+  return response.replace(/<!--\s*@open:\s*(.+?)\s*-->\s*\n?/g, '').trim()
+}

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useProjectStore } from '@/stores/project'
+import { useGlobalToolStore } from '@/stores/globalTool'
 import { useProjectChat } from '../useProjectChat'
 import { openCodeProvider } from '@/services/llm/providers/opencode'
 import type { ProjectMessage, ProjectWindow } from '@/types/project'
@@ -410,5 +411,130 @@ describe('useProjectChat - @data marker handling', () => {
 
     expect(capturedText).toContain('count: 7')
     expect(capturedText).toContain('Counter')
+  })
+})
+
+describe('useProjectChat - @open marker handling', () => {
+  let store: ReturnType<typeof useProjectStore>
+  let globalStore: ReturnType<typeof useGlobalToolStore>
+  let chat: ReturnType<typeof useProjectChat>
+  let dataKey: string
+
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    setActivePinia(createPinia())
+    localStorage.clear()
+    store = useProjectStore()
+    globalStore = useGlobalToolStore()
+    const project = store.createProject('Test')
+    store.switchToProject(project.id)
+    dataKey = store.currentDataKey!
+    chat = useProjectChat()
+  })
+
+  it('opens an existing minimized tool via @open marker', async () => {
+    const win = makeToolWindow({ id: 'win-1', title: 'Calculator', sessionId: dataKey, displayState: 'minimized' })
+    store.addWindow(dataKey, win)
+    vi.spyOn(openCodeProvider, 'sendStream').mockReturnValue(mockStream([
+      "I'll open the calculator.\n\n<!-- @open: Calculator -->\n\nThere you go!"
+    ]))
+    vi.spyOn(openCodeProvider, 'createSession').mockResolvedValue('ses_open')
+
+    await chat.sendMessage('open calculator')
+
+    const updated = store.currentWindows.find(w => w.title === 'Calculator')
+    expect(updated).toBeDefined()
+    expect(updated!.displayState).toBe('open')
+  })
+
+  it('brings an open tool to front via @open marker', async () => {
+    const win = makeToolWindow({ id: 'win-1', title: 'Notes', sessionId: dataKey, displayState: 'open', zIndex: 1 })
+    store.addWindow(dataKey, win)
+    vi.spyOn(openCodeProvider, 'sendStream').mockReturnValue(mockStream([
+      '<!-- @open: Notes -->'
+    ]))
+    vi.spyOn(openCodeProvider, 'createSession').mockResolvedValue('ses_open')
+
+    await chat.sendMessage('show notes')
+
+    const updated = store.currentWindows.find(w => w.title === 'Notes')
+    expect(updated).toBeDefined()
+    expect(updated!.zIndex).toBeGreaterThan(1)
+  })
+
+  it('pushes data to existing tool via @open with inline data', async () => {
+    const win = makeToolWindow({ id: 'win-1', title: 'Counter', sessionId: dataKey })
+    store.addWindow(dataKey, win)
+    vi.spyOn(openCodeProvider, 'sendStream').mockReturnValue(mockStream([
+      '<!-- @open: Counter {"count": 42} -->'
+    ]))
+    vi.spyOn(openCodeProvider, 'createSession').mockResolvedValue('ses_open')
+
+    await chat.sendMessage('open counter with value')
+
+    const stored = JSON.parse(localStorage.getItem(`tool-state-${dataKey}-win-1`)!)
+    expect(stored.count).toBe(42)
+  })
+
+  it('instantiates tool from global template when no canvas match', async () => {
+    globalStore.createTemplate({
+      name: 'Timer',
+      code: '<template><div>timer</div></template><script>export default {}</script>',
+    })
+
+    vi.spyOn(openCodeProvider, 'sendStream').mockReturnValue(mockStream([
+      "Let me open the Timer.\n\n<!-- @open: Timer -->\n"
+    ]))
+    vi.spyOn(openCodeProvider, 'createSession').mockResolvedValue('ses_open')
+
+    await chat.sendMessage('open timer')
+
+    expect(store.currentWindows).toHaveLength(1)
+    expect(store.currentWindows[0].title).toBe('Timer')
+    expect(store.currentWindows[0].type).toBe('tool')
+  })
+
+  it('opens multiple tools via multiple @open markers', async () => {
+    const win1 = makeToolWindow({ id: 'win-1', title: 'Tool A', sessionId: dataKey, displayState: 'minimized' })
+    const win2 = makeToolWindow({ id: 'win-2', title: 'Tool B', sessionId: dataKey, displayState: 'minimized' })
+    store.addWindow(dataKey, win1)
+    store.addWindow(dataKey, win2)
+    vi.spyOn(openCodeProvider, 'sendStream').mockReturnValue(mockStream([
+      '<!-- @open: Tool A -->\n\n<!-- @open: Tool B -->\n'
+    ]))
+    vi.spyOn(openCodeProvider, 'createSession').mockResolvedValue('ses_open')
+
+    await chat.sendMessage('open both')
+
+    const a = store.currentWindows.find(w => w.title === 'Tool A')
+    const b = store.currentWindows.find(w => w.title === 'Tool B')
+    expect(a!.displayState).toBe('open')
+    expect(b!.displayState).toBe('open')
+  })
+
+  it('does nothing when @open targets non-existent tool with no template', async () => {
+    vi.spyOn(openCodeProvider, 'sendStream').mockReturnValue(mockStream([
+      '<!-- @open: Missing -->\n\nCould not find it.'
+    ]))
+    vi.spyOn(openCodeProvider, 'createSession').mockResolvedValue('ses_open')
+
+    await chat.sendMessage('open missing')
+
+    expect(store.currentWindows).toHaveLength(0)
+  })
+
+  it('opens tool by ID via @open marker', async () => {
+    const win = makeToolWindow({ id: 'win-abc-123', title: 'My Timer', sessionId: dataKey, displayState: 'minimized' })
+    store.addWindow(dataKey, win)
+    vi.spyOn(openCodeProvider, 'sendStream').mockReturnValue(mockStream([
+      '<!-- @open: win-abc-123 -->'
+    ]))
+    vi.spyOn(openCodeProvider, 'createSession').mockResolvedValue('ses_open')
+
+    await chat.sendMessage('open timer by id')
+
+    const updated = store.currentWindows.find(w => w.id === 'win-abc-123')
+    expect(updated).toBeDefined()
+    expect(updated!.displayState).toBe('open')
   })
 })

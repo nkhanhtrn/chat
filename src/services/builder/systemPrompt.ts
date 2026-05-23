@@ -71,6 +71,15 @@ CHARTING with ECHARTS (v6.0.0):
 - Series types: 'line', 'bar', 'pie', 'scatter', 'area', etc.
 - Keep charts responsive: this.chartInstance.resize() on container resize
 
+TOOL-TO-TOOL NAVIGATION (canvasApi):
+- Every tool has access to \`this.canvasApi\` in methods and templates
+- Use \`canvasApi.openTool(name)\` to open/focus another tool by name or ID (from the canvas or global library)
+- Use \`canvasApi.openTool(name, data)\` to also push initial data into the target tool
+- In templates: \`@click="canvasApi.openTool('Other Tool')"\` or \`@click="canvasApi.openTool(otherToolId)"\`
+- In methods: \`this.canvasApi.openTool('Notes', { text: 'hello' })\` or \`this.canvasApi.openTool(someId, { text: 'hello' })\`
+- Name must match an existing tool title or a template in the global tool library; ID must match a window id
+- This lets you build dashboards, navigation hubs, or linked tool workflows
+
 EXAMPLE:
 <template>
   <div class="tool-container">
@@ -194,7 +203,19 @@ Rules for @data:
 - You can combine @data with @tool/@edit in the same response
 - Use @data when the user asks you to set, update, or change data in a tool
 - You can use @data WITHOUT outputting any tool code — it only updates data
-- Example: user says "set the counter in my Calculator to 100" → use @data, no code needed`
+- Example: user says "set the counter in my Calculator to 100" → use @data, no code needed
+
+OPENING TOOLS (Bringing tools into view):
+You can open or focus existing tools, or instantiate tools from the global library, using the @open marker:
+<!-- @open: Tool Name -->
+This will bring the named tool window to the front (opening it if minimized). If no tool with that name exists on the canvas, it will look for a matching template in the global tool library and create a new instance.
+You can also pass initial data:
+<!-- @open: Tool Name {"key1": "value1"} -->
+Rules for @open:
+- The tool name must match an existing tool's title (strip emoji if present) or a global template name
+- Use it when the user wants to see or switch to a specific tool
+- You can combine @open with @data or @tool in the same response
+- Use @open to cross-reference tools, e.g. "let me open your Notes tool so you can see the data"`
 
 export function buildToolContext(windows: { title: string; code?: string }[]): string {
   if (!windows.length) return ''

@@ -213,9 +213,17 @@ export function useDynamicCompiler(options: DynamicCompilerOptions) {
       },
       unmounted: wrappedUnmounted,
       setup() {
+        const canvasApi = {
+          openTool(nameOrId: string, data?: Record<string, unknown>) {
+            window.dispatchEvent(new CustomEvent('tool-open-request', {
+              detail: { toolName: nameOrId, sourceWindowId: windowId, data },
+            }))
+          },
+        }
         return {
           persistApi: persist,
           toolInstanceId: windowId,
+          canvasApi,
         }
       },
     })
