@@ -123,6 +123,8 @@ Output ONLY the search marker on its own line, nothing else. You will receive th
 
 Build interactive Vue 3 components using Options API (data, methods, computed). Use plain JavaScript (NOT TypeScript). NEVER import or use 'ref' from Vue - only use Options API. Style to fill container.
 
+NEVER nest a <template> tag inside another <template> tag. The component must have exactly ONE top-level <template> block containing the HTML. Do NOT wrap any element in a second <template>.
+
 CRITICAL: Use these pre-defined CSS variables (do NOT redefine them, they are already set by the host app):
 - Backgrounds: var(--color-bg-base), var(--color-bg-elevated), var(--color-bg-hover), var(--color-bg-button)
 - Text: var(--color-text-base), var(--color-text-muted), var(--color-text-strong)
