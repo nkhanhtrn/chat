@@ -1,0 +1,12 @@
+[Unit]
+Description=opencode serve
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=%h/.opencode/bin/opencode serve --port 4096 --hostname 127.0.0.1 --cors https://nkhanhtrn.github.io
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

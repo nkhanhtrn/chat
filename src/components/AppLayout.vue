@@ -10,6 +10,7 @@
       <button class="nav-btn" :class="{ active: activePage === 'home' }" @click="goTo('home')" title="Home"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg></button>
       <button class="nav-btn" :class="{ active: activePage === 'notebooks' }" @click="goTo('notebooks')" title="Notebooks"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"/></svg></button>
       <button class="nav-btn" :class="{ active: activePage === 'books' }" @click="goTo('books')" title="Books"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/></svg></button>
+      <button class="nav-btn" :class="{ active: activePage === 'papers' }" @click="goTo('papers')" title="Papers"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6zm2-6h8v2H8v-2zm0-4h8v2H8v-2zm0 8h5v2H8v-2z"/></svg></button>
       <button class="nav-btn" :class="{ active: activePage === 'projects' }" @click="goTo('projects')" title="Projects"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>
       <button class="nav-btn" :class="{ active: activePage === 'calendar' }" @click="goTo('calendar')" title="Calendar"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM9 10H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z"/></svg></button>
       <div class="nav-spacer"></div>
@@ -75,6 +76,7 @@ const activePage = computed(() => {
   if (name === 'calendar') return 'calendar'
   if (name === 'projects' || name === 'project-detail' || name === 'project-subproject') return 'projects'
   if (name === 'books' || name === 'book-viewer') return 'books'
+  if (name === 'papers') return 'papers'
   return ''
 })
 
@@ -111,6 +113,7 @@ function goTo(page: string) {
   if (page === 'home') router.push({ name: 'home' })
   else if (page === 'notebooks') router.push({ name: 'notebooks' })
   else if (page === 'books') router.push({ name: 'books' })
+  else if (page === 'papers') router.push({ name: 'papers' })
   else if (page === 'calendar') router.push({ name: 'calendar' })
   else if (page === 'projects') router.push({ name: 'projects' })
 }

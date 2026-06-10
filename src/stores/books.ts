@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import type { BookData, BookCreateParams } from '@/types/book'
+import type { BookData, BookCreateParams, BookCategory, ItemMeta, PaperMeta } from '@/types/book'
 import { syncBookList, syncBookContent, saveBookList, saveBook, deleteBook as deleteBookFromIndexedDB, resolveBookListConflict } from '@/services/BookSyncService'
 import { saveBookToFirestore, deleteBookFromFirestore, uploadBookFileToStorage } from '@/services/firestore/firestore-books'
 import { getFirebaseAuth } from '@/services/firebase'
@@ -74,6 +74,30 @@ export const useBooksStore = defineStore('books', {
         .slice(0, 5)
     },
 
+    papers(state): BookData[] {
+      return state.books.filter(b => (b.category ?? 'book') === 'paper')
+    },
+
+    papersSortedByDate(state): BookData[] {
+      return [...state.books].filter(b => (b.category ?? 'book') === 'paper').sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+    },
+
+    getPaperById(state) {
+      return (id: string): BookData | null => state.books.find(b => b.id === id && (b.category ?? 'book') === 'paper') ?? null
+    },
+
+    allKeywords(state): string[] {
+      const kw = new Set<string>()
+      for (const b of state.books) {
+        if (b.meta?.keywords) {
+          for (const k of b.meta.keywords) {
+            if (k) kw.add(k)
+          }
+        }
+      }
+      return [...kw].sort()
+    },
+
     getBookById(state) {
       return (id: string): BookData | null => state.books.find(b => b.id === id) ?? null
     },
@@ -135,7 +159,18 @@ export const useBooksStore = defineStore('books', {
         }
 
         const listData = await syncBookList()
-        this.books = (listData.books as BookData[]) ?? []
+        const loaded = (listData.books as BookData[]) ?? []
+
+        this.books = loaded.map(b => {
+          if (!b.meta && (b as any).paperMeta) {
+            const { paperMeta, ...rest } = b as any
+            return { ...rest, meta: paperMeta } as BookData
+          }
+          if (!b.category) {
+            return { ...b, category: 'book' as BookCategory } as BookData
+          }
+          return b
+        })
         this.lastCloudSyncAt = (listData.lastSyncedAt as number) ?? null
 
         this.isInitialized = true
@@ -195,7 +230,6 @@ export const useBooksStore = defineStore('books', {
 
       const { fileData, coverData, ...metadataOverrides } = bookData
 
-      // Compress cover to a small base64 data URL for Firestore storage
       let localCoverUrl = ''
       if (coverData) {
         localCoverUrl = await compressCover(coverData)
@@ -217,6 +251,8 @@ export const useBooksStore = defineStore('books', {
         fileType,
         lastPage: null,
         totalPages: bookData.totalPages ?? null,
+        category: bookData.category ?? 'book',
+        meta: bookData.meta ?? bookData.paperMeta ?? null,
         ...metadataOverrides,
       }
 
@@ -249,14 +285,17 @@ export const useBooksStore = defineStore('books', {
           const book = this.books.find(b => b.id === bookId)
           const fileType = (book?.fileType as 'epub' | 'pdf') ?? 'epub'
           await uploadBookFileToStorage(bookId, fileData, (progress) => {
-            // Map 0-1 upload progress to 0.2-0.9 range
             this.uploadProgress[bookId] = 0.2 + progress * 0.7
           }, fileType)
+
+          const { BookStorage } = await import('@/services/BookStorage')
+          await BookStorage.saveBookFile(bookId, fileData)
         }
 
         const book = this.books.find(b => b.id === bookId)
         if (book) {
           book.fileInStorage = true
+          book.fileCachedAt = Date.now()
           book.updatedAt = Date.now()
           await saveBook(book)
           await saveBookToFirestore(book)

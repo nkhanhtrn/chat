@@ -210,17 +210,25 @@ export class PdfRenderer {
 
     const viewport = page.getViewport({ scale: effectiveScale })
 
+    const dpr = window.devicePixelRatio || 1
+    const displayWidth = Math.round(viewport.width)
+    const displayHeight = Math.round(viewport.height)
+
     const canvas = document.createElement('canvas')
-    canvas.width = viewport.width
-    canvas.height = viewport.height
-    const ctx = canvas.getContext('2d')!
-    await page.render({ canvasContext: ctx, viewport }).promise
+    canvas.width = displayWidth * dpr
+    canvas.height = displayHeight * dpr
+    canvas.style.width = displayWidth + 'px'
+    canvas.style.height = displayHeight + 'px'
+
+    const ctx = canvas.getContext('2d')
+    if (ctx) ctx.scale(dpr, dpr)
+    await page.render({ canvasContext: ctx ?? canvas, viewport }).promise
     if (this.destroyed) return null
 
     const textLayerDiv = document.createElement('div')
     textLayerDiv.className = 'pdf-text-layer'
-    textLayerDiv.style.width = viewport.width + 'px'
-    textLayerDiv.style.height = viewport.height + 'px'
+    textLayerDiv.style.width = displayWidth + 'px'
+    textLayerDiv.style.height = displayHeight + 'px'
 
     const textContent = await page.getTextContent()
     if (this.destroyed) return null
@@ -235,7 +243,7 @@ export class PdfRenderer {
 
     const wrapper = document.createElement('div')
     wrapper.className = 'pdf-page-wrapper'
-    wrapper.style.width = viewport.width + 'px'
+    wrapper.style.width = displayWidth + 'px'
     wrapper.appendChild(canvas)
     wrapper.appendChild(textLayerDiv)
 

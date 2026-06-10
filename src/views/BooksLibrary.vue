@@ -147,7 +147,7 @@ const editTitleInput = ref<HTMLInputElement | null>(null)
 
 const filteredBooks = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
-  let books = [...booksStore.books]
+  let books = [...booksStore.books].filter(b => (b.category ?? 'book') === 'book')
   if (fileTypeFilter.value !== 'all') {
     books = books.filter(b => (b.fileType || 'epub') === fileTypeFilter.value)
   }
