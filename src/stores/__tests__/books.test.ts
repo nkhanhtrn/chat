@@ -71,8 +71,31 @@ function makeBook(overrides: Partial<BookData> = {}): BookData {
     fileType: 'epub',
     lastPage: null,
     totalPages: null,
+    category: 'book',
+    meta: null,
     ...overrides,
   }
+}
+
+function makePaper(overrides: Partial<BookData> = {}): BookData {
+  return makeBook({
+    id: 'paper-123',
+    title: 'Test Paper',
+    author: 'Researcher',
+    fileType: 'pdf',
+    category: 'paper',
+    meta: {
+      doi: '10.1000/test',
+      journal: 'Nature',
+      year: 2024,
+      abstract: 'Test abstract',
+      keywords: ['ml', 'physics'],
+      bibtex: '@article{test, ...}',
+      citationCount: 10,
+      language: null,
+    },
+    ...overrides,
+  })
 }
 
 describe('useBooksStore', () => {
@@ -513,6 +536,230 @@ describe('useBooksStore', () => {
 
       expect(extractPdfToc).toHaveBeenCalled()
       expect(result.toc).toEqual(mockToc)
+    })
+  })
+
+  describe('papers getters', () => {
+    describe('papers', () => {
+      it('returns only items with category paper', () => {
+        store.books.push(
+          makeBook({ id: 'b1', title: 'Book' }),
+          makePaper({ id: 'p1', title: 'Paper 1' }),
+          makePaper({ id: 'p2', title: 'Paper 2' }),
+        )
+
+        expect(store.papers).toHaveLength(2)
+        expect(store.papers.map(b => b.id)).toEqual(['p1', 'p2'])
+      })
+
+      it('returns empty array when no papers', () => {
+        store.books.push(makeBook({ id: 'b1' }))
+
+        expect(store.papers).toHaveLength(0)
+      })
+
+      it('treats items without category as books', () => {
+        store.books.push(
+          makeBook({ id: 'b1', category: undefined as any }),
+        )
+
+        expect(store.papers).toHaveLength(0)
+      })
+    })
+
+    describe('papersSortedByDate', () => {
+      it('sorts papers by updatedAt descending', () => {
+        store.books.push(
+          makePaper({ id: 'p1', updatedAt: 1000 }),
+          makePaper({ id: 'p2', updatedAt: 3000 }),
+          makePaper({ id: 'p3', updatedAt: 2000 }),
+        )
+
+        const sorted = store.papersSortedByDate
+        expect(sorted.map(b => b.id)).toEqual(['p2', 'p3', 'p1'])
+      })
+
+      it('excludes books from the result', () => {
+        store.books.push(
+          makeBook({ id: 'b1', updatedAt: 5000 }),
+          makePaper({ id: 'p1', updatedAt: 1000 }),
+        )
+
+        const sorted = store.papersSortedByDate
+        expect(sorted).toHaveLength(1)
+        expect(sorted[0].id).toBe('p1')
+      })
+    })
+
+    describe('getPaperById', () => {
+      it('returns paper by id', () => {
+        store.books.push(makePaper({ id: 'p1' }))
+
+        expect(store.getPaperById('p1')).toBeDefined()
+        expect(store.getPaperById('p1')!.category).toBe('paper')
+      })
+
+      it('returns null for book id', () => {
+        store.books.push(makeBook({ id: 'b1' }))
+
+        expect(store.getPaperById('b1')).toBeNull()
+      })
+
+      it('returns null for unknown id', () => {
+        expect(store.getPaperById('unknown')).toBeNull()
+      })
+    })
+
+    describe('allKeywords', () => {
+      it('collects unique keywords from all papers', () => {
+        store.books.push(
+          makePaper({
+            id: 'p1',
+            meta: { doi: null, journal: null, year: null, abstract: null, keywords: ['ml', 'nlp'], bibtex: null, citationCount: null, language: null },
+          }),
+          makePaper({
+            id: 'p2',
+            meta: { doi: null, journal: null, year: null, abstract: null, keywords: ['nlp', 'cv'], bibtex: null, citationCount: null, language: null },
+          }),
+        )
+
+        expect(store.allKeywords).toEqual(['cv', 'ml', 'nlp'])
+      })
+
+      it('returns empty array when no papers have keywords', () => {
+        store.books.push(makeBook({ id: 'b1' }))
+
+        expect(store.allKeywords).toEqual([])
+      })
+
+      it('ignores empty string keywords', () => {
+        store.books.push(
+          makePaper({
+            id: 'p1',
+            meta: { doi: null, journal: null, year: null, abstract: null, keywords: ['ml', ''], bibtex: null, citationCount: null, language: null },
+          }),
+        )
+
+        expect(store.allKeywords).toEqual(['ml'])
+      })
+
+      it('handles papers with null meta', () => {
+        store.books.push(
+          makePaper({ id: 'p1', meta: null }),
+          makeBook({ id: 'b1' }),
+        )
+
+        expect(store.allKeywords).toEqual([])
+      })
+    })
+  })
+
+  describe('addBook (paper)', () => {
+    it('creates a paper with category and meta', async () => {
+      const meta = {
+        doi: '10.1234/test',
+        journal: 'Nature',
+        year: 2024,
+        abstract: 'Test abstract',
+        keywords: ['physics'],
+        bibtex: '@article{key, ...}',
+        citationCount: null,
+        language: null,
+      }
+      await store.addBook({
+        title: 'Test Paper',
+        author: 'Researcher',
+        fileSize: 2048,
+        fileData: new ArrayBuffer(8),
+        coverData: null,
+        fileType: 'pdf',
+        category: 'paper',
+        meta,
+      })
+
+      const paper = store.books.find(b => b.title === 'Test Paper')
+      expect(paper).toBeDefined()
+      expect(paper!.category).toBe('paper')
+      expect(paper!.meta).toEqual(meta)
+      expect(paper!.fileType).toBe('pdf')
+      expect(paper!.fileStoragePath).toContain('book.pdf')
+    })
+
+    it('caches file to IndexedDB after upload', async () => {
+      const { BookStorage } = await import('@/services/BookStorage')
+      const fileData = new ArrayBuffer(16)
+
+      await store.addBook({
+        title: 'Cached Paper',
+        fileSize: 16,
+        fileData,
+        fileType: 'pdf',
+        category: 'paper',
+        meta: {
+          doi: null, journal: null, year: null, abstract: null,
+          keywords: [], bibtex: null, citationCount: null, language: null,
+        },
+      })
+
+      expect(BookStorage.saveBookFile).toHaveBeenCalledWith(
+        expect.any(String),
+        fileData,
+      )
+    })
+
+    it('defaults category to book when not specified', async () => {
+      await store.addBook({
+        title: 'Regular Book',
+        fileSize: 1024,
+        fileData: new ArrayBuffer(8),
+      })
+
+      const book = store.books.find(b => b.title === 'Regular Book')
+      expect(book!.category).toBe('book')
+      expect(book!.meta).toBeNull()
+    })
+
+    it('defaults meta to null when not specified', async () => {
+      await store.addBook({
+        title: 'No Meta',
+        fileSize: 1024,
+        fileData: new ArrayBuffer(8),
+        category: 'paper',
+      })
+
+      const book = store.books.find(b => b.title === 'No Meta')
+      expect(book!.meta).toBeNull()
+    })
+  })
+
+  describe('updateBook (paper metadata)', () => {
+    it('updates meta on a paper', async () => {
+      const paper = makePaper({ id: 'p1' })
+      store.books.push(paper)
+
+      const newMeta = {
+        doi: '10.9999/updated',
+        journal: 'Science',
+        year: 2025,
+        abstract: 'Updated abstract',
+        keywords: ['ml', 'updated'],
+        bibtex: '@article{updated}',
+        citationCount: 99,
+        language: null,
+      }
+      await store.updateBook('p1', { meta: newMeta })
+
+      expect(paper.meta).toEqual(newMeta)
+    })
+
+    it('updates title and author on a paper', async () => {
+      const paper = makePaper({ id: 'p1', title: 'Old Title' })
+      store.books.push(paper)
+
+      await store.updateBook('p1', { title: 'New Title', author: 'New Author' })
+
+      expect(paper.title).toBe('New Title')
+      expect(paper.author).toBe('New Author')
     })
   })
 })

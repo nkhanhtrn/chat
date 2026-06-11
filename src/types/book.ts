@@ -1,4 +1,28 @@
-/** Book data model */
+export type BookCategory = 'book' | 'paper'
+
+export interface BaseMeta {
+  year: number | null
+  abstract: string | null
+  keywords: string[]
+  language: string | null
+}
+
+export interface BookMeta extends BaseMeta {
+  publisher: string | null
+  isbn: string | null
+  series: string | null
+  edition: string | null
+}
+
+export interface PaperMeta extends BaseMeta {
+  doi: string | null
+  journal: string | null
+  bibtex: string | null
+  citationCount: number | null
+}
+
+export type ItemMeta = BookMeta | PaperMeta
+
 export interface BookData {
   id: string
   title: string
@@ -15,6 +39,9 @@ export interface BookData {
   fileType: 'epub' | 'pdf'
   lastPage: number | null
   totalPages: number | null
+  category: BookCategory
+  meta: ItemMeta | null
+  paperMeta?: PaperMeta | null
 }
 
 /** Unified TOC item for both EPUB and PDF */
@@ -48,4 +75,7 @@ export interface BookCreateParams {
   fileType?: 'epub' | 'pdf'
   lastPage?: number | null
   totalPages?: number | null
+  category?: BookCategory
+  meta?: ItemMeta | null
+  paperMeta?: PaperMeta | null
 }

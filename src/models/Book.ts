@@ -1,4 +1,4 @@
-import type { BookData, BookCreateParams, BookMetadata } from '@/types/book'
+import type { BookData, BookCreateParams, BookMetadata, ItemMeta, PaperMeta } from '@/types/book'
 
 export class Book {
   id: string
@@ -16,6 +16,8 @@ export class Book {
   fileType: 'epub' | 'pdf'
   lastPage: number | null
   totalPages: number | null
+  category: 'book' | 'paper'
+  meta: ItemMeta | null
 
   constructor(data: BookCreateParams = {}) {
     this.id = data.id ?? crypto.randomUUID()
@@ -33,6 +35,8 @@ export class Book {
     this.fileType = data.fileType ?? 'epub'
     this.lastPage = data.lastPage ?? null
     this.totalPages = data.totalPages ?? null
+    this.category = data.category ?? 'book'
+    this.meta = data.meta ?? data.paperMeta ?? null
   }
 
   toPlain(): BookData {
@@ -52,6 +56,8 @@ export class Book {
       fileType: this.fileType,
       lastPage: this.lastPage,
       totalPages: this.totalPages,
+      category: this.category,
+      meta: this.meta,
     }
   }
 

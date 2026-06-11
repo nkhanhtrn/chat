@@ -299,6 +299,10 @@ function getEpubTheme(): { bg: string; color: string; accent: string; fontFamily
 }
 
 function applyBookContentWidth() {
+  if (currentBook.value && currentBook.value.fileType === 'pdf') {
+    document.documentElement.style.setProperty('--book-max-width', '100%')
+    return
+  }
   const settings = Settings.getAll()
   const widthMap: Record<string, string> = { narrow: '600px', medium: '900px', wide: '100%' }
   document.documentElement.style.setProperty('--book-max-width', widthMap[settings.contentWidth ?? 'medium'] ?? '900px')
