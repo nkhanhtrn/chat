@@ -174,7 +174,7 @@ const allKeywords = computed(() => {
   const kw = new Set<string>()
   for (const p of booksStore.papers) {
     if (p.meta?.keywords) {
-      for (const k of p.paperMeta.keywords) {
+      for (const k of p.meta.keywords) {
         if (k) kw.add(k)
       }
     }
