@@ -9,7 +9,7 @@
       </svg>
     </button>
     <Teleport to="body">
-      <div v-if="isOpen" class="gtm-overlay" @mousedown="handleOverlayDown" />
+      <div v-if="isOpen" class="gtm-overlay" @pointerdown="handleOverlayDown" />
       <div v-if="isOpen" ref="menuRef" class="gtm-menu" :style="menuStyle">
         <div class="gtm-search-row">
           <svg class="gtm-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -52,7 +52,7 @@
             {{ query ? 'No matching tools' : 'No global tools yet' }}
           </div>
         </div>
-        <div class="gtm-resize-handle" @mousedown.left.stop="startResize" />
+        <div class="gtm-resize-handle" @pointerdown.stop="startResize" />
       </div>
     </Teleport>
   </div>
@@ -145,7 +145,7 @@ function closeMenu() {
   query.value = ''
 }
 
-function handleOverlayDown(e: MouseEvent) {
+function handleOverlayDown(e: PointerEvent) {
   if (e.target === e.currentTarget) closeMenu()
 }
 
@@ -159,7 +159,7 @@ function handleDelete(t: ToolTemplate) {
   globalToolStore.deleteTemplate(t.id)
 }
 
-function startResize(e: MouseEvent) {
+function startResize(e: PointerEvent) {
   const menu = menuRef.value
   if (!menu) return
   e.preventDefault()
@@ -168,7 +168,7 @@ function startResize(e: MouseEvent) {
   const startW = menu.offsetWidth
   const startH = menu.offsetHeight
 
-  function onMove(ev: MouseEvent) {
+  function onMove(ev: PointerEvent) {
     const w = Math.max(MIN_W, startW + ev.clientX - startX)
     const h = Math.max(MIN_H, startH + ev.clientY - startY)
     menu.style.width = `${w}px`
@@ -176,13 +176,13 @@ function startResize(e: MouseEvent) {
   }
 
   function onUp() {
-    document.removeEventListener('mousemove', onMove)
-    document.removeEventListener('mouseup', onUp)
+    document.removeEventListener('pointermove', onMove)
+    document.removeEventListener('pointerup', onUp)
     if (menu) saveSize(menu.offsetWidth, menu.offsetHeight)
   }
 
-  document.addEventListener('mousemove', onMove)
-  document.addEventListener('mouseup', onUp)
+  document.addEventListener('pointermove', onMove)
+  document.addEventListener('pointerup', onUp)
 }
 
 function onDocKeydown(e: KeyboardEvent) {
@@ -380,6 +380,7 @@ onBeforeUnmount(() => {
   height: 14px;
   cursor: nwse-resize;
   z-index: 1;
+  touch-action: none;
 }
 .gtm-resize-handle::after {
   content: '';

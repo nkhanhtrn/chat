@@ -26,7 +26,7 @@
       </aside>
     </Transition>
     <Transition name="fade">
-      <div v-if="hasSidePanel && sideExpanded" class="divider" :class="{ 'is-dragging': isDragging }" @mousedown="startDrag" @touchstart.prevent="startDrag">
+      <div v-if="hasSidePanel && sideExpanded" class="divider" :class="{ 'is-dragging': isDragging }" @pointerdown="startDrag">
         <div class="divider-handle"></div>
       </div>
     </Transition>
@@ -94,8 +94,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', checkMobile)
-  document.removeEventListener('mousemove', handleDrag)
-  document.removeEventListener('mouseup', stopDrag)
 })
 
 function toggleSide() {
@@ -118,34 +116,29 @@ function goTo(page: string) {
   else if (page === 'projects') router.push({ name: 'projects' })
 }
 
-function getClientX(event: MouseEvent | TouchEvent): number {
-  if ('touches' in event && event.touches.length > 0) return event.touches[0].clientX
-  return (event as MouseEvent).clientX
-}
-
-function startDrag(event: MouseEvent | TouchEvent) {
+function startDrag(e: PointerEvent) {
   isDragging.value = true
-  startX.value = getClientX(event)
+  startX.value = e.clientX
   startWidth.value = sideWidth.value
-  document.addEventListener('mousemove', handleDrag)
-  document.addEventListener('mouseup', stopDrag)
   document.body.style.cursor = 'col-resize'
   document.body.style.userSelect = 'none'
-}
 
-function handleDrag(event: MouseEvent | TouchEvent) {
-  if (!isDragging.value) return
-  const delta = getClientX(event) - startX.value
-  sideWidth.value = Math.min(props.maxSideWidth, Math.max(props.minSideWidth, startWidth.value + delta))
-}
+  function onMove(ev: PointerEvent) {
+    const delta = ev.clientX - startX.value
+    sideWidth.value = Math.min(props.maxSideWidth, Math.max(props.minSideWidth, startWidth.value + delta))
+  }
 
-function stopDrag() {
-  isDragging.value = false
-  document.removeEventListener('mousemove', handleDrag)
-  document.removeEventListener('mouseup', stopDrag)
-  document.body.style.cursor = ''
-  document.body.style.userSelect = ''
-  localStorage.setItem(`${props.storageKey}-width`, sideWidth.value.toString())
+  function onUp() {
+    isDragging.value = false
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+    localStorage.setItem(`${props.storageKey}-width`, sideWidth.value.toString())
+    document.removeEventListener('pointermove', onMove)
+    document.removeEventListener('pointerup', onUp)
+  }
+
+  document.addEventListener('pointermove', onMove)
+  document.addEventListener('pointerup', onUp)
 }
 
 defineExpose({ sideExpanded, toggleSide })

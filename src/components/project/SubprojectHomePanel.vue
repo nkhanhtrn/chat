@@ -9,6 +9,7 @@
         v-for="(sub, i) in subprojects"
         :key="sub.id"
         class="subproject-item"
+        :data-index="i"
         :class="{
           closed: isClosed(sub.id),
           'drag-over-top': dragOverIndex === i && dragOverSide === 'top',
@@ -21,6 +22,7 @@
         @dragover.prevent="onDragOver($event, i)"
         @dragleave="onDragLeave"
         @drop.prevent="onDrop($event, i)"
+        @pointerdown="handleSubPointerDown($event, sub.id)"
       >
         <div class="item-drag-handle" title="Drag to reorder">⋮⋮</div>
         <div class="item-info" @click="$emit('open-subproject', sub.id)">
@@ -134,6 +136,50 @@ function onDrop(_e: DragEvent, dropIndex: number) {
   ids.splice(adjustedTo, 0, draggedId.value!)
   emit('reorder-subprojects', ids)
   onDragEnd()
+}
+
+function handleSubPointerDown(e: PointerEvent, id: string) {
+  if (e.pointerType !== 'touch') return
+  const startY = e.clientY
+  let started = false
+
+  function onMove(ev: PointerEvent) {
+    if (!started) {
+      if (Math.abs(ev.clientY - startY) < 5) return
+      started = true
+      draggedId.value = id
+    }
+    const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null
+    const item = el?.closest('.subproject-item') as HTMLElement | null
+    if (item) {
+      const itemIndex = parseInt(item.dataset.index ?? '', 10)
+      if (!isNaN(itemIndex)) {
+        const rect = item.getBoundingClientRect()
+        dragOverIndex.value = itemIndex
+        dragOverSide.value = ev.clientY < rect.top + rect.height / 2 ? 'top' : 'bottom'
+      }
+    }
+  }
+
+  function onUp() {
+    document.removeEventListener('pointermove', onMove)
+    document.removeEventListener('pointerup', onUp)
+    if (started && dragOverIndex.value !== null) {
+      const ids = props.subprojects.map(s => s.id)
+      const fromIdx = ids.indexOf(id)
+      if (fromIdx !== -1) {
+        const toIdx = dragOverSide.value === 'top' ? dragOverIndex.value : dragOverIndex.value + 1
+        ids.splice(fromIdx, 1)
+        const adjustedTo = toIdx > fromIdx ? toIdx - 1 : toIdx
+        ids.splice(adjustedTo, 0, id)
+        emit('reorder-subprojects', ids)
+      }
+    }
+    onDragEnd()
+  }
+
+  document.addEventListener('pointermove', onMove)
+  document.addEventListener('pointerup', onUp)
 }
 </script>
 

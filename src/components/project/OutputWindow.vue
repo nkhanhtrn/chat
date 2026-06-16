@@ -3,16 +3,16 @@
     v-if="window.displayState === 'open'"
     class="output-window"
     :style="windowStyle"
-    @mousedown="$emit('bring-to-front')"
+    @pointerdown="$emit('bring-to-front')"
   >
-    <div class="window-header" @mousedown.left="startDrag">
+    <div class="window-header" @pointerdown="startDrag">
       <div class="window-title-area">
         <InlineEdit
           :modelValue="window.title"
           @save="(newTitle: string) => $emit('update:title', newTitle)"
         />
       </div>
-      <div class="window-controls" @mousedown.stop>
+      <div class="window-controls" @pointerdown.stop>
         <button v-if="window.type === 'tool' && window.code" class="control-btn" @click="$emit('promote', window)" title="Save as global tool">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 19V5M5 12l7-7 7 7" />
@@ -50,9 +50,9 @@
         </button>
       </div>
     </div>
-    <div class="resize-handle right" @mousedown.left.stop="startResize('e', $event)"></div>
-    <div class="resize-handle bottom" @mousedown.left.stop="startResize('s', $event)"></div>
-    <div class="resize-handle corner" @mousedown.left.stop="startResize('se', $event)"></div>
+    <div class="resize-handle right" @pointerdown.stop="startResize('e', $event)"></div>
+    <div class="resize-handle bottom" @pointerdown.stop="startResize('s', $event)"></div>
+    <div class="resize-handle corner" @pointerdown.stop="startResize('se', $event)"></div>
     <div class="window-body">
       <template v-if="window.type === 'tool' && window.code">
         <CodeDisplay v-if="showCode && !editingCode" :content="window.code" language="vue" @edit="startEdit" />
@@ -196,51 +196,51 @@ const windowStyle = computed(() => ({
   zIndex: props.window.zIndex,
 }))
 
-function startDrag(e: MouseEvent) {
+function startDrag(e: PointerEvent) {
   const startX = e.clientX
   const startY = e.clientY
   const startPos = { ...props.window.position }
 
-  function onMouseMove(e: MouseEvent) {
+  function onMove(ev: PointerEvent) {
     emit('update:position', {
-      x: startPos.x + (e.clientX - startX),
-      y: Math.max(props.topBoundary, startPos.y + (e.clientY - startY)),
+      x: startPos.x + (ev.clientX - startX),
+      y: Math.max(props.topBoundary, startPos.y + (ev.clientY - startY)),
     })
   }
 
-  function onMouseUp() {
-    document.removeEventListener('mousemove', onMouseMove)
-    document.removeEventListener('mouseup', onMouseUp)
+  function onUp() {
+    document.removeEventListener('pointermove', onMove)
+    document.removeEventListener('pointerup', onUp)
   }
 
-  document.addEventListener('mousemove', onMouseMove)
-  document.addEventListener('mouseup', onMouseUp)
+  document.addEventListener('pointermove', onMove)
+  document.addEventListener('pointerup', onUp)
 }
 
-function startResize(direction: string, e: MouseEvent) {
+function startResize(direction: string, e: PointerEvent) {
   const startX = e.clientX
   const startY = e.clientY
   const startSize = { ...props.window.size }
 
-  function onMouseMove(e: MouseEvent) {
-    const newWidth = Math.max(200, startSize.width + (e.clientX - startX))
-    const newHeight = Math.max(100, startSize.height + (e.clientY - startY))
+  function onMove(ev: PointerEvent) {
+    const newWidth = Math.max(200, startSize.width + (ev.clientX - startX))
+    const newHeight = Math.max(100, startSize.height + (ev.clientY - startY))
     emit('update:size', { width: newWidth, height: newHeight })
   }
 
-  function onMouseUp() {
-    document.removeEventListener('mousemove', onMouseMove)
-    document.removeEventListener('mouseup', onMouseUp)
+  function onUp() {
+    document.removeEventListener('pointermove', onMove)
+    document.removeEventListener('pointerup', onUp)
   }
 
-  document.addEventListener('mousemove', onMouseMove)
-  document.addEventListener('mouseup', onMouseUp)
+  document.addEventListener('pointermove', onMove)
+  document.addEventListener('pointerup', onUp)
 }
 </script>
 
 <style scoped>
 .output-window { position: absolute; display: flex; flex-direction: column; background: var(--color-bg-page); border: 1px solid var(--color-border-base); box-shadow: 0 4px 20px var(--shadow-primary); min-width: 200px; min-height: 100px; }
-.window-header { display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0.6rem; background: var(--color-bg-base); border-bottom: 1px solid var(--color-border-base); cursor: grab; user-select: none; flex-shrink: 0; }
+.window-header { display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0.6rem; background: var(--color-bg-base); border-bottom: 1px solid var(--color-border-base); cursor: grab; user-select: none; flex-shrink: 0; touch-action: none; }
 .window-header:active { cursor: grabbing; }
 .window-title-area { flex: 1; min-width: 0; font-size: 0.8rem; font-family: system-ui, sans-serif; font-weight: 500; color: var(--color-text-base); }
 .window-title-area :deep(.inline-edit-wrapper) { width: 100%; }
@@ -254,7 +254,7 @@ function startResize(direction: string, e: MouseEvent) {
 .control-btn.delete:hover { background: var(--color-error-subtle, #fee2e2); color: var(--color-error, #ef4444); }
 .control-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 .control-btn.revert-active { color: var(--color-primary); }
-.resize-handle { position: absolute; }
+.resize-handle { position: absolute; touch-action: none; }
 .resize-handle.right { top: 0; right: -3px; width: 6px; height: 100%; cursor: ew-resize; }
 .resize-handle.bottom { bottom: -3px; left: 0; width: 100%; height: 6px; cursor: ns-resize; }
 .resize-handle.corner { bottom: -3px; right: -3px; width: 12px; height: 12px; cursor: nwse-resize; }

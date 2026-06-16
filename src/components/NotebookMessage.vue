@@ -17,7 +17,7 @@
         <!-- Assistant answer with streaming -->
         <div v-if="isStreaming || currentResponse" class="message message-assistant">
           <div class="message-content">
-            <div ref="assistantMessageRef" class="assistant-message" @mouseup="showContextMenu" @dblclick="handleDoubleClick" @contextmenu="handleContextMenu">
+            <div ref="assistantMessageRef" class="assistant-message" @pointerup="showContextMenu" @dblclick="handleDoubleClick" @contextmenu="handleContextMenu">
               <MarkdownRenderer
                 :content="currentResponse"
                 :custom-content="customContent"
