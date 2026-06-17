@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <Transition name="modal">
-      <div v-if="visible" class="modal-overlay" @pointerdown.self="onClose">
+      <div v-if="visible" class="modal-overlay" @pointerdown.self="onOutsideClose">
         <div class="modal-content" :class="sizeClass" :style="contentStyle">
           <div v-if="title || $slots.header" class="modal-header">
             <slot name="header">
@@ -35,6 +35,8 @@ const props = withDefaults(defineProps<{
   size?: 'small' | 'medium' | 'large' | 'xlarge'
   contentStyle?: Record<string, string>
   preventClose?: boolean
+  closeOnOutsideClick?: boolean
+  closeOnEscape?: boolean
 }>(), {
   visible: false,
   title: '',
@@ -43,6 +45,8 @@ const props = withDefaults(defineProps<{
   size: 'small',
   contentStyle: () => ({}),
   preventClose: false,
+  closeOnOutsideClick: true,
+  closeOnEscape: true,
 })
 
 const emit = defineEmits<{ close: [] }>()
@@ -54,8 +58,15 @@ function onClose() {
   emit('close')
 }
 
+function onOutsideClose() {
+  if (!props.closeOnOutsideClick) return
+  onClose()
+}
+
 function handleKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') onClose()
+  if (e.key !== 'Escape') return
+  if (!props.closeOnEscape) return
+  onClose()
 }
 
 watch(() => props.visible, (isOpen) => {

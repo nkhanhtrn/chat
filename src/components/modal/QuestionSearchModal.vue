@@ -1,5 +1,5 @@
 <template>
-  <Modal :visible="visible" title="Link to Question" size="medium" @close="$emit('cancel')">
+  <Modal :visible="visible" title="Link to Question" size="medium" :close-on-outside-click="false" :close-on-escape="false" @close="$emit('cancel')">
     <div class="search-container">
       <input
         ref="searchInputRef"
