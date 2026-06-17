@@ -97,7 +97,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick, onBeforeUnmount, provide } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/AppLayout.vue'
 import BookTocSidebar from '@/components/BookTocSidebar.vue'
@@ -113,6 +113,7 @@ import { Settings } from '@/services/settings'
 import lmService from '@/services/llm/LMService'
 import { getQuickExplainPrompts, getMainPrompts, getSummaryPrompts } from '@/services/extraPrompt'
 import { useVocabulary } from '@/composables/useVocabulary'
+import { useBookChatStore } from '@/stores/bookChat'
 
 import type { BookData, TocItem } from '@/types/book'
 
@@ -120,6 +121,9 @@ const route = useRoute()
 const router = useRouter()
 const booksStore = useBooksStore()
 const { addVocabCard, findByWord } = useVocabulary()
+
+const bookChatStore = useBookChatStore()
+provide('book-chat-store', bookChatStore)
 
 const loading = ref(false)
 const error = ref<string | null>(null)
@@ -548,6 +552,7 @@ function destroyRenderer() {
 watch(currentBook, (book) => {
   if (book) {
     progress.value = (book.readingProgress ?? 0) / 100
+    bookChatStore.loadChat(book.id)
   }
 })
 
@@ -558,6 +563,7 @@ onMounted(async () => {
     return
   }
 
+  bookChatStore.loadChat(bookId)
   loading.value = true
   error.value = null
   booksStore.setCurrentBook(bookId)

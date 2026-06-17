@@ -67,13 +67,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, nextTick, watch, onMounted, onBeforeUnmount, inject } from 'vue'
 import { useSideChatStore } from '@/stores/sideChat'
 import { handleCommand, type CommandContext } from '@/utils/chatCommands'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import ExpandableInput from './ExpandableInput.vue'
 
-const store = useSideChatStore()
+type ChatStore = ReturnType<typeof useSideChatStore>
+const store = inject<ChatStore | null>('book-chat-store', null) ?? useSideChatStore()
 
 const inputText = ref('')
 const commandFeedback = ref('')
