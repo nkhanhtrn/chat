@@ -5,7 +5,7 @@
         <div v-if="i > 0 && item.kind !== suggestions[i - 1].kind" class="cmd-separator" />
         <div
           :class="['cmd-item', { active: i === activeIndex }]"
-          @mousedown.prevent="applySuggestion(item)"
+          @pointerdown.prevent="applySuggestion(item)"
           @mouseenter="activeIndex = i"
         >
           <span :class="['cmd-name', { 'cmd-tool': item.kind === 'tool' }]">{{ item.label }}</span>

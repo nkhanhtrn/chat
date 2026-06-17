@@ -193,6 +193,21 @@ describe('ExpandableInput', () => {
     })
   })
 
+  describe('suggestion pointer events', () => {
+    it('applies suggestion on pointerdown', async () => {
+      const wrapper = mountInput({ modelValue: '/he' })
+      await wrapper.find('textarea').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      const suggestion = wrapper.find('.cmd-item')
+      if (suggestion.exists()) {
+        await suggestion.trigger('pointerdown')
+        expect(wrapper.emitted('update:modelValue')).toBeTruthy()
+      }
+      wrapper.unmount()
+    })
+  })
+
   describe('slots', () => {
     it('renders before-send slot content', () => {
       const wrapper = mount(ExpandableInput, {

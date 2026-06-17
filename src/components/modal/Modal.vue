@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <Transition name="modal">
-      <div v-if="visible" class="modal-overlay" @mousedown.self="onClose">
+      <div v-if="visible" class="modal-overlay" @pointerdown.self="onClose">
         <div class="modal-content" :class="sizeClass" :style="contentStyle">
           <div v-if="title || $slots.header" class="modal-header">
             <slot name="header">

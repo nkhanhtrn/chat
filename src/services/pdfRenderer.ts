@@ -134,7 +134,7 @@ export class PdfRenderer {
   destroy(): void {
     this.destroyed = true
     if (this.textSelectHandler) {
-      this.container.removeEventListener('mouseup', this.textSelectHandler)
+      this.container.removeEventListener('pointerup', this.textSelectHandler)
       this.textSelectHandler = null
     }
     this.container.innerHTML = ''
@@ -265,7 +265,7 @@ export class PdfRenderer {
         y: rect.bottom,
       })
     }
-    this.container.addEventListener('mouseup', this.textSelectHandler)
+    this.container.addEventListener('pointerup', this.textSelectHandler)
   }
 
   private notifyLocationChange(): void {

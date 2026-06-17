@@ -414,6 +414,33 @@ describe('PdfRenderer', () => {
       renderer.destroy()
     })
   })
+
+  describe('text selection', () => {
+    it('fires onTextSelect on container pointerup', async () => {
+      const onTextSelect = vi.fn()
+      const renderer = new PdfRenderer(container, new ArrayBuffer(8), { onTextSelect })
+      await renderer.initialize()
+
+      const originalGetSelection = window.getSelection
+      const mockRange = {
+        getBoundingClientRect: () => ({ left: 10, width: 50, top: 10, bottom: 30, right: 60, height: 20, x: 10, y: 10, toJSON: () => ({}) }),
+      }
+      window.getSelection = vi.fn().mockReturnValue({
+        isCollapsed: false,
+        rangeCount: 1,
+        toString: () => 'selected text',
+        getRangeAt: () => mockRange,
+      }) as any
+
+      container.dispatchEvent(new Event('pointerup'))
+
+      expect(onTextSelect).toHaveBeenCalled()
+      expect(onTextSelect.mock.calls[0][0].text).toBe('selected text')
+
+      window.getSelection = originalGetSelection
+      renderer.destroy()
+    })
+  })
 })
 
 describe('extractPdfInfo', () => {
