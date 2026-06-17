@@ -1,5 +1,5 @@
 <template>
-  <Modal :visible="visible" size="medium" :title-style="{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '340px' }" @close="$emit('close')">
+  <Modal :visible="visible" size="medium" :close-on-outside-click="false" :close-on-escape="false" :title-style="{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '340px' }" @close="$emit('close')">
     <template #header>
       <div class="resp-header-info">
         <span class="resp-title">{{ title }}</span>

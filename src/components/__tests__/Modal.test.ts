@@ -45,4 +45,27 @@ describe('Modal', () => {
     expect(wrapper.emitted('close')).toBeFalsy()
     wrapper.unmount()
   })
+
+  it('does not emit close on overlay when closeOnOutsideClick is false', async () => {
+    const wrapper = mountModal({ closeOnOutsideClick: false })
+    const overlay = document.querySelector('.modal-overlay') as HTMLElement
+    overlay.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+    expect(wrapper.emitted('close')).toBeFalsy()
+    wrapper.unmount()
+  })
+
+  it('still emits close on X button when closeOnOutsideClick is false', async () => {
+    const wrapper = mountModal({ title: 'Test', closeOnOutsideClick: false, closeOnEscape: false })
+    const closeBtn = document.querySelector('.modal-close-btn') as HTMLElement
+    closeBtn.dispatchEvent(new Event('click', { bubbles: true }))
+    expect(wrapper.emitted('close')).toBeTruthy()
+    wrapper.unmount()
+  })
+
+  it('does not emit close on Escape when closeOnEscape is false', async () => {
+    const wrapper = mountModal({ closeOnEscape: false })
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(wrapper.emitted('close')).toBeFalsy()
+    wrapper.unmount()
+  })
 })
