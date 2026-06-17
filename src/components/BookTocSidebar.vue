@@ -1,6 +1,6 @@
 <template>
   <div class="book-toc-sidebar">
-    <div class="sidebar-header">
+    <div v-if="!hideHeader" class="sidebar-header">
       <button class="back-btn" @click="$emit('back')" title="Back to library">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="15 18 9 12 15 6"></polyline>
@@ -53,6 +53,7 @@ const props = defineProps<{
   toc: TocItem[]
   bookTitle: string
   activeHref?: string | null
+  hideHeader?: boolean
 }>()
 
 defineEmits<{

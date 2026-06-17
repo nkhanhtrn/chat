@@ -1,13 +1,29 @@
 <template>
-  <AppLayout storage-key="sidebar">
+  <AppLayout ref="appLayoutRef" storage-key="sidebar">
     <template #side>
-      <BookTocSidebar
-        :toc="toc"
-        :book-title="currentBook?.title ?? ''"
-        :active-href="activeHref"
-        @navigate="handleTocNavigate"
-        @back="router.push({ name: 'books' })"
-      />
+      <div class="book-sidebar">
+        <div class="sidebar-header">
+          <button class="back-btn" @click="router.push({ name: 'books' })" title="Back to library">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          </button>
+          <div class="tab-navigation">
+            <button class="tab-button" :class="{ active: sideTab === 'toc' }" @click="sideTab = 'toc'">Contents</button>
+            <button class="tab-button" :class="{ active: sideTab === 'ask' }" @click="sideTab = 'ask'">Ask</button>
+          </div>
+        </div>
+        <div v-show="sideTab === 'toc'" class="sidebar-content">
+          <BookTocSidebar
+            :toc="toc"
+            :book-title="currentBook?.title ?? ''"
+            :active-href="activeHref"
+            hide-header
+            @navigate="handleTocNavigate"
+          />
+        </div>
+        <div v-show="sideTab === 'ask'" class="sidebar-content playground-content">
+          <SideChatPlayground />
+        </div>
+      </div>
     </template>
     <div class="book-viewer-page">
       <div v-if="loading" class="loading-state">Loading book...</div>
@@ -28,17 +44,22 @@
         </div>
         <div class="page-nav">
           <button class="nav-btn" @click="handlePrevPage" :disabled="!canGoPrev">&larr; Previous</button>
-          <template v-if="bookFileType === 'pdf'">
-            <div class="pdf-controls">
-              <button class="nav-btn zoom-btn" @click="zoomOut" :disabled="pdfScale <= 0.5">−</button>
-              <span class="zoom-info">{{ Math.round(pdfScale * 100) }}%</span>
-              <button class="nav-btn zoom-btn" @click="zoomIn" :disabled="pdfScale >= 4">+</button>
-              <span class="page-info">{{ pageDisplayText }}</span>
-            </div>
-          </template>
-          <template v-else>
-            <span class="page-info">{{ Math.round(progress * 100) }}%</span>
-          </template>
+          <div class="page-nav-center">
+            <template v-if="bookFileType === 'pdf'">
+              <div class="pdf-controls">
+                <button class="nav-btn zoom-btn" @click="zoomOut" :disabled="pdfScale <= 0.5">−</button>
+                <span class="zoom-info">{{ Math.round(pdfScale * 100) }}%</span>
+                <button class="nav-btn zoom-btn" @click="zoomIn" :disabled="pdfScale >= 4">+</button>
+                <span class="page-info">{{ pageDisplayText }}</span>
+              </div>
+            </template>
+            <template v-else>
+              <span class="page-info">{{ Math.round(progress * 100) }}%</span>
+            </template>
+            <button class="nav-btn menu-btn" @click="openAskPanel" title="Ask">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </button>
+          </div>
           <button class="nav-btn" @click="handleNextPage" :disabled="!canGoNext">Next &rarr;</button>
         </div>
       </template>
@@ -82,6 +103,7 @@ import AppLayout from '@/components/AppLayout.vue'
 import BookTocSidebar from '@/components/BookTocSidebar.vue'
 import ProgressBar from '@/components/ProgressBar.vue'
 import ContextMenu from '@/components/ContextMenu.vue'
+import SideChatPlayground from '@/components/SideChatPlayground.vue'
 import DictionaryModal from '@/components/modal/DictionaryModal.vue'
 import ResponseModal from '@/components/modal/ResponseModal.vue'
 import { useBooksStore } from '@/stores/books'
@@ -107,6 +129,8 @@ const canGoPrev = ref(false)
 const canGoNext = ref(true)
 const toc = ref<TocItem[]>([])
 const activeHref = ref<string | null>(null)
+const sideTab = ref<'toc' | 'ask'>('toc')
+const appLayoutRef = ref<InstanceType<typeof AppLayout> | null>(null)
 const contextMenu = reactive({ visible: false, x: 0, y: 0, text: '', context: '' })
 const dictionary = reactive({ show: false, word: '', definition: '', pronunciation: '', context: '' })
 const response = reactive({ show: false, title: '', content: '', streaming: false })
@@ -497,6 +521,13 @@ function zoomOut() {
   pdfRenderer?.setScale(pdfScale.value)
 }
 
+function openAskPanel() {
+  sideTab.value = 'ask'
+  if (appLayoutRef.value && !appLayoutRef.value.sideExpanded) {
+    appLayoutRef.value.toggleSide()
+  }
+}
+
 function destroyRenderer() {
   resizeObserver?.disconnect()
   resizeObserver = null
@@ -598,6 +629,17 @@ onBeforeUnmount(() => {
 .nav-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .page-info { font-size: 0.85rem; color: var(--color-text-muted); }
 .pdf-controls { display: flex; align-items: center; gap: 0.5rem; }
+.page-nav-center { display: flex; align-items: center; gap: 0.5rem; }
+.menu-btn { display: flex; align-items: center; justify-content: center; padding: 0.3rem 0.55rem; }
+.book-sidebar { display: flex; flex-direction: column; height: 100%; }
+.sidebar-header { display: flex; align-items: center; border-bottom: 1px solid var(--color-border-base); }
+.tab-navigation { display: flex; gap: 0.25rem; flex: 1; padding: 0.5rem 0.75rem 0.5rem 0; }
+.tab-button { flex: 1; padding: 0.4rem 0.6rem; font-size: 0.75rem; font-weight: 500; background: transparent; border: none; border-radius: 4px; color: var(--color-text-muted); cursor: pointer; }
+.tab-button:hover { background: var(--color-bg-hover); }
+.tab-button.active { background: var(--color-bg-hover); color: var(--color-primary); }
+.back-btn { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; background: none; border: none; color: var(--color-text-muted); cursor: pointer; flex-shrink: 0; transition: all 0.15s; }
+.back-btn:hover { background: var(--color-bg-hover); color: var(--color-text-base); }
+.sidebar-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
 .zoom-btn { padding: 0.3rem 0.6rem; min-width: 2rem; }
 .zoom-info { font-size: 0.8rem; color: var(--color-text-muted); min-width: 3rem; text-align: center; }
 @media (max-width: 768px) { .book-header { padding: 0.75rem 1rem; } }
