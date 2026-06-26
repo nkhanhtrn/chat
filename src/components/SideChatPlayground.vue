@@ -6,16 +6,35 @@
         <p class="subtext">Quick questions while you work</p>
       </div>
 
-      <div
-        v-for="msg in store.messages"
-        :key="msg.id"
-        :class="['message', msg.role]"
-      >
-        <div v-if="msg.role === 'user'" class="bubble user-bubble">
-          {{ msg.content }}
-        </div>
-        <div v-else class="bubble assistant-bubble">
-          <MarkdownRenderer :content="msg.content" />
+      <div v-for="turn in turns" :key="turn.id" class="turn">
+        <CollapseToggle
+          v-if="!isStreamingTurn(turn)"
+          :collapsed="isTurnCollapsed(turn.id)"
+          class="turn-toggle"
+          @toggle="toggleTurn(turn.id)"
+        />
+        <div class="turn-content">
+          <div
+            v-if="isTurnCollapsed(turn.id) && !isStreamingTurn(turn)"
+            class="turn-preview"
+            @click="toggleTurn(turn.id)"
+          >
+            {{ turnQuestion(turn) }}
+          </div>
+          <template v-else>
+            <div
+              v-for="msg in turn.messages"
+              :key="msg.id"
+              :class="['message', msg.role]"
+            >
+              <div v-if="msg.role === 'user'" class="bubble user-bubble">
+                {{ msg.content }}
+              </div>
+              <div v-else class="bubble assistant-bubble">
+                <MarkdownRenderer :content="msg.content" />
+              </div>
+            </div>
+          </template>
         </div>
       </div>
 
@@ -67,11 +86,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useSideChatStore } from '@/stores/sideChat'
 import { handleCommand, type CommandContext } from '@/utils/chatCommands'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import ExpandableInput from './ExpandableInput.vue'
+import CollapseToggle from './CollapseToggle.vue'
 
 const store = useSideChatStore()
 
@@ -79,6 +99,41 @@ const inputText = ref('')
 const commandFeedback = ref('')
 const messagesContainer = ref<HTMLElement | null>(null)
 const showScrollBtn = ref(false)
+
+const collapsedTurnIds = ref(new Set<string>())
+
+const isTurnCollapsed = (id: string) => collapsedTurnIds.value.has(id)
+const toggleTurn = (id: string) => {
+  const next = new Set(collapsedTurnIds.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  collapsedTurnIds.value = next
+}
+
+interface Turn {
+  id: string
+  messages: { id: string; role: string; content: string }[]
+}
+
+const turns = computed<Turn[]>(() => {
+  const list: Turn[] = []
+  for (const m of store.messages) {
+    if (m.role === 'user' || list.length === 0) {
+      list.push({ id: m.id, messages: [m] })
+    } else {
+      list[list.length - 1].messages.push(m)
+    }
+  }
+  return list
+})
+
+const turnQuestion = (turn: Turn) => {
+  const userMsg = turn.messages.find(m => m.role === 'user') ?? turn.messages[0]
+  return userMsg.content
+}
+
+const isStreamingTurn = (turn: Turn) =>
+  store.isStreaming && turns.value[turns.value.length - 1]?.id === turn.id
 
 const checkScroll = () => {
   const el = messagesContainer.value
@@ -212,6 +267,36 @@ watch(() => store.messages.length, () => scrollToBottom())
   border-bottom-right-radius: 3px;
   color: var(--color-text-base);
 }
+
+.turn {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin-bottom: 1.25rem;
+}
+.turn-toggle {
+  margin-top: 0.35rem;
+  opacity: 0.4;
+  transition: opacity 0.15s;
+}
+.turn:hover .turn-toggle { opacity: 0.8; }
+.turn-toggle:hover { opacity: 1; }
+.turn-content {
+  flex: 1;
+  min-width: 0;
+}
+.turn-content .message:last-child { margin-bottom: 0; }
+.turn-preview {
+  font-family: Georgia, serif;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0.35rem 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.turn-preview:hover { color: var(--color-text-base); }
 
 .assistant-bubble :deep(.markdown-renderer) {
   font-size: 0.95rem;

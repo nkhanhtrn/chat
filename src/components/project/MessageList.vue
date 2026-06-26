@@ -5,15 +5,32 @@
         <p>What do you want to build today?</p>
         <p class="subtext">Describe your idea to get started</p>
       </div>
-      <ProjectChatMessage
-        v-for="(msg, index) in messages"
-        :key="msg.id"
-        :msg="msg"
-        :is-last-message="index === messages.length - 1"
-        :is-last-user-message="index === lastUserMessageIndex"
-        :is-streaming="isStreaming"
-        @edit="(newContent: string) => $emit('edit', index, newContent)"
-      />
+      <div v-for="turn in turns" :key="turn.id" class="turn">
+        <CollapseToggle
+          v-if="!isStreamingTurn(turn)"
+          :collapsed="isTurnCollapsed(turn.id)"
+          class="turn-toggle"
+          @toggle="toggleTurn(turn.id)"
+        />
+        <div
+          v-if="isTurnCollapsed(turn.id) && !isStreamingTurn(turn)"
+          class="turn-preview"
+          @click="toggleTurn(turn.id)"
+        >
+          {{ turnQuestion(turn) }}
+        </div>
+        <div v-else class="turn-body">
+          <ProjectChatMessage
+            v-for="item in turn.items"
+            :key="item.msg.id"
+            :msg="item.msg"
+            :is-last-message="item.index === messages.length - 1"
+            :is-last-user-message="item.index === lastUserMessageIndex"
+            :is-streaming="isStreaming"
+            @edit="(newContent: string) => $emit('edit', item.index, newContent)"
+          />
+        </div>
+      </div>
     </div>
 
     <button
@@ -32,6 +49,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import ProjectChatMessage from './ProjectChatMessage.vue'
+import CollapseToggle from '@/components/CollapseToggle.vue'
 import type { ProjectMessage } from '@/types/project'
 
 const props = defineProps<{
@@ -45,6 +63,41 @@ defineEmits<{
 
 const containerRef = ref<HTMLDivElement | null>(null)
 const showScrollBtn = ref(false)
+
+const collapsedTurnIds = ref(new Set<string>())
+
+const isTurnCollapsed = (id: string) => collapsedTurnIds.value.has(id)
+const toggleTurn = (id: string) => {
+  const next = new Set(collapsedTurnIds.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  collapsedTurnIds.value = next
+}
+
+interface Turn {
+  id: string
+  items: { msg: ProjectMessage; index: number }[]
+}
+
+const turns = computed<Turn[]>(() => {
+  const list: Turn[] = []
+  props.messages.forEach((msg, index) => {
+    if (msg.role === 'user' || list.length === 0) {
+      list.push({ id: msg.id, items: [{ msg, index }] })
+    } else {
+      list[list.length - 1].items.push({ msg, index })
+    }
+  })
+  return list
+})
+
+const turnQuestion = (turn: Turn) => {
+  const userItem = turn.items.find(i => i.msg.role === 'user') ?? turn.items[0]
+  return userItem.msg.content
+}
+
+const isStreamingTurn = (turn: Turn) =>
+  !!props.isStreaming && turn.items[turn.items.length - 1].index === props.messages.length - 1
 
 const checkScroll = () => {
   const el = containerRef.value
@@ -94,6 +147,35 @@ defineExpose({ containerRef, scrollToBottom })
   flex: 1;
   overflow-y: auto;
   padding: 1.25rem;
+}
+.turn {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+.turn-toggle {
+  margin-top: 0.15rem;
+  opacity: 0.4;
+  transition: opacity 0.15s;
+}
+.turn:hover .turn-toggle { opacity: 0.8; }
+.turn-toggle:hover { opacity: 1; }
+.turn-preview {
+  flex: 1;
+  min-width: 0;
+  font-family: Georgia, serif;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0.15rem 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.turn-preview:hover { color: var(--color-text-base); }
+.turn-body {
+  flex: 1;
+  min-width: 0;
 }
 .empty-state {
   display: flex;

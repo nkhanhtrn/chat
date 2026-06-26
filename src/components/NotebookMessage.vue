@@ -2,8 +2,14 @@
   <div>
     <SlideTransition>
       <div :key="currentMessage.id">
+        <!-- Q&A collapse header -->
+        <div v-if="!isStreaming" class="qa-header" @click="isCollapsed = !isCollapsed">
+          <CollapseToggle :collapsed="isCollapsed" @toggle="isCollapsed = !isCollapsed" />
+          <span class="qa-question">{{ currentMessage.questionSummarized }}</span>
+        </div>
+
         <!-- Response Summary (collapsible) -->
-        <div v-if="currentMessage.responseSummary && !isStreaming" class="response-summary-container">
+        <div v-if="currentMessage.responseSummary && !isStreaming" v-show="!isCollapsed" class="response-summary-container">
           <details class="response-summary">
             <summary class="response-summary-toggle">
               {{ currentMessage.questionSummarized }}
@@ -15,7 +21,7 @@
         </div>
 
         <!-- Assistant answer with streaming -->
-        <div v-if="isStreaming || currentResponse" class="message message-assistant">
+        <div v-if="isStreaming || currentResponse" v-show="!isCollapsed || isStreaming" class="message message-assistant">
           <div class="message-content">
             <div ref="assistantMessageRef" class="assistant-message" @pointerup="showContextMenu" @dblclick="handleDoubleClick" @contextmenu="handleContextMenu">
               <MarkdownRenderer
@@ -93,6 +99,7 @@ import { useStreamingStore } from '@/stores/streaming'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import ContextMenu from './ContextMenu.vue'
 import SlideTransition from './SlideTransition.vue'
+import CollapseToggle from './CollapseToggle.vue'
 import QuestionSearchModal from './modal/QuestionSearchModal.vue'
 import DictionaryModal from './modal/DictionaryModal.vue'
 import ResponseModal from './modal/ResponseModal.vue'
@@ -117,6 +124,7 @@ const streamingStore = useStreamingStore()
 
 // Local state
 const isChildStreaming = ref(false)
+const isCollapsed = ref(false)
 const error = ref<string | null>(null)
 const showQuestionSearch = ref(false)
 const questionSearchContext = ref<{
@@ -722,6 +730,26 @@ onUnmounted(() => {
 .message-assistant .message-content {
   background-color: transparent;
 }
+
+.qa-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+  cursor: pointer;
+}
+
+.qa-question {
+  font-family: var(--message-font-family, Georgia, serif);
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--color-text-secondary, #666);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qa-header:hover .qa-question { color: var(--color-text-message); }
 
 .assistant-message {
   color: var(--color-text-message);
