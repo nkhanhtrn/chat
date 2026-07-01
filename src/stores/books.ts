@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import type { BookData, BookCreateParams, BookCategory, ItemMeta, PaperMeta } from '@/types/book'
-import { syncBookList, syncBookContent, saveBookList, saveBook, deleteBook as deleteBookFromIndexedDB, resolveBookListConflict } from '@/services/BookSyncService'
+import { syncBookList, syncBookContent, saveBookList, saveBook, deleteBook as deleteBookFromIndexedDB, resolveBookListConflict, loadCloudBookList } from '@/services/BookSyncService'
 import { saveBookToFirestore, deleteBookFromFirestore, uploadBookFileToStorage } from '@/services/firestore/firestore-books'
 import { getFirebaseAuth } from '@/services/firebase'
 import { debugLog } from '@/utils/debug'
@@ -31,6 +31,19 @@ function compressCover(coverData: ArrayBuffer, maxSize = 400, quality = 0.7): Pr
       resolve('')
     }
     img.src = url
+  })
+}
+
+function normalizeBooks(books: BookData[]): BookData[] {
+  return books.map(b => {
+    if (!b.meta && (b as any).paperMeta) {
+      const { paperMeta, ...rest } = b as any
+      return { ...rest, meta: paperMeta } as BookData
+    }
+    if (!b.category) {
+      return { ...b, category: 'book' as BookCategory } as BookData
+    }
+    return b
   })
 }
 
@@ -187,6 +200,41 @@ export const useBooksStore = defineStore('books', {
         return { hasConflict: false }
       } finally {
         this.isLoading = false
+      }
+    },
+
+    async refreshBooks(): Promise<void> {
+      try {
+        // The reader is a read-only client — when online, treat the cloud list
+        // as the source of truth so deletions made on other devices are
+        // reflected here. syncBookList's merge would otherwise re-add a locally
+        // cached book that was deleted from the cloud (it can't distinguish
+        // "deleted" from "not yet uploaded").
+        const online = typeof navigator !== 'undefined' && navigator.onLine && getFirebaseAuth()?.currentUser
+        if (online) {
+          const cloudBooks = await loadCloudBookList()
+          if (cloudBooks.length > 0) {
+            const cloudIds = new Set(cloudBooks.map(b => b.id))
+            // Purge stale local metadata for books no longer in the cloud
+            for (const local of this.books) {
+              if (!cloudIds.has(local.id)) {
+                await deleteBookFromIndexedDB(local.id).catch(() => {})
+              }
+            }
+            await saveBookList({ books: cloudBooks })
+            this.books = normalizeBooks(cloudBooks)
+            this.lastCloudSyncAt = Date.now()
+            debugLog(`[BooksStore] Refreshed from cloud: ${this.books.length} books`)
+            return
+          }
+        }
+        // Offline (or cloud unavailable/empty): fall back to merged local+cloud sync
+        const listData = await syncBookList()
+        this.books = normalizeBooks((listData.books as BookData[]) ?? [])
+        this.lastCloudSyncAt = (listData.lastSyncedAt as number) ?? null
+        debugLog(`[BooksStore] Refreshed: ${this.books.length} books`)
+      } catch (error) {
+        console.error('[BooksStore] refreshBooks failed:', error)
       }
     },
 

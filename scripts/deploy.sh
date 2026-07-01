@@ -12,6 +12,13 @@ npx vitest run
 echo "Building application..."
 npm run build
 
+echo "Building reader..."
+npm run build:reader
+
+echo "Staging reader under dist/reader..."
+mkdir -p dist/reader
+cp -r dist-reader/* dist/reader/
+
 echo "Adding .nojekyll file..."
 touch dist/.nojekyll
 

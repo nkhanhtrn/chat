@@ -61,8 +61,23 @@ export async function syncBookList(): Promise<Record<string, unknown>> {
   }
 }
 
-export async function syncBookContent(bookId: string): Promise<{ book: BookData | null }> {
+/**
+ * Load the book list straight from Firestore (cloud only, no local merge).
+ * Returns [] when offline, unauthenticated, or the fetch fails.
+ */
+export async function loadCloudBookList(): Promise<BookData[]> {
+  if (typeof navigator !== 'undefined' && (!navigator.onLine || !getFirebaseAuth()?.currentUser)) {
+    return []
+  }
   try {
+    const result = await loadBooksFromFirestore()
+    return Array.isArray(result) ? result : []
+  } catch {
+    return []
+  }
+}
+
+export async function syncBookContent(bookId: string): Promise<{ book: BookData | null }> {  try {
     const db = await getDB()
     if (!db.objectStoreNames?.contains(BOOKS_STORE)) return { book: null }
 

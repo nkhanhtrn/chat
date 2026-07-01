@@ -179,7 +179,7 @@ export class EpubRenderer {
 
   getCurrentLocation(): { cfi: string; percentage: number } | null {
     if (!this.rendition) return null
-    const loc = this.rendition.currentLocation()
+    const loc = this.rendition.currentLocation() as { start?: { cfi: string; percentage?: number } } | null
     if (loc?.start) {
       return {
         cfi: loc.start.cfi,
@@ -241,7 +241,7 @@ export class EpubRenderer {
     if (this._destroyed || !this.rendition) return
     const w = typeof width === 'number' ? width : parseInt(width, 10)
     this.rendition.spread(w >= 900 ? 'auto' : 'none')
-    this.rendition.resize(width, height)
+    this.rendition.resize(width as number, height as number)
   }
 
   destroy(): void {
