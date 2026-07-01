@@ -141,21 +141,46 @@ describe('ReaderLibrary', () => {
     expect(syncBookList).toHaveBeenCalled()
   })
 
+  it('re-syncs when the sync button is clicked', async () => {
+    const wrapper = await mountWithBooks([])
+    // let the mount-time sync() settle (so the button isn't disabled)
+    await new Promise((r) => setTimeout(r, 0))
+
+    const refreshSpy = vi.spyOn(useBooksStore(), 'refreshBooks').mockResolvedValue(undefined)
+    await wrapper.find('[title="Sync library"]').trigger('click')
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(refreshSpy).toHaveBeenCalled()
+    refreshSpy.mockRestore()
+    wrapper.unmount()
+  })
+
   describe('theme toggle', () => {
-    it('shows the current theme label', async () => {
+    it('defaults to light theme', async () => {
       const wrapper = await mountWithBooks([])
-      expect(wrapper.find('.lib-theme-btn').text()).toBe('Light')
+      expect(wrapper.find('.theme-btn').attributes('title')).toBe('Theme: Light')
       wrapper.unmount()
     })
 
-    it('cycles to the next theme on click and persists it', async () => {
+    it('switches to dark on click and persists it', async () => {
       const wrapper = await mountWithBooks([])
-      await wrapper.find('.lib-theme-btn').trigger('click')
+      await wrapper.find('.theme-btn').trigger('click')
       await wrapper.vm.$nextTick()
 
-      expect(wrapper.find('.lib-theme-btn').text()).toBe('Sepia')
-      expect(localStorage.getItem('theme')).toBe('sepia')
-      expect(document.documentElement.getAttribute('data-theme')).toBe('sepia')
+      expect(localStorage.getItem('theme')).toBe('dark')
+      expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
+      expect(wrapper.find('.theme-btn').attributes('title')).toBe('Theme: Dark')
+      wrapper.unmount()
+    })
+
+    it('switches back to light on a second click', async () => {
+      const wrapper = await mountWithBooks([])
+      await wrapper.find('.theme-btn').trigger('click')
+      await wrapper.vm.$nextTick()
+      await wrapper.find('.theme-btn').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(localStorage.getItem('theme')).toBe('light')
       wrapper.unmount()
     })
   })

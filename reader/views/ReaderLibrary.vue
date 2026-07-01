@@ -3,8 +3,17 @@
     <header class="lib-header">
       <h1>Library</h1>
       <div class="lib-header-actions">
-        <button class="lib-theme-btn" @click="toggleTheme" :title="'Theme: ' + themeLabel(theme)">
-          {{ themeLabel(theme) }}
+        <button class="lib-theme-btn" @click="sync" :disabled="syncing" title="Sync library">
+          {{ syncing ? '⋯' : '↻' }}
+        </button>
+        <button class="lib-theme-btn theme-btn" @click="toggleTheme" :title="'Theme: ' + themeLabel(theme)">
+          <svg v-if="theme === 'light'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+          </svg>
+          <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+          </svg>
         </button>
       </div>
     </header>
@@ -58,6 +67,7 @@ const router = useRouter()
 const booksStore = useBooksStore()
 const query = ref('')
 const theme = ref<ReaderTheme>(getTheme())
+const syncing = ref(false)
 
 const epubBooks = computed(() =>
   booksStore.books
@@ -81,14 +91,23 @@ function toggleTheme(): void {
   theme.value = cycleTheme()
 }
 
+async function sync(): Promise<void> {
+  syncing.value = true
+  try {
+    await booksStore.refreshBooks()
+  } finally {
+    syncing.value = false
+  }
+}
+
 function onVisibility(): void {
   if (document.visibilityState === 'visible') {
-    booksStore.refreshBooks()
+    sync()
   }
 }
 
 onMounted(() => {
-  booksStore.refreshBooks()
+  sync()
   document.addEventListener('visibilitychange', onVisibility)
 })
 
@@ -138,6 +157,11 @@ onUnmounted(() => {
 .lib-theme-btn:hover {
   background: var(--color-bg-hover, rgba(0, 0, 0, 0.05));
   color: var(--color-text-base, #202020);
+}
+
+.lib-theme-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .lib-search {

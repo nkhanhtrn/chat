@@ -1,7 +1,7 @@
-export type ReaderTheme = 'light' | 'sepia' | 'dark'
+export type ReaderTheme = 'light' | 'dark'
 
-const ORDER: ReaderTheme[] = ['light', 'sepia', 'dark']
-const LABELS: Record<ReaderTheme, string> = { light: 'Light', sepia: 'Sepia', dark: 'Dark' }
+const ORDER: ReaderTheme[] = ['light', 'dark']
+const LABELS: Record<ReaderTheme, string> = { light: 'Light', dark: 'Dark' }
 
 export function getTheme(): ReaderTheme {
   const t = localStorage.getItem('theme')
