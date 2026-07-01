@@ -33,12 +33,12 @@ describe('fetchBooks', () => {
   })
   afterEach(() => { window.XMLHttpRequest = origXHR })
 
-  it('parses list response, filters deleted/pdf, sorts alphabetically', () => {
+  it('parses list response, filters deleted/pdf, sorts by updatedAt desc', () => {
     window.XMLHttpRequest = function () {
       return new MockXHR(JSON.stringify({
         documents: [
-          makeDoc('b1', { title: { stringValue: 'Zebra' }, fileType: { stringValue: 'epub' } }),
-          makeDoc('b2', { title: { stringValue: 'Apple' }, fileType: { stringValue: 'epub' } }),
+          makeDoc('b1', { title: { stringValue: 'Zebra' }, fileType: { stringValue: 'epub' }, updatedAt: { integerValue: '2000' } }),
+          makeDoc('b2', { title: { stringValue: 'Apple' }, fileType: { stringValue: 'epub' }, updatedAt: { integerValue: '1000' } }),
           makeDoc('b3', { title: { stringValue: 'Deleted' }, fileType: { stringValue: 'epub' }, deletedAt: { timestampValue: '2024-01-01' } }),
           makeDoc('b4', { title: { stringValue: 'PDF' }, fileType: { stringValue: 'pdf' } }),
         ],
@@ -50,7 +50,7 @@ describe('fetchBooks', () => {
 
     fetchBooks(function (err, books) {
       expect(err).toBe(null)
-      expect(books.map(function (b) { return b.title })).toEqual(['Apple', 'Zebra'])
+      expect(books.map(function (b) { return b.title })).toEqual(['Zebra', 'Apple'])
       expect(state.books).toHaveLength(2)
     })
   })
@@ -97,6 +97,7 @@ describe('saveProgress', () => {
     expect(lastXHR.url).toContain('/users/u1/books/book-42')
     expect(lastXHR.url).toContain('updateMask.fieldPaths=lastCfi')
     expect(lastXHR.url).toContain('updateMask.fieldPaths=readingProgress')
+    expect(lastXHR.url).toContain('updateMask.fieldPaths=updatedAt')
   })
 
   it('sends cfi as stringValue and progress as integerValue (0-100)', () => {

@@ -44,18 +44,28 @@ function renderLibrary() {
         '<button class="icon-btn" id="theme-btn">' + themeIcon() + '</button>' +
         '<button class="icon-btn" id="logout-btn">Logout</button>' +
       '</div>' +
+      '<div class="lib-search">' +
+        '<input type="search" id="search-input" placeholder="Search title or author&#8230;"' +
+          (state.searchQuery ? ' value="' + escapeHtml(state.searchQuery) + '"' : '') + '>' +
+      '</div>' +
       '<div class="lib-loading" id="lib-content">Loading&#8230;</div>' +
     '</div>';
 
   bindThemeBtn('theme-btn');
 
+  var searchInput = document.getElementById('search-input');
+  if (searchInput) {
+    searchInput.addEventListener('input', function () {
+      state.searchQuery = this.value;
+      renderLibraryPage(0);
+    });
+  }
+
   document.getElementById('font-down-btn').addEventListener('click', function () {
-    changeFontSize(-10);
-    applyRootFontSize();
+    changeLibFontSize(-10);
   });
   document.getElementById('font-up-btn').addEventListener('click', function () {
-    changeFontSize(10);
-    applyRootFontSize();
+    changeLibFontSize(10);
   });
 
   document.getElementById('logout-btn').addEventListener('click', function () {
@@ -86,9 +96,28 @@ function renderLibrary() {
   }
 }
 
+function getFilteredBooks() {
+  var q = state.searchQuery.trim().toLowerCase();
+  if (!q) return state.books;
+  var out = [];
+  for (var i = 0; i < state.books.length; i++) {
+    var b = state.books[i];
+    if ((b.title && b.title.toLowerCase().indexOf(q) !== -1) ||
+        (b.author && b.author.toLowerCase().indexOf(q) !== -1)) {
+      out.push(b);
+    }
+  }
+  return out;
+}
+
 function renderLibraryPage(page) {
-  var books = state.books;
+  var books = getFilteredBooks();
   var totalPages = Math.ceil(books.length / PAGE_SIZE);
+  if (totalPages === 0) {
+    document.getElementById('lib-content').innerHTML =
+      '<div class="lib-empty">No matching books.</div>';
+    return;
+  }
   if (page < 0) page = 0;
   if (page >= totalPages) page = totalPages - 1;
   state.libPage = page;
@@ -145,7 +174,7 @@ function renderViewer(bookId) {
   document.getElementById('app').innerHTML =
     '<div class="viewer">' +
       '<div class="viewer-header">' +
-        '<button class="icon-btn" id="back-btn">\u2190</button>' +
+        '<button class="icon-btn" id="back-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></button>' +
         '<div class="viewer-title">' + escapeHtml(book.title) + '</div>' +
         '<button class="icon-btn" id="theme-btn">' + themeIcon() + '</button>' +
       '</div>' +
@@ -154,9 +183,13 @@ function renderViewer(bookId) {
       '</div>' +
       '<div class="viewer-footer">' +
         '<button class="icon-btn" id="prev-btn">\u2190</button>' +
-        '<button class="icon-btn" id="font-down-btn">A-</button>' +
-        '<span id="progress-text">0%</span>' +
-        '<button class="icon-btn" id="font-up-btn">A+</button>' +
+        '<div class="footer-center">' +
+          '<button class="icon-btn" id="font-down-btn">A-</button>' +
+          '<button class="icon-btn" id="font-up-btn">A+</button>' +
+          '<span id="progress-text">0%</span>' +
+          '<button class="icon-btn" id="line-down-btn">\u2261-</button>' +
+          '<button class="icon-btn" id="line-up-btn">\u2261+</button>' +
+        '</div>' +
         '<button class="icon-btn" id="next-btn">\u2192</button>' +
       '</div>' +
     '</div>';
@@ -176,10 +209,16 @@ function renderViewer(bookId) {
     if (state.currentRendition) state.currentRendition.next();
   });
   document.getElementById('font-down-btn').addEventListener('click', function () {
-    changeFontSize(-10);
+    changeViewerFontSize(-10);
   });
   document.getElementById('font-up-btn').addEventListener('click', function () {
-    changeFontSize(10);
+    changeViewerFontSize(10);
+  });
+  document.getElementById('line-down-btn').addEventListener('click', function () {
+    changeViewerLineHeight(-0.1);
+  });
+  document.getElementById('line-up-btn').addEventListener('click', function () {
+    changeViewerLineHeight(0.1);
   });
 
   downloadBook(bookId, function (err, arrayBuffer) {
@@ -188,7 +227,7 @@ function renderViewer(bookId) {
 
     area.innerHTML = '';
     var bookObj = ePub(arrayBuffer);
-    var rendition = bookObj.renderTo(area, { width: '100%', height: '100%' });
+    var rendition = bookObj.renderTo(area, { width: '100%', height: '100%', gap: 48 });
     state.currentRendition = rendition;
     var locationsReady = false;
 
@@ -196,10 +235,11 @@ function renderViewer(bookId) {
     rendition.themes.default({
       'html, body': {
         'background-color': isDark ? '#1a1a1a' : '#ffffff',
-        'color': isDark ? '#f0f0f0' : '#1a1a1a',
+        'color': isDark ? '#f0f0f0' : '#000000',
       }
     });
-    rendition.themes.fontSize(state.fontSize + '%');
+    rendition.themes.fontSize(state.viewerFontSize + '%');
+    rendition.themes.override('line-height', String(state.viewerLineHeight));
 
     rendition.display(book.lastCfi || undefined).then(function () {
       var el = document.getElementById('progress-text');

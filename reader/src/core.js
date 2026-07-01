@@ -22,7 +22,7 @@ function toggleTheme() {
     state.currentRendition.themes.default({
       'html, body': {
         'background-color': dark ? '#1a1a1a' : '#ffffff',
-        'color': dark ? '#f0f0f0' : '#1a1a1a',
+        'color': dark ? '#f0f0f0' : '#000000',
       }
     });
   }
@@ -30,17 +30,35 @@ function toggleTheme() {
 
 function themeIcon() { return isDark() ? '\u2600' : '\u263E'; }
 
-function changeFontSize(delta) {
-  var next = state.fontSize + delta;
+function changeLibFontSize(delta) {
+  var next = state.libFontSize + delta;
   if (next < 60) next = 60;
   if (next > 200) next = 200;
-  state.fontSize = next;
-  localStorage.setItem('fontSize', String(next));
+  state.libFontSize = next;
+  localStorage.setItem('libFontSize', String(next));
+  applyRootFontSize();
+}
+
+function changeViewerFontSize(delta) {
+  var next = state.viewerFontSize + delta;
+  if (next < 60) next = 60;
+  if (next > 300) next = 300;
+  state.viewerFontSize = next;
+  localStorage.setItem('viewerFontSize', String(next));
   if (state.currentRendition) state.currentRendition.themes.fontSize(next + '%');
 }
 
+function changeViewerLineHeight(delta) {
+  var next = Math.round((state.viewerLineHeight + delta) * 10) / 10;
+  if (next < 1.0) next = 1.0;
+  if (next > 3.0) next = 3.0;
+  state.viewerLineHeight = next;
+  localStorage.setItem('viewerLineHeight', String(next));
+  if (state.currentRendition) state.currentRendition.themes.override('line-height', String(next));
+}
+
 function applyRootFontSize() {
-  document.documentElement.style.fontSize = (18 * state.fontSize / 100) + 'px';
+  document.documentElement.style.fontSize = (18 * state.libFontSize / 100) + 'px';
 }
 
 var state = {
@@ -50,9 +68,13 @@ var state = {
   tokenExpiry: parseInt(localStorage.getItem('tokenExpiry') || '0', 10),
   books: [],
   libPage: 0,
+  searchQuery: '',
   currentRendition: null,
   progressTimer: null,
   fontSize: parseInt(localStorage.getItem('fontSize') || '100', 10),
+  libFontSize: parseInt(localStorage.getItem('libFontSize') || localStorage.getItem('fontSize') || '100', 10),
+  viewerFontSize: parseInt(localStorage.getItem('viewerFontSize') || localStorage.getItem('fontSize') || '100', 10),
+  viewerLineHeight: parseFloat(localStorage.getItem('viewerLineHeight') || '1.5'),
 };
 
 // ===== Utils =====
