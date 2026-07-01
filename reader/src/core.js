@@ -11,6 +11,25 @@ var STORAGE_ORIGIN = IS_DEV
   : 'https://firebasestorage.googleapis.com/v0/b/nkhanhtrn-chat.firebasestorage.app/o';
 
 // ===== State =====
+function isDark() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
+
+function toggleTheme() {
+  var next = isDark() ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('theme', next);
+  if (state.currentRendition) {
+    var dark = next === 'dark';
+    state.currentRendition.themes.default({
+      'html, body': {
+        'background-color': dark ? '#1a1a1a' : '#ffffff',
+        'color': dark ? '#e0e0e0' : '#202020',
+      }
+    });
+  }
+}
+
+function themeIcon() { return isDark() ? '\u2600' : '\u263E'; }
+
 var state = {
   token: localStorage.getItem('token'),
   uid: localStorage.getItem('uid'),

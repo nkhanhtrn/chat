@@ -1,3 +1,13 @@
+// ===== Shared =====
+function bindThemeBtn(id) {
+  var btn = document.getElementById(id);
+  if (!btn) return;
+  btn.addEventListener('click', function () {
+    toggleTheme();
+    btn.textContent = themeIcon();
+  });
+}
+
 // ===== Login =====
 function renderLogin(errorMsg) {
   document.getElementById('app').innerHTML =
@@ -28,11 +38,14 @@ function renderLibrary() {
     '<div class="lib">' +
       '<div class="lib-header">' +
         '<h1>My Library</h1>' +
+        '<button class="icon-btn" id="theme-btn">' + themeIcon() + '</button>' +
         '<button class="icon-btn" id="refresh-btn">\u21BB</button>' +
         '<button class="icon-btn" id="logout-btn">Logout</button>' +
       '</div>' +
       '<div class="lib-loading" id="lib-content">Loading&#8230;</div>' +
     '</div>';
+
+  bindThemeBtn('theme-btn');
 
   document.getElementById('logout-btn').addEventListener('click', function () {
     clearAuth();
@@ -123,6 +136,7 @@ function renderViewer(bookId) {
       '<div class="viewer-header">' +
         '<button class="icon-btn" id="back-btn">\u2190</button>' +
         '<div class="viewer-title">' + escapeHtml(book.title) + '</div>' +
+        '<button class="icon-btn" id="theme-btn">' + themeIcon() + '</button>' +
       '</div>' +
       '<div class="viewer-area" id="viewer-area">' +
         '<div class="lib-loading">Opening&#8230;</div>' +
@@ -133,6 +147,8 @@ function renderViewer(bookId) {
         '<button class="icon-btn" id="next-btn">\u2192</button>' +
       '</div>' +
     '</div>';
+
+  bindThemeBtn('theme-btn');
 
   document.getElementById('back-btn').addEventListener('click', function () {
     if (state.progressTimer) { clearTimeout(state.progressTimer); state.progressTimer = null; }
