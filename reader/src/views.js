@@ -44,10 +44,22 @@ function renderLibrary() {
         '<button class="icon-btn" id="theme-btn">' + themeIcon() + '</button>' +
         '<button class="icon-btn" id="logout-btn">Logout</button>' +
       '</div>' +
+      '<div class="lib-search">' +
+        '<input type="search" id="search-input" placeholder="Search title or author&#8230;"' +
+          (state.searchQuery ? ' value="' + escapeHtml(state.searchQuery) + '"' : '') + '>' +
+      '</div>' +
       '<div class="lib-loading" id="lib-content">Loading&#8230;</div>' +
     '</div>';
 
   bindThemeBtn('theme-btn');
+
+  var searchInput = document.getElementById('search-input');
+  if (searchInput) {
+    searchInput.addEventListener('input', function () {
+      state.searchQuery = this.value;
+      renderLibraryPage(0);
+    });
+  }
 
   document.getElementById('font-down-btn').addEventListener('click', function () {
     changeFontSize(-10);
@@ -86,9 +98,28 @@ function renderLibrary() {
   }
 }
 
+function getFilteredBooks() {
+  var q = state.searchQuery.trim().toLowerCase();
+  if (!q) return state.books;
+  var out = [];
+  for (var i = 0; i < state.books.length; i++) {
+    var b = state.books[i];
+    if ((b.title && b.title.toLowerCase().indexOf(q) !== -1) ||
+        (b.author && b.author.toLowerCase().indexOf(q) !== -1)) {
+      out.push(b);
+    }
+  }
+  return out;
+}
+
 function renderLibraryPage(page) {
-  var books = state.books;
+  var books = getFilteredBooks();
   var totalPages = Math.ceil(books.length / PAGE_SIZE);
+  if (totalPages === 0) {
+    document.getElementById('lib-content').innerHTML =
+      '<div class="lib-empty">No matching books.</div>';
+    return;
+  }
   if (page < 0) page = 0;
   if (page >= totalPages) page = totalPages - 1;
   state.libPage = page;

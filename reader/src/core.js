@@ -50,6 +50,7 @@ var state = {
   tokenExpiry: parseInt(localStorage.getItem('tokenExpiry') || '0', 10),
   books: [],
   libPage: 0,
+  searchQuery: '',
   currentRendition: null,
   progressTimer: null,
   fontSize: parseInt(localStorage.getItem('fontSize') || '100', 10),
