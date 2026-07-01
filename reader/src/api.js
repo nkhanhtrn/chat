@@ -57,47 +57,54 @@ function ensureToken(cb) {
 function fetchBooks(cb) {
   ensureToken(function (authErr) {
     if (authErr) return cb(authErr);
-    var allBooks = [];
-
-    function fetchPage(token) {
-      var url = FIRESTORE_URL + '/users/' + state.uid + '/books?pageSize=500' +
-        '&mask.fieldPaths=title&mask.fieldPaths=author' +
-        '&mask.fieldPaths=lastCfi&mask.fieldPaths=readingProgress' +
-        '&mask.fieldPaths=fileType&mask.fieldPaths=deletedAt';
-      if (token) url += '&pageToken=' + encodeURIComponent(token);
-      var x = request('GET', url, { Authorization: 'Bearer ' + state.token }, function (err, data) {
+    var url = FIRESTORE_URL + ':runQuery';
+    var body = JSON.stringify({
+      parent: FIRESTORE_URL + '/users/' + state.uid,
+      structuredQuery: {
+        from: [{ collectionId: 'books' }],
+        select: {
+          fields: [
+            { fieldPath: 'title' },
+            { fieldPath: 'author' },
+            { fieldPath: 'readingProgress' },
+          ],
+        },
+        where: {
+          fieldFilter: {
+            field: { fieldPath: 'fileType' },
+            op: 'EQUAL',
+            value: { stringValue: 'epub' },
+          },
+        },
+      },
+    });
+    var x = request('POST', url, {
+      Authorization: 'Bearer ' + state.token,
+      'Content-Type': 'application/json',
+    }, function (err, data) {
       if (err) return cb(err);
-      if (data && data.documents) {
-        for (var i = 0; i < data.documents.length; i++) {
-          var doc = data.documents[i];
+      var books = [];
+      if (data && data.length) {
+        for (var i = 0; i < data.length; i++) {
+          if (!data[i].document) continue;
+          var doc = data[i].document;
           var f = doc.fields || {};
-          if (unwrap(f.deletedAt)) continue;
-          var ft = unwrap(f.fileType) || 'epub';
-          if (ft !== 'epub') continue;
-          allBooks.push({
+          books.push({
             id: (doc.name || '').split('/').pop(),
             title: unwrap(f.title) || 'Untitled',
             author: unwrap(f.author) || '',
-            coverUrl: unwrap(f.coverUrl) || '',
-            lastCfi: unwrap(f.lastCfi) || '',
             readingProgress: unwrap(f.readingProgress) || 0,
-            fileType: ft,
+            lastCfi: '',
           });
         }
       }
-      if (data && data.nextPageToken) fetchPage(data.nextPageToken);
-      else {
-        allBooks.sort(function (a, b) {
-          return (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase());
-        });
-        state.books = allBooks;
-        cb(null, allBooks);
-      }
+      books.sort(function (a, b) {
+        return (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase());
+      });
+      state.books = books;
+      cb(null, books);
     });
-    x.send();
-  }
-
-    fetchPage(null);
+    x.send(body);
   });
 }
 

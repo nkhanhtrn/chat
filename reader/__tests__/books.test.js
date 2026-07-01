@@ -33,16 +33,12 @@ describe('fetchBooks', () => {
   })
   afterEach(() => { window.XMLHttpRequest = origXHR })
 
-  it('parses, filters deleted/pdf, sorts alphabetically', () => {
+  it('parses runQuery response, sorts alphabetically', () => {
     window.XMLHttpRequest = function () {
-      return new MockXHR(JSON.stringify({
-        documents: [
-          makeDoc('b1', { title: { stringValue: 'Zebra' }, fileType: { stringValue: 'epub' } }),
-          makeDoc('b2', { title: { stringValue: 'Apple' }, fileType: { stringValue: 'epub' } }),
-          makeDoc('b3', { title: { stringValue: 'Deleted Book' }, fileType: { stringValue: 'epub' }, deletedAt: { timestampValue: '2024-01-01' } }),
-          makeDoc('b4', { title: { stringValue: 'PDF Book' }, fileType: { stringValue: 'pdf' } }),
-        ],
-      }))
+      return new MockXHR(JSON.stringify([
+        { document: makeDoc('b1', { title: { stringValue: 'Zebra' }, author: { stringValue: 'Z' } }) },
+        { document: makeDoc('b2', { title: { stringValue: 'Apple' }, author: { stringValue: 'A' } }) },
+      ]))
     }
 
     const { fetchBooks, state } = loadApi()
@@ -53,6 +49,26 @@ describe('fetchBooks', () => {
       expect(books.map(function (b) { return b.title })).toEqual(['Apple', 'Zebra'])
       expect(state.books).toHaveLength(2)
     })
+  })
+
+  it('uses runQuery with select and where fileType=epub', () => {
+    let capturedBody = null
+    window.XMLHttpRequest = function () {
+      var xhr = new MockXHR('[]')
+      var origSend = xhr.send.bind(xhr)
+      xhr.send = function (body) { capturedBody = JSON.parse(body); origSend(body) }
+      return xhr
+    }
+
+    const { fetchBooks, state } = loadApi()
+    setAuth(state)
+
+    fetchBooks(function () {})
+
+    expect(capturedBody.structuredQuery.select.fields.map(function (f) { return f.fieldPath }))
+      .toEqual(['title', 'author', 'readingProgress'])
+    expect(capturedBody.structuredQuery.where.fieldFilter.value.stringValue).toBe('epub')
+    expect(capturedBody.structuredQuery.where.fieldFilter.op).toBe('EQUAL')
   })
 })
 
