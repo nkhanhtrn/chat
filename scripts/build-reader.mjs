@@ -8,14 +8,9 @@ const srcDir = resolve(root, 'reader')
 const outDir = resolve(root, 'dist-reader')
 
 const MODULE_ORDER = [
-  'config.js',
-  'state.js',
-  'utils.js',
-  'auth.js',
-  'books.js',
-  'login-view.js',
-  'library-view.js',
-  'viewer-view.js',
+  'core.js',
+  'api.js',
+  'views.js',
   'init.js',
 ]
 

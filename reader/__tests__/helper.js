@@ -5,18 +5,18 @@ import { fileURLToPath } from 'url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const srcDir = resolve(__dirname, '..', 'src')
 
-export function loadModule(name) {
-  const code = readFileSync(resolve(srcDir, name), 'utf8')
-  new Function(code)()
+function loadFiles(files) {
+  let code = ''
+  for (const f of files) code += readFileSync(resolve(srcDir, f), 'utf8') + '\n'
+  return code
 }
 
-export function loadReader() {
-  window.R = undefined
-  const order = [
-    'config.js', 'state.js', 'utils.js', 'auth.js',
-    'books.js', 'login-view.js', 'library-view.js',
-    'viewer-view.js',
-  ]
-  for (const f of order) loadModule(f)
-  return window.R
+export function loadCore() {
+  const code = loadFiles(['core.js'])
+  return new Function(code + '\nreturn { escapeHtml, unwrap };')()
+}
+
+export function loadApi() {
+  const code = loadFiles(['core.js', 'api.js'])
+  return new Function(code + '\nreturn { saveAuth, clearAuth, fetchBooks, state };')()
 }
