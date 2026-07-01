@@ -24,33 +24,44 @@ function login(email, password, cb) {
 
 // ===== Books =====
 function fetchBooks(cb) {
-  var url = FIRESTORE_URL + '/users/' + state.uid + '/books?pageSize=500';
-  var x = request('GET', url, { Authorization: 'Bearer ' + state.token }, function (err, data) {
-    if (err) return cb(err);
-    var books = [];
-    if (data && data.documents) {
-      for (var i = 0; i < data.documents.length; i++) {
-        var doc = data.documents[i];
-        var f = doc.fields || {};
-        if (unwrap(f.deletedAt)) continue;
-        books.push({
-          id: (doc.name || '').split('/').pop(),
-          title: unwrap(f.title) || 'Untitled',
-          author: unwrap(f.author) || '',
-          coverUrl: unwrap(f.coverUrl) || '',
-          lastCfi: unwrap(f.lastCfi) || '',
-          readingProgress: unwrap(f.readingProgress) || 0,
-          fileType: unwrap(f.fileType) || 'epub',
-        });
+  var allBooks = [];
+
+  function fetchPage(token) {
+    var url = FIRESTORE_URL + '/users/' + state.uid + '/books?pageSize=500';
+    if (token) url += '&pageToken=' + encodeURIComponent(token);
+    var x = request('GET', url, { Authorization: 'Bearer ' + state.token }, function (err, data) {
+      if (err) return cb(err);
+      if (data && data.documents) {
+        for (var i = 0; i < data.documents.length; i++) {
+          var doc = data.documents[i];
+          var f = doc.fields || {};
+          if (unwrap(f.deletedAt)) continue;
+          var ft = unwrap(f.fileType) || 'epub';
+          if (ft !== 'epub') continue;
+          allBooks.push({
+            id: (doc.name || '').split('/').pop(),
+            title: unwrap(f.title) || 'Untitled',
+            author: unwrap(f.author) || '',
+            coverUrl: unwrap(f.coverUrl) || '',
+            lastCfi: unwrap(f.lastCfi) || '',
+            readingProgress: unwrap(f.readingProgress) || 0,
+            fileType: ft,
+          });
+        }
       }
-    }
-    books.sort(function (a, b) {
-      return (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase());
+      if (data && data.nextPageToken) fetchPage(data.nextPageToken);
+      else {
+        allBooks.sort(function (a, b) {
+          return (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase());
+        });
+        state.books = allBooks;
+        cb(null, allBooks);
+      }
     });
-    state.books = books;
-    cb(null, books);
-  });
-  x.send();
+    x.send();
+  }
+
+  fetchPage(null);
 }
 
 function downloadBook(bookId, cb) {
