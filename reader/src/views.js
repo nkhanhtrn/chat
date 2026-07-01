@@ -269,6 +269,18 @@ function hideTocModal() {
   if (overlay) overlay.parentNode.removeChild(overlay);
 }
 
+// ===== Progress =====
+function estimateProgress(bookObj, location, fallback) {
+  if (!location || !location.start) return fallback;
+  if (bookObj.locations && bookObj.locations.length > 0) {
+    return bookObj.locations.percentageFromCfi(location.start.cfi);
+  }
+  if (typeof location.start.index === 'number' && bookObj.spine && bookObj.spine.length > 0) {
+    return (location.start.index + 1) / bookObj.spine.length;
+  }
+  return fallback;
+}
+
 // ===== Viewer =====
 function renderViewer(bookId) {
   state.view = 'viewer';
@@ -367,16 +379,7 @@ function renderViewer(bookId) {
     rendition.on('relocated', function (location) {
       if (!location || !location.start) return;
       var cfi = location.start.cfi;
-
-      var pct;
-      if (bookObj.locations && bookObj.locations.length > 0) {
-        pct = bookObj.locations.percentageFromCfi(cfi);
-      } else if (typeof location.start.index === 'number' && bookObj.spine && bookObj.spine.length > 0) {
-        pct = (location.start.index + 1) / bookObj.spine.length;
-      } else {
-        pct = (book.readingProgress || 0) / 100;
-      }
-
+      var pct = estimateProgress(bookObj, location, (book.readingProgress || 0) / 100);
       var pctRounded = Math.round(pct * 100);
       var el = document.getElementById('progress-text');
       if (el) el.textContent = pctRounded + '%';
