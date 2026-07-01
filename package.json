@@ -14,6 +14,10 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:all": "npm run test:coverage && npm run test:e2e",
+    "dev:reader": "vite --config vite.reader.config.ts",
+    "build:reader": "vite build --config vite.reader.config.ts",
+    "preview:reader": "vite preview --config vite.reader.config.ts --outDir dist-reader",
+    "type-check:reader": "vue-tsc --noEmit -p tsconfig.reader.json",
     "deploy": "bash scripts/deploy.sh",
     "opencode": "bash scripts/opencode.sh"
   },

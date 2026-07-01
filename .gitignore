@@ -1,5 +1,6 @@
 node_modules
 dist
+dist-reader
 .env.local
 .env.*.local
 .env.production

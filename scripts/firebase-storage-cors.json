@@ -1,0 +1,24 @@
+{
+  "cors": [
+    {
+      "origin": [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+        "https://nkhanhtrn.github.io"
+      ],
+      "method": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+      "maxAgeSeconds": 3600,
+      "responseHeader": [
+        "Content-Type",
+        "Content-Length",
+        "Content-Range",
+        "Authorization",
+        "X-Goog-User-Project",
+        "X-Goog-Meta-*",
+        "x-goog-resumable"
+      ]
+    }
+  ]
+}
