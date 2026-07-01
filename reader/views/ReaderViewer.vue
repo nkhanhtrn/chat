@@ -3,7 +3,10 @@
     <header class="v-header">
       <button class="v-btn" @click="back" title="Back to library">‹ Library</button>
       <span class="v-title">{{ currentBook?.title || 'Reader' }}</span>
-      <button class="v-btn" @click="showToc = !showToc" title="Contents">☰</button>
+      <div class="v-header-actions">
+        <button class="v-btn" @click="toggleTheme" :title="'Theme: ' + themeLabel(theme)">{{ themeLabel(theme) }}</button>
+        <button class="v-btn" @click="showToc = !showToc" title="Contents">☰</button>
+      </div>
     </header>
 
     <div class="v-progress">
@@ -49,6 +52,7 @@ import { EpubRenderer } from '@/services/epubRenderer'
 import { getFirebaseAuth } from '@/services/firebase'
 import BookTocSidebar from '@/components/BookTocSidebar.vue'
 import { downloadEpubFile } from '../lib/bookDownload'
+import { getTheme, cycleTheme, themeLabel, type ReaderTheme } from '../theme'
 import type { TocItem } from '@/types/book'
 
 const route = useRoute()
@@ -63,6 +67,7 @@ const canPrev = ref(false)
 const canNext = ref(true)
 const toc = ref<TocItem[]>([])
 const showToc = ref(false)
+const theme = ref<ReaderTheme>(getTheme())
 
 let renderer: EpubRenderer | null = null
 let resizeObserver: ResizeObserver | null = null
@@ -203,6 +208,11 @@ function back(): void {
   router.push({ name: 'library' })
 }
 
+function toggleTheme(): void {
+  theme.value = cycleTheme()
+  renderer?.updateTheme(epubTheme())
+}
+
 function destroy(): void {
   resizeObserver?.disconnect()
   resizeObserver = null
@@ -266,6 +276,12 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: center;
+}
+
+.v-header-actions {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
 }
 
 .v-btn {

@@ -190,6 +190,27 @@ export const useBooksStore = defineStore('books', {
       }
     },
 
+    async refreshBooks(): Promise<void> {
+      try {
+        const listData = await syncBookList()
+        const loaded = (listData.books as BookData[]) ?? []
+        this.books = loaded.map(b => {
+          if (!b.meta && (b as any).paperMeta) {
+            const { paperMeta, ...rest } = b as any
+            return { ...rest, meta: paperMeta } as BookData
+          }
+          if (!b.category) {
+            return { ...b, category: 'book' as BookCategory } as BookData
+          }
+          return b
+        })
+        this.lastCloudSyncAt = (listData.lastSyncedAt as number) ?? null
+        debugLog(`[BooksStore] Refreshed: ${this.books.length} books`)
+      } catch (error) {
+        console.error('[BooksStore] refreshBooks failed:', error)
+      }
+    },
+
     async loadBookContent(bookId: string): Promise<BookData> {
       try {
         const { book } = await syncBookContent(bookId)

@@ -2,7 +2,11 @@
   <div class="library">
     <header class="lib-header">
       <h1>Library</h1>
-      <span class="lib-count">{{ epubBooks.length }} books</span>
+      <div class="lib-header-actions">
+        <button class="lib-theme-btn" @click="toggleTheme" :title="'Theme: ' + themeLabel(theme)">
+          {{ themeLabel(theme) }}
+        </button>
+      </div>
     </header>
 
     <div class="lib-search">
@@ -45,13 +49,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useBooksStore } from '@/stores/books'
+import { getTheme, cycleTheme, themeLabel, type ReaderTheme } from '../theme'
 
 const router = useRouter()
 const booksStore = useBooksStore()
 const query = ref('')
+const theme = ref<ReaderTheme>(getTheme())
 
 const epubBooks = computed(() =>
   booksStore.books
@@ -70,6 +76,25 @@ const filtered = computed(() => {
 function open(bookId: string): void {
   router.push({ name: 'reader', params: { bookId } })
 }
+
+function toggleTheme(): void {
+  theme.value = cycleTheme()
+}
+
+function onVisibility(): void {
+  if (document.visibilityState === 'visible') {
+    booksStore.refreshBooks()
+  }
+}
+
+onMounted(() => {
+  booksStore.refreshBooks()
+  document.addEventListener('visibilitychange', onVisibility)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('visibilitychange', onVisibility)
+})
 </script>
 
 <style scoped>
@@ -83,7 +108,7 @@ function open(bookId: string): void {
 
 .lib-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   padding: 0.5rem 0 1rem;
   border-bottom: 1px solid var(--color-border-base, #e0e0e0);
@@ -95,9 +120,24 @@ function open(bookId: string): void {
   color: var(--color-text-base, #202020);
 }
 
-.lib-count {
-  font-size: 0.8rem;
+.lib-header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.lib-theme-btn {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--color-border-base, #ccc);
+  border-radius: 6px;
+  background: transparent;
   color: var(--color-text-muted, #888);
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.lib-theme-btn:hover {
+  background: var(--color-bg-hover, rgba(0, 0, 0, 0.05));
+  color: var(--color-text-base, #202020);
 }
 
 .lib-search {
