@@ -367,9 +367,16 @@ function renderViewer(bookId) {
     rendition.on('relocated', function (location) {
       if (!location || !location.start) return;
       var cfi = location.start.cfi;
-      var pct = (bookObj.locations && bookObj.locations.length > 0)
-        ? bookObj.locations.percentageFromCfi(cfi)
-        : (book.readingProgress || 0) / 100;
+
+      var pct;
+      if (bookObj.locations && bookObj.locations.length > 0) {
+        pct = bookObj.locations.percentageFromCfi(cfi);
+      } else if (typeof location.start.index === 'number' && bookObj.spine && bookObj.spine.length > 0) {
+        pct = (location.start.index + 1) / bookObj.spine.length;
+      } else {
+        pct = (book.readingProgress || 0) / 100;
+      }
+
       var pctRounded = Math.round(pct * 100);
       var el = document.getElementById('progress-text');
       if (el) el.textContent = pctRounded + '%';
