@@ -28,6 +28,7 @@ function renderLibrary() {
     '<div class="lib">' +
       '<div class="lib-header">' +
         '<h1>My Library</h1>' +
+        '<button class="icon-btn" id="refresh-btn">\u21BB</button>' +
         '<button class="icon-btn" id="logout-btn">Logout</button>' +
       '</div>' +
       '<div class="lib-loading" id="lib-content">Loading&#8230;</div>' +
@@ -38,17 +39,27 @@ function renderLibrary() {
     renderLogin();
   });
 
-  fetchBooks(function (err, books) {
-    if (err) {
-      document.getElementById('lib-content').innerHTML = '<div class="error-msg">' + escapeHtml(err) + '</div>';
-      return;
-    }
-    if (books.length === 0) {
-      document.getElementById('lib-content').innerHTML = '<div class="lib-empty">No books yet.</div>';
-      return;
-    }
-    renderLibraryPage(0);
+  var refreshBtn = document.getElementById('refresh-btn');
+  if (refreshBtn) refreshBtn.addEventListener('click', function () {
+    state.books = [];
+    renderLibrary();
   });
+
+  if (state.books.length > 0) {
+    renderLibraryPage(0);
+  } else {
+    fetchBooks(function (err, books) {
+      if (err) {
+        document.getElementById('lib-content').innerHTML = '<div class="error-msg">' + escapeHtml(err) + '</div>';
+        return;
+      }
+      if (books.length === 0) {
+        document.getElementById('lib-content').innerHTML = '<div class="lib-empty">No books yet.</div>';
+        return;
+      }
+      renderLibraryPage(0);
+    });
+  }
 }
 
 function renderLibraryPage(page) {

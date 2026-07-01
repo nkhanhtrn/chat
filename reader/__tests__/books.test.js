@@ -18,6 +18,12 @@ MockXHR.prototype.open = function (method, url) { this.method = method; this.url
 MockXHR.prototype.setRequestHeader = function (k, v) { this.headers[k] = v }
 MockXHR.prototype.send = function (body) { this.body = body; this.onreadystatechange() }
 
+function setAuth(state) {
+  state.token = 'tok'
+  state.uid = 'u1'
+  state.tokenExpiry = Date.now() + 3600000
+}
+
 describe('fetchBooks', () => {
   let origXHR
 
@@ -40,8 +46,7 @@ describe('fetchBooks', () => {
     }
 
     const { fetchBooks, state } = loadApi()
-    state.token = 'tok'
-    state.uid = 'u1'
+    setAuth(state)
 
     fetchBooks(function (err, books) {
       expect(err).toBe(null)
@@ -65,8 +70,7 @@ describe('saveProgress', () => {
 
   it('sends PATCH with correct URL and mask', () => {
     const { saveProgress, state } = loadApi()
-    state.token = 'tok'
-    state.uid = 'u1'
+    setAuth(state)
 
     saveProgress('book-42', 'epubcfi(/6/4!/4/2)', 0.5, function () {})
 
@@ -77,7 +81,8 @@ describe('saveProgress', () => {
   })
 
   it('sends cfi as stringValue and progress as integerValue (0-100)', () => {
-    const { saveProgress } = loadApi()
+    const { saveProgress, state } = loadApi()
+    setAuth(state)
 
     saveProgress('b1', 'epubcfi(/6/4!/4/2)', 0.427, function () {})
 
@@ -87,7 +92,8 @@ describe('saveProgress', () => {
   })
 
   it('rounds progress to nearest integer', () => {
-    const { saveProgress } = loadApi()
+    const { saveProgress, state } = loadApi()
+    setAuth(state)
 
     saveProgress('b1', 'cfi', 0.001, function () {})
     expect(JSON.parse(lastXHR.body).fields.readingProgress.integerValue).toBe('0')
@@ -99,6 +105,7 @@ describe('saveProgress', () => {
   it('includes Authorization header', () => {
     const { saveProgress, state } = loadApi()
     state.token = 'mytoken'
+    state.tokenExpiry = Date.now() + 3600000
 
     saveProgress('b1', 'cfi', 0.5, function () {})
 
