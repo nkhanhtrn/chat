@@ -1,9 +1,0 @@
-{
-  "extends": "./tsconfig.app.json",
-  "compilerOptions": {
-    "noUnusedLocals": false,
-    "noUnusedParameters": false
-  },
-  "include": ["reader/**/*.ts", "reader/**/*.vue", "src/env.d.ts"],
-  "exclude": ["src/test/**", "src/**/*.test.ts", "src/**/*.spec.ts", "node_modules"]
-}
