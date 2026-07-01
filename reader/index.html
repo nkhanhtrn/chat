@@ -1,56 +1,25 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <meta name="robots" content="noindex, nofollow">
   <title>Reader</title>
-  <meta name="theme-color" content="#4a90a4">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Reader">
-  <link rel="icon" href="favicon.ico">
-  <style>
-    :root, [data-theme="light"] {
-      --loading-bg: #fafafa; --loading-spinner-track: #e0e0e0;
-      --loading-spinner-active: #404040; --loading-text: #686868;
-    }
-    [data-theme="dark"] {
-      --loading-bg: #1a1a1a; --loading-spinner-track: #4a4a4a;
-      --loading-spinner-active: #d0d0d0; --loading-text: #9a9a9a;
-    }
-    [data-theme="sepia"] {
-      --loading-bg: #f4ecd8; --loading-spinner-track: #d4c9b5;
-      --loading-spinner-active: #5c4a3d; --loading-text: #6b5a4d;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    #app-loading {
-      position: fixed; inset: 0; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; background-color: var(--loading-bg);
-      font-family: Georgia, 'Times New Roman', serif; z-index: 9999;
-      opacity: 1; transition: opacity 0.3s ease-out;
-    }
-    #app-loading .spinner {
-      width: 36px; height: 36px; border: 3px solid var(--loading-spinner-track);
-      border-top-color: var(--loading-spinner-active); border-radius: 50%;
-      animation: spin 0.9s linear infinite;
-    }
-    #app-loading p { margin-top: 14px; font-size: 14px; color: var(--loading-text); }
-  </style>
+  <link rel="stylesheet" href="./styles.css">
   <script>
-    try {
-      var theme = localStorage.getItem('theme');
-      if (theme && ['light', 'dark', 'sepia'].includes(theme)) {
-        document.documentElement.setAttribute('data-theme', theme);
-      }
-    } catch (e) {}
+    var t = localStorage.getItem('theme');
+    document.documentElement.setAttribute('data-theme', (t === 'dark') ? 'dark' : 'light');
   </script>
 </head>
 <body>
-  <div id="app-loading">
-    <div class="spinner"></div>
-    <p>Loading…</p>
-  </div>
-  <div id="app"></div>
-  <script type="module" src="./main.ts"></script>
+  <div id="app"><p class="boot-msg">Loading&#8230;</p></div>
+  <script src="./vendor/jszip.min.js"></script>
+  <script src="./vendor/epub.min.js"></script>
+  <!-- @reader-modules-start -->
+  <script src="./src/core.js"></script>
+  <script src="./src/api.js"></script>
+  <script src="./src/views.js"></script>
+  <script src="./src/init.js"></script>
+  <!-- @reader-modules-end -->
 </body>
 </html>
