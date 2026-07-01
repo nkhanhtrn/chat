@@ -2,12 +2,14 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   define: {
     __APP_BUILD_ID__: JSON.stringify(Date.now().toString(36)),
   },
   root: 'reader',
-  base: '/reader/',
+  // In dev the app runs at /reader/; in production it ships under the main
+  // app's gh-pages base (/chat/), so assets must resolve under /chat/reader/.
+  base: mode === 'production' ? '/chat/reader/' : '/reader/',
   envDir: resolve(__dirname),
   publicDir: resolve(__dirname, 'public'),
   resolve: {
@@ -47,4 +49,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

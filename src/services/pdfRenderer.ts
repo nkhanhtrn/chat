@@ -220,9 +220,9 @@ export class PdfRenderer {
     canvas.style.width = displayWidth + 'px'
     canvas.style.height = displayHeight + 'px'
 
-    const ctx = canvas.getContext('2d')
+    const ctx = canvas.getContext('2d')!
     if (ctx) ctx.scale(dpr, dpr)
-    await page.render({ canvasContext: ctx ?? canvas, viewport }).promise
+    await page.render({ canvas, canvasContext: ctx, viewport }).promise
     if (this.destroyed) return null
 
     const textLayerDiv = document.createElement('div')
@@ -290,7 +290,7 @@ export class PdfRenderer {
             ? await this.pdfDoc!.getDestination(item.dest)
             : item.dest
           if (dest) {
-            const pageIndex = await this.pdfDoc!.getPageIndex(dest[0] as any)
+            const pageIndex = await this.pdfDoc!.getPageIndex((dest as unknown[])[0] as any)
             pageNumber = pageIndex + 1
           }
         } catch {
@@ -343,7 +343,7 @@ export async function extractPdfInfo(fileData: ArrayBuffer): Promise<{
       canvas.width = viewport.width
       canvas.height = viewport.height
       const ctx = canvas.getContext('2d')!
-      await page.render({ canvasContext: ctx, viewport }).promise
+      await page.render({ canvas, canvasContext: ctx, viewport }).promise
       const blob = await new Promise<Blob>((resolve) => {
         canvas.toBlob(b => resolve(b!), 'image/jpeg', 0.7)
       })

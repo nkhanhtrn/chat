@@ -15,7 +15,7 @@ export function setTheme(t: ReaderTheme): void {
 
 export function cycleTheme(): ReaderTheme {
   const cur = getTheme()
-  const next = ORDER[(ORDER.indexOf(cur) + 1) % ORDER.length]
+  const next = ORDER[(ORDER.indexOf(cur) + 1) % ORDER.length] ?? 'dark'
   setTheme(next)
   return next
 }

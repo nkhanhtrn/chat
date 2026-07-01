@@ -41,6 +41,14 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Build reader
+        run: npm run build:reader
+
+      - name: Stage reader under dist/reader
+        run: |
+          mkdir -p dist/reader
+          cp -r dist-reader/* dist/reader/
+
       - name: Add .nojekyll
         run: touch dist/.nojekyll
 
