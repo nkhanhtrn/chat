@@ -59,7 +59,7 @@ function fetchBooks(cb) {
     if (authErr) return cb(authErr);
     var url = FIRESTORE_URL + ':runQuery';
     var body = JSON.stringify({
-      parent: FIRESTORE_URL + '/users/' + state.uid,
+      parent: FIRESTORE_PARENT + '/users/' + state.uid,
       structuredQuery: {
         from: [{ collectionId: 'books' }],
         select: {

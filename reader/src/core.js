@@ -1,6 +1,7 @@
 // ===== Config =====
 var API_KEY = 'AIzaSyD7xhfxskPmmGjDlX8il68e91yQgwnSoe8';
 var FIRESTORE_URL = 'https://firestore.googleapis.com/v1/projects/nkhanhtrn-chat/databases/(default)/documents';
+var FIRESTORE_PARENT = 'projects/nkhanhtrn-chat/databases/(default)/documents';
 var AUTH_URL = 'https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=' + API_KEY;
 var REFRESH_URL = 'https://securetoken.googleapis.com/v1/token?key=' + API_KEY;
 var PAGE_SIZE = 8;
