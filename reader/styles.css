@@ -62,6 +62,8 @@ input, button { font-family: inherit; font-size: inherit; }
   padding: .5rem 0 1rem; border-bottom: 1px solid var(--border);
 }
 .lib-header h1 { font-weight: 400; font-size: 1.4rem; }
+.logout-link { color: var(--muted); text-decoration: underline; font-size: .85rem; }
+.logout-link:active { color: var(--text); }
 .lib-actions { display: flex; }
 .lib-actions > * { margin-left: .35rem; }
 .lib-actions > *:first-child { margin-left: 0; }
