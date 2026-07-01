@@ -11,6 +11,7 @@ vi.mock('@/services/BookSyncService', () => ({
   saveBook: vi.fn(),
   deleteBook: vi.fn(),
   resolveBookListConflict: vi.fn(),
+  loadCloudBookList: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('@/services/firestore/firestore-books', () => ({
   saveBookToFirestore: vi.fn(),
