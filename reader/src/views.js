@@ -140,6 +140,7 @@ function renderLibraryPage(page) {
             (b.author ? '<div class="book-author">' + escapeHtml(b.author) + '</div>' : '') +
           '</div>' +
           (pct ? '<div class="book-progress">' + pct + '</div>' : '') +
+          '<div style="font-size:10px;color:#f00">upd=' + (b.updatedAt || 0) + '</div>' +
         '</div>';
   }
   html += '</div>';
