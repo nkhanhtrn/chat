@@ -101,20 +101,12 @@ function fetchBooks(cb) {
 }
 
 function downloadBook(bookId, cb) {
-  cacheGet(bookId, function (cacheErr, cached) {
-    if (cached) { cb(null, cached); return; }
-    ensureToken(function (authErr) {
-      if (authErr) return cb(authErr);
-      var path = 'users/' + state.uid + '/books/' + bookId + '/book.epub';
-      var url = STORAGE_ORIGIN + '/' + encodeURIComponent(path) + '?alt=media';
-      var x = request('GET', url, { Authorization: 'Bearer ' + state.token }, function (dlErr, arrayBuffer) {
-        if (dlErr) return cb(dlErr);
-        cacheSet(bookId, arrayBuffer, function () {
-          cb(null, arrayBuffer);
-        });
-      }, true);
-      x.send();
-    });
+  ensureToken(function (authErr) {
+    if (authErr) return cb(authErr);
+    var path = 'users/' + state.uid + '/books/' + bookId + '/book.epub';
+    var url = STORAGE_ORIGIN + '/' + encodeURIComponent(path) + '?alt=media';
+    var x = request('GET', url, { Authorization: 'Bearer ' + state.token }, cb, true);
+    x.send();
   });
 }
 
