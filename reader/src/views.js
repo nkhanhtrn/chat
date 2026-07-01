@@ -80,6 +80,9 @@ function renderLibrary() {
   });
 
   if (state.books.length > 0) {
+    state.books.sort(function (a, b) {
+      return (b.updatedAt || 0) - (a.updatedAt || 0);
+    });
     renderLibraryPage(0);
   } else {
     fetchBooks(function (err, books) {
@@ -229,7 +232,6 @@ function renderViewer(bookId) {
     var bookObj = ePub(arrayBuffer);
     var rendition = bookObj.renderTo(area, { width: '100%', height: '100%', gap: 48 });
     state.currentRendition = rendition;
-    var locationsReady = false;
 
     var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     rendition.themes.default({
@@ -244,22 +246,26 @@ function renderViewer(bookId) {
     rendition.display(book.lastCfi || undefined).then(function () {
       var el = document.getElementById('progress-text');
       if (el && book.readingProgress) el.textContent = Math.round(book.readingProgress) + '%';
-      return bookObj.locations.generate(1600);
-    }).then(function () {
-      locationsReady = true;
     });
 
     rendition.on('relocated', function (location) {
       if (!location || !location.start) return;
-      if (!locationsReady) return;
-      var pct = bookObj.locations.percentageFromCfi(location.start.cfi);
+      var cfi = location.start.cfi;
+      var pct = (bookObj.locations && bookObj.locations.length > 0)
+        ? bookObj.locations.percentageFromCfi(cfi)
+        : (book.readingProgress || 0) / 100;
       var pctRounded = Math.round(pct * 100);
       var el = document.getElementById('progress-text');
       if (el) el.textContent = pctRounded + '%';
       if (state.progressTimer) clearTimeout(state.progressTimer);
       state.progressTimer = setTimeout(function () {
-        saveProgress(bookId, location.start.cfi, pct, function (err) {
+        saveProgress(bookId, cfi, pct, function (err) {
           if (err) console.warn('Progress sync failed:', err);
+          else {
+            book.updatedAt = Date.now();
+            book.readingProgress = Math.round(pct * 100);
+            book.lastCfi = cfi;
+          }
         });
       }, 2000);
     });
