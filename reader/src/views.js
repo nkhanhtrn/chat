@@ -49,6 +49,7 @@ function renderLibrary() {
           (state.searchQuery ? ' value="' + escapeHtml(state.searchQuery) + '"' : '') + '>' +
       '</div>' +
       '<div class="lib-loading" id="lib-content">Loading&#8230;</div>' +
+      '<div id="key-debug" style="position:fixed;bottom:0;left:0;right:0;padding:8px;text-align:center;font-size:14px;background:#ff0;color:#000;z-index:9999"></div>' +
     '</div>';
 
   bindThemeBtn('theme-btn');
