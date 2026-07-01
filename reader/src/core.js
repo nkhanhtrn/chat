@@ -11,6 +11,38 @@ var STORAGE_ORIGIN = IS_DEV
   : 'https://firebasestorage.googleapis.com/v0/b/nkhanhtrn-chat.firebasestorage.app/o';
 
 // ===== State =====
+function isDark() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
+
+function toggleTheme() {
+  var next = isDark() ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('theme', next);
+  if (state.currentRendition) {
+    var dark = next === 'dark';
+    state.currentRendition.themes.default({
+      'html, body': {
+        'background-color': dark ? '#1a1a1a' : '#ffffff',
+        'color': dark ? '#f0f0f0' : '#1a1a1a',
+      }
+    });
+  }
+}
+
+function themeIcon() { return isDark() ? '\u2600' : '\u263E'; }
+
+function changeFontSize(delta) {
+  var next = state.fontSize + delta;
+  if (next < 60) next = 60;
+  if (next > 200) next = 200;
+  state.fontSize = next;
+  localStorage.setItem('fontSize', String(next));
+  if (state.currentRendition) state.currentRendition.themes.fontSize(next + '%');
+}
+
+function applyRootFontSize() {
+  document.documentElement.style.fontSize = (18 * state.fontSize / 100) + 'px';
+}
+
 var state = {
   token: localStorage.getItem('token'),
   uid: localStorage.getItem('uid'),
@@ -20,6 +52,7 @@ var state = {
   libPage: 0,
   currentRendition: null,
   progressTimer: null,
+  fontSize: parseInt(localStorage.getItem('fontSize') || '100', 10),
 };
 
 // ===== Utils =====
