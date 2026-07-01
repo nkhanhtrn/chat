@@ -23,5 +23,5 @@ export function loadApi() {
 
 export function loadViews() {
   const code = loadFiles(['core.js', 'api.js', 'views.js'])
-  return new Function(code + '\nreturn { renderLibraryPage, state };')()
+  return new Function(code + '\nreturn { renderLibraryPage, flattenToc, showTocModal, renderTocPage, hideTocModal, state };')()
 }
