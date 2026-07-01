@@ -28,5 +28,5 @@ export function loadViews() {
 
 export function loadInit() {
   const code = loadFiles(['core.js', 'api.js', 'views.js', 'init.js'])
-  return new Function(code + '\nreturn { state };')()
+  return new Function(code + '\nreturn { state, navigate, parseHash, router };')()
 }

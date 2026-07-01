@@ -26,7 +26,7 @@ function renderLogin(errorMsg) {
     if (!email || !password) return;
     login(email, password, function (err) {
       if (err) renderLogin(err);
-      else renderLibrary();
+      else navigate('/library');
     });
   });
 }
@@ -43,7 +43,7 @@ function renderLibrary() {
         '<button class="icon-btn" id="refresh-btn">\u21BB</button>' +
         '<button class="icon-btn" id="font-up-btn">A+</button>' +
         '<button class="icon-btn" id="theme-btn">' + themeIcon() + '</button>' +
-        '<button class="icon-btn" id="logout-btn">Logout</button>' +
+        '<a href="#" class="logout-link" id="logout-btn">Logout</a>' +
       '</div>' +
       '<div class="lib-search">' +
         '<input type="search" id="search-input" placeholder="Search title or author&#8230;"' +
@@ -69,7 +69,8 @@ function renderLibrary() {
     changeLibFontSize(10);
   });
 
-  document.getElementById('logout-btn').addEventListener('click', function () {
+  document.getElementById('logout-btn').addEventListener('click', function (e) {
+    e.preventDefault();
     clearAuth();
     renderLogin();
   });
@@ -77,7 +78,7 @@ function renderLibrary() {
   var refreshBtn = document.getElementById('refresh-btn');
   if (refreshBtn) refreshBtn.addEventListener('click', function () {
     state.books = [];
-    renderLibrary();
+    navigate('/library');
   });
 
   if (state.books.length > 0) {
@@ -161,7 +162,7 @@ function renderLibraryPage(page) {
   var rows = document.querySelectorAll('.book-row');
   for (var j = 0; j < rows.length; j++) {
     rows[j].addEventListener('click', function () {
-      renderViewer(this.getAttribute('data-id'));
+      navigate('/book/' + this.getAttribute('data-id'));
     });
   }
 
@@ -292,7 +293,7 @@ function renderViewer(bookId) {
   for (var i = 0; i < state.books.length; i++) {
     if (state.books[i].id === bookId) { book = state.books[i]; break; }
   }
-  if (!book) { renderLibrary(); return; }
+  if (!book) { navigate('/library'); return; }
 
   document.getElementById('app').innerHTML =
     '<div class="viewer">' +
@@ -328,7 +329,7 @@ function renderViewer(bookId) {
     if (state.currentRendition) { state.currentRendition.destroy(); state.currentRendition = null; }
     state.currentBookObj = null;
     state.toc = [];
-    renderLibrary();
+    navigate('/library');
   });
 
   document.getElementById('prev-btn').addEventListener('click', function () {
