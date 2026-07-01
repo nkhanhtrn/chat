@@ -174,7 +174,7 @@ function renderViewer(bookId) {
   document.getElementById('app').innerHTML =
     '<div class="viewer">' +
       '<div class="viewer-header">' +
-        '<button class="icon-btn" id="back-btn">\u2190</button>' +
+        '<button class="icon-btn" id="back-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></button>' +
         '<div class="viewer-title">' + escapeHtml(book.title) + '</div>' +
         '<button class="icon-btn" id="theme-btn">' + themeIcon() + '</button>' +
       '</div>' +
@@ -186,9 +186,9 @@ function renderViewer(bookId) {
         '<div class="footer-center">' +
           '<button class="icon-btn" id="font-down-btn">A-</button>' +
           '<button class="icon-btn" id="font-up-btn">A+</button>' +
+          '<span id="progress-text">0%</span>' +
           '<button class="icon-btn" id="line-down-btn">\u2261-</button>' +
           '<button class="icon-btn" id="line-up-btn">\u2261+</button>' +
-          '<span id="progress-text">0%</span>' +
         '</div>' +
         '<button class="icon-btn" id="next-btn">\u2192</button>' +
       '</div>' +
@@ -227,7 +227,7 @@ function renderViewer(bookId) {
 
     area.innerHTML = '';
     var bookObj = ePub(arrayBuffer);
-    var rendition = bookObj.renderTo(area, { width: '100%', height: '100%' });
+    var rendition = bookObj.renderTo(area, { width: '100%', height: '100%', gap: 48 });
     state.currentRendition = rendition;
     var locationsReady = false;
 
