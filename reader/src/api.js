@@ -61,7 +61,7 @@ function fetchBooks(cb) {
 
     function fetchPage(token) {
       var url = FIRESTORE_URL + '/users/' + state.uid + '/books?pageSize=500' +
-        '&mask.fieldPaths=title&mask.fieldPaths=author&mask.fieldPaths=coverUrl' +
+        '&mask.fieldPaths=title&mask.fieldPaths=author' +
         '&mask.fieldPaths=lastCfi&mask.fieldPaths=readingProgress' +
         '&mask.fieldPaths=fileType&mask.fieldPaths=deletedAt';
       if (token) url += '&pageToken=' + encodeURIComponent(token);

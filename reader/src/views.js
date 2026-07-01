@@ -75,17 +75,15 @@ function renderLibraryPage(page) {
   var html = '<div class="lib-list">';
   for (var i = start; i < end; i++) {
     var b = books[i];
-    var cover = b.coverUrl ? '<img src="' + escapeHtml(b.coverUrl) + '" alt="">' : '\u{1F4DA}';
     var pct = b.readingProgress ? Math.round(b.readingProgress) + '%' : '';
-    html +=
-      '<div class="book-row" data-id="' + escapeHtml(b.id) + '">' +
-        '<div class="cover-sm">' + cover + '</div>' +
-        '<div style="flex:1;min-width:0">' +
-          '<div class="book-title">' + escapeHtml(b.title) + '</div>' +
-          (b.author ? '<div class="book-author">' + escapeHtml(b.author) + '</div>' : '') +
-          (pct ? '<div class="book-progress">' + pct + '</div>' : '') +
-        '</div>' +
-      '</div>';
+      html +=
+        '<div class="book-row" data-id="' + escapeHtml(b.id) + '">' +
+          '<div style="flex:1;min-width:0">' +
+            '<div class="book-title">' + escapeHtml(b.title) + '</div>' +
+            (b.author ? '<div class="book-author">' + escapeHtml(b.author) + '</div>' : '') +
+            (pct ? '<div class="book-progress">' + pct + '</div>' : '') +
+          '</div>' +
+        '</div>';
   }
   html += '</div>';
 
