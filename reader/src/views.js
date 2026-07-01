@@ -100,14 +100,18 @@ function renderLibrary() {
   }
 }
 
+function normalizeSearch(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 function getFilteredBooks() {
-  var q = state.searchQuery.trim().toLowerCase();
+  var q = normalizeSearch(state.searchQuery);
   if (!q) return state.books;
   var out = [];
   for (var i = 0; i < state.books.length; i++) {
     var b = state.books[i];
-    if ((b.title && b.title.toLowerCase().indexOf(q) !== -1) ||
-        (b.author && b.author.toLowerCase().indexOf(q) !== -1)) {
+    if (normalizeSearch(b.title).indexOf(q) !== -1 ||
+        normalizeSearch(b.author).indexOf(q) !== -1) {
       out.push(b);
     }
   }
@@ -269,6 +273,18 @@ function hideTocModal() {
   if (overlay) overlay.parentNode.removeChild(overlay);
 }
 
+// ===== Progress =====
+function estimateProgress(bookObj, location, fallback) {
+  if (!location || !location.start) return fallback;
+  if (bookObj.locations && bookObj.locations.length > 0) {
+    return bookObj.locations.percentageFromCfi(location.start.cfi);
+  }
+  if (typeof location.start.index === 'number' && bookObj.spine && bookObj.spine.length > 0) {
+    return (location.start.index + 1) / bookObj.spine.length;
+  }
+  return fallback;
+}
+
 // ===== Viewer =====
 function renderViewer(bookId) {
   state.view = 'viewer';
@@ -367,9 +383,7 @@ function renderViewer(bookId) {
     rendition.on('relocated', function (location) {
       if (!location || !location.start) return;
       var cfi = location.start.cfi;
-      var pct = (bookObj.locations && bookObj.locations.length > 0)
-        ? bookObj.locations.percentageFromCfi(cfi)
-        : (book.readingProgress || 0) / 100;
+      var pct = estimateProgress(bookObj, location, (book.readingProgress || 0) / 100);
       var pctRounded = Math.round(pct * 100);
       var el = document.getElementById('progress-text');
       if (el) el.textContent = pctRounded + '%';
