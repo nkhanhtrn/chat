@@ -1,4 +1,7 @@
 var R = window.R = window.R || {};
 
-window.addEventListener('hashchange', R.route);
-R.route();
+if (R.state.token) {
+  R.renderLibrary();
+} else {
+  R.renderLogin();
+}

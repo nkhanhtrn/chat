@@ -6,7 +6,7 @@ R.renderViewer = function (bookId) {
     if (R.state.books[i].id === bookId) { book = R.state.books[i]; break; }
   }
   if (!book) {
-    window.location.hash = '';
+    R.renderLibrary();
     return;
   }
 

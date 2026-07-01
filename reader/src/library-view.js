@@ -51,7 +51,7 @@ R.renderLibrary = function () {
     for (var j = 0; j < rows.length; j++) {
       rows[j].addEventListener('click', function () {
         var id = this.getAttribute('data-id');
-        window.location.hash = '#book/' + id;
+        R.renderViewer(id);
       });
     }
   });

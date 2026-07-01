@@ -15,7 +15,7 @@ export function loadReader() {
   const order = [
     'config.js', 'state.js', 'utils.js', 'auth.js',
     'books.js', 'login-view.js', 'library-view.js',
-    'viewer-view.js', 'router.js',
+    'viewer-view.js',
   ]
   for (const f of order) loadModule(f)
   return window.R

@@ -16,7 +16,6 @@ const MODULE_ORDER = [
   'login-view.js',
   'library-view.js',
   'viewer-view.js',
-  'router.js',
   'init.js',
 ]
 

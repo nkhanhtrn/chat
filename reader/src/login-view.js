@@ -23,7 +23,7 @@ R.renderLogin = function (errorMsg) {
       if (err) {
         R.renderLogin(err);
       } else {
-        R.route();
+        R.renderLibrary();
       }
     });
   });
