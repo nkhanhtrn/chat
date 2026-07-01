@@ -2,6 +2,7 @@
 var API_KEY = 'AIzaSyD7xhfxskPmmGjDlX8il68e91yQgwnSoe8';
 var FIRESTORE_URL = 'https://firestore.googleapis.com/v1/projects/nkhanhtrn-chat/databases/(default)/documents';
 var AUTH_URL = 'https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=' + API_KEY;
+var PAGE_SIZE = 8;
 var IS_DEV = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 var STORAGE_ORIGIN = IS_DEV
   ? '/fs-proxy/v0/b/nkhanhtrn-chat.firebasestorage.app/o'
@@ -12,7 +13,9 @@ var state = {
   token: localStorage.getItem('token'),
   uid: localStorage.getItem('uid'),
   books: [],
+  libPage: 0,
   currentRendition: null,
+  progressTimer: null,
 };
 
 // ===== Utils =====

@@ -67,6 +67,11 @@ input, button { font-family: inherit; font-size: inherit; }
 .lib-search input:focus { outline: none; border-color: var(--text); }
 .lib-empty { padding: 2.5rem 0; text-align: center; color: var(--muted); font-size: .9rem; }
 .lib-loading { padding: 2rem 0; text-align: center; color: var(--muted); }
+.lib-pager {
+  display: flex; align-items: center; justify-content: center;
+  gap: 1.5rem; padding: 1.25rem 0 .5rem;
+}
+.pager-info { font-size: .85rem; color: var(--muted); }
 
 /* list view */
 .lib-list { padding-top: .25rem; }

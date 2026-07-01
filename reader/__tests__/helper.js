@@ -18,5 +18,10 @@ export function loadCore() {
 
 export function loadApi() {
   const code = loadFiles(['core.js', 'api.js'])
-  return new Function(code + '\nreturn { saveAuth, clearAuth, fetchBooks, state };')()
+  return new Function(code + '\nreturn { saveAuth, clearAuth, fetchBooks, saveProgress, state };')()
+}
+
+export function loadViews() {
+  const code = loadFiles(['core.js', 'api.js', 'views.js'])
+  return new Function(code + '\nreturn { renderLibraryPage, state };')()
 }

@@ -70,3 +70,19 @@ function downloadBook(bookId, cb) {
   var x = request('GET', url, { Authorization: 'Bearer ' + state.token }, cb, true);
   x.send();
 }
+
+function saveProgress(bookId, cfi, progress, cb) {
+  var url = FIRESTORE_URL + '/users/' + state.uid + '/books/' + bookId +
+    '?updateMask.fieldPaths=lastCfi&updateMask.fieldPaths=readingProgress';
+  var body = JSON.stringify({
+    fields: {
+      lastCfi: { stringValue: cfi },
+      readingProgress: { integerValue: String(Math.round(progress * 100)) },
+    },
+  });
+  var x = request('PATCH', url, {
+    Authorization: 'Bearer ' + state.token,
+    'Content-Type': 'application/json',
+  }, cb);
+  x.send(body);
+}
