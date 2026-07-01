@@ -33,12 +33,16 @@ describe('fetchBooks', () => {
   })
   afterEach(() => { window.XMLHttpRequest = origXHR })
 
-  it('parses runQuery response, sorts alphabetically', () => {
+  it('parses list response, filters deleted/pdf, sorts alphabetically', () => {
     window.XMLHttpRequest = function () {
-      return new MockXHR(JSON.stringify([
-        { document: makeDoc('b1', { title: { stringValue: 'Zebra' }, author: { stringValue: 'Z' } }) },
-        { document: makeDoc('b2', { title: { stringValue: 'Apple' }, author: { stringValue: 'A' } }) },
-      ]))
+      return new MockXHR(JSON.stringify({
+        documents: [
+          makeDoc('b1', { title: { stringValue: 'Zebra' }, fileType: { stringValue: 'epub' } }),
+          makeDoc('b2', { title: { stringValue: 'Apple' }, fileType: { stringValue: 'epub' } }),
+          makeDoc('b3', { title: { stringValue: 'Deleted' }, fileType: { stringValue: 'epub' }, deletedAt: { timestampValue: '2024-01-01' } }),
+          makeDoc('b4', { title: { stringValue: 'PDF' }, fileType: { stringValue: 'pdf' } }),
+        ],
+      }))
     }
 
     const { fetchBooks, state } = loadApi()
@@ -51,12 +55,12 @@ describe('fetchBooks', () => {
     })
   })
 
-  it('uses runQuery with select and where fileType=epub', () => {
-    let capturedBody = null
+  it('uses mask.fieldPaths in query URL', () => {
+    let capturedUrl = null
     window.XMLHttpRequest = function () {
-      var xhr = new MockXHR('[]')
-      var origSend = xhr.send.bind(xhr)
-      xhr.send = function (body) { capturedBody = JSON.parse(body); origSend(body) }
+      var xhr = new MockXHR(JSON.stringify({ documents: [] }))
+      var origOpen = xhr.open.bind(xhr)
+      xhr.open = function (method, url) { capturedUrl = url; origOpen(method, url) }
       return xhr
     }
 
@@ -65,10 +69,9 @@ describe('fetchBooks', () => {
 
     fetchBooks(function () {})
 
-    expect(capturedBody.structuredQuery.select.fields.map(function (f) { return f.fieldPath }))
-      .toEqual(['title', 'author', 'readingProgress'])
-    expect(capturedBody.structuredQuery.where.fieldFilter.value.stringValue).toBe('epub')
-    expect(capturedBody.structuredQuery.where.fieldFilter.op).toBe('EQUAL')
+    expect(capturedUrl).toContain('mask.fieldPaths=title')
+    expect(capturedUrl).toContain('mask.fieldPaths=author')
+    expect(capturedUrl).toContain('mask.fieldPaths=readingProgress')
   })
 })
 
