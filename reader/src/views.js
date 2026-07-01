@@ -23,6 +23,7 @@ function renderLogin(errorMsg) {
 
 // ===== Library =====
 function renderLibrary() {
+  state.libPage = 0;
   document.getElementById('app').innerHTML =
     '<div class="lib">' +
       '<div class="lib-header">' +
@@ -38,34 +39,66 @@ function renderLibrary() {
   });
 
   fetchBooks(function (err, books) {
-    var el = document.getElementById('lib-content');
-    if (err) { el.innerHTML = '<div class="error-msg">' + escapeHtml(err) + '</div>'; return; }
-    if (books.length === 0) { el.innerHTML = '<div class="lib-empty">No books yet.</div>'; return; }
-
-    var html = '<div class="lib-list">';
-    for (var i = 0; i < books.length; i++) {
-      var b = books[i];
-      var cover = b.coverUrl ? '<img src="' + escapeHtml(b.coverUrl) + '" alt="">' : '\u{1F4DA}';
-      var pct = b.readingProgress ? Math.round(b.readingProgress * 100) + '%' : '';
-      html +=
-        '<div class="book-row" data-id="' + escapeHtml(b.id) + '">' +
-          '<div class="cover-sm">' + cover + '</div>' +
-          '<div style="flex:1;min-width:0">' +
-            '<div class="book-title">' + escapeHtml(b.title) + '</div>' +
-            (b.author ? '<div class="book-author">' + escapeHtml(b.author) + '</div>' : '') +
-            (pct ? '<div class="book-progress">' + pct + '</div>' : '') +
-          '</div>' +
-        '</div>';
+    if (err) {
+      document.getElementById('lib-content').innerHTML = '<div class="error-msg">' + escapeHtml(err) + '</div>';
+      return;
     }
-    el.innerHTML = html + '</div>';
-
-    var rows = document.querySelectorAll('.book-row');
-    for (var j = 0; j < rows.length; j++) {
-      rows[j].addEventListener('click', function () {
-        renderViewer(this.getAttribute('data-id'));
-      });
+    if (books.length === 0) {
+      document.getElementById('lib-content').innerHTML = '<div class="lib-empty">No books yet.</div>';
+      return;
     }
+    renderLibraryPage(0);
   });
+}
+
+function renderLibraryPage(page) {
+  var books = state.books;
+  var totalPages = Math.ceil(books.length / PAGE_SIZE);
+  if (page < 0) page = 0;
+  if (page >= totalPages) page = totalPages - 1;
+  state.libPage = page;
+
+  var start = page * PAGE_SIZE;
+  var end = Math.min(start + PAGE_SIZE, books.length);
+
+  var html = '<div class="lib-list">';
+  for (var i = start; i < end; i++) {
+    var b = books[i];
+    var cover = b.coverUrl ? '<img src="' + escapeHtml(b.coverUrl) + '" alt="">' : '\u{1F4DA}';
+    var pct = b.readingProgress ? Math.round(b.readingProgress * 100) + '%' : '';
+    html +=
+      '<div class="book-row" data-id="' + escapeHtml(b.id) + '">' +
+        '<div class="cover-sm">' + cover + '</div>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div class="book-title">' + escapeHtml(b.title) + '</div>' +
+          (b.author ? '<div class="book-author">' + escapeHtml(b.author) + '</div>' : '') +
+          (pct ? '<div class="book-progress">' + pct + '</div>' : '') +
+        '</div>' +
+      '</div>';
+  }
+  html += '</div>';
+
+  if (totalPages > 1) {
+    html += '<div class="lib-pager">' +
+      '<button class="icon-btn icon-btn-big" id="prev-page"' + (page === 0 ? ' disabled' : '') + '>\u2190</button>' +
+      '<span class="pager-info">' + (page + 1) + ' / ' + totalPages + '</span>' +
+      '<button class="icon-btn icon-btn-big" id="next-page"' + (page === totalPages - 1 ? ' disabled' : '') + '>\u2192</button>' +
+    '</div>';
+  }
+
+  document.getElementById('lib-content').innerHTML = html;
+
+  var rows = document.querySelectorAll('.book-row');
+  for (var j = 0; j < rows.length; j++) {
+    rows[j].addEventListener('click', function () {
+      renderViewer(this.getAttribute('data-id'));
+    });
+  }
+
+  var prevBtn = document.getElementById('prev-page');
+  if (prevBtn) prevBtn.addEventListener('click', function () { renderLibraryPage(state.libPage - 1); });
+  var nextBtn = document.getElementById('next-page');
+  if (nextBtn) nextBtn.addEventListener('click', function () { renderLibraryPage(state.libPage + 1); });
 }
 
 // ===== Viewer =====
