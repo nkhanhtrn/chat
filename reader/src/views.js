@@ -100,14 +100,18 @@ function renderLibrary() {
   }
 }
 
+function normalizeSearch(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 function getFilteredBooks() {
-  var q = state.searchQuery.trim().toLowerCase();
+  var q = normalizeSearch(state.searchQuery);
   if (!q) return state.books;
   var out = [];
   for (var i = 0; i < state.books.length; i++) {
     var b = state.books[i];
-    if ((b.title && b.title.toLowerCase().indexOf(q) !== -1) ||
-        (b.author && b.author.toLowerCase().indexOf(q) !== -1)) {
+    if (normalizeSearch(b.title).indexOf(q) !== -1 ||
+        normalizeSearch(b.author).indexOf(q) !== -1) {
       out.push(b);
     }
   }

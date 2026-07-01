@@ -23,7 +23,7 @@ export function loadApi() {
 
 export function loadViews() {
   const code = loadFiles(['core.js', 'api.js', 'views.js'])
-  return new Function(code + '\nreturn { renderLibraryPage, flattenToc, showTocModal, renderTocPage, hideTocModal, estimateProgress, state };')()
+  return new Function(code + '\nreturn { renderLibraryPage, flattenToc, showTocModal, renderTocPage, hideTocModal, estimateProgress, getFilteredBooks, normalizeSearch, state };')()
 }
 
 export function loadInit() {
