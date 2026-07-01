@@ -71,6 +71,7 @@ var state = {
   searchQuery: '',
   currentRendition: null,
   progressTimer: null,
+  view: 'login',
   fontSize: parseInt(localStorage.getItem('fontSize') || '100', 10),
   libFontSize: parseInt(localStorage.getItem('libFontSize') || localStorage.getItem('fontSize') || '100', 10),
   viewerFontSize: parseInt(localStorage.getItem('viewerFontSize') || localStorage.getItem('fontSize') || '100', 10),

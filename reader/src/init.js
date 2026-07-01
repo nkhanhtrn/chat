@@ -1,14 +1,14 @@
-['keydown', 'keyup', 'keypress', 'wheel', 'click', 'mousedown', 'touchstart', 'touchend'].forEach(function (type) {
-  document.addEventListener(type, function (e) {
-    var el = document.getElementById('key-debug');
-    if (!el) return;
-    var info = type + ': ';
-    if (e.keyCode) info += 'kc=' + e.keyCode + ' ';
-    if (e.key) info += 'key=' + e.key + ' ';
-    if (e.deltaY) info += 'dy=' + e.deltaY + ' ';
-    if (e.button !== undefined) info += 'btn=' + e.button + ' ';
-    el.textContent = info;
-  }, true);
+document.addEventListener('keydown', function (e) {
+  if (e.target && e.target.tagName === 'INPUT') return;
+  if (e.keyCode === 33 || e.key === 'ArrowLeft') {
+    e.preventDefault();
+    if (state.view === 'viewer') { if (state.currentRendition) state.currentRendition.prev(); }
+    else { renderLibraryPage(state.libPage - 1); }
+  } else if (e.keyCode === 34 || e.key === 'ArrowRight') {
+    e.preventDefault();
+    if (state.view === 'viewer') { if (state.currentRendition) state.currentRendition.next(); }
+    else { renderLibraryPage(state.libPage + 1); }
+  }
 });
 
 if (state.token) renderLibrary();
