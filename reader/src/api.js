@@ -60,7 +60,10 @@ function fetchBooks(cb) {
     var allBooks = [];
 
     function fetchPage(token) {
-      var url = FIRESTORE_URL + '/users/' + state.uid + '/books?pageSize=500';
+      var url = FIRESTORE_URL + '/users/' + state.uid + '/books?pageSize=500' +
+        '&mask.fieldPaths=title&mask.fieldPaths=author&mask.fieldPaths=coverUrl' +
+        '&mask.fieldPaths=lastCfi&mask.fieldPaths=readingProgress' +
+        '&mask.fieldPaths=fileType&mask.fieldPaths=deletedAt';
       if (token) url += '&pageToken=' + encodeURIComponent(token);
       var x = request('GET', url, { Authorization: 'Bearer ' + state.token }, function (err, data) {
       if (err) return cb(err);
