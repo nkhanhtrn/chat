@@ -15,6 +15,7 @@ var state = {
   books: [],
   libPage: 0,
   currentRendition: null,
+  progressTimer: null,
 };
 
 // ===== Utils =====
