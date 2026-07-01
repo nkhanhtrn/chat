@@ -38,14 +38,25 @@ function renderLibrary() {
     '<div class="lib">' +
       '<div class="lib-header">' +
         '<h1>My Library</h1>' +
-        '<button class="icon-btn" id="theme-btn">' + themeIcon() + '</button>' +
+        '<button class="icon-btn" id="font-down-btn">A-</button>' +
         '<button class="icon-btn" id="refresh-btn">\u21BB</button>' +
+        '<button class="icon-btn" id="font-up-btn">A+</button>' +
+        '<button class="icon-btn" id="theme-btn">' + themeIcon() + '</button>' +
         '<button class="icon-btn" id="logout-btn">Logout</button>' +
       '</div>' +
       '<div class="lib-loading" id="lib-content">Loading&#8230;</div>' +
     '</div>';
 
   bindThemeBtn('theme-btn');
+
+  document.getElementById('font-down-btn').addEventListener('click', function () {
+    changeFontSize(-10);
+    applyRootFontSize();
+  });
+  document.getElementById('font-up-btn').addEventListener('click', function () {
+    changeFontSize(10);
+    applyRootFontSize();
+  });
 
   document.getElementById('logout-btn').addEventListener('click', function () {
     clearAuth();
@@ -94,8 +105,8 @@ function renderLibraryPage(page) {
           '<div style="flex:1;min-width:0">' +
             '<div class="book-title">' + escapeHtml(b.title) + '</div>' +
             (b.author ? '<div class="book-author">' + escapeHtml(b.author) + '</div>' : '') +
-            (pct ? '<div class="book-progress">' + pct + '</div>' : '') +
           '</div>' +
+          (pct ? '<div class="book-progress">' + pct + '</div>' : '') +
         '</div>';
   }
   html += '</div>';
@@ -143,7 +154,9 @@ function renderViewer(bookId) {
       '</div>' +
       '<div class="viewer-footer">' +
         '<button class="icon-btn" id="prev-btn">\u2190</button>' +
+        '<button class="icon-btn" id="font-down-btn">A-</button>' +
         '<span id="progress-text">0%</span>' +
+        '<button class="icon-btn" id="font-up-btn">A+</button>' +
         '<button class="icon-btn" id="next-btn">\u2192</button>' +
       '</div>' +
     '</div>';
@@ -162,6 +175,12 @@ function renderViewer(bookId) {
   document.getElementById('next-btn').addEventListener('click', function () {
     if (state.currentRendition) state.currentRendition.next();
   });
+  document.getElementById('font-down-btn').addEventListener('click', function () {
+    changeFontSize(-10);
+  });
+  document.getElementById('font-up-btn').addEventListener('click', function () {
+    changeFontSize(10);
+  });
 
   downloadBook(bookId, function (err, arrayBuffer) {
     var area = document.getElementById('viewer-area');
@@ -177,9 +196,10 @@ function renderViewer(bookId) {
     rendition.themes.default({
       'html, body': {
         'background-color': isDark ? '#1a1a1a' : '#ffffff',
-        'color': isDark ? '#e0e0e0' : '#202020',
+        'color': isDark ? '#f0f0f0' : '#1a1a1a',
       }
     });
+    rendition.themes.fontSize(state.fontSize + '%');
 
     rendition.display(book.lastCfi || undefined).then(function () {
       var el = document.getElementById('progress-text');
