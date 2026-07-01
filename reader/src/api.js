@@ -63,7 +63,8 @@ function fetchBooks(cb) {
       var url = FIRESTORE_URL + '/users/' + state.uid + '/books?pageSize=500' +
         '&mask.fieldPaths=title&mask.fieldPaths=author' +
         '&mask.fieldPaths=readingProgress&mask.fieldPaths=fileType' +
-        '&mask.fieldPaths=deletedAt&mask.fieldPaths=lastCfi';
+        '&mask.fieldPaths=deletedAt&mask.fieldPaths=lastCfi' +
+        '&mask.fieldPaths=updatedAt';
       if (token) url += '&pageToken=' + encodeURIComponent(token);
       var x = request('GET', url, { Authorization: 'Bearer ' + state.token }, function (err, data) {
         if (err) return cb(err);
@@ -79,13 +80,14 @@ function fetchBooks(cb) {
               author: unwrap(f.author) || '',
               readingProgress: unwrap(f.readingProgress) || 0,
               lastCfi: unwrap(f.lastCfi) || '',
+              updatedAt: unwrap(f.updatedAt) || 0,
             });
           }
         }
         if (data && data.nextPageToken) fetchPage(data.nextPageToken);
         else {
           allBooks.sort(function (a, b) {
-            return (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase());
+            return (b.updatedAt || 0) - (a.updatedAt || 0);
           });
           state.books = allBooks;
           cb(null, allBooks);
@@ -112,11 +114,13 @@ function saveProgress(bookId, cfi, progress, cb) {
   ensureToken(function (authErr) {
     if (authErr) return cb(authErr);
     var url = FIRESTORE_URL + '/users/' + state.uid + '/books/' + bookId +
-      '?updateMask.fieldPaths=lastCfi&updateMask.fieldPaths=readingProgress';
+      '?updateMask.fieldPaths=lastCfi&updateMask.fieldPaths=readingProgress' +
+      '&updateMask.fieldPaths=updatedAt';
     var body = JSON.stringify({
       fields: {
         lastCfi: { stringValue: cfi },
         readingProgress: { integerValue: String(Math.round(progress * 100)) },
+        updatedAt: { integerValue: String(Date.now()) },
       },
     });
     var x = request('PATCH', url, {

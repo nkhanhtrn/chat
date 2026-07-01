@@ -62,12 +62,10 @@ function renderLibrary() {
   }
 
   document.getElementById('font-down-btn').addEventListener('click', function () {
-    changeFontSize(-10);
-    applyRootFontSize();
+    changeLibFontSize(-10);
   });
   document.getElementById('font-up-btn').addEventListener('click', function () {
-    changeFontSize(10);
-    applyRootFontSize();
+    changeLibFontSize(10);
   });
 
   document.getElementById('logout-btn').addEventListener('click', function () {
@@ -185,9 +183,13 @@ function renderViewer(bookId) {
       '</div>' +
       '<div class="viewer-footer">' +
         '<button class="icon-btn" id="prev-btn">\u2190</button>' +
-        '<button class="icon-btn" id="font-down-btn">A-</button>' +
-        '<span id="progress-text">0%</span>' +
-        '<button class="icon-btn" id="font-up-btn">A+</button>' +
+        '<div class="footer-center">' +
+          '<button class="icon-btn" id="font-down-btn">A-</button>' +
+          '<button class="icon-btn" id="font-up-btn">A+</button>' +
+          '<button class="icon-btn" id="line-down-btn">\u2261-</button>' +
+          '<button class="icon-btn" id="line-up-btn">\u2261+</button>' +
+          '<span id="progress-text">0%</span>' +
+        '</div>' +
         '<button class="icon-btn" id="next-btn">\u2192</button>' +
       '</div>' +
     '</div>';
@@ -207,10 +209,16 @@ function renderViewer(bookId) {
     if (state.currentRendition) state.currentRendition.next();
   });
   document.getElementById('font-down-btn').addEventListener('click', function () {
-    changeFontSize(-10);
+    changeViewerFontSize(-10);
   });
   document.getElementById('font-up-btn').addEventListener('click', function () {
-    changeFontSize(10);
+    changeViewerFontSize(10);
+  });
+  document.getElementById('line-down-btn').addEventListener('click', function () {
+    changeViewerLineHeight(-0.1);
+  });
+  document.getElementById('line-up-btn').addEventListener('click', function () {
+    changeViewerLineHeight(0.1);
   });
 
   downloadBook(bookId, function (err, arrayBuffer) {
@@ -227,10 +235,11 @@ function renderViewer(bookId) {
     rendition.themes.default({
       'html, body': {
         'background-color': isDark ? '#1a1a1a' : '#ffffff',
-        'color': isDark ? '#f0f0f0' : '#1a1a1a',
+        'color': isDark ? '#f0f0f0' : '#000000',
       }
     });
-    rendition.themes.fontSize(state.fontSize + '%');
+    rendition.themes.fontSize(state.viewerFontSize + '%');
+    rendition.themes.override('line-height', String(state.viewerLineHeight));
 
     rendition.display(book.lastCfi || undefined).then(function () {
       var el = document.getElementById('progress-text');
