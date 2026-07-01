@@ -13,12 +13,12 @@ function loadFiles(files) {
 
 export function loadCore() {
   const code = loadFiles(['core.js'])
-  return new Function(code + '\nreturn { escapeHtml, unwrap, openCache, cacheGet, cacheSet };')()
+  return new Function(code + '\nreturn { escapeHtml, unwrap };')()
 }
 
 export function loadApi() {
   const code = loadFiles(['core.js', 'api.js'])
-  return new Function(code + '\nreturn { saveAuth, clearAuth, fetchBooks, saveProgress, downloadBook, cacheSet, cacheGet, state };')()
+  return new Function(code + '\nreturn { saveAuth, clearAuth, fetchBooks, saveProgress, state };')()
 }
 
 export function loadViews() {
