@@ -52,7 +52,7 @@ function showWordPopup(word) {
     if (!defEl) return;
     if (err) {
       if (err === 'dict-not-downloaded') {
-        defEl.textContent = 'Dictionary not downloaded. Open Settings (\u2699) to download.';
+        defEl.textContent = 'Dictionary not downloaded. Open Settings to download.';
       } else {
         defEl.textContent = 'Error: ' + err;
       }

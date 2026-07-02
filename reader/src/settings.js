@@ -125,9 +125,10 @@ function renderDictStatus() {
       actionsEl.innerHTML = '<button class="icon-btn" id="dict-remove-btn">Remove</button>';
       document.getElementById('dict-remove-btn').addEventListener('click', _handleDictRemove);
     } else {
-      statusEl.textContent = 'Downloading\u2026';
-      actionsEl.innerHTML = '';
-      _handleDictDownload();
+      statusEl.textContent = 'Not downloaded';
+      actionsEl.innerHTML = '<button class="icon-btn" id="dict-download-btn">Download</button>';
+      var dlBtn = document.getElementById('dict-download-btn');
+      if (dlBtn) dlBtn.addEventListener('click', _handleDictDownload);
     }
   });
 }

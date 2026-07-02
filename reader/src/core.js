@@ -109,6 +109,8 @@ function request(method, url, headers, callback, blob) {
   return x;
 }
 
+var GEAR_ICON = '<svg class="icon-svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 100 8 4 4 0 000-8zm9 4l-2-1 1-2-2-2-2 1-1-2h-2l-1 2-2-1-2 2 1 2-2 1v2l2 1-1 2 2 2 2-1 1 2h2l1-2 2 1 2-2-1-2 2-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+
 function escapeHtml(s) {
   if (!s) return '';
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
