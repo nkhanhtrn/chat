@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, cpSync, rmSync, mkdirSync } from 'fs'
+import { readFileSync, writeFileSync, cpSync, rmSync, mkdirSync, existsSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -10,7 +10,11 @@ const outDir = resolve(root, 'dist-reader')
 const MODULE_ORDER = [
   'core.js',
   'api.js',
-  'views.js',
+  'dict.js',
+  'library.js',
+  'viewer.js',
+  'settings.js',
+  'lookup.js',
   'init.js',
 ]
 
@@ -35,5 +39,11 @@ writeFileSync(resolve(outDir, 'main.js'), js)
 writeFileSync(resolve(outDir, 'index.html'), html)
 cpSync(resolve(srcDir, 'styles.css'), resolve(outDir, 'styles.css'))
 cpSync(resolve(srcDir, 'vendor'), resolve(outDir, 'vendor'), { recursive: true })
+
+// 4b. Copy dictionary data
+const dictSrc = resolve(srcDir, 'data', 'eng-eng.txt')
+if (existsSync(dictSrc)) {
+  cpSync(resolve(srcDir, 'data'), resolve(outDir, 'data'), { recursive: true })
+}
 
 console.log('Reader built to', outDir)

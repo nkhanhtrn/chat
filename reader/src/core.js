@@ -79,6 +79,7 @@ var state = {
   libFontSize: parseInt(localStorage.getItem('libFontSize') || localStorage.getItem('fontSize') || '100', 10),
   viewerFontSize: parseInt(localStorage.getItem('viewerFontSize') || localStorage.getItem('fontSize') || '100', 10),
   viewerLineHeight: parseFloat(localStorage.getItem('viewerLineHeight') || '1.5'),
+  navSwap: localStorage.getItem('navSwap') !== 'false',
 };
 
 // ===== Utils =====
