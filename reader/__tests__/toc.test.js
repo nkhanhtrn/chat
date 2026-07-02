@@ -84,12 +84,13 @@ describe('TOC Modal', () => {
     expect(empty.textContent).toContain('No contents')
   })
 
-  it('hideTocModal removes overlay', () => {
+  it('hides overlay on hideTocModal', () => {
     views.state.toc = [{ href: 'ch1.xhtml', label: 'Chapter 1' }]
     views.showTocModal()
     expect(document.getElementById('toc-overlay')).toBeTruthy()
     views.hideTocModal()
-    expect(document.getElementById('toc-overlay')).toBeNull()
+    var overlay = document.getElementById('toc-overlay')
+    expect(!overlay || overlay.style.display === 'none').toBe(true)
   })
 
   it('does not create duplicate overlay', () => {
@@ -166,7 +167,8 @@ describe('TOC Modal', () => {
     item.click()
 
     expect(displayedHref).toBe('ch1.xhtml')
-    expect(document.getElementById('toc-overlay')).toBeNull()
+    var overlay = document.getElementById('toc-overlay')
+    expect(!overlay || overlay.style.display === 'none').toBe(true)
   })
 
   it('nested items get deeper padding-left', () => {

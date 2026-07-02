@@ -28,22 +28,22 @@ window.addEventListener('hashchange', router);
 // ===== Keydown =====
 document.addEventListener('keydown', function (e) {
   if (e.target && e.target.tagName === 'INPUT') {
-    if (e.keyCode === 27 && document.getElementById('settings-overlay')) hideSettingsModal();
+    if (e.keyCode === 27 && overlayVisible('settings-overlay')) hideSettingsModal();
     return;
   }
   if (e.keyCode === 27) {
-    if (document.getElementById('word-popup-overlay')) hideWordPopup();
-    else if (document.getElementById('settings-overlay')) hideSettingsModal();
-    else if (document.getElementById('toc-overlay')) hideTocModal();
+    if (overlayVisible('word-popup-overlay')) hideWordPopup();
+    else if (overlayVisible('settings-overlay')) hideSettingsModal();
+    else if (overlayVisible('toc-overlay')) hideTocModal();
     return;
   }
-  if (document.getElementById('settings-overlay')) return;
-  var isForwardKey = e.keyCode === 33 || e.key === 'ArrowLeft';
-  var isBackwardKey = e.keyCode === 34 || e.key === 'ArrowRight';
+  if (overlayVisible('settings-overlay')) return;
+  var isForwardKey = e.keyCode === 33 || e.keyCode === 37 || e.key === 'ArrowLeft';
+  var isBackwardKey = e.keyCode === 34 || e.keyCode === 39 || e.key === 'ArrowRight';
   if (!isForwardKey && !isBackwardKey) return;
   e.preventDefault();
   var forward = state.navSwap ? isForwardKey : isBackwardKey;
-  if (document.getElementById('toc-overlay')) {
+  if (overlayVisible('toc-overlay')) {
     renderTocPage(state.tocPage + (forward ? 1 : -1));
   } else if (state.view === 'viewer') {
     if (state.currentRendition) {

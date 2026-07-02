@@ -1,7 +1,6 @@
 // ===== Config =====
 var API_KEY = 'AIzaSyD7xhfxskPmmGjDlX8il68e91yQgwnSoe8';
 var FIRESTORE_URL = 'https://firestore.googleapis.com/v1/projects/nkhanhtrn-chat/databases/(default)/documents';
-var FIRESTORE_PARENT = 'projects/nkhanhtrn-chat/databases/(default)/documents';
 var AUTH_URL = 'https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=' + API_KEY;
 var REFRESH_URL = 'https://securetoken.googleapis.com/v1/token?key=' + API_KEY;
 var PAGE_SIZE = 8;
@@ -12,6 +11,11 @@ var STORAGE_ORIGIN = IS_DEV
 
 // ===== State =====
 function isDark() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
+
+function overlayVisible(id) {
+  var el = document.getElementById(id);
+  return el && el.style.display !== 'none';
+}
 
 function toggleTheme() {
   var next = isDark() ? 'light' : 'dark';
@@ -27,8 +31,6 @@ function toggleTheme() {
     });
   }
 }
-
-function themeIcon() { return isDark() ? '\u2600' : '\u263E'; }
 
 function changeLibFontSize(delta) {
   var next = state.libFontSize + delta;
@@ -72,10 +74,10 @@ var state = {
   currentRendition: null,
   currentBookObj: null,
   toc: [],
+  tocFlat: null,
   tocPage: 0,
   progressTimer: null,
   view: 'login',
-  fontSize: parseInt(localStorage.getItem('fontSize') || '100', 10),
   libFontSize: parseInt(localStorage.getItem('libFontSize') || localStorage.getItem('fontSize') || '100', 10),
   viewerFontSize: parseInt(localStorage.getItem('viewerFontSize') || localStorage.getItem('fontSize') || '100', 10),
   viewerLineHeight: parseFloat(localStorage.getItem('viewerLineHeight') || '1.5'),
@@ -114,7 +116,9 @@ var GEAR_ICON = '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="c
 
 function escapeHtml(s) {
   if (!s) return '';
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(s).replace(/[&<>"]/g, function (c) {
+    return c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;';
+  });
 }
 
 function unwrap(val) {

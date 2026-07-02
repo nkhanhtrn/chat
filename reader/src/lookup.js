@@ -1,4 +1,6 @@
 // ===== Word Lookup (double-tap) =====
+var _wordPopup = null;
+
 function extractWord(text, offset) {
   if (!text || offset < 0 || offset > text.length) return '';
   var before = text.substring(0, offset);
@@ -29,26 +31,37 @@ function getWordAtPoint(doc, x, y) {
   return word || null;
 }
 
-function showWordPopup(word) {
-  hideWordPopup();
+function _buildWordPopup() {
   var overlay = document.createElement('div');
   overlay.id = 'word-popup-overlay';
   overlay.className = 'word-popup-overlay';
+  overlay.style.display = 'none';
 
   var popup = document.createElement('div');
   popup.className = 'word-popup';
   popup.innerHTML =
-    '<div class="word-popup-word">' + escapeHtml(word) + '</div>' +
+    '<div class="word-popup-word" id="word-popup-word"></div>' +
     '<div class="word-popup-ipa" id="word-popup-ipa"></div>' +
-    '<div class="word-popup-def" id="word-popup-def">Looking up\u2026</div>';
+    '<div class="word-popup-def" id="word-popup-def"></div>';
 
   overlay.appendChild(popup);
   overlay.addEventListener('click', hideWordPopup);
   document.body.appendChild(overlay);
+  _wordPopup = overlay;
+}
+
+function showWordPopup(word) {
+  if (!_wordPopup || !_wordPopup.parentNode) _buildWordPopup();
+  var wordEl = document.getElementById('word-popup-word');
+  var ipaEl = document.getElementById('word-popup-ipa');
+  var defEl = document.getElementById('word-popup-def');
+  if (wordEl) wordEl.textContent = word;
+  if (ipaEl) ipaEl.textContent = '';
+  if (defEl) defEl.textContent = 'Looking up\u2026';
+  _wordPopup.style.display = '';
 
   dictLookup(word, function (err, entry) {
-    var defEl = document.getElementById('word-popup-def');
-    var ipaEl = document.getElementById('word-popup-ipa');
+    if (!overlayVisible('word-popup-overlay')) return;
     if (!defEl) return;
     if (err) {
       if (err === 'dict-not-downloaded') {
@@ -59,7 +72,6 @@ function showWordPopup(word) {
     } else if (!entry) {
       defEl.textContent = 'No definition found.';
     } else {
-      var wordEl = document.querySelector('.word-popup-word');
       if (wordEl) wordEl.textContent = entry.word;
       if (ipaEl && entry.ipa) ipaEl.textContent = '/' + entry.ipa + '/';
       defEl.textContent = entry.def;
@@ -68,8 +80,7 @@ function showWordPopup(word) {
 }
 
 function hideWordPopup() {
-  var overlay = document.getElementById('word-popup-overlay');
-  if (overlay) overlay.parentNode.removeChild(overlay);
+  if (_wordPopup) _wordPopup.style.display = 'none';
 }
 
 function attachWordLookup(rendition) {
@@ -78,7 +89,8 @@ function attachWordLookup(rendition) {
     var doc = null;
     if (arg && arg.document) doc = arg.document;
     else if (arg && arg.contents && arg.contents.document) doc = arg.contents.document;
-    if (!doc) return;
+    if (!doc || doc._wordLookupBound) return;
+    doc._wordLookupBound = true;
 
     var lastTap = 0;
     var lastX = 0;

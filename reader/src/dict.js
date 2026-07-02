@@ -3,13 +3,15 @@ var DICTS = {
   'eng': {
     cacheKey: '__dict_eng__',
     url: IS_DEV ? '/reader/data/eng-eng.txt' : './data/eng-eng.txt',
-    words: null, ipa: null, defs: null,
+    words: null, ipa: null, defs: null, norm: null,
+    cachedCount: null,
     loading: false, waiters: []
   },
   'fre': {
     cacheKey: '__dict_fre__',
     url: IS_DEV ? '/reader/data/fre-eng.txt' : './data/fre-eng.txt',
-    words: null, ipa: null, defs: null,
+    words: null, ipa: null, defs: null, norm: null,
+    cachedCount: null,
     loading: false, waiters: []
   }
 };
@@ -18,23 +20,26 @@ var DICT_IDS = ['eng', 'fre'];
 
 function _parseDict(text, dictId) {
   var d = DICTS[dictId || 'eng'];
-  var lines = text.split('\n');
   d.words = []; d.ipa = []; d.defs = [];
-  for (var i = 0; i < lines.length; i++) {
-    var line = lines[i];
-    if (!line) continue;
-    var p1 = line.indexOf('|');
-    if (p1 === -1) continue;
-    var p2 = line.indexOf('|', p1 + 1);
-    if (p2 === -1) {
-      d.words.push(line.slice(0, p1));
-      d.ipa.push('');
-      d.defs.push(line.slice(p1 + 1));
-    } else {
-      d.words.push(line.slice(0, p1));
-      d.ipa.push(line.slice(p1 + 1, p2));
-      d.defs.push(line.slice(p2 + 1));
+  var isFre = dictId === 'fre';
+  if (isFre) d.norm = [];
+  var len = text.length, lineStart = 0;
+  while (lineStart <= len) {
+    var nl = text.indexOf('\n', lineStart);
+    if (nl === -1) nl = len;
+    if (nl > lineStart) {
+      var p1 = text.indexOf('|', lineStart);
+      if (p1 !== -1 && p1 < nl) {
+        var p2 = text.indexOf('|', p1 + 1);
+        if (p2 !== -1 && p2 >= nl) p2 = -1;
+        var word = text.slice(lineStart, p1);
+        d.words.push(word);
+        if (p2 === -1) { d.ipa.push(''); d.defs.push(text.slice(p1 + 1, nl)); }
+        else { d.ipa.push(text.slice(p1 + 1, p2)); d.defs.push(text.slice(p2 + 1, nl)); }
+        if (isFre) d.norm.push(_removeAccents(word));
+      }
     }
+    lineStart = nl + 1;
   }
 }
 
@@ -75,19 +80,22 @@ function downloadDictionary(dictId, cb) {
   x.open('GET', d.url, true);
   x.onreadystatechange = function () {
     if (x.readyState !== 4) return;
-    console.log('[dict] XHR status:', x.status, 'len:', (x.responseText || '').length);
-    if ((x.status >= 200 && x.status < 300 || x.status === 304) && x.responseText) {
-      var text = x.responseText;
+    var status = x.status;
+    var ok = (status >= 200 && status < 300 || status === 304) && x.responseText;
+    var text = ok ? x.responseText : null;
+    x.onreadystatechange = null;
+    x = null;
+    if (text) {
       cacheSet(d.cacheKey, text, function (cacheErr) {
-        if (cacheErr) console.warn('[dict] cache write failed:', cacheErr);
         _parseDict(text, dictId);
+        text = null;
         d.loading = false;
         cb(cacheErr);
         while (d.waiters.length) d.waiters.shift()(cacheErr);
       });
     } else {
       d.loading = false;
-      var err = 'HTTP ' + x.status;
+      var err = 'HTTP ' + status;
       cb(err);
       while (d.waiters.length) d.waiters.shift()(err);
     }
@@ -106,11 +114,12 @@ function getDictStatus(dictId, cb) {
   var d = DICTS[dictId];
   if (!d) return cb('unknown', null);
   if (d.words) return cb('ready', d.words.length);
+  if (d.cachedCount !== null) return cb('cached', d.cachedCount);
   cacheGet(d.cacheKey, function (err, cached) {
-    if (cached) return cb('cached', _countWords(cached));
+    if (cached) { d.cachedCount = _countWords(cached); return cb('cached', d.cachedCount); }
     if (dictId === 'eng') {
       cacheGet('__dictionary__', function (e2, old) {
-        if (old) return cb('cached', _countWords(old));
+        if (old) { d.cachedCount = _countWords(old); return cb('cached', d.cachedCount); }
         cb('not-downloaded', null);
       });
     } else {
@@ -123,7 +132,7 @@ function clearDictionary(dictId, cb) {
   if (typeof dictId === 'function') { cb = dictId; dictId = 'eng'; }
   var d = DICTS[dictId];
   if (!d) return cb();
-  d.words = null; d.ipa = null; d.defs = null;
+  d.words = null; d.ipa = null; d.defs = null; d.norm = null; d.cachedCount = null;
   cacheSet(d.cacheKey, null, cb);
 }
 
@@ -228,29 +237,28 @@ function _stripElision(w) {
   return m ? w.slice(m[0].length) : w;
 }
 
+var _freAccentRe = /[\u00E9\u00E8\u00EA\u00EB\u00E0\u00E2\u00F9\u00FB\u00E7\u00F4\u00EE\u00EF\u00FC\u0153\u00E6]/g;
 var _freAccentMap = { '\u00E9': 'e', '\u00E8': 'e', '\u00EA': 'e', '\u00EB': 'e', '\u00E0': 'a', '\u00E2': 'a', '\u00F9': 'u', '\u00FB': 'u', '\u00E7': 'c', '\u00F4': 'o', '\u00EE': 'i', '\u00EF': 'i', '\u00FC': 'u', '\u0153': 'oe', '\u00E6': 'ae' };
 function _removeAccents(w) {
-  var out = '';
-  for (var i = 0; i < w.length; i++) out += _freAccentMap[w[i]] || w[i];
-  return out;
+  return w.replace(_freAccentRe, function (c) { return _freAccentMap[c] || c; });
 }
 
 function _fuzzyAccentLookup(dictId, word, maxDist) {
   var d = DICTS[dictId];
-  if (!d || !d.words || d.words.length === 0) return -1;
+  if (!d || !d.norm || d.norm.length === 0) return -1;
   var norm = _removeAccents(word);
   if (norm === word) return -1;
   var fc = norm.charCodeAt(0);
-  var lo = 0, hi = d.words.length;
-  while (lo < hi) { var mid = (lo + hi) >> 1; if (_removeAccents(d.words[mid]).charCodeAt(0) < fc) lo = mid + 1; else hi = mid; }
+  var lo = 0, hi = d.norm.length;
+  while (lo < hi) { var mid = (lo + hi) >> 1; if (d.norm[mid].charCodeAt(0) < fc) lo = mid + 1; else hi = mid; }
   var start = lo;
-  lo = start; hi = d.words.length;
-  while (lo < hi) { var mid = (lo + hi) >> 1; if (_removeAccents(d.words[mid]).charCodeAt(0) <= fc) lo = mid + 1; else hi = mid; }
+  lo = start; hi = d.norm.length;
+  while (lo < hi) { var mid = (lo + hi) >> 1; if (d.norm[mid].charCodeAt(0) <= fc) lo = mid + 1; else hi = mid; }
   var end = lo;
   var bestIdx = -1, bestDist = maxDist + 1;
   for (var i = start; i < end; i++) {
-    if (Math.abs(d.words[i].length - norm.length) > maxDist) continue;
-    var dd = _levenshtein(norm, _removeAccents(d.words[i]), maxDist);
+    if (Math.abs(d.norm[i].length - norm.length) > maxDist) continue;
+    var dd = _levenshtein(norm, d.norm[i], maxDist);
     if (dd < bestDist) { bestDist = dd; bestIdx = i; if (dd === 0) break; }
   }
   return bestIdx;
@@ -309,7 +317,7 @@ function _tryDictLookup(dictId, word, cb) {
 function _resetDict() {
   for (var i = 0; i < DICT_IDS.length; i++) {
     var d = DICTS[DICT_IDS[i]];
-    d.words = null; d.ipa = null; d.defs = null;
+    d.words = null; d.ipa = null; d.defs = null; d.norm = null; d.cachedCount = null;
     d.loading = false; d.waiters = [];
   }
 }
