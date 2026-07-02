@@ -11,7 +11,10 @@ const MODULE_ORDER = [
   'core.js',
   'api.js',
   'dict.js',
-  'views.js',
+  'library.js',
+  'viewer.js',
+  'settings.js',
+  'lookup.js',
   'init.js',
 ]
 

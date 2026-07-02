@@ -26,12 +26,14 @@ export function loadDict() {
   return new Function(code + '\nreturn { ensureDictionary, downloadDictionary, getDictStatus, clearDictionary, dictLookup, generateStems, _stripSuffix, _levenshtein, _fuzzyLookup, _parseDict, _binarySearchWords, _resetDict, _makeEntry, cacheGet, cacheSet };')()
 }
 
+const VIEW_FILES = ['core.js', 'api.js', 'dict.js', 'library.js', 'viewer.js', 'settings.js', 'lookup.js']
+
 export function loadViews() {
-  const code = loadFiles(['core.js', 'api.js', 'dict.js', 'views.js'])
+  const code = loadFiles(VIEW_FILES)
   return new Function(code + '\nreturn { renderLibraryPage, flattenToc, showTocModal, renderTocPage, hideTocModal, estimateProgress, getFilteredBooks, normalizeSearch, showSettingsModal, hideSettingsModal, renderDictStatus, extractWord, showWordPopup, hideWordPopup, attachWordLookup, state };')()
 }
 
 export function loadInit() {
-  const code = loadFiles(['core.js', 'api.js', 'dict.js', 'views.js', 'init.js'])
+  const code = loadFiles(VIEW_FILES.concat(['init.js']))
   return new Function(code + '\nreturn { state, navigate, parseHash, router };')()
 }
