@@ -32,7 +32,8 @@ document.addEventListener('keydown', function (e) {
     return;
   }
   if (e.keyCode === 27) {
-    if (document.getElementById('settings-overlay')) hideSettingsModal();
+    if (document.getElementById('word-popup-overlay')) hideWordPopup();
+    else if (document.getElementById('settings-overlay')) hideSettingsModal();
     else if (document.getElementById('toc-overlay')) hideTocModal();
     return;
   }

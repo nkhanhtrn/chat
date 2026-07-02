@@ -269,4 +269,25 @@ input, button { font-family: inherit; font-size: inherit; }
 .dict-loading { color: var(--muted); font-size: .8rem; padding: .15rem 0; }
 .dict-not-found { color: var(--muted); font-size: .8rem; padding: .15rem 0; }
 .dict-word { font-weight: 700; font-size: .9rem; margin-bottom: .15rem; }
+.dict-ipa { font-size: .78rem; color: var(--muted); margin-bottom: .2rem; }
 .dict-def { font-size: .8rem; line-height: 1.4; color: var(--text); }
+
+/* ===== Word Lookup Popup ===== */
+.word-popup-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,.3); z-index: 300;
+  display: flex; align-items: center; justify-content: center;
+}
+.word-popup {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 1rem 1.25rem;
+  width: 80%; max-width: 400px; max-height: 50vh; overflow-y: auto;
+  -webkit-tap-highlight-color: transparent;
+}
+.word-popup-word {
+  font-weight: 700; font-size: 1.1rem; margin-bottom: .15rem;
+}
+.word-popup-ipa { font-size: .85rem; color: var(--muted); margin-bottom: .35rem; }
+.word-popup-def {
+  font-size: .9rem; line-height: 1.4; color: var(--text);
+}

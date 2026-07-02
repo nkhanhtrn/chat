@@ -38,7 +38,7 @@ cpSync(resolve(srcDir, 'styles.css'), resolve(outDir, 'styles.css'))
 cpSync(resolve(srcDir, 'vendor'), resolve(outDir, 'vendor'), { recursive: true })
 
 // 4b. Copy dictionary data
-const dictSrc = resolve(srcDir, 'data', 'dict.txt')
+const dictSrc = resolve(srcDir, 'data', 'eng-eng.txt')
 if (existsSync(dictSrc)) {
   cpSync(resolve(srcDir, 'data'), resolve(outDir, 'data'), { recursive: true })
 }

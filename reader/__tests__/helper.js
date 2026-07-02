@@ -23,12 +23,12 @@ export function loadApi() {
 
 export function loadDict() {
   const code = loadFiles(['core.js', 'dict.js'])
-  return new Function(code + '\nreturn { ensureDictionary, downloadDictionary, getDictStatus, clearDictionary, dictLookup, _parseDict, _binarySearchWords, _resetDict, cacheGet, cacheSet };')()
+  return new Function(code + '\nreturn { ensureDictionary, downloadDictionary, getDictStatus, clearDictionary, dictLookup, generateStems, _stripSuffix, _levenshtein, _fuzzyLookup, _parseDict, _binarySearchWords, _resetDict, _makeEntry, cacheGet, cacheSet };')()
 }
 
 export function loadViews() {
   const code = loadFiles(['core.js', 'api.js', 'dict.js', 'views.js'])
-  return new Function(code + '\nreturn { renderLibraryPage, flattenToc, showTocModal, renderTocPage, hideTocModal, estimateProgress, getFilteredBooks, normalizeSearch, showSettingsModal, hideSettingsModal, renderDictStatus, state };')()
+  return new Function(code + '\nreturn { renderLibraryPage, flattenToc, showTocModal, renderTocPage, hideTocModal, estimateProgress, getFilteredBooks, normalizeSearch, showSettingsModal, hideSettingsModal, renderDictStatus, extractWord, showWordPopup, hideWordPopup, attachWordLookup, state };')()
 }
 
 export function loadInit() {
