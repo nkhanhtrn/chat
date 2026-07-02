@@ -39,7 +39,7 @@ function renderLibrary() {
         '<button class="icon-btn" id="font-down-btn">A-</button>' +
         '<button class="icon-btn" id="refresh-btn">\u21BB</button>' +
         '<button class="icon-btn" id="font-up-btn">A+</button>' +
-        '<button class="icon-btn" id="settings-btn">\u2699</button>' +
+        '<button class="icon-btn" id="settings-btn">Set</button>' +
         '<a href="#" class="logout-link" id="logout-btn">Logout</a>' +
       '</div>' +
       '<div class="lib-search">' +

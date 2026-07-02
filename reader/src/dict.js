@@ -7,7 +7,7 @@ var _dictLoading = false;
 var _dictWaiters = [];
 
 function _dictUrl() {
-  return IS_DEV ? '/reader/data/eng-eng.txt' : './eng-eng.txt';
+  return IS_DEV ? '/reader/data/eng-eng.txt' : './data/eng-eng.txt';
 }
 
 function _parseDict(text) {
