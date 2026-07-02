@@ -81,6 +81,7 @@ function fetchBooks(cb) {
               readingProgress: unwrap(f.readingProgress) || 0,
               lastCfi: unwrap(f.lastCfi) || '',
               updatedAt: unwrap(f.updatedAt) || 0,
+              _tn: '', _an: '',
             });
           }
         }
@@ -89,6 +90,11 @@ function fetchBooks(cb) {
           allBooks.sort(function (a, b) {
             return (b.updatedAt || 0) - (a.updatedAt || 0);
           });
+          for (var k = 0; k < allBooks.length; k++) {
+            var bk = allBooks[k];
+            bk._tn = bk.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+            bk._an = bk.author.toLowerCase().replace(/[^a-z0-9]/g, '');
+          }
           state.books = allBooks;
           cb(null, allBooks);
         }

@@ -29,10 +29,24 @@ function renderLogin(errorMsg) {
 }
 
 // ===== Library =====
+var _libShell = null;
+
 function renderLibrary() {
   state.libPage = 0;
   state.view = 'library';
-  document.getElementById('app').innerHTML =
+  var app = document.getElementById('app');
+
+  if (_libShell) {
+    if (_libShell.parentNode !== app) {
+      app.innerHTML = '';
+      app.appendChild(_libShell);
+    }
+    var content = document.getElementById('lib-content');
+    if (content) content.innerHTML = '<div class="lib-loading">Loading&#8230;</div>';
+    var si = document.getElementById('search-input');
+    if (si) si.value = state.searchQuery;
+  } else {
+    app.innerHTML =
     '<div class="lib">' +
       '<div class="lib-header">' +
         '<h1>My Library</h1>' +
@@ -49,39 +63,40 @@ function renderLibrary() {
       '<div class="lib-loading" id="lib-content">Loading&#8230;</div>' +
     '</div>';
 
-  bindSettingsBtn('settings-btn');
+    bindSettingsBtn('settings-btn');
 
-  var searchInput = document.getElementById('search-input');
-  if (searchInput) {
-    searchInput.addEventListener('input', function () {
-      state.searchQuery = this.value;
-      renderLibraryPage(0);
+    var searchInput = document.getElementById('search-input');
+    if (searchInput) {
+      searchInput.addEventListener('input', function () {
+        state.searchQuery = this.value;
+        renderLibraryPage(0);
+      });
+    }
+
+    document.getElementById('font-down-btn').addEventListener('click', function () {
+      changeLibFontSize(-10);
     });
+    document.getElementById('font-up-btn').addEventListener('click', function () {
+      changeLibFontSize(10);
+    });
+
+    document.getElementById('logout-btn').addEventListener('click', function (e) {
+      e.preventDefault();
+      clearAuth();
+      _libShell = null;
+      renderLogin();
+    });
+
+    var refreshBtn = document.getElementById('refresh-btn');
+    if (refreshBtn) refreshBtn.addEventListener('click', function () {
+      state.books = [];
+      navigate('/library');
+    });
+
+    _libShell = document.querySelector('.lib');
   }
 
-  document.getElementById('font-down-btn').addEventListener('click', function () {
-    changeLibFontSize(-10);
-  });
-  document.getElementById('font-up-btn').addEventListener('click', function () {
-    changeLibFontSize(10);
-  });
-
-  document.getElementById('logout-btn').addEventListener('click', function (e) {
-    e.preventDefault();
-    clearAuth();
-    renderLogin();
-  });
-
-  var refreshBtn = document.getElementById('refresh-btn');
-  if (refreshBtn) refreshBtn.addEventListener('click', function () {
-    state.books = [];
-    navigate('/library');
-  });
-
   if (state.books.length > 0) {
-    state.books.sort(function (a, b) {
-      return (b.updatedAt || 0) - (a.updatedAt || 0);
-    });
     renderLibraryPage(0);
   } else {
     fetchBooks(function (err, books) {
@@ -108,19 +123,19 @@ function getFilteredBooks() {
   var out = [];
   for (var i = 0; i < state.books.length; i++) {
     var b = state.books[i];
-    if (normalizeSearch(b.title).indexOf(q) !== -1 ||
-        normalizeSearch(b.author).indexOf(q) !== -1) {
-      out.push(b);
-    }
+    var tn = b._tn || (b._tn = normalizeSearch(b.title));
+    var an = b._an || (b._an = normalizeSearch(b.author));
+    if (tn.indexOf(q) !== -1 || an.indexOf(q) !== -1) out.push(b);
   }
   return out;
 }
 
 function renderLibraryPage(page) {
+  var content = document.getElementById('lib-content');
   var books = getFilteredBooks();
   var totalPages = Math.ceil(books.length / PAGE_SIZE);
   if (totalPages === 0) {
-    document.getElementById('lib-content').innerHTML =
+    content.innerHTML =
       '<div class="lib-empty">No matching books.</div>';
     return;
   }
@@ -137,7 +152,7 @@ function renderLibraryPage(page) {
     var pct = b.readingProgress ? Math.round(b.readingProgress) + '%' : '';
       html +=
         '<div class="book-row" data-id="' + escapeHtml(b.id) + '">' +
-          '<div style="flex:1;min-width:0">' +
+          '<div class="book-info">' +
             '<div class="book-title">' + escapeHtml(b.title) + '</div>' +
             (b.author ? '<div class="book-author">' + escapeHtml(b.author) + '</div>' : '') +
           '</div>' +
@@ -154,17 +169,22 @@ function renderLibraryPage(page) {
     '</div>';
   }
 
-  document.getElementById('lib-content').innerHTML = html;
+  content.innerHTML = html;
 
-  var rows = document.querySelectorAll('.book-row');
-  for (var j = 0; j < rows.length; j++) {
-    rows[j].addEventListener('click', function () {
-      navigate('/book/' + this.getAttribute('data-id'));
+  if (content && !content._delegated) {
+    content._delegated = true;
+    content.addEventListener('click', function (e) {
+      var row = e.target;
+      while (row && row !== content) {
+        if (row.className === 'book-row') {
+          navigate('/book/' + row.getAttribute('data-id'));
+          return;
+        }
+        row = row.parentNode;
+      }
+      var pager = e.target;
+      if (pager && pager.id === 'prev-page') renderLibraryPage(state.libPage - 1);
+      else if (pager && pager.id === 'next-page') renderLibraryPage(state.libPage + 1);
     });
   }
-
-  var prevBtn = document.getElementById('prev-page');
-  if (prevBtn) prevBtn.addEventListener('click', function () { renderLibraryPage(state.libPage - 1); });
-  var nextBtn = document.getElementById('next-page');
-  if (nextBtn) nextBtn.addEventListener('click', function () { renderLibraryPage(state.libPage + 1); });
 }

@@ -5,10 +5,9 @@ var DICT_LIST = [
 ];
 var DL_ICON = '\u2B07';
 var RM_ICON = '\u2715';
+var _settingsModal = null;
 
-function showSettingsModal() {
-  if (document.getElementById('settings-overlay')) return;
-
+function _buildSettingsModal() {
   var dictRowsHtml = '';
   for (var d = 0; d < DICT_LIST.length; d++) {
     dictRowsHtml +=
@@ -22,6 +21,7 @@ function showSettingsModal() {
   var overlay = document.createElement('div');
   overlay.id = 'settings-overlay';
   overlay.className = 'settings-overlay';
+  overlay.style.display = 'none';
 
   var modal = document.createElement('div');
   modal.className = 'settings-modal';
@@ -74,10 +74,6 @@ function showSettingsModal() {
   });
   document.getElementById('settings-close').addEventListener('click', hideSettingsModal);
 
-  _updateThemeSeg();
-  _updateNavSeg();
-  _updateDictSeg();
-
   var themeSeg = document.getElementById('theme-seg');
   themeSeg.addEventListener('click', function (e) {
     if (e.target.className.indexOf('seg-btn') === -1) return;
@@ -85,7 +81,7 @@ function showSettingsModal() {
     var dark = val === 'dark';
     if (dark !== isDark()) {
       toggleTheme();
-      _updateThemeSeg();
+      _updateSeg('theme-seg', isDark() ? 'dark' : 'light');
     }
   });
 
@@ -95,7 +91,7 @@ function showSettingsModal() {
     var val = e.target.getAttribute('data-val');
     state.navSwap = val === 'swap';
     localStorage.setItem('navSwap', state.navSwap ? 'true' : 'false');
-    _updateNavSeg();
+    _updateSeg('nav-seg', state.navSwap ? 'swap' : 'normal');
   });
 
   var dictSeg = document.getElementById('dict-seg');
@@ -104,10 +100,8 @@ function showSettingsModal() {
     var val = e.target.getAttribute('data-val');
     state.activeDict = val;
     localStorage.setItem('activeDict', val);
-    _updateDictSeg();
+    _updateSeg('dict-seg', val);
   });
-
-  renderAllDicts();
 
   var dictInput = document.getElementById('dict-input');
   document.getElementById('dict-lookup-btn').addEventListener('click', function () {
@@ -117,41 +111,32 @@ function showSettingsModal() {
     if (e.keyCode === 13) { e.preventDefault(); _handleDictLookup(dictInput.value); }
   });
 
+  _settingsModal = overlay;
+}
+
+function showSettingsModal() {
+  if (!_settingsModal || !_settingsModal.parentNode) _buildSettingsModal();
+  _settingsModal.style.display = '';
+  _updateSeg('theme-seg', isDark() ? 'dark' : 'light');
+  _updateSeg('nav-seg', state.navSwap ? 'swap' : 'normal');
+  _updateSeg('dict-seg', state.activeDict);
+  renderAllDicts();
+  var di = document.getElementById('dict-input');
+  if (di) di.value = '';
+  var dr = document.getElementById('dict-result');
+  if (dr) dr.innerHTML = '';
 }
 
 function hideSettingsModal() {
-  var overlay = document.getElementById('settings-overlay');
-  if (overlay) overlay.parentNode.removeChild(overlay);
+  if (_settingsModal) _settingsModal.style.display = 'none';
 }
 
-function _updateThemeSeg() {
-  var seg = document.getElementById('theme-seg');
-  if (!seg) return;
-  var dark = isDark();
-  var btns = seg.children;
-  for (var i = 0; i < btns.length; i++) {
-    var isDarkBtn = btns[i].getAttribute('data-val') === 'dark';
-    btns[i].className = 'seg-btn' + (isDarkBtn === dark ? ' active' : '');
-  }
-}
-
-function _updateNavSeg() {
-  var seg = document.getElementById('nav-seg');
+function _updateSeg(segId, currentVal) {
+  var seg = document.getElementById(segId);
   if (!seg) return;
   var btns = seg.children;
   for (var i = 0; i < btns.length; i++) {
-    var isSwap = btns[i].getAttribute('data-val') === 'swap';
-    btns[i].className = 'seg-btn' + (isSwap === state.navSwap ? ' active' : '');
-  }
-}
-
-function _updateDictSeg() {
-  var seg = document.getElementById('dict-seg');
-  if (!seg) return;
-  var btns = seg.children;
-  for (var i = 0; i < btns.length; i++) {
-    var isActive = btns[i].getAttribute('data-val') === state.activeDict;
-    btns[i].className = 'seg-btn' + (isActive ? ' active' : '');
+    btns[i].className = 'seg-btn' + (btns[i].getAttribute('data-val') === currentVal ? ' active' : '');
   }
 }
 
@@ -167,12 +152,7 @@ function _renderDictRow(dict) {
   if (!statusEl || !actionsEl) return;
 
   getDictStatus(dict.id, function (status, count) {
-    if (status === 'ready') {
-      statusEl.textContent = count + ' words';
-      actionsEl.innerHTML = '<button class="icon-btn" id="dict-remove-' + dict.id + '" title="Remove">' + RM_ICON + '</button>';
-      var btn = document.getElementById('dict-remove-' + dict.id);
-      if (btn) btn.addEventListener('click', function () { _handleDictRemove(dict.id); });
-    } else if (status === 'cached') {
+    if (status === 'ready' || status === 'cached') {
       statusEl.textContent = (count || 0).toLocaleString() + ' words';
       actionsEl.innerHTML = '<button class="icon-btn" id="dict-remove-' + dict.id + '" title="Remove">' + RM_ICON + '</button>';
       var btn = document.getElementById('dict-remove-' + dict.id);
@@ -187,7 +167,6 @@ function _renderDictRow(dict) {
 }
 
 function _handleDictDownload(dictId) {
-  console.log('[dict] download clicked:', dictId);
   var statusEl = document.getElementById('dict-status-' + dictId);
   var actionsEl = document.getElementById('dict-actions-' + dictId);
   if (statusEl) statusEl.textContent = 'Downloading\u2026';
@@ -223,8 +202,7 @@ function _handleDictLookup(word) {
     if (err) {
       if (err === 'dict-not-downloaded') {
         resultEl.innerHTML = '<div class="dict-not-found">Dictionary not downloaded.</div>';
-    } else if (status === 'cached') {
-      statusEl.textContent = 'Downloaded';
+      } else {
         resultEl.innerHTML = '<div class="dict-not-found">Error: ' + escapeHtml(err) + '</div>';
       }
       return;

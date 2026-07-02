@@ -1,5 +1,6 @@
 // ===== TOC Modal =====
 var TOC_PAGE_SIZE = 10;
+var _tocModal = null;
 
 function flattenToc(items, depth, out) {
   for (var i = 0; i < items.length; i++) {
@@ -12,13 +13,14 @@ function flattenToc(items, depth, out) {
   return out;
 }
 
-function showTocModal() {
-  if (document.getElementById('toc-overlay')) return;
-  state.tocPage = 0;
+function _buildTocModal() {
+  var old = document.getElementById('toc-overlay');
+  if (old) old.parentNode.removeChild(old);
 
   var overlay = document.createElement('div');
   overlay.id = 'toc-overlay';
   overlay.className = 'toc-overlay';
+  overlay.style.display = 'none';
 
   var modal = document.createElement('div');
   modal.className = 'toc-modal';
@@ -38,11 +40,19 @@ function showTocModal() {
   });
   document.getElementById('toc-close').addEventListener('click', hideTocModal);
 
+  _tocModal = overlay;
+}
+
+function showTocModal() {
+  if (!_tocModal || !_tocModal.parentNode) _buildTocModal();
+  state.tocPage = 0;
+  _tocModal.style.display = '';
   renderTocPage(0);
 }
 
 function renderTocPage(page) {
-  var flat = flattenToc(state.toc, 0, []);
+  var flat = state.tocFlat;
+  if (!flat) state.tocFlat = flat = flattenToc(state.toc, 0, []);
   var totalPages = Math.ceil(flat.length / TOC_PAGE_SIZE);
 
   var body = document.getElementById('toc-body');
@@ -71,33 +81,42 @@ function renderTocPage(page) {
   }
   body.innerHTML = html;
 
+  if (!body._delegated) {
+    body._delegated = true;
+    body.addEventListener('click', function (e) {
+      var el = e.target;
+      while (el && el !== body) {
+        if (el.className === 'toc-item') {
+          var href = el.getAttribute('data-href');
+          if (state.currentRendition && href) state.currentRendition.display(href);
+          hideTocModal();
+          return;
+        }
+        el = el.parentNode;
+      }
+    });
+  }
+
   if (totalPages > 1) {
     footer.innerHTML =
       '<button class="icon-btn icon-btn-big" id="toc-prev"' + (page === 0 ? ' disabled' : '') + '>\u2190</button>' +
       '<span class="pager-info">' + (page + 1) + ' / ' + totalPages + '</span>' +
       '<button class="icon-btn icon-btn-big" id="toc-next"' + (page === totalPages - 1 ? ' disabled' : '') + '>\u2192</button>';
 
-    var prevBtn = document.getElementById('toc-prev');
-    if (prevBtn) prevBtn.addEventListener('click', function () { renderTocPage(state.tocPage - 1); });
-    var nextBtn = document.getElementById('toc-next');
-    if (nextBtn) nextBtn.addEventListener('click', function () { renderTocPage(state.tocPage + 1); });
+    if (!footer._delegated) {
+      footer._delegated = true;
+      footer.addEventListener('click', function (e) {
+        if (e.target.id === 'toc-prev') renderTocPage(state.tocPage - 1);
+        else if (e.target.id === 'toc-next') renderTocPage(state.tocPage + 1);
+      });
+    }
   } else {
     footer.innerHTML = '';
-  }
-
-  var items = body.querySelectorAll('.toc-item');
-  for (var j = 0; j < items.length; j++) {
-    items[j].addEventListener('click', function () {
-      var href = this.getAttribute('data-href');
-      if (state.currentRendition && href) state.currentRendition.display(href);
-      hideTocModal();
-    });
   }
 }
 
 function hideTocModal() {
-  var overlay = document.getElementById('toc-overlay');
-  if (overlay) overlay.parentNode.removeChild(overlay);
+  if (_tocModal) _tocModal.style.display = 'none';
 }
 
 // ===== Progress =====
@@ -147,34 +166,38 @@ function renderViewer(bookId) {
 
   bindSettingsBtn('settings-btn');
 
-  document.getElementById('toc-btn').addEventListener('click', showTocModal);
-
-  document.getElementById('back-btn').addEventListener('click', function () {
-    hideTocModal();
-    if (state.progressTimer) { clearTimeout(state.progressTimer); state.progressTimer = null; }
-    if (state.currentRendition) { state.currentRendition.destroy(); state.currentRendition = null; }
-    state.currentBookObj = null;
-    state.toc = [];
-    navigate('/library');
+  document.querySelector('.viewer-header').addEventListener('click', function (e) {
+    var id = e.target.id;
+    while (!id && e.target.parentNode) { e.target = e.target.parentNode; id = e.target.id; }
+    if (id === 'back-btn') {
+      hideTocModal();
+      if (state.progressTimer) { clearTimeout(state.progressTimer); state.progressTimer = null; }
+      if (state.currentRendition) { state.currentRendition.destroy(); state.currentRendition = null; }
+      state.currentBookObj = null;
+      state.toc = [];
+      state.tocFlat = null;
+      navigate('/library');
+    } else if (id === 'toc-btn') {
+      showTocModal();
+    }
   });
 
-  document.getElementById('prev-btn').addEventListener('click', function () {
-    if (state.currentRendition) state.currentRendition.prev();
-  });
-  document.getElementById('next-btn').addEventListener('click', function () {
-    if (state.currentRendition) state.currentRendition.next();
-  });
-  document.getElementById('font-down-btn').addEventListener('click', function () {
-    changeViewerFontSize(-10);
-  });
-  document.getElementById('font-up-btn').addEventListener('click', function () {
-    changeViewerFontSize(10);
-  });
-  document.getElementById('line-down-btn').addEventListener('click', function () {
-    changeViewerLineHeight(-0.1);
-  });
-  document.getElementById('line-up-btn').addEventListener('click', function () {
-    changeViewerLineHeight(0.1);
+  document.querySelector('.viewer-footer').addEventListener('click', function (e) {
+    var id = e.target.id;
+    while (!id && e.target.parentNode) { e.target = e.target.parentNode; id = e.target.id; }
+    if (id === 'prev-btn') {
+      if (state.currentRendition) state.currentRendition.prev();
+    } else if (id === 'next-btn') {
+      if (state.currentRendition) state.currentRendition.next();
+    } else if (id === 'font-down-btn') {
+      changeViewerFontSize(-10);
+    } else if (id === 'font-up-btn') {
+      changeViewerFontSize(10);
+    } else if (id === 'line-down-btn') {
+      changeViewerLineHeight(-0.1);
+    } else if (id === 'line-up-btn') {
+      changeViewerLineHeight(0.1);
+    }
   });
 
   downloadBook(bookId, function (err, arrayBuffer) {
@@ -191,6 +214,7 @@ function renderViewer(bookId) {
 
     bookObj.loaded.navigation.then(function (nav) {
       state.toc = nav.toc;
+      state.tocFlat = flattenToc(nav.toc, 0, []);
     });
 
     var isDark = document.documentElement.getAttribute('data-theme') === 'dark';

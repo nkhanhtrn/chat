@@ -29,7 +29,7 @@ js += '})();\n'
 let html = readFileSync(resolve(srcDir, 'index.html'), 'utf8')
 html = html.replace(
   /<!-- @reader-modules-start -->[\s\S]*?<!-- @reader-modules-end -->/,
-  '<script src="./main.js"></script>'
+  '<script defer src="./main.js"></script>'
 )
 
 // 3. Write output

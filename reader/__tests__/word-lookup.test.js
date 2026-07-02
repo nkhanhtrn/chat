@@ -84,12 +84,14 @@ describe('showWordPopup / hideWordPopup', () => {
     expect(def.textContent.length).toBeGreaterThan(0)
   })
 
-  it('removes popup on hideWordPopup', () => {
+  it('hides popup on hideWordPopup', () => {
     const { showWordPopup, hideWordPopup } = loadViews()
     showWordPopup('test')
-    expect(document.getElementById('word-popup-overlay')).toBeTruthy()
+    var overlay = document.getElementById('word-popup-overlay')
+    expect(overlay && overlay.style.display !== 'none').toBe(true)
     hideWordPopup()
-    expect(document.getElementById('word-popup-overlay')).toBeNull()
+    overlay = document.getElementById('word-popup-overlay')
+    expect(!overlay || overlay.style.display === 'none').toBe(true)
   })
 
   it('replaces existing popup on new showWordPopup', () => {
