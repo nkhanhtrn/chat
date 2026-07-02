@@ -252,10 +252,14 @@ input, button { font-family: inherit; font-size: inherit; }
 .seg-btn.active { background: var(--text); color: var(--bg); }
 
 /* Dict section */
-.dict-status-line {
-  display: flex; align-items: center; justify-content: space-between;
+.dict-row {
+  display: flex; align-items: center;
+  padding: .3rem 0;
 }
-.dict-status-text { font-size: .85rem; color: var(--text); }
+.dict-row + .dict-row { border-top: 1px solid var(--btn-border); }
+.dict-row-name { font-size: .85rem; color: var(--text); flex: 1; }
+.dict-row-status { font-size: .8rem; color: var(--muted); margin-left: .5rem; }
+.dict-row-status + * { margin-left: .4rem; }
 
 /* Lookup */
 .dict-lookup-row { display: flex; }

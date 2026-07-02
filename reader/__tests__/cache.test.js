@@ -95,10 +95,10 @@ describe('cacheSet when IndexedDB unavailable', () => {
   beforeEach(() => { orig = globalThis.indexedDB })
   afterEach(() => { globalThis.indexedDB = orig })
 
-  it('calls cb without throwing', async () => {
+  it('calls cb with error without throwing', async () => {
     globalThis.indexedDB = undefined
     const { cacheSet } = loadCore()
     var result = await p(function (cb) { cacheSet('b1', new ArrayBuffer(4), cb) })
-    expect(result[0]).toBeUndefined()
+    expect(result[0]).toBeTruthy()
   })
 })

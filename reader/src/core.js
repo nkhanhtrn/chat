@@ -80,6 +80,7 @@ var state = {
   viewerFontSize: parseInt(localStorage.getItem('viewerFontSize') || localStorage.getItem('fontSize') || '100', 10),
   viewerLineHeight: parseFloat(localStorage.getItem('viewerLineHeight') || '1.5'),
   navSwap: localStorage.getItem('navSwap') !== 'false',
+  activeDict: localStorage.getItem('activeDict') || 'eng',
 };
 
 // ===== Utils =====
@@ -162,12 +163,12 @@ function cacheGet(key, cb) {
 
 function cacheSet(key, val, cb) {
   openCache(function (err, db) {
-    if (err) { cb(); return; }
+    if (err) { cb(err); return; }
     try {
       var tx = db.transaction('books', 'readwrite');
       tx.objectStore('books').put(val, key);
-      tx.oncomplete = function () { cb(); };
-      tx.onerror = function () { cb(); };
-    } catch (e) { cb(); }
+      tx.oncomplete = function () { cb(null); };
+      tx.onerror = function (e) { cb('tx-error: ' + (e.target.error && e.target.error.name || 'unknown')); };
+    } catch (e) { cb(e.message); }
   });
 }
