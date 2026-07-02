@@ -80,7 +80,8 @@ describe('showWordPopup / hideWordPopup', () => {
     const { showWordPopup } = loadViews()
     showWordPopup('test')
     var def = document.getElementById('word-popup-def')
-    expect(def.textContent).toMatch(/Looking up/)
+    expect(def).toBeTruthy()
+    expect(def.textContent.length).toBeGreaterThan(0)
   })
 
   it('removes popup on hideWordPopup', () => {

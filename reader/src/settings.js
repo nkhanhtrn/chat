@@ -1,6 +1,23 @@
 // ===== Settings Modal =====
+var DICT_LIST = [
+  { id: 'eng', label: 'En-En' },
+  { id: 'fre', label: 'Fr-En' },
+];
+var DL_ICON = '\u2B07';
+var RM_ICON = '\u2715';
+
 function showSettingsModal() {
   if (document.getElementById('settings-overlay')) return;
+
+  var dictRowsHtml = '';
+  for (var d = 0; d < DICT_LIST.length; d++) {
+    dictRowsHtml +=
+      '<div class="dict-row">' +
+        '<span class="dict-row-name">' + DICT_LIST[d].label + '</span>' +
+        '<span class="dict-row-status" id="dict-status-' + DICT_LIST[d].id + '">Checking&#8230;</span>' +
+        '<span id="dict-actions-' + DICT_LIST[d].id + '"></span>' +
+      '</div>';
+  }
 
   var overlay = document.createElement('div');
   overlay.id = 'settings-overlay';
@@ -29,11 +46,15 @@ function showSettingsModal() {
         '</div>' +
       '</div>' +
       '<div class="settings-section">' +
-        '<div class="settings-label">Eng-Eng Dictionary</div>' +
-        '<div class="dict-status-line">' +
-          '<div class="dict-status-text" id="dict-status">Checking&#8230;</div>' +
-          '<div id="dict-actions"></div>' +
+        '<div class="settings-label">Lookup Dictionary</div>' +
+        '<div class="seg" id="dict-seg">' +
+          '<button class="seg-btn" data-val="eng">En-En</button>' +
+          '<button class="seg-btn" data-val="fre">Fr-En</button>' +
         '</div>' +
+      '</div>' +
+      '<div class="settings-section">' +
+        '<div class="settings-label">Dictionaries</div>' +
+        dictRowsHtml +
       '</div>' +
       '<div class="settings-section">' +
         '<div class="settings-label">Look Up a Word</div>' +
@@ -55,6 +76,7 @@ function showSettingsModal() {
 
   _updateThemeSeg();
   _updateNavSeg();
+  _updateDictSeg();
 
   var themeSeg = document.getElementById('theme-seg');
   themeSeg.addEventListener('click', function (e) {
@@ -76,7 +98,16 @@ function showSettingsModal() {
     _updateNavSeg();
   });
 
-  renderDictStatus();
+  var dictSeg = document.getElementById('dict-seg');
+  dictSeg.addEventListener('click', function (e) {
+    if (e.target.className.indexOf('seg-btn') === -1) return;
+    var val = e.target.getAttribute('data-val');
+    state.activeDict = val;
+    localStorage.setItem('activeDict', val);
+    _updateDictSeg();
+  });
+
+  renderAllDicts();
 
   var dictInput = document.getElementById('dict-input');
   document.getElementById('dict-lookup-btn').addEventListener('click', function () {
@@ -114,45 +145,68 @@ function _updateNavSeg() {
   }
 }
 
-function renderDictStatus() {
-  var statusEl = document.getElementById('dict-status');
-  var actionsEl = document.getElementById('dict-actions');
+function _updateDictSeg() {
+  var seg = document.getElementById('dict-seg');
+  if (!seg) return;
+  var btns = seg.children;
+  for (var i = 0; i < btns.length; i++) {
+    var isActive = btns[i].getAttribute('data-val') === state.activeDict;
+    btns[i].className = 'seg-btn' + (isActive ? ' active' : '');
+  }
+}
+
+function renderAllDicts() {
+  for (var i = 0; i < DICT_LIST.length; i++) {
+    _renderDictRow(DICT_LIST[i]);
+  }
+}
+
+function _renderDictRow(dict) {
+  var statusEl = document.getElementById('dict-status-' + dict.id);
+  var actionsEl = document.getElementById('dict-actions-' + dict.id);
   if (!statusEl || !actionsEl) return;
 
-  getDictStatus(function (status, count) {
-    if (status === 'ready' || status === 'cached') {
-      statusEl.textContent = (count || '20,000') + ' words ready';
-      actionsEl.innerHTML = '<button class="icon-btn" id="dict-remove-btn">Remove</button>';
-      document.getElementById('dict-remove-btn').addEventListener('click', _handleDictRemove);
+  getDictStatus(dict.id, function (status, count) {
+    if (status === 'ready') {
+      statusEl.textContent = count + ' words';
+      actionsEl.innerHTML = '<button class="icon-btn" id="dict-remove-' + dict.id + '" title="Remove">' + RM_ICON + '</button>';
+      var btn = document.getElementById('dict-remove-' + dict.id);
+      if (btn) btn.addEventListener('click', function () { _handleDictRemove(dict.id); });
+    } else if (status === 'cached') {
+      statusEl.textContent = (count || 0).toLocaleString() + ' words';
+      actionsEl.innerHTML = '<button class="icon-btn" id="dict-remove-' + dict.id + '" title="Remove">' + RM_ICON + '</button>';
+      var btn = document.getElementById('dict-remove-' + dict.id);
+      if (btn) btn.addEventListener('click', function () { _handleDictRemove(dict.id); });
     } else {
       statusEl.textContent = 'Not downloaded';
-      actionsEl.innerHTML = '<button class="icon-btn" id="dict-download-btn">Download</button>';
-      var dlBtn = document.getElementById('dict-download-btn');
-      if (dlBtn) dlBtn.addEventListener('click', _handleDictDownload);
+      actionsEl.innerHTML = '<button class="icon-btn" id="dict-download-' + dict.id + '" title="Download">' + DL_ICON + '</button>';
+      var btn = document.getElementById('dict-download-' + dict.id);
+      if (btn) btn.addEventListener('click', function () { _handleDictDownload(dict.id); });
     }
   });
 }
 
-function _handleDictDownload() {
-  var statusEl = document.getElementById('dict-status');
-  var actionsEl = document.getElementById('dict-actions');
+function _handleDictDownload(dictId) {
+  console.log('[dict] download clicked:', dictId);
+  var statusEl = document.getElementById('dict-status-' + dictId);
+  var actionsEl = document.getElementById('dict-actions-' + dictId);
   if (statusEl) statusEl.textContent = 'Downloading\u2026';
   if (actionsEl) actionsEl.innerHTML = '';
-  downloadDictionary(function (err) {
-    if (err) {
-      if (statusEl) statusEl.textContent = 'Download failed: ' + err;
-      renderDictStatus();
-      return;
-    }
-    renderDictStatus();
+  downloadDictionary(dictId, function (err) {
+    if (statusEl && err) statusEl.textContent = 'Download failed: ' + err;
+    var dict = null;
+    for (var i = 0; i < DICT_LIST.length; i++) { if (DICT_LIST[i].id === dictId) dict = DICT_LIST[i]; }
+    if (dict) _renderDictRow(dict);
   });
 }
 
-function _handleDictRemove() {
-  var statusEl = document.getElementById('dict-status');
-  clearDictionary(function () {
+function _handleDictRemove(dictId) {
+  var statusEl = document.getElementById('dict-status-' + dictId);
+  clearDictionary(dictId, function () {
     if (statusEl) statusEl.textContent = 'Removed';
-    renderDictStatus();
+    var dict = null;
+    for (var i = 0; i < DICT_LIST.length; i++) { if (DICT_LIST[i].id === dictId) dict = DICT_LIST[i]; }
+    if (dict) _renderDictRow(dict);
     var result = document.getElementById('dict-result');
     if (result) result.innerHTML = '';
   });
@@ -169,7 +223,8 @@ function _handleDictLookup(word) {
     if (err) {
       if (err === 'dict-not-downloaded') {
         resultEl.innerHTML = '<div class="dict-not-found">Dictionary not downloaded.</div>';
-      } else {
+    } else if (status === 'cached') {
+      statusEl.textContent = 'Downloaded';
         resultEl.innerHTML = '<div class="dict-not-found">Error: ' + escapeHtml(err) + '</div>';
       }
       return;

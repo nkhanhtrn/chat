@@ -23,14 +23,14 @@ export function loadApi() {
 
 export function loadDict() {
   const code = loadFiles(['core.js', 'dict.js'])
-  return new Function(code + '\nreturn { ensureDictionary, downloadDictionary, getDictStatus, clearDictionary, dictLookup, generateStems, _stripSuffix, _levenshtein, _fuzzyLookup, _parseDict, _binarySearchWords, _resetDict, _makeEntry, cacheGet, cacheSet };')()
+  return new Function(code + '\nreturn { ensureDictionary, downloadDictionary, getDictStatus, clearDictionary, dictLookup, generateStems, _stripSuffix, _levenshtein, _fuzzyLookup, _fuzzyAccentLookup, _parseDict, _binarySearchWords, _resetDict, _makeEntry, _stripElision, _removeAccents, cacheGet, cacheSet, state };')()
 }
 
 const VIEW_FILES = ['core.js', 'api.js', 'dict.js', 'library.js', 'viewer.js', 'settings.js', 'lookup.js']
 
 export function loadViews() {
   const code = loadFiles(VIEW_FILES)
-  return new Function(code + '\nreturn { renderLibraryPage, flattenToc, showTocModal, renderTocPage, hideTocModal, estimateProgress, getFilteredBooks, normalizeSearch, showSettingsModal, hideSettingsModal, renderDictStatus, extractWord, showWordPopup, hideWordPopup, attachWordLookup, state };')()
+  return new Function(code + '\nreturn { renderLibraryPage, flattenToc, showTocModal, renderTocPage, hideTocModal, estimateProgress, getFilteredBooks, normalizeSearch, showSettingsModal, hideSettingsModal, renderAllDicts, extractWord, showWordPopup, hideWordPopup, attachWordLookup, state };')()
 }
 
 export function loadInit() {

@@ -65,7 +65,7 @@ describe('dictLookup', () => {
   it('returns definition for a known word (cached)', async () => {
     const { cacheSet, _resetDict, _parseDict, dictLookup } = loadDict()
     _resetDict()
-    cacheSet('__dictionary__', 'apple|a round fruit\nbook|a written work\n', function () {
+    cacheSet('__dict_eng__', 'apple|a round fruit\nbook|a written work\n', function () {
       _parseDict('apple|a round fruit\nbook|a written work\n')
     })
 
@@ -129,7 +129,7 @@ describe('ensureDictionary', () => {
   it('succeeds when cached in IDB', async () => {
     const { cacheSet, _resetDict, ensureDictionary } = loadDict()
     _resetDict()
-    await p(function (cb) { cacheSet('__dictionary__', 'cat|an animal\n', cb) })
+    await p(function (cb) { cacheSet('__dict_eng__', 'cat|an animal\n', cb) })
     var result = await p(function (cb) { ensureDictionary(cb) })
     expect(result[0]).toBe(null)
   })
@@ -167,7 +167,7 @@ describe('getDictStatus', () => {
   it('returns cached when in IDB but not parsed', async () => {
     const { cacheSet, _resetDict, getDictStatus } = loadDict()
     _resetDict()
-    await p(function (cb) { cacheSet('__dictionary__', 'a|def\n', cb) })
+    await p(function (cb) { cacheSet('__dict_eng__', 'a|def\n', cb) })
     var result = await p(function (cb) { getDictStatus(cb) })
     expect(result[0]).toBe('cached')
   })
@@ -471,5 +471,151 @@ describe('dictLookup (fuzzy)', () => {
     const { dictLookup } = load('m|em|letter\nman|m\u00E6n|adult male\n')
     var result = await p(function (cb) { dictLookup('mom', cb) })
     expect(result[1]).toBe(null)
+  })
+})
+
+// ===== French Dictionary =====
+describe('_stripElision', () => {
+  const { _stripElision } = loadDict()
+
+  it('strips l-apostrophe', () => {
+    expect(_stripElision("l'arbre")).toBe('arbre')
+  })
+
+  it('strips d-apostrophe', () => {
+    expect(_stripElision("d'accord")).toBe('accord')
+  })
+
+  it('strips qu-apostrophe', () => {
+    expect(_stripElision("qu'il")).toBe('il')
+  })
+
+  it('strips j-apostrophe', () => {
+    expect(_stripElision("j'ai")).toBe('ai')
+  })
+
+  it('does not strip words without apostrophe', () => {
+    expect(_stripElision('arbre')).toBe('arbre')
+  })
+
+  it('handles uppercase elision', () => {
+    expect(_stripElision("L'arbre")).toBe('arbre')
+  })
+})
+
+describe('_removeAccents', () => {
+  const { _removeAccents } = loadDict()
+
+  it('removes common French accents', () => {
+    expect(_removeAccents('cafe')).toBe('cafe')
+    expect(_removeAccents('\u00E9l\u00E8ve')).toBe('eleve')
+    expect(_removeAccents('fran\u00E7ais')).toBe('francais')
+    expect(_removeAccents('h\u00F4tel')).toBe('hotel')
+  })
+
+  it('expands ligatures', () => {
+    expect(_removeAccents('c\u0153ur')).toBe('coeur')
+  })
+
+  it('leaves non-accented text unchanged', () => {
+    expect(_removeAccents('chat')).toBe('chat')
+  })
+})
+
+describe('dictLookup (French)', () => {
+  var restore
+  beforeEach(() => { restore = setupIDB() })
+  afterEach(() => restore())
+
+  function loadFre(text) {
+    var api = loadDict()
+    api._resetDict()
+    api.state.activeDict = 'fre'
+    api._parseDict(text, 'fre')
+    return api
+  }
+
+  it('finds exact French word', async () => {
+    const { dictLookup } = loadFre('chat||cat\nchien||dog\n')
+    var result = await p(function (cb) { dictLookup('chat', cb) })
+    expect(result[1]).toBeTruthy()
+    expect(result[1].word).toBe('chat')
+    expect(result[1].def).toBe('cat')
+  })
+
+  it('finds conjugated verb form', async () => {
+    const { dictLookup } = loadFre('manger||to eat\nmangeait||(manger) to eat\n')
+    var result = await p(function (cb) { dictLookup('mangeait', cb) })
+    expect(result[1]).toBeTruthy()
+    expect(result[1].word).toBe('mangeait')
+  })
+
+  it('finds word via accent-insensitive match', async () => {
+    const { dictLookup } = loadFre('caf\u00E9||coffee\n')
+    var result = await p(function (cb) { dictLookup('cafe', cb) })
+    expect(result[1]).toBeTruthy()
+    expect(result[1].word).toBe('caf\u00E9')
+  })
+
+  it('finds word via elision stripping', async () => {
+    const { dictLookup } = loadFre('arbre||tree\n')
+    var result = await p(function (cb) { dictLookup("l'arbre", cb) })
+    expect(result[1]).toBeTruthy()
+    expect(result[1].word).toBe('arbre')
+  })
+
+  it('finds plural form', async () => {
+    const { dictLookup } = loadFre('cheval||horse\nchevaux||(plural of cheval) horse\n')
+    var result = await p(function (cb) { dictLookup('chevaux', cb) })
+    expect(result[1]).toBeTruthy()
+    expect(result[1].word).toBe('chevaux')
+  })
+})
+
+describe('dictLookup (active dict selection)', () => {
+  var restore
+  beforeEach(() => { restore = setupIDB() })
+  afterEach(() => restore())
+
+  it('uses eng when activeDict is eng', async () => {
+    const api = loadDict()
+    api._resetDict()
+    api._parseDict('chat|to talk (eng)\n', 'eng')
+    api._parseDict('chat||cat (fre)\n', 'fre')
+    api.state.activeDict = 'eng'
+    var result = await p(function (cb) { api.dictLookup('chat', cb) })
+    expect(result[1]).toBeTruthy()
+    expect(result[1].def).toBe('to talk (eng)')
+  })
+
+  it('uses fre when activeDict is fre', async () => {
+    const api = loadDict()
+    api._resetDict()
+    api._parseDict('chat|to talk (eng)\n', 'eng')
+    api._parseDict('chat||cat (fre)\n', 'fre')
+    api.state.activeDict = 'fre'
+    var result = await p(function (cb) { api.dictLookup('chat', cb) })
+    expect(result[1]).toBeTruthy()
+    expect(result[1].def).toBe('cat (fre)')
+  })
+
+  it('returns null when active dict has no match', async () => {
+    const api = loadDict()
+    api._resetDict()
+    api._parseDict('dog|an animal\n', 'eng')
+    api._parseDict('chat||cat\n', 'fre')
+    api.state.activeDict = 'eng'
+    var result = await p(function (cb) { api.dictLookup('chat', cb) })
+    expect(result[1]).toBe(null)
+  })
+
+  it('defaults to eng when activeDict not set', async () => {
+    const api = loadDict()
+    api._resetDict()
+    api._parseDict('dog|an animal\n', 'eng')
+    api.state.activeDict = undefined
+    var result = await p(function (cb) { api.dictLookup('dog', cb) })
+    expect(result[1]).toBeTruthy()
+    expect(result[1].word).toBe('dog')
   })
 })
