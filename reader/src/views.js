@@ -1,11 +1,8 @@
 // ===== Shared =====
-function bindThemeBtn(id) {
+function bindSettingsBtn(id) {
   var btn = document.getElementById(id);
   if (!btn) return;
-  btn.addEventListener('click', function () {
-    toggleTheme();
-    btn.textContent = themeIcon();
-  });
+  btn.addEventListener('click', showSettingsModal);
 }
 
 // ===== Login =====
@@ -42,7 +39,7 @@ function renderLibrary() {
         '<button class="icon-btn" id="font-down-btn">A-</button>' +
         '<button class="icon-btn" id="refresh-btn">\u21BB</button>' +
         '<button class="icon-btn" id="font-up-btn">A+</button>' +
-        '<button class="icon-btn" id="theme-btn">' + themeIcon() + '</button>' +
+        '<button class="icon-btn" id="settings-btn">\u2699</button>' +
         '<a href="#" class="logout-link" id="logout-btn">Logout</a>' +
       '</div>' +
       '<div class="lib-search">' +
@@ -52,7 +49,7 @@ function renderLibrary() {
       '<div class="lib-loading" id="lib-content">Loading&#8230;</div>' +
     '</div>';
 
-  bindThemeBtn('theme-btn');
+  bindSettingsBtn('settings-btn');
 
   var searchInput = document.getElementById('search-input');
   if (searchInput) {
@@ -300,7 +297,7 @@ function renderViewer(bookId) {
       '<div class="viewer-header">' +
         '<button class="icon-btn" id="back-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></button>' +
         '<div class="viewer-title">' + escapeHtml(book.title) + '</div>' +
-        '<button class="icon-btn" id="theme-btn">' + themeIcon() + '</button>' +
+        '<button class="icon-btn" id="settings-btn">\u2699</button>' +
         '<button class="icon-btn" id="toc-btn">\u2630</button>' +
       '</div>' +
       '<div class="viewer-area" id="viewer-area">' +
@@ -319,7 +316,7 @@ function renderViewer(bookId) {
       '</div>' +
     '</div>';
 
-  bindThemeBtn('theme-btn');
+  bindSettingsBtn('settings-btn');
 
   document.getElementById('toc-btn').addEventListener('click', showTocModal);
 
@@ -400,5 +397,191 @@ function renderViewer(bookId) {
         });
       }, 2000);
     });
+  });
+}
+
+// ===== Settings Modal =====
+function showSettingsModal() {
+  if (document.getElementById('settings-overlay')) return;
+
+  var overlay = document.createElement('div');
+  overlay.id = 'settings-overlay';
+  overlay.className = 'settings-overlay';
+
+  var modal = document.createElement('div');
+  modal.className = 'settings-modal';
+  modal.innerHTML =
+    '<div class="settings-header">' +
+      '<h2>Settings</h2>' +
+      '<button class="icon-btn" id="settings-close">\u2715</button>' +
+    '</div>' +
+    '<div class="settings-body">' +
+      '<div class="settings-section">' +
+        '<div class="settings-label">Theme</div>' +
+        '<div class="seg" id="theme-seg">' +
+          '<button class="seg-btn" data-val="light">\u2600 Light</button>' +
+          '<button class="seg-btn" data-val="dark">\u263E Dark</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="settings-section">' +
+        '<div class="settings-label">Page Buttons</div>' +
+        '<div class="seg" id="nav-seg">' +
+          '<button class="seg-btn" data-val="swap">PgUp = Forward</button>' +
+          '<button class="seg-btn" data-val="normal">PgDn = Forward</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="settings-section">' +
+        '<div class="settings-label">Eng-Eng Dictionary</div>' +
+        '<div class="dict-status-line">' +
+          '<div class="dict-status-text" id="dict-status">Checking&#8230;</div>' +
+          '<div id="dict-actions"></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="settings-section">' +
+        '<div class="settings-label">Look Up a Word</div>' +
+        '<div class="dict-lookup-row">' +
+          '<input type="text" id="dict-input" placeholder="Enter a word" autocomplete="off">' +
+          '<button class="icon-btn" id="dict-lookup-btn">Go</button>' +
+        '</div>' +
+        '<div class="dict-result" id="dict-result"></div>' +
+      '</div>' +
+    '</div>';
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener('click', function (e) {
+    if (e.target === overlay) hideSettingsModal();
+  });
+  document.getElementById('settings-close').addEventListener('click', hideSettingsModal);
+
+  _updateThemeSeg();
+  _updateNavSeg();
+
+  var themeSeg = document.getElementById('theme-seg');
+  themeSeg.addEventListener('click', function (e) {
+    if (e.target.className.indexOf('seg-btn') === -1) return;
+    var val = e.target.getAttribute('data-val');
+    var dark = val === 'dark';
+    if (dark !== isDark()) {
+      toggleTheme();
+      _updateThemeSeg();
+    }
+  });
+
+  var navSeg = document.getElementById('nav-seg');
+  navSeg.addEventListener('click', function (e) {
+    if (e.target.className.indexOf('seg-btn') === -1) return;
+    var val = e.target.getAttribute('data-val');
+    state.navSwap = val === 'swap';
+    localStorage.setItem('navSwap', state.navSwap ? 'true' : 'false');
+    _updateNavSeg();
+  });
+
+  renderDictStatus();
+
+  var dictInput = document.getElementById('dict-input');
+  document.getElementById('dict-lookup-btn').addEventListener('click', function () {
+    _handleDictLookup(dictInput.value);
+  });
+  dictInput.addEventListener('keydown', function (e) {
+    if (e.keyCode === 13) { e.preventDefault(); _handleDictLookup(dictInput.value); }
+  });
+
+  dictInput.focus();
+}
+
+function hideSettingsModal() {
+  var overlay = document.getElementById('settings-overlay');
+  if (overlay) overlay.parentNode.removeChild(overlay);
+}
+
+function _updateThemeSeg() {
+  var seg = document.getElementById('theme-seg');
+  if (!seg) return;
+  var dark = isDark();
+  var btns = seg.children;
+  for (var i = 0; i < btns.length; i++) {
+    var isDarkBtn = btns[i].getAttribute('data-val') === 'dark';
+    btns[i].className = 'seg-btn' + (isDarkBtn === dark ? ' active' : '');
+  }
+}
+
+function _updateNavSeg() {
+  var seg = document.getElementById('nav-seg');
+  if (!seg) return;
+  var btns = seg.children;
+  for (var i = 0; i < btns.length; i++) {
+    var isSwap = btns[i].getAttribute('data-val') === 'swap';
+    btns[i].className = 'seg-btn' + (isSwap === state.navSwap ? ' active' : '');
+  }
+}
+
+function renderDictStatus() {
+  var statusEl = document.getElementById('dict-status');
+  var actionsEl = document.getElementById('dict-actions');
+  if (!statusEl || !actionsEl) return;
+
+  getDictStatus(function (status, count) {
+    if (status === 'ready' || status === 'cached') {
+      statusEl.textContent = (count || '20,000') + ' words ready';
+      actionsEl.innerHTML = '<button class="icon-btn" id="dict-remove-btn">Remove</button>';
+      document.getElementById('dict-remove-btn').addEventListener('click', _handleDictRemove);
+    } else {
+      statusEl.textContent = 'Downloading\u2026';
+      actionsEl.innerHTML = '';
+      _handleDictDownload();
+    }
+  });
+}
+
+function _handleDictDownload() {
+  var statusEl = document.getElementById('dict-status');
+  var actionsEl = document.getElementById('dict-actions');
+  if (statusEl) statusEl.textContent = 'Downloading\u2026';
+  if (actionsEl) actionsEl.innerHTML = '';
+  downloadDictionary(function (err) {
+    if (err) {
+      if (statusEl) statusEl.textContent = 'Download failed: ' + err;
+      renderDictStatus();
+      return;
+    }
+    renderDictStatus();
+  });
+}
+
+function _handleDictRemove() {
+  var statusEl = document.getElementById('dict-status');
+  clearDictionary(function () {
+    if (statusEl) statusEl.textContent = 'Removed';
+    renderDictStatus();
+    var result = document.getElementById('dict-result');
+    if (result) result.innerHTML = '';
+  });
+}
+
+function _handleDictLookup(word) {
+  var resultEl = document.getElementById('dict-result');
+  if (!resultEl) return;
+  var w = String(word || '').trim();
+  if (!w) { resultEl.innerHTML = ''; return; }
+
+  resultEl.innerHTML = '<div class="dict-loading">Looking up\u2026</div>';
+  dictLookup(w, function (err, entry) {
+    if (err) {
+      if (err === 'dict-not-downloaded') {
+        resultEl.innerHTML = '<div class="dict-not-found">Dictionary not downloaded.</div>';
+      } else {
+        resultEl.innerHTML = '<div class="dict-not-found">Error: ' + escapeHtml(err) + '</div>';
+      }
+      return;
+    }
+    if (!entry) {
+      resultEl.innerHTML = '<div class="dict-not-found">No definition for "' + escapeHtml(w) + '".</div>';
+      return;
+    }
+    resultEl.innerHTML =
+      '<div class="dict-word">' + escapeHtml(entry.word) + '</div>' +
+      '<div class="dict-def">' + escapeHtml(entry.def) + '</div>';
   });
 }

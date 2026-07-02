@@ -21,12 +21,17 @@ export function loadApi() {
   return new Function(code + '\nreturn { saveAuth, clearAuth, fetchBooks, saveProgress, downloadBook, cacheSet, cacheGet, state };')()
 }
 
+export function loadDict() {
+  const code = loadFiles(['core.js', 'dict.js'])
+  return new Function(code + '\nreturn { ensureDictionary, downloadDictionary, getDictStatus, clearDictionary, dictLookup, _parseDict, _binarySearchWords, _resetDict, cacheGet, cacheSet };')()
+}
+
 export function loadViews() {
-  const code = loadFiles(['core.js', 'api.js', 'views.js'])
-  return new Function(code + '\nreturn { renderLibraryPage, flattenToc, showTocModal, renderTocPage, hideTocModal, estimateProgress, getFilteredBooks, normalizeSearch, state };')()
+  const code = loadFiles(['core.js', 'api.js', 'dict.js', 'views.js'])
+  return new Function(code + '\nreturn { renderLibraryPage, flattenToc, showTocModal, renderTocPage, hideTocModal, estimateProgress, getFilteredBooks, normalizeSearch, showSettingsModal, hideSettingsModal, renderDictStatus, state };')()
 }
 
 export function loadInit() {
-  const code = loadFiles(['core.js', 'api.js', 'views.js', 'init.js'])
+  const code = loadFiles(['core.js', 'api.js', 'dict.js', 'views.js', 'init.js'])
   return new Function(code + '\nreturn { state, navigate, parseHash, router };')()
 }
