@@ -86,7 +86,6 @@ function showSettingsModal() {
     if (e.keyCode === 13) { e.preventDefault(); _handleDictLookup(dictInput.value); }
   });
 
-  dictInput.focus();
 }
 
 function hideSettingsModal() {
