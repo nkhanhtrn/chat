@@ -166,38 +166,41 @@ function renderViewer(bookId) {
 
   bindSettingsBtn('settings-btn');
 
-  document.querySelector('.viewer-header').addEventListener('click', function (e) {
-    var id = e.target.id;
-    while (!id && e.target.parentNode) { e.target = e.target.parentNode; id = e.target.id; }
-    if (id === 'back-btn') {
-      hideTocModal();
-      if (state.progressTimer) { clearTimeout(state.progressTimer); state.progressTimer = null; }
-      if (state.currentRendition) { state.currentRendition.destroy(); state.currentRendition = null; }
-      state.currentBookObj = null;
-      state.toc = [];
-      state.tocFlat = null;
+  document.getElementById('back-btn').addEventListener('click', function () {
+    hideTocModal();
+    if (state.progressTimer) { clearTimeout(state.progressTimer); state.progressTimer = null; }
+    var r = state.currentRendition;
+    state.currentRendition = null;
+    state.currentBookObj = null;
+    state.toc = [];
+    state.tocFlat = null;
+    var titleEl = document.querySelector('.viewer-title');
+    if (titleEl) titleEl.textContent = 'Closing\u2026';
+    setTimeout(function () {
+      if (r) { try { r.destroy(); } catch (e) {} }
       navigate('/library');
-    } else if (id === 'toc-btn') {
-      showTocModal();
-    }
+    }, 0);
   });
 
-  document.querySelector('.viewer-footer').addEventListener('click', function (e) {
-    var id = e.target.id;
-    while (!id && e.target.parentNode) { e.target = e.target.parentNode; id = e.target.id; }
-    if (id === 'prev-btn') {
-      if (state.currentRendition) state.currentRendition.prev();
-    } else if (id === 'next-btn') {
-      if (state.currentRendition) state.currentRendition.next();
-    } else if (id === 'font-down-btn') {
-      changeViewerFontSize(-10);
-    } else if (id === 'font-up-btn') {
-      changeViewerFontSize(10);
-    } else if (id === 'line-down-btn') {
-      changeViewerLineHeight(-0.1);
-    } else if (id === 'line-up-btn') {
-      changeViewerLineHeight(0.1);
-    }
+  document.getElementById('toc-btn').addEventListener('click', showTocModal);
+
+  document.getElementById('prev-btn').addEventListener('click', function () {
+    if (state.currentRendition) state.currentRendition.prev();
+  });
+  document.getElementById('next-btn').addEventListener('click', function () {
+    if (state.currentRendition) state.currentRendition.next();
+  });
+  document.getElementById('font-down-btn').addEventListener('click', function () {
+    changeViewerFontSize(-10);
+  });
+  document.getElementById('font-up-btn').addEventListener('click', function () {
+    changeViewerFontSize(10);
+  });
+  document.getElementById('line-down-btn').addEventListener('click', function () {
+    changeViewerLineHeight(-0.1);
+  });
+  document.getElementById('line-up-btn').addEventListener('click', function () {
+    changeViewerLineHeight(0.1);
   });
 
   downloadBook(bookId, function (err, arrayBuffer) {
@@ -206,6 +209,7 @@ function renderViewer(bookId) {
 
     area.innerHTML = '';
     var bookObj = ePub(arrayBuffer);
+    arrayBuffer = null;
     var rendition = bookObj.renderTo(area, { width: '100%', height: '100%', gap: 48 });
     state.currentRendition = rendition;
     state.currentBookObj = bookObj;
@@ -213,6 +217,7 @@ function renderViewer(bookId) {
     attachWordLookup(rendition);
 
     bookObj.loaded.navigation.then(function (nav) {
+      if (state.currentBookObj !== bookObj) return;
       state.toc = nav.toc;
       state.tocFlat = flattenToc(nav.toc, 0, []);
     });
@@ -228,11 +233,13 @@ function renderViewer(bookId) {
     rendition.themes.override('line-height', String(state.viewerLineHeight));
 
     rendition.display(book.lastCfi || undefined).then(function () {
+      if (state.currentRendition !== rendition) return;
       var el = document.getElementById('progress-text');
       if (el && book.readingProgress) el.textContent = Math.round(book.readingProgress) + '%';
     });
 
     rendition.on('relocated', function (location) {
+      if (state.currentRendition !== rendition) return;
       if (!location || !location.start) return;
       var cfi = location.start.cfi;
       var pct = estimateProgress(bookObj, location, (book.readingProgress || 0) / 100);
