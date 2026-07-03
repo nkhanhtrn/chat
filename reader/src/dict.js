@@ -69,8 +69,8 @@ function ensureDictionary(dictId, cb) {
   });
 }
 
-function downloadDictionary(dictId, cb) {
-  if (typeof dictId === 'function') { cb = dictId; dictId = 'eng'; }
+function downloadDictionary(dictId, cb, onProgress) {
+  if (typeof dictId === 'function') { onProgress = cb; cb = dictId; dictId = 'eng'; }
   var d = DICTS[dictId];
   if (!d) return cb('unknown-dict');
   if (d.words) return cb(null);
@@ -78,14 +78,22 @@ function downloadDictionary(dictId, cb) {
   d.loading = true;
   var x = new XMLHttpRequest();
   x.open('GET', d.url, true);
+  if (onProgress) {
+    x.onprogress = function (e) {
+      if (e.lengthComputable) onProgress('downloading', e.loaded, e.total);
+      else onProgress('downloading', 0, 0);
+    };
+  }
   x.onreadystatechange = function () {
     if (x.readyState !== 4) return;
     var status = x.status;
     var ok = (status >= 200 && status < 300 || status === 304) && x.responseText;
     var text = ok ? x.responseText : null;
     x.onreadystatechange = null;
+    x.onprogress = null;
     x = null;
     if (text) {
+      if (onProgress) onProgress('processing', 0, 0);
       cacheSet(d.cacheKey, text, function (cacheErr) {
         _parseDict(text, dictId);
         text = null;

@@ -176,6 +176,18 @@ function _handleDictDownload(dictId) {
     var dict = null;
     for (var i = 0; i < DICT_LIST.length; i++) { if (DICT_LIST[i].id === dictId) dict = DICT_LIST[i]; }
     if (dict) _renderDictRow(dict);
+  }, function (phase, loaded, total) {
+    if (!statusEl) return;
+    if (phase === 'downloading') {
+      if (total > 0) {
+        var pct = Math.floor(loaded / total * 100);
+        statusEl.textContent = 'Downloading ' + pct + '%';
+      } else {
+        statusEl.textContent = 'Downloading\u2026';
+      }
+    } else if (phase === 'processing') {
+      statusEl.textContent = 'Processing\u2026';
+    }
   });
 }
 
