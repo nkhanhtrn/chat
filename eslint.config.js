@@ -1,0 +1,180 @@
+// Cross-file identifiers — the 8 source files share one IIFE scope after
+// concatenation (see scripts/build-reader.mjs). These are declared here so
+// no-undef works across files. Keep this list in sync with top-level
+// `function`/`var` declarations in reader/src/*.js.
+const readerGlobals = {
+  // core.js
+  API_KEY: 'readonly',
+  AUTH_URL: 'readonly',
+  FIRESTORE_URL: 'readonly',
+  REFRESH_URL: 'readonly',
+  PAGE_SIZE: 'readonly',
+  IS_DEV: 'readonly',
+  STORAGE_ORIGIN: 'readonly',
+  GEAR_ICON: 'readonly',
+  state: 'readonly',
+  isDark: 'readonly',
+  overlayVisible: 'readonly',
+  toggleTheme: 'readonly',
+  changeLibFontSize: 'readonly',
+  changeViewerFontSize: 'readonly',
+  changeViewerLineHeight: 'readonly',
+  applyRootFontSize: 'readonly',
+  request: 'readonly',
+  escapeHtml: 'readonly',
+  unwrap: 'readonly',
+  _db: 'readonly',
+  openCache: 'readonly',
+  cacheGet: 'readonly',
+  cacheSet: 'readonly',
+  // api.js
+  ensureToken: 'readonly',
+  doRefresh: 'readonly',
+  saveAuth: 'readonly',
+  clearAuth: 'readonly',
+  signInWithPassword: 'readonly',
+  fetchBooks: 'readonly',
+  saveProgress: 'readonly',
+  downloadBook: 'readonly',
+  // dict.js
+  DICTS: 'readonly',
+  DICT_IDS: 'readonly',
+  DL_ICON: 'readonly',
+  RM_ICON: 'readonly',
+  ensureDictionary: 'readonly',
+  downloadDictionary: 'readonly',
+  getDictStatus: 'readonly',
+  clearDictionary: 'readonly',
+  dictLookup: 'readonly',
+  _tryDictLookup: 'readonly',
+  _parseDict: 'readonly',
+  _countWords: 'readonly',
+  _resetDict: 'readonly',
+  _removeAccents: 'readonly',
+  _fuzzyLookup: 'readonly',
+  _fuzzyAccentLookup: 'readonly',
+  _levenshtein: 'readonly',
+  _binarySearchWords: 'readonly',
+  _freAccentMap: 'readonly',
+  _freAccentRe: 'readonly',
+  // library.js
+  renderLogin: 'readonly',
+  login: 'readonly',
+  _libShell: 'readonly',
+  renderLibrary: 'readonly',
+  renderLibraryPage: 'readonly',
+  getFilteredBooks: 'readonly',
+  normalizeSearch: 'readonly',
+  // viewer.js
+  renderViewer: 'readonly',
+  _tocModal: 'readonly',
+  _buildTocModal: 'readonly',
+  showTocModal: 'readonly',
+  hideTocModal: 'readonly',
+  renderTocPage: 'readonly',
+  flattenToc: 'readonly',
+  estimateProgress: 'readonly',
+  TOC_PAGE_SIZE: 'readonly',
+  // settings.js
+  _settingsModal: 'readonly',
+  _buildSettingsModal: 'readonly',
+  showSettingsModal: 'readonly',
+  hideSettingsModal: 'readonly',
+  bindSettingsBtn: 'readonly',
+  DICT_LIST: 'readonly',
+  renderAllDicts: 'readonly',
+  _renderDictRow: 'readonly',
+  _updateSeg: 'readonly',
+  _handleDictLookup: 'readonly',
+  _handleDictDownload: 'readonly',
+  _handleDictRemove: 'readonly',
+  // lookup.js
+  _wordPopup: 'readonly',
+  _buildWordPopup: 'readonly',
+  showWordPopup: 'readonly',
+  hideWordPopup: 'readonly',
+  attachWordLookup: 'readonly',
+  getWordAtPoint: 'readonly',
+  extractWord: 'readonly',
+  // init.js
+  parseHash: 'readonly',
+  navigate: 'readonly',
+  router: 'readonly',
+  // vendor (epub.js)
+  ePub: 'readonly',
+};
+
+// ESLint config — scoped to reader/src/ only (vanilla ES5 for Kindle).
+// The rest of this repo is Vue 3 + TypeScript and is not linted here.
+export default [
+  {
+    files: ['reader/src/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 5,
+      sourceType: 'script',
+      globals: {
+        window: 'readonly',
+        document: 'readonly',
+        localStorage: 'readonly',
+        indexedDB: 'readonly',
+        XMLHttpRequest: 'readonly',
+        console: 'readonly',
+        Date: 'readonly',
+        JSON: 'readonly',
+        Math: 'readonly',
+        Object: 'readonly',
+        Array: 'readonly',
+        String: 'readonly',
+        Number: 'readonly',
+        parseInt: 'readonly',
+        parseFloat: 'readonly',
+        isNaN: 'readonly',
+        encodeURIComponent: 'readonly',
+        decodeURIComponent: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearInterval: 'readonly',
+        FileReader: 'readonly',
+        Blob: 'readonly',
+        location: 'readonly',
+        navigator: 'readonly',
+        history: 'readonly',
+        ...readerGlobals,
+      },
+    },
+    rules: {
+      // ES5 parser (ecmaVersion: 5) already rejects const/let/arrow/template
+      // literals/destructuring/etc. as syntax errors. No extra rules needed.
+
+      // Disabled — false positives in concatenated non-modular code:
+      // - no-redeclare: source-level `var`/`function` redeclares listed globals
+      // - no-unused-vars: can't see cross-file usage (functions used in other files)
+      // - no-use-before-define: ES5 function hoisting is intentional
+      'no-redeclare': 'off',
+      'no-unused-vars': 'off',
+      'no-use-before-define': 'off',
+
+      // High-signal rules that don't depend on cross-file analysis
+      'no-undef': 'error',
+      'eqeqeq': ['warn', 'smart'],
+      'no-eval': 'error',
+      'no-implied-eval': 'error',
+      'no-new-func': 'error',
+      'no-with': 'error',
+      'no-loop-func': 'warn',
+      'no-fallthrough': 'error',
+      'no-debugger': 'error',
+      'guard-for-in': 'warn',
+    },
+  },
+  {
+    ignores: [
+      'node_modules/**',
+      'dist/**',
+      'dist-reader/**',
+      'reader/vendor/**',
+      'reader/node_modules/**',
+    ],
+  },
+];

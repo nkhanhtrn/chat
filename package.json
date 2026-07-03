@@ -16,6 +16,7 @@
     "test:all": "npm run test:coverage && npm run test:e2e",
     "dev:reader": "vite --config vite.reader.config.ts",
     "build:reader": "node scripts/build-reader.mjs",
+    "lint:reader": "eslint reader/src/",
     "deploy": "bash scripts/deploy.sh",
     "opencode": "bash scripts/opencode.sh"
   },
@@ -53,6 +54,7 @@
     "@vitest/coverage-v8": "^4.0.13",
     "@vue/test-utils": "^2.4.6",
     "cmu-pronouncing-dictionary": "^3.0.0",
+    "eslint": "^9.39.4",
     "gh-pages": "^6.3.0",
     "happy-dom": "^20.0.10",
     "playwright": "^1.58.2",
