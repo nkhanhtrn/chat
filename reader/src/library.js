@@ -28,7 +28,45 @@ function renderLogin(errorMsg) {
   });
 }
 
-// ===== Library =====
+// ===== Book Download =====
+var _downloading = {};
+
+function _handleBookClick(bookId, row) {
+  if (_downloading[bookId]) return;
+  _downloading[bookId] = true;
+
+  var progressEl = row.querySelector('.book-progress');
+  if (!progressEl) {
+    progressEl = document.createElement('div');
+    progressEl.className = 'book-progress';
+    row.appendChild(progressEl);
+  }
+
+  cacheGet(bookId, function (err, cached) {
+    if (cached) {
+      _downloading[bookId] = false;
+      navigate('/book/' + bookId);
+      return;
+    }
+    progressEl.className = 'book-progress book-progress-dl';
+    progressEl.textContent = 'Downloading\u2026';
+
+    downloadBook(bookId, function (dlErr) {
+      if (dlErr) {
+        progressEl.textContent = 'Failed';
+        _downloading[bookId] = false;
+        return;
+      }
+      _downloading[bookId] = false;
+      progressEl.className = 'book-progress';
+      progressEl.textContent = 'Ready';
+    }, function (loaded, total) {
+      var pct = Math.floor(loaded / total * 100);
+      progressEl.textContent = pct + '%';
+    });
+  });
+}
+
 var _libShell = null;
 
 function renderLibrary() {
@@ -177,7 +215,7 @@ function renderLibraryPage(page) {
       var row = e.target;
       while (row && row !== content) {
         if (row.className === 'book-row') {
-          navigate('/book/' + row.getAttribute('data-id'));
+          _handleBookClick(row.getAttribute('data-id'), row);
           return;
         }
         row = row.parentNode;

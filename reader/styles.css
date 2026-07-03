@@ -102,6 +102,8 @@ input, button { font-family: inherit; font-size: inherit; }
 [data-theme="dark"] .book-author { color: #ccc; }
 .book-progress { font-size: .75rem; color: #333; flex-shrink: 0; align-self: center; }
 [data-theme="dark"] .book-progress { color: #ccc; }
+.book-progress-dl { font-weight: bold; color: #0066cc; }
+[data-theme="dark"] .book-progress-dl { color: #6cb4ff; }
 
 /* ===== Viewer ===== */
 .viewer { display: flex; flex-direction: column; height: 100vh; }

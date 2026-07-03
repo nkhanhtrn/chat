@@ -106,9 +106,9 @@ function fetchBooks(cb) {
   });
 }
 
-function downloadBook(bookId, cb) {
+function downloadBook(bookId, cb, onProgress) {
   cacheGet(bookId, function (cacheErr, cached) {
-    if (cached) { cb(null, cached); return; }
+    if (cached) { cb(null, cached, true); return; }
     ensureToken(function (authErr) {
       if (authErr) return cb(authErr);
       var path = 'users/' + state.uid + '/books/' + bookId + '/book.epub';
@@ -116,9 +116,14 @@ function downloadBook(bookId, cb) {
       var x = request('GET', url, { Authorization: 'Bearer ' + state.token }, function (dlErr, arrayBuffer) {
         if (dlErr) return cb(dlErr);
         cacheSet(bookId, arrayBuffer, function () {
-          cb(null, arrayBuffer);
+          cb(null, arrayBuffer, false);
         });
       }, true);
+      if (onProgress) {
+        x.onprogress = function (e) {
+          if (e.lengthComputable) onProgress(e.loaded, e.total);
+        };
+      }
       x.send();
     });
   });
