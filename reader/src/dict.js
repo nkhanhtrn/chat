@@ -21,8 +21,6 @@ var DICT_IDS = ['eng', 'fre'];
 function _parseDict(text, dictId) {
   var d = DICTS[dictId || 'eng'];
   d.words = []; d.ipa = []; d.defs = [];
-  var isFre = dictId === 'fre';
-  if (isFre) d.norm = [];
   var len = text.length, lineStart = 0;
   while (lineStart <= len) {
     var nl = text.indexOf('\n', lineStart);
@@ -32,14 +30,21 @@ function _parseDict(text, dictId) {
       if (p1 !== -1 && p1 < nl) {
         var p2 = text.indexOf('|', p1 + 1);
         if (p2 !== -1 && p2 >= nl) p2 = -1;
-        var word = text.slice(lineStart, p1);
-        d.words.push(word);
+        d.words.push(text.slice(lineStart, p1));
         if (p2 === -1) { d.ipa.push(''); d.defs.push(text.slice(p1 + 1, nl)); }
         else { d.ipa.push(text.slice(p1 + 1, p2)); d.defs.push(text.slice(p2 + 1, nl)); }
-        if (isFre) d.norm.push(_removeAccents(word));
       }
     }
     lineStart = nl + 1;
+  }
+}
+
+function _ensureNorm(dictId) {
+  var d = DICTS[dictId];
+  if (d.norm) return;
+  d.norm = new Array(d.words.length);
+  for (var i = 0; i < d.words.length; i++) {
+    d.norm[i] = _removeAccents(d.words[i]);
   }
 }
 
@@ -94,13 +99,11 @@ function downloadDictionary(dictId, cb, onProgress) {
     x = null;
     if (text) {
       if (onProgress) onProgress('processing', 0, 0);
-      cacheSet(d.cacheKey, text, function (cacheErr) {
-        _parseDict(text, dictId);
-        text = null;
-        d.loading = false;
-        cb(cacheErr);
-        while (d.waiters.length) d.waiters.shift()(cacheErr);
-      });
+      _parseDict(text, dictId);
+      d.loading = false;
+      cb(null);
+      while (d.waiters.length) d.waiters.shift()(null);
+      cacheSet(d.cacheKey, text, function () { text = null; });
     } else {
       d.loading = false;
       var err = 'HTTP ' + status;
@@ -253,7 +256,9 @@ function _removeAccents(w) {
 
 function _fuzzyAccentLookup(dictId, word, maxDist) {
   var d = DICTS[dictId];
-  if (!d || !d.norm || d.norm.length === 0) return -1;
+  if (!d || !d.words || d.words.length === 0) return -1;
+  _ensureNorm(dictId);
+  if (!d.norm || d.norm.length === 0) return -1;
   var norm = _removeAccents(word);
   if (norm === word) return -1;
   var fc = norm.charCodeAt(0);
