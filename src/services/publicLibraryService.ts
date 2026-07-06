@@ -525,15 +525,9 @@ export async function fastDownloadBook(
 
   onProgress?.(50)
 
-  const fileResponse = await fetch(downloadUrl)
-  if (!fileResponse.ok) {
-    throw new Error(`Download failed: HTTP ${fileResponse.status}`)
-  }
-
-  onProgress?.(75)
-
-  const buffer = await fileResponse.arrayBuffer()
-  onProgress?.(100)
-
-  return buffer
+  // Route through the proxy — the mirror host returned by the fast-download
+  // API does not send CORS headers, so a direct browser fetch is blocked by
+  // the Same-Origin Policy. fetchBinaryContent funnels it through the
+  // configured browseBinary endpoint (same path as downloadBookFile below).
+  return await fetchBinaryContent(downloadUrl, onProgress)
 }
