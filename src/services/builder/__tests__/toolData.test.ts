@@ -176,6 +176,23 @@ describe('writeToolData', () => {
     expect(detail.windowId).toBe('win-1')
     expect(detail.data).toEqual({ count: 5 })
   })
+
+  it('deep-merges nested objects across writes', () => {
+    localStorage.setItem('tool-state-dk-win-1', JSON.stringify({ config: { a: 1, b: 2 } }))
+    writeToolData('dk', 'win-1', { config: { b: 99 } })
+    const stored = JSON.parse(localStorage.getItem('tool-state-dk-win-1')!)
+    expect(stored.config).toEqual({ a: 1, b: 99 })
+  })
+
+  it('dispatches the merged full state, not just the patch', () => {
+    localStorage.setItem('tool-state-dk-win-1', JSON.stringify({ config: { a: 1, b: 2 }, other: 'x' }))
+    const handler = vi.fn()
+    window.addEventListener('tool-data-updated', handler)
+    writeToolData('dk', 'win-1', { config: { b: 99 } })
+    window.removeEventListener('tool-data-updated', handler)
+    const detail = (handler.mock.calls[0][0] as CustomEvent).detail
+    expect(detail.data).toEqual({ config: { a: 1, b: 99 }, other: 'x' })
+  })
 })
 
 describe('findWindowByToolName', () => {

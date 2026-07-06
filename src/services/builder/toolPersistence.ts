@@ -1,10 +1,10 @@
 const STORAGE_PREFIX = 'tool-state'
 
-function isPlainObject(val: unknown): val is Record<string, unknown> {
+export function isPlainObject(val: unknown): val is Record<string, unknown> {
   return typeof val === 'object' && val !== null && !Array.isArray(val) && Object.getPrototypeOf(val) === Object.prototype
 }
 
-function deepMerge(target: Record<string, unknown>, source: Record<string, unknown>): void {
+export function deepMerge(target: Record<string, unknown>, source: Record<string, unknown>): void {
   for (const key of Object.keys(source)) {
     const sv = source[key]
     const tv = target[key]
