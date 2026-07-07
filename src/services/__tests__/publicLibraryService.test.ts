@@ -33,7 +33,6 @@ import {
   getPublicLibraryBaseUrl,
   getPublicLibraryApiKey,
   getProxiedImageUrl,
-  proxyImageUrl,
 } from '../publicLibraryService'
 
 function makeSearchHtml(books: { title: string; href: string; author?: string; cover?: string; format?: string }[]): string {
@@ -70,11 +69,10 @@ describe('publicLibraryService', () => {
     })
   })
 
-  describe('getProxiedImageUrl / proxyImageUrl', () => {
+  describe('getProxiedImageUrl', () => {
     it('delegates to urlFetcher getProxiedImageUrl', () => {
       mocks._getProxiedImageUrl.mockReturnValue('https://proxy.example.com/fetchBinaryContent?url=...')
       expect(getProxiedImageUrl('https://img.example.com/cover.jpg')).toBe('https://proxy.example.com/fetchBinaryContent?url=...')
-      expect(proxyImageUrl('https://img.example.com/cover.jpg')).toBe('https://proxy.example.com/fetchBinaryContent?url=...')
     })
 
     it('returns null when proxy returns null', () => {

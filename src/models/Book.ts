@@ -1,4 +1,4 @@
-import type { BookData, BookCreateParams, BookMetadata, ItemMeta, PaperMeta } from '@/types/book'
+import type { BookData, BookCreateParams, ItemMeta, PaperMeta } from '@/types/book'
 
 export class Book {
   id: string
@@ -63,11 +63,6 @@ export class Book {
 
   static toPlain(bookData: Partial<BookData>): BookData {
     return new Book(bookData).toPlain()
-  }
-
-  static extractMetadata(book: Record<string, unknown>): BookMetadata {
-    const { fileData, fileDataArrayBuffer, ...rest } = book
-    return Book.toPlain(rest as Partial<BookData>)
   }
 
   static fromPlain(data: BookCreateParams): Book {

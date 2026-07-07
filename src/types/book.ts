@@ -52,15 +52,6 @@ export interface TocItem {
   subitems?: TocItem[]
 }
 
-/** Book metadata (excludes file data) */
-export type BookMetadata = Omit<BookData, never>
-
-/** Book with optional file data for reading */
-export interface BookWithData extends BookData {
-  fileData?: ArrayBuffer | null
-  fileDataArrayBuffer?: ArrayBuffer | null
-}
-
 /** Book create/update params */
 export interface BookCreateParams {
   id?: string

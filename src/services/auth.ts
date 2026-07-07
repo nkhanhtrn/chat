@@ -1,6 +1,5 @@
 import {
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
   type User
@@ -56,14 +55,6 @@ export async function signInUser(email: string, password: string): Promise<User>
   const auth = getFirebaseAuth()
   const credential = await signInWithEmailAndPassword(auth, email, password)
   setTimeout(() => window.location.reload(), 100)
-  return credential.user
-}
-
-export async function signUpUser(email: string, password: string): Promise<User> {
-  if (isE2EMode()) return mockSignInUser(email, password)
-
-  const auth = getFirebaseAuth()
-  const credential = await createUserWithEmailAndPassword(auth, email, password)
   return credential.user
 }
 

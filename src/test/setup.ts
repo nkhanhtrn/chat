@@ -50,7 +50,6 @@ vi.mock('vue-router', async (importOriginal) => {
 
 vi.mock('@/services/auth', () => ({
   signInUser: vi.fn(),
-  signUpUser: vi.fn(),
   signOutUser: vi.fn(),
   getCurrentUser: vi.fn(() => null),
   onAuthChange: vi.fn(() => () => {}),
