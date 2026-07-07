@@ -36,13 +36,6 @@ vi.mock('@/services/sync/IndexedDBService', () => ({
 }))
 
 // Stub child components
-const ApiKeyInputStub = {
-  name: 'ApiKeyInput',
-  props: ['modelValue', 'helpUrl'],
-  template: '<div class="stub-api-key-input"><input type="text" /></div>',
-  emits: ['update:modelValue'],
-}
-
 const LoginModalStub = {
   name: 'LoginModal',
   props: ['modelValue'],
@@ -58,7 +51,6 @@ function mountSettings(props = {}) {
     props: { modelValue: true, ...props },
     global: {
       stubs: {
-        ApiKeyInput: ApiKeyInputStub,
         LoginModal: LoginModalStub,
         PromptInput: { template: '<div />' },
       },
@@ -106,7 +98,6 @@ describe('SettingsModal', () => {
         props: { modelValue: false },
         global: {
           stubs: {
-            ApiKeyInput: ApiKeyInputStub,
             LoginModal: LoginModalStub,
             PromptInput: { template: '<div />' },
           },

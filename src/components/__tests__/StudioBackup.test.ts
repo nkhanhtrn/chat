@@ -50,7 +50,6 @@ function mountSettings(props = {}) {
     props: { modelValue: true, ...props },
     global: {
       stubs: {
-        ApiKeyInput: { template: '<div />' },
         LoginModal: LoginModalStub,
         PromptInput: { template: '<div />' },
       },
