@@ -1,4 +1,4 @@
-import type { CustomContent, LinkedFromEntry, MessageData, MessageCreateParams } from '@/types/message'
+import type { CustomContent, LinkedFromEntry, MessageCreateParams } from '@/types/message'
 
 export class Message {
   id: string
@@ -53,10 +53,6 @@ export class Message {
     this.openCodeSessionId = params.openCodeSessionId ?? null
   }
 
-  get hasChildren(): boolean {
-    return this.childIds.length > 0
-  }
-
   addChild(childId: string): void {
     this.childIds.push(childId)
     this.lastVisitedChild = childId
@@ -69,26 +65,6 @@ export class Message {
       const lines = this.response.split('\n')
       this.questionSummarized = lines[0] ?? ''
       this.response = lines.slice(1).join('\n')
-    }
-  }
-
-  toPlain(): MessageData {
-    return {
-      id: this.id,
-      question: this.question,
-      questionSummarized: this.questionSummarized,
-      response: this.response,
-      responseSummary: this.responseSummary,
-      parentId: this.parentId,
-      childIds: [...this.childIds],
-      highlightedText: this.highlightedText,
-      lastVisitedChild: this.lastVisitedChild,
-      customContent: this.customContent.map(c => ({ ...c })),
-      scrollPosition: this.scrollPosition,
-      createdAt: this.createdAt,
-      chatId: this.chatId,
-      ...(this.linkedFrom ? { linkedFrom: [...this.linkedFrom] } : {}),
-      ...(this.openCodeSessionId ? { openCodeSessionId: this.openCodeSessionId } : {})
     }
   }
 }

@@ -676,7 +676,3 @@ export function parseMarkdownToAST(content: string, customContentItems: CustomCo
 
   return { type: 'root', children }
 }
-
-export function processMarkdownWithCustomContent(content: string, customContentItems: CustomContentItem[] = []): ASTTree {
-  return parseMarkdownToAST(content, customContentItems)
-}

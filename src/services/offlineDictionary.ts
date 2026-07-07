@@ -149,9 +149,4 @@ export async function dictionaryLookup(word: string): Promise<LookupResult | nul
   return null
 }
 
-export async function isDictionaryLoaded(): Promise<boolean> {
-  const dict = await ensureLoaded()
-  return dict !== null && Object.keys(dict).length > 0
-}
-
 export const _test = { editDistance, fuzzyMatch, toResult }

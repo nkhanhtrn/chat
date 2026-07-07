@@ -1,24 +1,3 @@
-import type { QuestionLink } from '@/types/message'
-
-export function createQuestionLink(params: {
-  text: string; targetMessageId: string; startOffset: number; endOffset: number
-  noteContent?: string
-}): QuestionLink {
-  const link: QuestionLink = {
-    id: crypto.randomUUID(),
-    type: 'question-link',
-    text: params.text,
-    targetMessageId: params.targetMessageId,
-    startOffset: params.startOffset,
-    endOffset: params.endOffset
-  }
-  if (params.noteContent) {
-    link.hasNote = true
-    link.noteContent = params.noteContent
-  }
-  return link
-}
-
 export function buildConversationChain(
   messagesById: Record<string, any>,
   messageId: string

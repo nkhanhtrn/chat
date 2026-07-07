@@ -1,7 +1,5 @@
 import { Settings } from './settings'
 
-const URL_REGEX = /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi
-
 const NO_PROXY_DOMAINS = [
   'localhost',
   '127.0.0.1',
@@ -12,18 +10,6 @@ const NO_PROXY_DOMAINS = [
   'googleapis.com',
   'us-central1-nk-cloud-323802.cloudfunctions.net',
 ]
-
-export interface DetectedUrl {
-  url: string
-  status: 'loading' | 'success' | 'error'
-  content: string
-}
-
-export interface FetchResult {
-  success: boolean
-  content: string
-  error?: string
-}
 
 export function shouldBypassProxy(url: string): boolean {
   if (!url) return false
@@ -249,12 +235,6 @@ function findDirectDownloadLink(
   return null
 }
 
-export function detectUrls(text: string): string[] {
-  if (!text) return []
-  const matches = text.match(URL_REGEX) ?? []
-  return [...new Set(matches)]
-}
-
 async function fetchViaCustomService(
   url: string,
   customFetchUrl: string,
@@ -282,27 +262,6 @@ async function fetchViaCustomService(
   return await response.text()
 }
 
-export function cleanHtml(html: string): string {
-  const parser = new DOMParser()
-  const doc = parser.parseFromString(html, 'text/html')
-
-  doc
-    .querySelectorAll(
-      'script, style, noscript, iframe, nav, header, footer, aside, svg, form, [hidden]',
-    )
-    .forEach((el) => el.remove())
-
-  const mainContent =
-    doc.querySelector(
-      'main, article, .content, #content, .post, .article',
-    ) || doc.body
-
-  return ((mainContent?.textContent || '') as string)
-    .replace(/\s+/g, ' ')
-    .replace(/\n\s*\n/g, '\n\n')
-    .trim()
-}
-
 export async function fetchUrlContent(url: string): Promise<string> {
   if (shouldBypassProxy(url)) {
     const response = await fetch(url)
@@ -328,44 +287,4 @@ export async function fetchUrlContent(url: string): Promise<string> {
       `Failed to fetch ${url}: ${(error as Error).message}`,
     )
   }
-}
-
-export async function fetchMultipleUrls(
-  urls: string[],
-): Promise<Record<string, FetchResult>> {
-  const results: Record<string, FetchResult> = {}
-
-  await Promise.all(
-    urls.map(async (url) => {
-      try {
-        const content = await fetchUrlContent(url)
-        results[url] = { success: true, content }
-      } catch (error) {
-        results[url] = {
-          success: false,
-          content: '',
-          error: (error as Error).message,
-        }
-      }
-    }),
-  )
-
-  return results
-}
-
-export function formatFetchedContentForPrompt(
-  fetchedContents: Record<string, FetchResult>,
-): string {
-  const entries = Object.entries(fetchedContents).filter(
-    ([, result]) => result.content && result.content.trim(),
-  )
-
-  if (entries.length === 0) return ''
-
-  return entries
-    .map(
-      ([url, result]) =>
-        `--- Content from ${url} ---\n${result.content}\n--- End of ${url} ---`,
-    )
-    .join('\n\n')
 }

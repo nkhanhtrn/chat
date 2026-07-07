@@ -20,24 +20,3 @@ export interface NotebookListItem {
     rootIndex: number
   }>
 }
-
-/** Persisted notebook list data (IndexedDB + Firestore) */
-export interface NotebookListData {
-  chats: Notebook[]
-  currentChatId: string | null
-  currentModel: string | null
-  vocabData: Record<string, unknown>
-  lastSyncedAt: number | null
-  hasConflict?: boolean
-  localChatCount?: number
-  cloudChatCount?: number
-  localChats?: Notebook[]
-  cloudChats?: Notebook[]
-}
-
-/** Persisted notebook messages data */
-export interface NotebookMessagesData {
-  messagesById: Record<string, unknown>
-  lastSyncedAt: number | null
-  fromCache?: boolean
-}

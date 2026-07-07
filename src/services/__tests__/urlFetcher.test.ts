@@ -17,7 +17,6 @@ import {
   getProxiedBinaryUrl,
   shouldBypassProxy,
   invalidateFetchSettingsCache,
-  detectUrls,
 } from '../urlFetcher'
 
 describe('urlFetcher', () => {
@@ -149,25 +148,6 @@ describe('urlFetcher', () => {
       mockSettingsGetString.mockReturnValue('')
       await invalidateFetchSettingsCache()
       expect(getProxiedImageUrl('https://img.example.com/cover.jpg')).toBeNull()
-    })
-  })
-
-  describe('detectUrls', () => {
-    it('extracts URLs from text', () => {
-      const text = 'Check out https://example.com and http://test.org/page for more info.'
-      const urls = detectUrls(text)
-      expect(urls).toEqual(['https://example.com', 'http://test.org/page'])
-    })
-
-    it('returns empty array for empty text', () => {
-      expect(detectUrls('')).toEqual([])
-      expect(detectUrls('no urls here')).toEqual([])
-    })
-
-    it('deduplicates URLs', () => {
-      const text = 'https://example.com and https://example.com again'
-      const urls = detectUrls(text)
-      expect(urls).toEqual(['https://example.com'])
     })
   })
 })

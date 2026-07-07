@@ -1,6 +1,6 @@
 import { ref, shallowRef, defineComponent, nextTick, watch as vueWatch, compile as compileTemplate, type Component } from 'vue'
 import { parseToolCode, validateTemplate, scopeStyles } from '@/utils/toolCompiler'
-import { createToolPersistence, type ToolPersistApi } from '@/services/builder/toolPersistence'
+import { createToolPersistence, deepMerge, isPlainObject, type ToolPersistApi } from '@/services/builder/toolPersistence'
 import { createProxiedFetch } from '@/services/builder/toolFetch'
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
 
@@ -311,7 +311,12 @@ export function useDynamicCompiler(options: DynamicCompilerOptions) {
       : Object.entries(state)
     for (const [key, value] of keysToApply) {
       if (key in componentInstance.$data) {
-        componentInstance.$data[key] = value
+        const current = componentInstance.$data[key]
+        if (isPlainObject(current) && isPlainObject(value)) {
+          deepMerge(current, value)
+        } else {
+          componentInstance.$data[key] = value
+        }
       }
     }
   }

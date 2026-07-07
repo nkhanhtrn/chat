@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getMainPrompts, getDictionaryPrompts, getQuickExplainPrompts, getSummaryPrompts } from '../extraPrompt'
+import { getMainPrompts, getQuickExplainPrompts, getSummaryPrompts } from '../extraPrompt'
 
 describe('extraPrompt', () => {
   describe('getSummaryPrompts', () => {
@@ -19,15 +19,6 @@ describe('extraPrompt', () => {
       const messages = getSummaryPrompts('text')
       const systemContent = (messages[0] as { content: string }).content
       expect(systemContent.toLowerCase()).toContain('summar')
-    })
-  })
-
-  describe('getDictionaryPrompts', () => {
-    it('returns a user message with the word', () => {
-      const messages = getDictionaryPrompts('ephemeral')
-      expect(messages).toHaveLength(1)
-      expect(messages[0].role).toBe('user')
-      expect((messages[0] as { content: string }).content).toContain('ephemeral')
     })
   })
 

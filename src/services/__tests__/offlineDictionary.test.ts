@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { _test, dictionaryLookup, isDictionaryLoaded } from '../offlineDictionary'
+import { _test, dictionaryLookup } from '../offlineDictionary'
 
 const { editDistance, fuzzyMatch, toResult } = _test
 
@@ -161,41 +161,5 @@ describe('dictionaryLookup', () => {
 
     expect(result).not.toBeNull()
     expect(result!.fuzzy).toBe(false)
-  })
-})
-
-describe('isDictionaryLoaded', () => {
-  beforeEach(() => {
-    vi.resetModules()
-  })
-
-  it('returns true when dictionary is cached', async () => {
-    vi.doMock('@/services/sync/IndexedDBService', () => ({
-      getDB: vi.fn().mockResolvedValue({
-        get: vi.fn().mockResolvedValue({ hello: { d: 'greeting' } }),
-        put: vi.fn(),
-      }),
-    }))
-
-    const { isDictionaryLoaded: isLoaded } = await import('../offlineDictionary')
-    const result = await isLoaded()
-
-    expect(result).toBe(true)
-  })
-
-  it('returns false when no dictionary available', async () => {
-    vi.doMock('@/services/sync/IndexedDBService', () => ({
-      getDB: vi.fn().mockResolvedValue({
-        get: vi.fn().mockResolvedValue(null),
-        put: vi.fn(),
-      }),
-    }))
-
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404 }))
-
-    const { isDictionaryLoaded: isLoaded } = await import('../offlineDictionary')
-    const result = await isLoaded()
-
-    expect(result).toBe(false)
   })
 })

@@ -27,8 +27,3 @@ export interface VocabCardCreateParams {
   messageId?: string | null
   highlightId?: string | null
 }
-
-/** Vocab card with id for display in review lists */
-export interface VocabCardDue extends VocabCardData {
-  id: string
-}

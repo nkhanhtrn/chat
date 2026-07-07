@@ -2,7 +2,7 @@ import { Settings } from '@/services/settings'
 
 const DEFAULT_BASE_URL = 'http://localhost:4096'
 
-export class OpenCodeProvider {
+class OpenCodeProvider {
   readonly id = 'opencode'
   readonly name = 'OpenCode'
   readonly supportsStreaming = true
@@ -141,4 +141,3 @@ function extractText(parts: any[]): string {
 }
 
 export const openCodeProvider = new OpenCodeProvider()
-export default openCodeProvider

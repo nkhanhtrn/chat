@@ -60,5 +60,4 @@ function buildPromptText(messages: LLMMessage[]): string {
 }
 
 export const lmService = new LMService()
-export { LMService }
 export default lmService

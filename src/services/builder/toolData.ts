@@ -86,8 +86,10 @@ export function writeToolData(dataKey: string, windowId: string, data: Record<st
   const persist = createToolPersistence(dataKey, windowId)
   persist.update(data)
 
+  const mergedState = persist.getStateSync()
+
   window.dispatchEvent(new CustomEvent('tool-data-updated', {
-    detail: { dataKey, windowId, data },
+    detail: { dataKey, windowId, data: mergedState },
   }))
 }
 

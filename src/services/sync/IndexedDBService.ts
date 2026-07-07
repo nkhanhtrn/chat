@@ -80,22 +80,6 @@ export async function getDB(): Promise<IDBPDatabase> {
   return dbInstance
 }
 
-export function isIndexedDBAvailable(): boolean {
-  try {
-    return typeof indexedDB !== 'undefined' && indexedDB !== null
-  } catch {
-    return false
-  }
-}
-
-export const deleteDatabase = (): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.deleteDatabase(DB_NAME)
-    request.onsuccess = () => resolve()
-    request.onerror = () => reject(request.error)
-  })
-}
-
 // ============ LightSync Operations ============
 
 const APP_DATA_STORE = 'app-data'
@@ -154,17 +138,6 @@ export async function saveChatMessages(chatId: string, messagesData: Record<stri
   }
 }
 
-export async function getLocalChatList(): Promise<Record<string, unknown> | null> {
-  try {
-    const db = await getDB()
-    const data = await db.get(CHAT_LIST_STORE, LIST_KEY)
-    return data ?? null
-  } catch (error) {
-    console.error('[LightSync] getLocalChatList Error:', error)
-    return null
-  }
-}
-
 export async function getLocalChatMessages(chatId: string): Promise<Record<string, unknown> | null> {
   try {
     const db = await getDB()
@@ -174,36 +147,6 @@ export async function getLocalChatMessages(chatId: string): Promise<Record<strin
   } catch (error) {
     console.error('[LightSync] getLocalChatMessages Error:', error)
     return null
-  }
-}
-
-export async function clearAllChatData(): Promise<void> {
-  try {
-    const db = await getDB()
-    await db.delete(CHAT_LIST_STORE, LIST_KEY)
-
-    const tx = db.transaction(APP_DATA_STORE, 'readwrite')
-    const store = tx.objectStore(APP_DATA_STORE)
-    const keys = await store.getAllKeys()
-    for (const key of keys) {
-      if (typeof key === 'string' && key.startsWith('chat-messages-')) {
-        await store.delete(key)
-      }
-    }
-  } catch (error) {
-    console.error('[LightSync] clearAllChatData Error:', error)
-    throw error
-  }
-}
-
-export async function deleteChatMessages(chatId: string): Promise<void> {
-  try {
-    const db = await getDB()
-    const messagesKey = getChatMessagesKey(chatId)
-    await db.delete(APP_DATA_STORE, messagesKey)
-  } catch (error) {
-    console.error('[LightSync] deleteChatMessages Error:', error)
-    throw error
   }
 }
 
