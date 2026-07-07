@@ -189,7 +189,9 @@ To WRITE data to a tool (update its state), use the @data marker:
 
 Rules for @data:
 - The tool name must match an existing tool's title (strip emoji if present)
-- The JSON object should contain only the keys you want to update
+- Updates are PARTIAL and deep-merged into existing state — send only the keys you changed. Unmentioned top-level keys and nested object keys are preserved.
+  Example: if state is {config: {a:1, b:2}, count: 5}, sending {"config": {"b": 99}} results in {config: {a:1, b:99}, count: 5}
+- Never re-send the entire state just to change one field — send only the diff
 - Only update keys that exist in the tool's data() function
 - You can combine @data with @tool/@edit in the same response
 - Use @data when the user asks you to set, update, or change data in a tool
