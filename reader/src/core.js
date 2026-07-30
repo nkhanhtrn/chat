@@ -27,6 +27,12 @@ function toggleTheme() {
       'html, body': {
         'background-color': dark ? '#1a1a1a' : '#ffffff',
         'color': dark ? '#f0f0f0' : '#000000',
+      },
+      'p, div, span, li, ol, ul, dd, dt, dl, blockquote, td, th, tr, caption, figcaption, h1, h2, h3, h4, h5, h6, cite, q': {
+        'color': dark ? '#f0f0f0' : '#000000',
+      },
+      'a, a:link, a:visited': {
+        'color': 'inherit',
       }
     });
   }
