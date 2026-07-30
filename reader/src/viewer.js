@@ -227,6 +227,12 @@ function renderViewer(bookId) {
       'html, body': {
         'background-color': isDark ? '#1a1a1a' : '#ffffff',
         'color': isDark ? '#f0f0f0' : '#000000',
+      },
+      'p, div, span, li, ol, ul, dd, dt, dl, blockquote, td, th, tr, caption, figcaption, h1, h2, h3, h4, h5, h6, cite, q': {
+        'color': isDark ? '#f0f0f0' : '#000000',
+      },
+      'a, a:link, a:visited': {
+        'color': 'inherit',
       }
     });
     rendition.themes.fontSize(state.viewerFontSize + '%');

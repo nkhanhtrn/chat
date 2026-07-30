@@ -1,6 +1,5 @@
 import { Settings } from '@/services/settings'
 
-const DEFAULT_ZEN_PROXY_URL = 'https://us-central1-nk-cloud-323802.cloudfunctions.net/zenProxy'
 const ZEN_MODEL = 'deepseek-v4-flash-free'
 
 class ZenProvider {
@@ -13,7 +12,8 @@ class ZenProvider {
   }
 
   private _getEndpoint(): string {
-    return Settings.getString('opencodeZenUrl') || DEFAULT_ZEN_PROXY_URL
+    const proxyBase = Settings.getString('customFetchUrl')
+    return proxyBase ? `${proxyBase.replace(/\/$/, '')}/zenProxy` : ''
   }
 
   isConfigured(): boolean {
