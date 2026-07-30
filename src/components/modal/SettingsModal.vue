@@ -71,6 +71,16 @@
               <span class="setting-hint">URL of the opencode server (see <code>opencode serve</code>)</span>
             </div>
             <div class="setting-item setting-item-vertical">
+              <label class="setting-label">OpenCode Zen API Key</label>
+              <input type="password" v-model="opencodeApiKey" placeholder="opencode-..." class="api-key-input" @input="handleOpencodeApiKeyChange" />
+              <span class="setting-hint">Fallback to <code>deepseek-v4-flash-free</code> on <a href="https://opencode.ai/zen" target="_blank" rel="noopener">OpenCode Zen</a> when the server is unavailable</span>
+            </div>
+            <div class="setting-item setting-item-vertical">
+              <label class="setting-label">OpenCode Zen Proxy URL</label>
+              <input type="text" v-model="opencodeZenUrl" placeholder="https://us-central1-nk-cloud-323802.cloudfunctions.net/zenProxy" class="api-key-input" @input="handleOpencodeZenUrlChange" />
+              <span class="setting-hint">Routes through your Cloud Function proxy by default. Override only if you run a different proxy.</span>
+            </div>
+            <div class="setting-item setting-item-vertical">
               <label class="setting-label">Extra Services</label>
               <div class="button-group provider-group">
                 <button :class="['toggle-button', { active: extraService === 'public-library' }]" @click="handleSetExtraService('public-library')">Bookstore</button>
@@ -204,6 +214,8 @@ const widthOptions = [
 const restoreStatus = ref<ConnectionStatus | null>(null)
 const toolsRestoreStatus = ref<ConnectionStatus | null>(null)
 const codeApiUrl = ref('')
+const opencodeApiKey = ref('')
+const opencodeZenUrl = ref('')
 const customFetchUrl = ref('')
 const bookApiUrl = ref('')
 const bookApiKey = ref('')
@@ -251,6 +263,14 @@ function handleCodeApiUrlChange() {
   Settings.set({ codeApiUrl: codeApiUrl.value })
 }
 
+function handleOpencodeApiKeyChange() {
+  Settings.set({ opencodeApiKey: opencodeApiKey.value })
+}
+
+function handleOpencodeZenUrlChange() {
+  Settings.set({ opencodeZenUrl: opencodeZenUrl.value })
+}
+
 function handleCustomFetchUrlChange() {
   Settings.set({ customFetchUrl: customFetchUrl.value })
 }
@@ -271,6 +291,8 @@ function handleSetExtraService(service: string) {
 function loadSettings() {
   const settings = Settings.getAll()
   if (settings.codeApiUrl) codeApiUrl.value = settings.codeApiUrl as string
+  if (settings.opencodeApiKey) opencodeApiKey.value = settings.opencodeApiKey as string
+  if (settings.opencodeZenUrl) opencodeZenUrl.value = settings.opencodeZenUrl as string
   if (settings.customFetchUrl) customFetchUrl.value = settings.customFetchUrl as string
   if (settings.bookApiUrl) bookApiUrl.value = settings.bookApiUrl as string
   if (settings.bookApiKey) bookApiKey.value = settings.bookApiKey as string
@@ -514,6 +536,8 @@ onMounted(async () => {
     applyContentWidth(settings.contentWidth as string)
   }
   if (settings.codeApiUrl) codeApiUrl.value = settings.codeApiUrl as string
+  if (settings.opencodeApiKey) opencodeApiKey.value = settings.opencodeApiKey as string
+  if (settings.opencodeZenUrl) opencodeZenUrl.value = settings.opencodeZenUrl as string
   if (settings.customFetchUrl) customFetchUrl.value = settings.customFetchUrl as string
   if (settings.bookApiUrl) bookApiUrl.value = settings.bookApiUrl as string
   if (settings.bookApiKey) bookApiKey.value = settings.bookApiKey as string
