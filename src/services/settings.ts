@@ -11,7 +11,6 @@ interface SettingsData {
   contentWidth?: ContentWidth
   codeApiUrl?: string
   opencodeApiKey?: string
-  opencodeZenUrl?: string
   customFetchUrl?: string
   bookApiUrl?: string
   bookApiKey?: string
