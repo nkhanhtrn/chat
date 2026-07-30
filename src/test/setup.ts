@@ -65,6 +65,14 @@ vi.mock('@/services/llm/providers/opencode', () => ({
   },
 }))
 
+vi.mock('@/services/llm/providers/zen', () => ({
+  zenProvider: {
+    isConfigured: vi.fn(() => false),
+    send: vi.fn(),
+    sendStream: vi.fn(),
+  },
+}))
+
 beforeEach(() => {
   localStorage?.clear()
 })
