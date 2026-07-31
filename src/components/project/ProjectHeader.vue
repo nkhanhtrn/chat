@@ -1,23 +1,13 @@
 <template>
   <header class="project-header">
     <div class="header-row">
-      <button class="back-btn" @click="$router.push({ name: 'projects' })" title="Back to projects">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="15 18 9 12 15 6"></polyline>
-        </svg>
-      </button>
-      <div class="header-tabs">
-        <button class="header-tab" :class="{ active: sideTab === 'project' }" @click="$emit('switch-tab', 'project')">
-          <InlineEdit
-            class="header-title"
-            textClass="title-text"
-            inputClass="title-input"
-            :modelValue="name"
-            @save="(newName: string) => $emit('rename', newName)"
-          />
-        </button>
-        <button class="header-tab" :class="{ active: sideTab === 'chat' }" @click="$emit('switch-tab', 'chat')">Chat</button>
-      </div>
+      <InlineEdit
+        class="header-title"
+        textClass="title-text"
+        inputClass="title-input"
+        :modelValue="name"
+        @save="(newName: string) => $emit('rename', newName)"
+      />
       <button class="scratchpad-btn" :class="{ active: hasScratchpad }" @click="$emit('open-scratchpad')" title="Context notes">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -102,7 +92,6 @@ const props = defineProps<{
   isHome: boolean
   isStreaming?: boolean
   hasScratchpad?: boolean
-  sideTab?: 'project' | 'chat'
 }>()
 
 const emit = defineEmits<{
@@ -114,7 +103,6 @@ const emit = defineEmits<{
   'rename-subproject': [subprojectId: string, name: string]
   'open-scratchpad': []
   'reorder-subprojects': [orderedIds: string[]]
-  'switch-tab': [tab: 'project' | 'chat']
 }>()
 
 const inlineRefs = ref<Record<string, ComponentPublicInstance<{ startEditing: () => void }>>>({})
@@ -225,24 +213,6 @@ function handleSubPointerDown(e: PointerEvent, id: string) {
   gap: 0.5rem;
   padding: 0.75rem 1rem;
 }
-.back-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: all 0.15s;
-}
-.back-btn:hover {
-  background: var(--color-bg-hover);
-  color: var(--color-text-base);
-}
 .scratchpad-btn {
   display: flex;
   align-items: center;
@@ -260,29 +230,8 @@ function handleSubPointerDown(e: PointerEvent, id: string) {
 }
 .scratchpad-btn:hover { background: var(--color-bg-hover); color: var(--color-text-base); }
 .scratchpad-btn.active { color: var(--color-primary); }
-.header-tabs {
-  display: flex;
-  gap: 0.25rem;
-  flex: 1;
-  min-width: 0;
-}
-.header-tab {
-  flex: 1;
-  padding: 0.3rem 0.6rem;
-  font-size: 0.8rem;
-  font-weight: 500;
-  background: transparent;
-  border: none;
-  border-radius: 4px;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  font-family: system-ui, sans-serif;
-  min-width: 0;
-  transition: all 0.15s;
-}
-.header-tab:hover { background: var(--color-bg-hover); }
-.header-tab.active { background: var(--color-bg-hover); color: var(--color-primary); }
 .header-title {
+  flex: 1;
   min-width: 0;
 }
 .header-title :deep(.title-text) {

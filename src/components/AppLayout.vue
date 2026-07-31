@@ -1,11 +1,11 @@
 <template>
   <div class="app-layout">
     <Transition name="fade">
-      <div v-if="hasSidePanel && sideExpanded && isMobile" class="mobile-backdrop" @click="closeSide"></div>
+      <div v-if="sideExpanded && isMobile" class="mobile-backdrop" @click="closeSide"></div>
     </Transition>
     <nav class="nav-bar">
-      <button class="nav-btn expand-btn" :class="{ 'is-expanded': sideExpanded }" :disabled="!hasSidePanel" @click="toggleSide" :title="sideExpanded ? 'Collapse sidebar' : 'Expand sidebar'">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+      <button class="nav-btn back-nav-btn" @click="goBack" title="Back">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
       </button>
       <button class="nav-btn" :class="{ active: activePage === 'home' }" @click="goTo('home')" title="Home"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg></button>
       <button class="nav-btn" :class="{ active: activePage === 'notebooks' }" @click="goTo('notebooks')" title="Notebooks"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"/></svg></button>
@@ -20,17 +20,31 @@
       </button>
       <button class="nav-btn" @click="showSettings = true" title="Settings"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97s-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1s.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66z"/></svg></button>
     </nav>
-    <Transition name="slide-side">
-      <aside v-if="hasSidePanel && sideExpanded" class="side-panel" :class="{ 'is-mobile': isMobile }" :style="isMobile ? {} : { width: sideWidth + 'px' }">
-        <slot name="side"></slot>
-      </aside>
-    </Transition>
-    <Transition name="fade">
-      <div v-if="hasSidePanel && sideExpanded" class="divider" :class="{ 'is-dragging': isDragging }" @pointerdown="startDrag">
-        <div class="divider-handle"></div>
-      </div>
-    </Transition>
-    <main class="main-panel"><slot></slot></main>
+    <div class="main-area">
+      <main class="main-panel"><slot></slot></main>
+      <Transition name="slide-side">
+        <aside v-if="sideExpanded" class="side-panel" :class="{ 'is-mobile': isMobile }" :style="isMobile ? {} : { width: sideWidth + 'px' }">
+        <div v-if="hasSideContent" class="side-tab-bar">
+          <button class="side-tab" :class="{ active: activeSideTab === 'content' }" @click="activeSideTab = 'content'">{{ sideTabLabel }}</button>
+          <button class="side-tab" :class="{ active: activeSideTab === 'chat' }" @click="activeSideTab = 'chat'">Chat</button>
+        </div>
+          <div v-if="$slots['side-header']" class="side-header-slot">
+            <slot name="side-header"></slot>
+          </div>
+          <div v-show="hasSideContent && activeSideTab === 'content'" class="side-tab-body">
+            <slot name="side"></slot>
+          </div>
+          <div v-show="!hasSideContent || activeSideTab === 'chat'" class="side-tab-body">
+            <SideChatPlayground />
+          </div>
+        </aside>
+      </Transition>
+      <Transition name="fade">
+        <div v-if="sideExpanded" class="divider" :class="{ 'is-dragging': isDragging }" :style="{ left: sideWidth + 'px' }" @pointerdown="startDrag">
+          <div class="divider-handle"></div>
+        </div>
+      </Transition>
+    </div>
     <SettingsModal v-model="showSettings" />
     <VocabReviewModal :visible="showVocab" @close="showVocab = false" />
   </div>
@@ -42,20 +56,24 @@ import { ref, computed, onMounted, onUnmounted, useSlots, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import SettingsModal from './modal/SettingsModal.vue'
 import VocabReviewModal from './modal/VocabReviewModal.vue'
+import SideChatPlayground from './SideChatPlayground.vue'
 import { useVocabulary } from '@/composables/useVocabulary'
+import { useBooksStore } from '@/stores/books'
 
 const props = withDefaults(defineProps<{
   storageKey?: string
   defaultSideWidth?: number
   minSideWidth?: number
   maxSideWidth?: number
-}>(), { storageKey: 'app-layout-side', defaultSideWidth: 500, minSideWidth: 300, maxSideWidth: 800 })
+  sideTabLabel?: string
+}>(), { storageKey: 'app-layout-side', defaultSideWidth: 500, minSideWidth: 300, maxSideWidth: 800, sideTabLabel: 'View' })
 
 const router = useRouter()
 const route = useRoute()
 const slots = useSlots()
+const booksStore = useBooksStore()
 
-const sideExpanded = ref(true)
+const sideExpanded = ref(false)
 const sideWidth = ref(props.defaultSideWidth)
 const showSettings = ref(false)
 const showVocab = ref(false)
@@ -66,7 +84,8 @@ const isMobile = ref(false)
 
 function checkMobile() { isMobile.value = window.innerWidth <= 768 }
 
-const hasSidePanel = computed(() => !!slots.side)
+const hasSideContent = computed(() => !!slots.side)
+const activeSideTab = ref<'content' | 'chat'>(hasSideContent.value ? 'content' : 'chat')
 
 const activePage = computed(() => {
   const name = route.name as string
@@ -80,16 +99,42 @@ const activePage = computed(() => {
   return ''
 })
 
+const backTarget = computed<string>(() => {
+  const name = route.name as string
+  if (name === 'notebook' || name === 'question') return 'notebooks'
+  if (name === 'book-viewer') {
+    const id = route.params.bookId as string
+    return booksStore.papers.some(p => p.id === id) ? 'papers' : 'books'
+  }
+  if (name === 'project-detail' || name === 'project-subproject') return 'projects'
+  return 'home'
+})
+
+const pageKey = computed(() => {
+  const name = route.name as string
+  if (name === 'home') return 'home'
+  if (name === 'notebooks') return 'notebooks-list'
+  if (name === 'notebook' || name === 'question') return 'notebook-detail'
+  if (name === 'books') return 'books-list'
+  if (name === 'book-viewer') return 'book-viewer'
+  if (name === 'papers') return 'papers-list'
+  if (name === 'projects') return 'projects-list'
+  if (name === 'project-detail' || name === 'project-subproject') return 'project-detail'
+  if (name === 'calendar') return 'calendar'
+  return name ?? ''
+})
+
+watch(pageKey, () => {
+  sideExpanded.value = false
+})
+
 const { vocabDueCount } = useVocabulary()
 
 onMounted(() => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
-  const stored = localStorage.getItem(props.storageKey)
-  if (stored !== null) sideExpanded.value = stored === 'true'
   const storedWidth = localStorage.getItem(`${props.storageKey}-width`)
   if (storedWidth !== null) sideWidth.value = parseInt(storedWidth, 10)
-  if (isMobile.value) sideExpanded.value = false
 })
 
 onUnmounted(() => {
@@ -98,16 +143,19 @@ onUnmounted(() => {
 
 function toggleSide() {
   sideExpanded.value = !sideExpanded.value
-  localStorage.setItem(props.storageKey, sideExpanded.value.toString())
 }
 
 function closeSide() {
   sideExpanded.value = false
-  localStorage.setItem(props.storageKey, 'false')
+}
+
+function goBack() {
+  sideExpanded.value = false
+  router.push({ name: backTarget.value })
 }
 
 function goTo(page: string) {
-  if (page === activePage.value && hasSidePanel.value) { toggleSide(); return }
+  if (page === activePage.value) { toggleSide(); return }
   if (page === 'home') router.push({ name: 'home' })
   else if (page === 'notebooks') router.push({ name: 'notebooks' })
   else if (page === 'books') router.push({ name: 'books' })
@@ -157,15 +205,21 @@ defineExpose({ sideExpanded, toggleSide })
 .nav-btn:disabled:hover { background: transparent; color: var(--color-text-muted); transform: none; }
 .nav-btn svg { width: 20px; height: 20px; }
 .nav-badge { position: absolute; top: 2px; right: 2px; background: var(--color-primary, var(--color-border-accent)); color: #fff; font-size: 0.6rem; font-weight: 700; min-width: 14px; height: 14px; border-radius: 7px; display: flex; align-items: center; justify-content: center; padding: 0 3px; }
-.expand-btn { margin-bottom: 0.5rem; }
-.expand-btn.is-expanded svg { transform: rotate(180deg); }
+.back-nav-btn { margin-bottom: 0.5rem; }
 .nav-spacer { flex: 1; }
-.side-panel { flex-shrink: 0; display: flex; flex-direction: column; height: 100%; overflow: hidden; background: var(--color-bg-base); }
-.divider { width: 6px; background-color: transparent; cursor: col-resize; flex-shrink: 0; position: relative; display: flex; align-items: center; justify-content: center; transition: background-color 0.15s; touch-action: none; }
+.main-area { flex: 1; min-width: 0; position: relative; display: flex; }
+.main-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--color-bg-page); }
+.side-panel { position: absolute; top: 0; left: 0; bottom: 0; z-index: 20; display: flex; flex-direction: column; height: 100%; overflow: hidden; background: var(--color-bg-base); box-shadow: 2px 0 10px rgba(0, 0, 0, 0.12); }
+.side-header-slot { flex-shrink: 0; }
+.side-tab-bar { display: flex; align-items: center; gap: 0.25rem; padding: 0.5rem; border-bottom: 1px solid var(--color-border-subtle); flex-shrink: 0; }
+.side-tab { flex: 1; padding: 0.4rem 0.6rem; font-size: 0.75rem; font-weight: 500; background: transparent; border: none; border-radius: 4px; color: var(--color-text-muted); cursor: pointer; transition: all 0.15s; }
+.side-tab:hover { background: var(--color-bg-hover); color: var(--color-text-base); }
+.side-tab.active { background: var(--color-bg-hover); color: var(--color-primary, var(--color-text-base)); }
+.side-tab-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.divider { position: absolute; top: 0; bottom: 0; width: 6px; z-index: 21; background-color: transparent; cursor: col-resize; display: flex; align-items: center; justify-content: center; transition: background-color 0.15s; touch-action: none; }
 .divider:hover, .divider.is-dragging { background-color: var(--color-bg-hover); }
 .divider-handle { width: 3px; height: 40px; background-color: var(--color-border-subtle); border-radius: 2px; transition: background-color 0.15s; }
 .divider:hover .divider-handle, .divider.is-dragging .divider-handle { background-color: var(--color-border-strong); }
-.main-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--color-bg-page); }
 .slide-side-enter-active, .slide-side-leave-active { transition: width 0.25s ease, opacity 0.25s ease; overflow: hidden; }
 .slide-side-enter-from, .slide-side-leave-to { width: 0 !important; opacity: 0; }
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
@@ -174,7 +228,7 @@ defineExpose({ sideExpanded, toggleSide })
 @media (max-width: 768px) {
   .app-layout { flex-direction: column; }
   .nav-bar { flex-direction: row; order: 2; width: 100%; border-right: none; border-top: 1px solid var(--color-border-subtle); padding: 0.75rem 0.5rem; justify-content: space-around; }
-  .nav-spacer, .expand-btn, .divider { display: none; }
+  .nav-spacer, .divider { display: none; }
   .nav-btn.active::after { left: 50%; top: auto; bottom: -0.5rem; transform: translateX(-50%); width: 20px; height: 3px; border-radius: 2px 2px 0 0; }
   .nav-btn.active svg { transform: none; }
   .nav-btn { width: 44px; height: 44px; }

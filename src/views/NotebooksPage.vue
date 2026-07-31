@@ -1,6 +1,5 @@
 <template>
   <AppLayout storage-key="sidebar">
-    <template #side><div class="side-playground-wrapper"><SideChatPlayground /></div></template>
     <div class="homepage">
       <div class="homepage-header">
         <h1>My Notebooks</h1>
@@ -48,7 +47,6 @@ import { useNotebookStore } from '@/stores/notebook'
 import { useGlobalSearch } from '@/composables/useGlobalSearch'
 import AppLayout from '@/components/AppLayout.vue'
 import Button from '@/components/Button.vue'
-import SideChatPlayground from '@/components/SideChatPlayground.vue'
 import SlideTransition from '@/components/SlideTransition.vue'
 
 const router = useRouter()
@@ -77,7 +75,6 @@ const deleteNotebook = (id: string) => {
 </script>
 
 <style scoped>
-.side-playground-wrapper { height: 100%; }
 .homepage { height: 100%; overflow-y: auto; background-color: var(--color-bg-base); padding: 2rem; }
 .homepage-header { display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto 2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--color-border-base); }
 .header-actions { display: flex; gap: 0.5rem; align-items: center; }

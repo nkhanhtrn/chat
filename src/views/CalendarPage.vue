@@ -1,6 +1,5 @@
 <template>
   <AppLayout storage-key="sidebar">
-    <template #side><div class="side-playground-wrapper"><SideChatPlayground /></div></template>
     <div class="calendar-page">
       <div class="calendar-header">
         <h1>Activity Calendar</h1>
@@ -52,7 +51,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/AppLayout.vue'
-import SideChatPlayground from '@/components/SideChatPlayground.vue'
 import CalendarDayModal from '@/components/modal/CalendarDayModal.vue'
 import { useNotebookStore } from '@/stores/notebook'
 import { useMessageTreeStore } from '@/stores/messageTree'
@@ -242,7 +240,6 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.side-playground-wrapper { height: 100%; }
 .calendar-page { height: 100%; overflow-y: auto; background-color: var(--color-bg-base); padding: 2rem; }
 .calendar-header { max-width: 800px; margin: 0 auto 2rem; display: flex; justify-content: space-between; align-items: center; padding-bottom: 1rem; border-bottom: 1px solid var(--color-border-base); }
 .calendar-header h1 { font-family: Georgia, serif; font-size: 2rem; font-weight: 400; color: var(--color-text-message); margin: 0; }

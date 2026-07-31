@@ -20,9 +20,15 @@ function mountLayout(slots: Record<string, string> = {}) {
       stubs: {
         SettingsModal: true,
         VocabReviewModal: true,
+        SideChatPlayground: true,
       },
     },
   })
+}
+
+async function openSide(wrapper: ReturnType<typeof mountLayout>) {
+  ;(wrapper.vm as any).toggleSide()
+  await wrapper.vm.$nextTick()
 }
 
 describe('AppLayout', () => {
@@ -36,22 +42,26 @@ describe('AppLayout', () => {
     wrapper.unmount()
   })
 
-  it('hides divider when no side panel', () => {
+  it('keeps sidebar closed by default on load', () => {
     const wrapper = mountLayout()
     expect(wrapper.find('.divider').exists()).toBe(false)
+    expect(wrapper.find('.side-panel').exists()).toBe(false)
     wrapper.unmount()
   })
 
   describe('divider pointer drag', () => {
-    it('shows divider when side slot provided', () => {
+    it('shows divider and tab bar when side slot provided and opened', async () => {
       const wrapper = mountLayout({ side: '<div>sidebar</div>' })
+      await openSide(wrapper)
       expect(wrapper.find('.divider').exists()).toBe(true)
+      expect(wrapper.find('.side-tab-bar').exists()).toBe(true)
+      expect(wrapper.findAll('.side-tab')).toHaveLength(2)
       wrapper.unmount()
     })
 
     it('updates side width on pointer drag', async () => {
       const wrapper = mountLayout({ side: '<div>sidebar</div>' })
-      await wrapper.vm.$nextTick()
+      await openSide(wrapper)
 
       const divider = wrapper.find('.divider').element as HTMLElement
       const downEvent = new Event('pointerdown', { bubbles: true })
@@ -69,7 +79,7 @@ describe('AppLayout', () => {
 
     it('clamps width to min/max bounds', async () => {
       const wrapper = mountLayout({ side: '<div>sidebar</div>' })
-      await wrapper.vm.$nextTick()
+      await openSide(wrapper)
 
       const divider = wrapper.find('.divider').element as HTMLElement
       const downEvent = new Event('pointerdown', { bubbles: true })

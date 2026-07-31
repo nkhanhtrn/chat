@@ -1,6 +1,6 @@
 <template>
-  <AppLayout ref="appLayoutRef" storage-key="sidebar">
-    <template #side>
+  <AppLayout ref="appLayoutRef" storage-key="sidebar" side-tab-label="Project">
+    <template #side-header>
       <ProjectHeader
         :name="projectStore.currentProject?.name ?? 'Project'"
         :subprojects="projectStore.currentProject?.subprojects ?? []"
@@ -9,7 +9,6 @@
         :isHome="isHome"
         :isStreaming="chat.isStreaming.value"
         :hasScratchpad="hasAnyScratchpad"
-        :sideTab="sideTab"
         @rename="handleRenameProject"
         @show-home="handleShowHome"
         @switch-subproject="handleSwitchSubproject"
@@ -18,10 +17,21 @@
         @rename-subproject="handleRenameSubproject"
         @open-scratchpad="scratchpadOpen = true"
         @reorder-subprojects="handleReorderSubprojects"
-        @switch-tab="sideTab = $event"
       />
 
-      <div v-show="sideTab === 'project'" class="side-tab-content">
+      <ScratchpadPanel
+        v-model:open="scratchpadOpen"
+        :model-value="projectStore.currentScratchpad"
+        :data-key="scratchpadDataKey"
+        :subprojects="isHome ? (projectStore.currentProject?.subprojects ?? []) : []"
+        :getScratchpadFn="scratchpadGetFn"
+        :updateScratchpadFn="scratchpadUpdateFn"
+        @update:model-value="handleUpdateScratchpad"
+      />
+    </template>
+
+    <template #side>
+      <div class="side-tab-content">
         <template v-if="isHome">
           <SubprojectHomePanel
             :subprojects="projectStore.currentProject?.subprojects ?? []"
@@ -59,20 +69,6 @@
           </div>
         </template>
       </div>
-
-      <div v-show="sideTab === 'chat'" class="side-tab-content">
-        <SideChatPlayground />
-      </div>
-
-      <ScratchpadPanel
-        v-model:open="scratchpadOpen"
-        :model-value="projectStore.currentScratchpad"
-        :data-key="scratchpadDataKey"
-        :subprojects="isHome ? (projectStore.currentProject?.subprojects ?? []) : []"
-        :getScratchpadFn="scratchpadGetFn"
-        :updateScratchpadFn="scratchpadUpdateFn"
-        @update:model-value="handleUpdateScratchpad"
-      />
     </template>
 
     <div v-if="!isHome" class="canvas-wrapper">
@@ -119,7 +115,6 @@ import CanvasPanel from '@/components/project/CanvasPanel.vue'
 import ToolTargetBar from '@/components/project/ToolTargetBar.vue'
 import ScratchpadPanel from '@/components/project/ScratchpadPanel.vue'
 import SubprojectHomePanel from '@/components/project/SubprojectHomePanel.vue'
-import SideChatPlayground from '@/components/SideChatPlayground.vue'
 import type { ProjectWindow } from '@/types/project'
 import type { ToolTemplate } from '@/types/tool'
 import { useToast } from '@/composables/useToast'
@@ -161,7 +156,6 @@ const hasAnyScratchpad = computed(() => {
 const chat = useProjectChat()
 
 const inputText = ref('')
-const sideTab = ref<'project' | 'chat'>('project')
 const scratchpadOpen = ref(false)
 const targetToolId = ref<string | null>(null)
 const commandFeedback = ref('')

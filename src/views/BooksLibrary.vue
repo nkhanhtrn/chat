@@ -1,6 +1,5 @@
 <template>
   <AppLayout storage-key="sidebar">
-    <template #side><div class="side-playground-wrapper"><SideChatPlayground /></div></template>
     <div class="books-library">
       <div class="library-header">
         <button class="view-toggle mobile-only-btn" @click="toggleViewMode" :title="viewMode === 'grid' ? 'Switch to list view' : 'Switch to grid view'">
@@ -118,7 +117,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/AppLayout.vue'
-import SideChatPlayground from '@/components/SideChatPlayground.vue'
 import Button from '@/components/Button.vue'
 import ProgressBar from '@/components/ProgressBar.vue'
 import SlideTransition from '@/components/SlideTransition.vue'
@@ -343,7 +341,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.side-playground-wrapper { height: 100%; }
 .books-library { height: 100%; overflow-y: auto; background-color: var(--color-bg-base); }
 
 .library-header {

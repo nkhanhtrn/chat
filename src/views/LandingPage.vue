@@ -1,8 +1,5 @@
 <template>
   <AppLayout storage-key="sidebar">
-    <template #side>
-      <div class="side-playground-wrapper"><SideChatPlayground /></div>
-    </template>
     <SlideTransition appear direction="vertical">
       <div class="landing-page">
         <div class="landing-content">
@@ -42,7 +39,6 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import AppLayout from '@/components/AppLayout.vue'
 import SlideTransition from '@/components/SlideTransition.vue'
-import SideChatPlayground from '@/components/SideChatPlayground.vue'
 import LoginModal from '@/components/modal/LoginModal.vue'
 import { onAuthChange } from '@/services/auth'
 
@@ -55,7 +51,6 @@ onUnmounted(() => { unsubscribeAuth?.() })
 </script>
 
 <style scoped>
-.side-playground-wrapper { height: 100%; }
 .landing-page { height: 100%; display: flex; align-items: center; justify-content: center; background: var(--color-bg-page); padding: 2rem; }
 .landing-content { text-align: center; max-width: 800px; }
 h1 { font-family: Georgia, serif; font-size: 3rem; font-weight: 400; color: var(--color-text-message); margin: 0 0 0.5rem; }
