@@ -1,8 +1,5 @@
 <template>
   <AppLayout storage-key="sidebar">
-    <template #side>
-      <div class="side-playground-wrapper"><SideChatPlayground /></div>
-    </template>
     <div class="projects-page">
       <div class="projects-header">
         <h1>Projects</h1>
@@ -74,7 +71,6 @@ import { useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import AppLayout from '@/components/AppLayout.vue'
 import Button from '@/components/Button.vue'
-import SideChatPlayground from '@/components/SideChatPlayground.vue'
 import SlideTransition from '@/components/SlideTransition.vue'
 import InlineEdit from '@/components/InlineEdit.vue'
 
@@ -132,7 +128,6 @@ function renameProject(id: string, newName: string) {
 </script>
 
 <style scoped>
-.side-playground-wrapper { height: 100%; }
 .projects-page { height: 100%; overflow-y: auto; background-color: var(--color-bg-base); padding: 2rem; }
 .projects-header { display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto 2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--color-border-base); }
 .header-actions { display: flex; gap: 0.5rem; align-items: center; }

@@ -1,12 +1,11 @@
 <template>
-  <AppLayout storage-key="sidebar">
+  <AppLayout storage-key="sidebar" side-tab-label="Contents">
     <template #side>
       <BookTocSidebar
         :toc="toc"
         :book-title="currentBook?.title ?? ''"
         :active-href="activeHref"
         @navigate="handleTocNavigate"
-        @back="router.push({ name: 'books' })"
       />
     </template>
     <div class="book-viewer-page">
