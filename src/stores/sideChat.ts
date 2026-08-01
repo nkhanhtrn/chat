@@ -14,14 +14,38 @@ export interface SideChatMessage {
   content: string
 }
 
+const STORAGE_KEY = 'side-chat'
+
+interface PersistedChat {
+  messages: SideChatMessage[]
+  sessionId: string | null
+}
+
+function loadPersistedChat(): PersistedChat {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return { messages: [], sessionId: null }
+    const parsed = JSON.parse(raw)
+    return {
+      messages: Array.isArray(parsed.messages) ? parsed.messages as SideChatMessage[] : [],
+      sessionId: typeof parsed.sessionId === 'string' ? parsed.sessionId : null,
+    }
+  } catch {
+    return { messages: [], sessionId: null }
+  }
+}
+
 export const useSideChatStore = defineStore('sideChat', {
-  state: () => ({
-    messages: [] as SideChatMessage[],
-    sessionId: null as string | null,
-    isStreaming: false,
-    streamingContent: '',
-    error: null as string | null,
-  }),
+  state: () => {
+    const persisted = loadPersistedChat()
+    return {
+      messages: persisted.messages,
+      sessionId: persisted.sessionId,
+      isStreaming: false,
+      streamingContent: '',
+      error: null as string | null,
+    }
+  },
 
   actions: {
     async sendMessage(text: string): Promise<void> {
@@ -35,6 +59,7 @@ export const useSideChatStore = defineStore('sideChat', {
         content: text.trim(),
       }
       this.messages.push(userMsg)
+      this.persist()
 
       this.isStreaming = true
       this.streamingContent = ''
@@ -78,6 +103,7 @@ export const useSideChatStore = defineStore('sideChat', {
           role: 'assistant',
           content: stripThinking(fullContent ?? rawContent),
         })
+        this.persist()
       } catch (err) {
         this.error = (err as Error).message
       } finally {
@@ -91,6 +117,22 @@ export const useSideChatStore = defineStore('sideChat', {
       this.sessionId = null
       this.error = null
       this.streamingContent = ''
+      try {
+        localStorage.removeItem(STORAGE_KEY)
+      } catch (e) {
+        console.warn('[sideChat] Failed to clear persisted chat:', e)
+      }
+    },
+
+    persist(): void {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          messages: this.messages,
+          sessionId: this.sessionId,
+        } as PersistedChat))
+      } catch (e) {
+        console.warn('[sideChat] Failed to persist chat:', e)
+      }
     },
   },
 })

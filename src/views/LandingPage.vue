@@ -19,13 +19,13 @@
               <div class="action-icon">📚</div>
               <div class="action-text"><h3>Books</h3><p>expand your minds</p></div>
             </router-link>
+            <router-link to="/papers" class="action-card">
+              <div class="action-icon">📄</div>
+              <div class="action-text"><h3>Research Papers</h3><p>read & annotate</p></div>
+            </router-link>
             <router-link to="/projects" class="action-card">
               <div class="action-icon">🛠️</div>
               <div class="action-text"><h3>Projects</h3><p>build & experiment</p></div>
-            </router-link>
-            <router-link to="/calendar" class="action-card">
-              <div class="action-icon">📅</div>
-              <div class="action-text"><h3>Calendar</h3><p>your growth year-to-year</p></div>
             </router-link>
           </div>
         </div>
