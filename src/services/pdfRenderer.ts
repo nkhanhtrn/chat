@@ -1,6 +1,8 @@
-import { getDocument, GlobalWorkerOptions, TextLayer } from 'pdfjs-dist'
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist'
 import type { TocItem } from '@/types/book'
+import type { Stroke, StrokeDraft } from '@/types/stroke'
+import { StrokeLayer, type DrawTool } from '@/services/strokeLayer'
 
 // Set up the web worker for pdfjs
 GlobalWorkerOptions.workerSrc = new URL(
@@ -8,10 +10,17 @@ GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString()
 
+export type SpreadMode = 'single' | 'double' | 'auto'
+
 export interface PdfRendererOptions {
   scale?: number
+  spreadMode?: SpreadMode
   onLocationChange?: (location: { page: number; totalPages: number; percentage: number; pageEnd?: number }) => void
-  onTextSelect?: (data: { text: string; x: number; y: number }) => void
+  getStrokesForPage?: (page: number) => Stroke[]
+  onStrokeAdd?: (draft: StrokeDraft) => void
+  onStrokeRemove?: (strokeId: string) => void
+  drawTool?: DrawTool
+  drawColorIndex?: number
 }
 
 export class PdfRenderer {
@@ -23,15 +32,21 @@ export class PdfRenderer {
   private _currentPage = 1
   private _totalPages = 0
   private _scale: number
+  private _spreadOverride: Exclude<SpreadMode, 'auto'> | null = null
   private rendering = false
   private destroyed = false
-  private textSelectHandler: (() => void) | null = null
+  private strokeLayers: StrokeLayer[] = []
+  private _drawTool: DrawTool
+  private _drawColor: number
 
   constructor(container: HTMLElement, fileData: ArrayBuffer, options: PdfRendererOptions = {}) {
     this.container = container
     this.fileData = fileData
     this.options = options
     this._scale = options.scale ?? 1.5
+    this._drawTool = options.drawTool ?? 'select'
+    this._drawColor = options.drawColorIndex ?? 0
+    this._spreadOverride = options.spreadMode && options.spreadMode !== 'auto' ? options.spreadMode : null
   }
 
   async initialize(): Promise<void> {
@@ -49,9 +64,6 @@ export class PdfRenderer {
 
     // Render first page
     await this.renderPage(this._currentPage)
-
-    // Setup text selection
-    this.setupTextSelection()
 
     // Notify initial location
     this.notifyLocationChange()
@@ -116,11 +128,39 @@ export class PdfRenderer {
     return this._scale
   }
 
+  setDrawTool(tool: DrawTool): void {
+    this._drawTool = tool
+    this.strokeLayers.forEach(l => l.setTool(tool))
+  }
+
+  setDrawColor(colorIndex: number): void {
+    this._drawColor = colorIndex
+    this.strokeLayers.forEach(l => l.setColor(colorIndex))
+  }
+
+  redrawStrokes(): void {
+    this.strokeLayers.forEach(l => l.redraw())
+  }
+
+  setSpreadMode(mode: SpreadMode): void {
+    this._spreadOverride = mode === 'auto' ? null : mode
+    if (this.destroyed || !this.pdfDoc) return
+    this.renderPage(this._currentPage).then(() => {
+      if (!this.destroyed) this.notifyLocationChange()
+    })
+  }
+
+  getSpreadMode(): SpreadMode {
+    return this._spreadOverride ?? 'auto'
+  }
+
   get totalPages(): number {
     return this._totalPages
   }
 
   private get isSpread(): boolean {
+    if (this._spreadOverride === 'single') return false
+    if (this._spreadOverride === 'double') return true
     return (this.container.clientWidth || this.container.offsetWidth || 800) >= 900
   }
 
@@ -133,10 +173,7 @@ export class PdfRenderer {
 
   destroy(): void {
     this.destroyed = true
-    if (this.textSelectHandler) {
-      this.container.removeEventListener('pointerup', this.textSelectHandler)
-      this.textSelectHandler = null
-    }
+    this.detachStrokeLayers()
     this.container.innerHTML = ''
     if (this.pdfDoc) {
       this.pdfDoc.destroy()
@@ -144,9 +181,15 @@ export class PdfRenderer {
     }
   }
 
+  private detachStrokeLayers(): void {
+    this.strokeLayers.forEach(l => l.detach())
+    this.strokeLayers = []
+  }
+
   private async renderPage(pageNum: number): Promise<void> {
     if (!this.pdfDoc || this.rendering || this.destroyed) return
     this.rendering = true
+    this.detachStrokeLayers()
 
     try {
       if (this.isSpread) {
@@ -225,47 +268,27 @@ export class PdfRenderer {
     await page.render({ canvas, canvasContext: ctx, viewport }).promise
     if (this.destroyed) return null
 
-    const textLayerDiv = document.createElement('div')
-    textLayerDiv.className = 'pdf-text-layer'
-    textLayerDiv.style.width = displayWidth + 'px'
-    textLayerDiv.style.height = displayHeight + 'px'
-
-    const textContent = await page.getTextContent()
-    if (this.destroyed) return null
-
-    const textLayer = new TextLayer({
-      textContentSource: textContent,
-      container: textLayerDiv,
-      viewport: viewport,
-    })
-    await textLayer.render()
-    if (this.destroyed) return null
-
     const wrapper = document.createElement('div')
     wrapper.className = 'pdf-page-wrapper'
     wrapper.style.width = displayWidth + 'px'
+    wrapper.style.position = 'relative'
     wrapper.appendChild(canvas)
-    wrapper.appendChild(textLayerDiv)
+
+    const strokeLayer = new StrokeLayer(wrapper, {
+      page: pageNum,
+      viewBoxWidth: naturalViewport.width,
+      viewBoxHeight: naturalViewport.height,
+      displayWidth,
+      displayHeight,
+      tool: this._drawTool,
+      colorIndex: this._drawColor,
+      getStrokes: () => this.options.getStrokesForPage?.(pageNum) ?? [],
+      onCreate: (draft) => { this.options.onStrokeAdd?.(draft) },
+      onErase: (id) => { this.options.onStrokeRemove?.(id) },
+    })
+    this.strokeLayers.push(strokeLayer)
 
     return wrapper
-  }
-
-  private setupTextSelection(): void {
-    this.textSelectHandler = () => {
-      const selection = window.getSelection()
-      if (!selection || selection.isCollapsed || !selection.rangeCount) return
-      const text = selection.toString().trim()
-      if (!text) return
-      const range = selection.getRangeAt(0)
-      const rect = range.getBoundingClientRect()
-
-      this.options.onTextSelect?.({
-        text,
-        x: rect.left + rect.width / 2,
-        y: rect.bottom,
-      })
-    }
-    this.container.addEventListener('pointerup', this.textSelectHandler)
   }
 
   private notifyLocationChange(): void {

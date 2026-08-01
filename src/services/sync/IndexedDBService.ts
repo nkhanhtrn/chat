@@ -2,12 +2,13 @@ import { openDB, type IDBPDatabase } from 'idb'
 import { debugLog } from '@/utils/debug'
 
 const DB_NAME = 'chat-clone-db'
-const DB_VERSION = 11
+const DB_VERSION = 12
 
 const STORE_NAME = 'app-data'
 const TOOLS_STORE = 'saved-tools'
 const BOOKS_STORE = 'books'
 const BOOK_FILES_STORE = 'book-files'
+const STROKES_STORE = 'strokes'
 const TOOL_INSTANCES_STORE = 'tool-instances'
 const SESSION_CANVAS_STORE = 'session-canvas'
 const SESSION_TOOLS_STORE = 'session-tools'
@@ -61,6 +62,13 @@ export async function getDB(): Promise<IDBPDatabase> {
       if (oldVersion < 8) {
         if (!db.objectStoreNames.contains(STUDIO_SESSIONS_STORE)) {
           db.createObjectStore(STUDIO_SESSIONS_STORE)
+        }
+      }
+
+      if (oldVersion < 12) {
+        if (!db.objectStoreNames.contains(STROKES_STORE)) {
+          const strokesStore = db.createObjectStore(STROKES_STORE, { keyPath: 'id' })
+          strokesStore.createIndex('bookId', 'bookId', { unique: false })
         }
       }
 

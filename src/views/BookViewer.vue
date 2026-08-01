@@ -17,27 +17,74 @@
       </div>
       <template v-else>
         <div class="book-header">
-          <h2>{{ currentBook.title }}<span v-if="currentBook.author" class="book-author"> by {{ currentBook.author }}</span></h2>
+          <template v-if="bookFileType === 'pdf'">
+            <div class="pdf-controls">
+              <button class="nav-btn tool-btn page-turn-btn" @click="handlePrevPage" :disabled="!canGoPrev" title="Previous page">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                <span class="page-turn-label">Prev</span>
+              </button>
+              <button class="nav-btn tool-btn page-turn-btn" @click="handleNextPage" :disabled="!canGoNext" title="Next page">
+                <span class="page-turn-label">Next</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+              </button>
+              <span class="ctrl-sep"></span>
+              <button class="nav-btn zoom-btn" @click="zoomOut" :disabled="pdfScale <= 0.5" title="Zoom out">−</button>
+              <span class="zoom-info">{{ Math.round(pdfScale * 100) }}%</span>
+              <button class="nav-btn zoom-btn" @click="zoomIn" :disabled="pdfScale >= 4" title="Zoom in">+</button>
+              <button class="nav-btn tool-btn" :class="{ active: spreadMode === 'double' }" :title="spreadMode === 'double' ? 'Double-page view' : 'Single-page view'" @click="toggleSpread">
+                <svg v-if="spreadMode === 'double'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="7" height="14" rx="1"/><rect x="14" y="5" width="7" height="14" rx="1"/></svg>
+                <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="5" width="8" height="14" rx="1"/></svg>
+              </button>
+              <span class="ctrl-sep"></span>
+              <button
+                v-for="t in DRAW_TOOLS"
+                :key="t.tool"
+                class="nav-btn tool-btn"
+                :class="{ active: drawTool === t.tool }"
+                :title="t.label"
+                :aria-label="t.label"
+                @click="setTool(t.tool)"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path :d="t.icon" /></svg>
+              </button>
+              <div class="stroke-color-picker">
+                <button
+                  v-for="(_, i) in STROKE_COLORS"
+                  :key="i"
+                  class="color-circle"
+                  :class="{ selected: drawColorIndex === i }"
+                  :style="{ backgroundColor: `var(--color-highlight-${i}, var(--color-highlight-0))` }"
+                  :aria-label="`Color ${i + 1}`"
+                  @click="setStrokeColor(i)"
+                ></button>
+              </div>
+              <span class="ctrl-sep"></span>
+              <span class="page-info page-info-full">{{ pageDisplayText }}</span>
+              <span class="page-info page-info-short">{{ pageDisplayShort }}</span>
+            </div>
+          </template>
+          <template v-else>
+            <h2>{{ currentBook.title }}<span v-if="currentBook.author" class="book-author"> by {{ currentBook.author }}</span></h2>
+          </template>
         </div>
         <div v-if="progress > 0" class="progress-bar">
           <ProgressBar :progress="Math.round(progress * 100)" />
         </div>
-        <div class="viewer-container" ref="viewerContainer">
-          <!-- EPUB renders here -->
+        <div
+          class="viewer-container"
+          :class="{ 'is-pdf-viewer': bookFileType === 'pdf' }"
+          ref="viewerContainer"
+          :style="{ cursor: viewerCursor }"
+          @pointerdown="onViewerPointerDown"
+          @pointermove="onViewerPointerMove"
+          @pointerup="onViewerPointerUp"
+          @pointercancel="onViewerPointerUp"
+        >
+          <!-- book renders here -->
         </div>
-        <div class="page-nav">
+        <div v-if="bookFileType !== 'pdf'" class="page-nav">
           <button class="nav-btn" @click="handlePrevPage" :disabled="!canGoPrev">&larr; Previous</button>
-          <template v-if="bookFileType === 'pdf'">
-            <div class="pdf-controls">
-              <button class="nav-btn zoom-btn" @click="zoomOut" :disabled="pdfScale <= 0.5">−</button>
-              <span class="zoom-info">{{ Math.round(pdfScale * 100) }}%</span>
-              <button class="nav-btn zoom-btn" @click="zoomIn" :disabled="pdfScale >= 4">+</button>
-              <span class="page-info">{{ pageDisplayText }}</span>
-            </div>
-          </template>
-          <template v-else>
-            <span class="page-info">{{ Math.round(progress * 100) }}%</span>
-          </template>
+          <span class="page-info">{{ Math.round(progress * 100) }}%</span>
           <button class="nav-btn" @click="handleNextPage" :disabled="!canGoNext">Next &rarr;</button>
         </div>
       </template>
@@ -84,18 +131,22 @@ import ContextMenu from '@/components/ContextMenu.vue'
 import DictionaryModal from '@/components/modal/DictionaryModal.vue'
 import ResponseModal from '@/components/modal/ResponseModal.vue'
 import { useBooksStore } from '@/stores/books'
+import { useStrokesStore } from '@/stores/strokes'
 import { EpubRenderer } from '@/services/epubRenderer'
-import { PdfRenderer } from '@/services/pdfRenderer'
+import { PdfRenderer, type SpreadMode } from '@/services/pdfRenderer'
 import { Settings } from '@/services/settings'
 import lmService from '@/services/llm/LMService'
 import { getQuickExplainPrompts, getMainPrompts, getSummaryPrompts } from '@/services/extraPrompt'
 import { useVocabulary } from '@/composables/useVocabulary'
+import { STROKE_COLORS, type DrawTool } from '@/services/strokeLayer'
+import type { StrokeDraft } from '@/types/stroke'
 
 import type { BookData, TocItem } from '@/types/book'
 
 const route = useRoute()
 const router = useRouter()
 const booksStore = useBooksStore()
+const strokesStore = useStrokesStore()
 const { addVocabCard, findByWord } = useVocabulary()
 
 const loading = ref(false)
@@ -112,10 +163,102 @@ const response = reactive({ show: false, title: '', content: '', streaming: fals
 
 // PDF-specific state (plain variable — same pattern as epub renderer, avoids Vue reactive proxy wrapping pdfjs internals)
 let pdfRenderer: PdfRenderer | null = null
-const pdfScale = ref(1.0)
+const PDF_SCALE_KEY = 'pdf-scale'
+function loadPdfScale(): number {
+  const v = typeof localStorage !== 'undefined' ? localStorage.getItem(PDF_SCALE_KEY) : null
+  const n = v ? parseFloat(v) : NaN
+  return Number.isFinite(n) && n >= 0.5 && n <= 4 ? n : 1.0
+}
+const pdfScale = ref<number>(loadPdfScale())
 const currentPage = ref(1)
 const pageEnd = ref<number | undefined>()
 const totalPages = ref(0)
+
+// Drawing annotations (PDF only)
+const PDF_DRAW_TOOL_KEY = 'pdf-draw-tool'
+function loadDrawTool(): DrawTool {
+  const v = typeof localStorage !== 'undefined' ? localStorage.getItem(PDF_DRAW_TOOL_KEY) : null
+  return v === 'select' || v === 'pen' || v === 'highlighter' || v === 'eraser' ? v : 'select'
+}
+const drawTool = ref<DrawTool>(loadDrawTool())
+const drawColorIndex = ref(0)
+const PDF_SPREAD_KEY = 'pdf-spread-mode'
+function loadSpreadMode(): SpreadMode {
+  const v = typeof localStorage !== 'undefined' ? localStorage.getItem(PDF_SPREAD_KEY) : null
+  return v === 'single' || v === 'double' ? v : 'auto'
+}
+const spreadMode = ref<SpreadMode>(loadSpreadMode())
+const DRAW_TOOLS: { tool: DrawTool; label: string; icon: string }[] = [
+  { tool: 'select', label: 'Select', icon: 'M5 3l5.5 15.5L13 12l6.5-2.5z' },
+  { tool: 'pen', label: 'Pen', icon: 'M16 3l5 5L8 21H3v-5z' },
+  { tool: 'highlighter', label: 'Highlighter', icon: 'M9 11l3-3 5 5-3 3zM6 14l3 3-2.5 2.5H3.5V17z' },
+  { tool: 'eraser', label: 'Eraser', icon: 'M5 19h14M9 15l5-5 5 5-5 5z' },
+]
+
+function setTool(tool: DrawTool): void {
+  drawTool.value = tool
+  try { localStorage.setItem(PDF_DRAW_TOOL_KEY, tool) } catch {}
+  pdfRenderer?.setDrawTool(tool)
+}
+
+function setStrokeColor(i: number): void {
+  drawColorIndex.value = i
+  pdfRenderer?.setDrawColor(i)
+}
+
+function toggleSpread(): void {
+  spreadMode.value = spreadMode.value === 'double' ? 'single' : 'double'
+  try { localStorage.setItem(PDF_SPREAD_KEY, spreadMode.value) } catch {}
+  pdfRenderer?.setSpreadMode(spreadMode.value)
+}
+
+function handleStrokeAdd(draft: StrokeDraft): void {
+  if (!currentBook.value) return
+  strokesStore.add(currentBook.value.id, draft)
+}
+
+function handleStrokeRemove(strokeId: string): void {
+  if (!currentBook.value) return
+  strokesStore.remove(currentBook.value.id, strokeId)
+}
+
+// Grab-to-pan: in Select mode, click-and-drag moves the document.
+const panning = ref(false)
+const panStart = { x: 0, y: 0, left: 0, top: 0 }
+const viewerCursor = computed(() => {
+  if (bookFileType.value !== 'pdf') return 'default'
+  if (panning.value) return 'grabbing'
+  return drawTool.value === 'select' ? 'grab' : 'default'
+})
+
+function onViewerPointerDown(e: PointerEvent) {
+  if (bookFileType.value !== 'pdf' || drawTool.value !== 'select') return
+  const el = viewerContainer.value
+  if (!el) return
+  if (e.pointerType === 'mouse' && e.button !== 0) return
+  e.preventDefault()
+  panStart.x = e.clientX
+  panStart.y = e.clientY
+  panStart.left = el.scrollLeft
+  panStart.top = el.scrollTop
+  panning.value = true
+  try { el.setPointerCapture?.(e.pointerId) } catch {}
+}
+
+function onViewerPointerMove(e: PointerEvent) {
+  if (!panning.value) return
+  const el = viewerContainer.value
+  if (!el) return
+  el.scrollLeft = panStart.left - (e.clientX - panStart.x)
+  el.scrollTop = panStart.top - (e.clientY - panStart.y)
+}
+
+function onViewerPointerUp(e: PointerEvent) {
+  if (!panning.value) return
+  panning.value = false
+  const el = viewerContainer.value
+  if (el) { try { el.releasePointerCapture?.(e.pointerId) } catch {} }
+}
 
 async function handleDictionary() {
   contextMenu.visible = false
@@ -252,6 +395,13 @@ const pageDisplayText = computed(() => {
   return `Page ${currentPage.value} of ${totalPages.value}`
 })
 
+const pageDisplayShort = computed(() => {
+  if (pageEnd.value && pageEnd.value !== currentPage.value) {
+    return `${currentPage.value}\u2013${pageEnd.value}/${totalPages.value}`
+  }
+  return `${currentPage.value}/${totalPages.value}`
+})
+
 async function loadFileData(bookId: string): Promise<ArrayBuffer | null> {
   // Tier 1: In-memory preload cache
   const preloaded = booksStore.getPreloadedBook(bookId)
@@ -326,15 +476,16 @@ async function renderPdf(bookId: string, fileData: ArrayBuffer) {
   // Don't save position during init/restoration — only after setup is complete
   let positionSaveEnabled = false
 
+  await strokesStore.loadForBook(bookId)
+
   const pr = new PdfRenderer(viewerContainer.value!, fileData, {
     scale: pdfScale.value,
-    onTextSelect(data) {
-      contextMenu.x = data.x
-      contextMenu.y = data.y
-      contextMenu.text = data.text
-      contextMenu.context = data.context || ''
-      contextMenu.visible = true
-    },
+    spreadMode: spreadMode.value,
+    drawTool: drawTool.value,
+    drawColorIndex: drawColorIndex.value,
+    getStrokesForPage: (page) => strokesStore.forPage(bookId, page),
+    onStrokeAdd: handleStrokeAdd,
+    onStrokeRemove: handleStrokeRemove,
     onLocationChange(location) {
       currentPage.value = location.page
       pageEnd.value = location.pageEnd
@@ -487,12 +638,14 @@ async function handleNextPage() {
 }
 
 function zoomIn() {
-  pdfScale.value = Math.min(4, pdfScale.value + 0.25)
+  pdfScale.value = Math.min(4, pdfScale.value + 0.1)
+  try { localStorage.setItem(PDF_SCALE_KEY, String(pdfScale.value)) } catch {}
   pdfRenderer?.setScale(pdfScale.value)
 }
 
 function zoomOut() {
-  pdfScale.value = Math.max(0.5, pdfScale.value - 0.25)
+  pdfScale.value = Math.max(0.5, pdfScale.value - 0.1)
+  try { localStorage.setItem(PDF_SCALE_KEY, String(pdfScale.value)) } catch {}
   pdfRenderer?.setScale(pdfScale.value)
 }
 
@@ -576,7 +729,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.book-viewer-page { height: 100%; overflow-y: hidden; background: var(--color-bg-page); display: flex; flex-direction: column; }
+.book-viewer-page { height: 100%; min-height: 0; overflow-y: hidden; background: var(--color-bg-page); display: flex; flex-direction: column; }
 .loading-state, .error-state, .empty-state { text-align: center; padding: 4rem 2rem; color: var(--color-text-muted); }
 .empty-state h2 { font-family: Georgia, serif; font-weight: 400; color: var(--color-text-message); margin: 0 0 0.5rem; }
 .empty-state a { color: var(--color-primary); }
@@ -584,7 +737,15 @@ onBeforeUnmount(() => {
 .book-header h2 { font-family: Georgia, serif; font-weight: 400; color: var(--color-text-message); margin: 0; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .book-author { color: var(--color-text-muted); font-size: 0.85rem; font-weight: 400; }
 .progress-bar { flex-shrink: 0; }
-.viewer-container { flex: 1; overflow: auto; max-width: var(--book-max-width, 100%); margin: 0 auto; width: 100%; display: flex; justify-content: center; }
+.viewer-container { flex: 1; min-height: 0; overflow: auto; max-width: var(--book-max-width, 100%); margin: 0 auto; width: 100%; display: flex; justify-content: center; }
+/* PDF only: let pointer events drive pan/draw and stop the browser from
+   pinch-zooming the whole page (zoom is handled by the +/− buttons). */
+.viewer-container.is-pdf-viewer, .viewer-container.is-pdf-viewer :deep(*) { touch-action: none; }
+/* When zoomed past the viewport, the page must overflow and scroll in BOTH
+   directions. `justify-content: center` clips the left overflow and makes the
+   page look like it only grows vertically; the wrapper's `margin: auto` still
+   centers it when it fits. */
+.viewer-container.is-pdf-viewer { justify-content: flex-start; }
 .viewer-container :deep(.epub-container) { margin: 0 auto; }
 .viewer-container :deep(.pdf-page-wrapper) { position: relative; margin: 1rem auto; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
 .viewer-container :deep(.pdf-spread) { display: flex; justify-content: center; gap: 1rem; margin: 1rem auto; }
@@ -596,8 +757,33 @@ onBeforeUnmount(() => {
 .nav-btn:hover:not(:disabled) { background: var(--color-bg-hover); }
 .nav-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .page-info { font-size: 0.85rem; color: var(--color-text-muted); }
-.pdf-controls { display: flex; align-items: center; gap: 0.5rem; }
+.pdf-controls { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0.4rem; }
 .zoom-btn { padding: 0.3rem 0.6rem; min-width: 2rem; }
 .zoom-info { font-size: 0.8rem; color: var(--color-text-muted); min-width: 3rem; text-align: center; }
-@media (max-width: 768px) { .book-header { padding: 0.75rem 1rem; } }
+.ctrl-sep { width: 1px; height: 22px; background: var(--color-border-base); flex-shrink: 0; }
+.tool-btn { padding: 0.3rem; color: var(--color-text-muted); display: flex; align-items: center; justify-content: center; }
+.tool-btn:hover:not(:disabled) { color: var(--color-text-base); }
+.tool-btn svg { width: 16px; height: 16px; display: block; }
+.tool-btn.active { color: var(--color-primary, var(--color-text-message)); border-color: var(--color-border-accent); background: var(--color-bg-hover); }
+.page-turn-btn { gap: 0.2rem; padding: 0.3rem 0.45rem; }
+.page-turn-label { font-size: 0.8rem; color: var(--color-text-message); white-space: nowrap; }
+.stroke-color-picker { display: flex; gap: 0.2rem; margin-left: 0.15rem; }
+.color-circle { width: 16px; height: 16px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+.color-circle:hover { transform: scale(1.12); }
+.color-circle.selected { border-color: var(--color-text-strong); }
+.page-info-short { display: none; }
+@media (max-width: 768px) {
+  .book-header { padding: 0.3rem 0.4rem; }
+  .pdf-controls { flex-wrap: nowrap; overflow-x: auto; justify-content: space-between; gap: 0.15rem; scrollbar-width: none; }
+  .pdf-controls::-webkit-scrollbar { display: none; }
+  .pdf-controls .tool-btn { padding: 0.2rem; }
+  .pdf-controls .tool-btn svg { width: 14px; height: 14px; }
+  .pdf-controls .zoom-btn { padding: 0.2rem 0.4rem; min-width: 1.5rem; }
+  .pdf-controls .zoom-info { min-width: 2.4rem; font-size: 0.75rem; }
+  .pdf-controls .color-circle { width: 14px; height: 14px; }
+  .pdf-controls .ctrl-sep { display: none; }
+  .pdf-controls .page-info { font-size: 0.75rem; }
+  .page-info-full { display: none; }
+  .page-info-short { display: inline; }
+}
 </style>

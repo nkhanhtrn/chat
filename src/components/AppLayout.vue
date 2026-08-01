@@ -193,7 +193,7 @@ defineExpose({ sideExpanded, toggleSide })
 </script>
 
 <style scoped>
-.app-layout { display: flex; height: 100vh; overflow: hidden; }
+.app-layout { display: flex; height: 100vh; height: 100dvh; overflow: hidden; }
 .nav-bar { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; padding: 0.5rem; background: var(--color-bg-base); border-right: 1px solid var(--color-border-subtle); flex-shrink: 0; }
 .nav-btn { width: 36px; height: 36px; padding: 0; display: flex; align-items: center; justify-content: center; background: transparent; border: 1px solid transparent; border-radius: 6px; color: var(--color-text-muted); cursor: pointer; transition: all 0.2s ease; position: relative; }
 .nav-btn:hover { background: var(--color-bg-hover); color: var(--color-text-base); transform: scale(1.05); }
@@ -207,7 +207,7 @@ defineExpose({ sideExpanded, toggleSide })
 .nav-badge { position: absolute; top: 2px; right: 2px; background: var(--color-primary, var(--color-border-accent)); color: #fff; font-size: 0.6rem; font-weight: 700; min-width: 14px; height: 14px; border-radius: 7px; display: flex; align-items: center; justify-content: center; padding: 0 3px; }
 .back-nav-btn { margin-bottom: 0.5rem; }
 .nav-spacer { flex: 1; }
-.main-area { flex: 1; min-width: 0; position: relative; display: flex; }
+.main-area { flex: 1; min-width: 0; min-height: 0; position: relative; display: flex; }
 .main-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--color-bg-page); }
 .side-panel { position: absolute; top: 0; left: 0; bottom: 0; z-index: 20; display: flex; flex-direction: column; height: 100%; overflow: hidden; background: var(--color-bg-base); box-shadow: 2px 0 10px rgba(0, 0, 0, 0.12); }
 .side-header-slot { flex-shrink: 0; }
@@ -227,13 +227,13 @@ defineExpose({ sideExpanded, toggleSide })
 .mobile-backdrop { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); z-index: 999; }
 @media (max-width: 768px) {
   .app-layout { flex-direction: column; }
-  .nav-bar { flex-direction: row; order: 2; width: 100%; border-right: none; border-top: 1px solid var(--color-border-subtle); padding: 0.75rem 0.5rem; justify-content: space-around; }
+  .nav-bar { flex-direction: row; order: 2; width: 100%; border-right: none; border-top: 1px solid var(--color-border-subtle); padding: 0.15rem 0.5rem; justify-content: space-around; }
   .nav-spacer, .divider { display: none; }
-  .nav-btn.active::after { left: 50%; top: auto; bottom: -0.5rem; transform: translateX(-50%); width: 20px; height: 3px; border-radius: 2px 2px 0 0; }
+  .nav-btn.active::after { left: 50%; top: auto; bottom: -0.25rem; transform: translateX(-50%); width: 18px; height: 2px; border-radius: 2px 2px 0 0; }
   .nav-btn.active svg { transform: none; }
-  .nav-btn { width: 44px; height: 44px; }
-  .nav-btn svg { width: 24px; height: 24px; }
-  .side-panel.is-mobile { position: fixed; top: 0; left: 0; height: calc(100% - 70px); width: 90vw !important; max-width: none; z-index: 1000; background: var(--color-bg-base); box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15); }
+  .nav-btn { width: 34px; height: 34px; }
+  .nav-btn svg { width: 19px; height: 19px; }
+  .side-panel.is-mobile { position: fixed; top: 0; left: 0; height: calc(100% - 40px); width: 90vw !important; max-width: none; z-index: 1000; background: var(--color-bg-base); box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15); }
   .slide-side-enter-active, .slide-side-leave-active { transition: transform 0.25s ease, opacity 0.25s ease; }
   .slide-side-enter-from, .slide-side-leave-to { transform: translateX(-100%); opacity: 0; }
 }

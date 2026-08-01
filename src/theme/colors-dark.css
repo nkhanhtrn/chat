@@ -94,6 +94,13 @@
   --color-highlight-3: rgba(255, 180, 200, 0.6);
   --color-highlight-4: rgba(210, 170, 255, 0.6);
 
+  /* Solid (opaque) variants of the highlight palette — used for pen strokes */
+  --color-stroke-0: rgb(255, 210, 70);
+  --color-stroke-1: rgb(120, 220, 100);
+  --color-stroke-2: rgb(90, 170, 255);
+  --color-stroke-3: rgb(255, 140, 170);
+  --color-stroke-4: rgb(190, 140, 255);
+
   /* Shadows */
   --shadow-sm: rgba(0, 0, 0, 0.3);
   --shadow-md: rgba(0, 0, 0, 0.5);

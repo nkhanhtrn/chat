@@ -87,6 +87,13 @@ describe('PdfRenderer', () => {
       const renderer = new PdfRenderer(container, new ArrayBuffer(8), { scale: 2.0 })
       expect(renderer.getScale()).toBe(2.0)
     })
+
+    it('applies spreadMode option at construction', () => {
+      expect(new PdfRenderer(container, new ArrayBuffer(8), { spreadMode: 'single' }).getSpreadMode()).toBe('single')
+      expect(new PdfRenderer(container, new ArrayBuffer(8), { spreadMode: 'double' }).getSpreadMode()).toBe('double')
+      expect(new PdfRenderer(container, new ArrayBuffer(8), { spreadMode: 'auto' }).getSpreadMode()).toBe('auto')
+      expect(new PdfRenderer(container, new ArrayBuffer(8)).getSpreadMode()).toBe('auto')
+    })
   })
 
   describe('initialize', () => {
@@ -347,6 +354,43 @@ describe('PdfRenderer', () => {
     })
   })
 
+  describe('spread mode', () => {
+    it('"double" override renders two pages even when auto would be single', async () => {
+      const renderer = new PdfRenderer(container, new ArrayBuffer(8), { spreadMode: 'double' })
+      await renderer.initialize()
+
+      expect(renderer.getSpreadMode()).toBe('double')
+      expect(mockGetPage).toHaveBeenCalledWith(1)
+      expect(mockGetPage).toHaveBeenCalledWith(2)
+      renderer.destroy()
+    })
+
+    it('"single" override renders one page even when auto would be spread', async () => {
+      Object.defineProperty(container, 'offsetWidth', { configurable: true, get: () => 1000 })
+      const renderer = new PdfRenderer(container, new ArrayBuffer(8), { spreadMode: 'single' })
+      await renderer.initialize()
+
+      expect(renderer.getSpreadMode()).toBe('single')
+      expect(mockGetPage).toHaveBeenCalledWith(1)
+      expect(mockGetPage).not.toHaveBeenCalledWith(2)
+      renderer.destroy()
+    })
+
+    it('setSpreadMode switches and re-renders', async () => {
+      const renderer = new PdfRenderer(container, new ArrayBuffer(8))
+      await renderer.initialize()
+      expect(renderer.getSpreadMode()).toBe('auto')
+
+      renderer.setSpreadMode('double')
+      // setSpreadMode fires an async re-render; let it flush
+      await new Promise(r => setTimeout(r, 10))
+
+      expect(renderer.getSpreadMode()).toBe('double')
+      expect(mockGetPage).toHaveBeenCalledWith(2)
+      renderer.destroy()
+    })
+  })
+
   describe('destroy', () => {
     it('destroys the PDF document', async () => {
       const renderer = new PdfRenderer(container, new ArrayBuffer(8))
@@ -415,29 +459,53 @@ describe('PdfRenderer', () => {
     })
   })
 
-  describe('text selection', () => {
-    it('fires onTextSelect on container pointerup', async () => {
-      const onTextSelect = vi.fn()
-      const renderer = new PdfRenderer(container, new ArrayBuffer(8), { onTextSelect })
+  describe('drawing strokes', () => {
+    it('attaches a stroke overlay per page render', async () => {
+      const renderer = new PdfRenderer(container, new ArrayBuffer(8), {
+        getStrokesForPage: () => [],
+      })
       await renderer.initialize()
 
-      const originalGetSelection = window.getSelection
-      const mockRange = {
-        getBoundingClientRect: () => ({ left: 10, width: 50, top: 10, bottom: 30, right: 60, height: 20, x: 10, y: 10, toJSON: () => ({}) }),
-      }
-      window.getSelection = vi.fn().mockReturnValue({
-        isCollapsed: false,
-        rangeCount: 1,
-        toString: () => 'selected text',
-        getRangeAt: () => mockRange,
-      }) as any
+      expect(container.querySelector('svg.pdf-draw-layer')).not.toBeNull()
+      renderer.destroy()
+    })
 
-      container.dispatchEvent(new Event('pointerup'))
+    it('renders persisted strokes from getStrokesForPage', async () => {
+      const strokes = [{ id: 's1', bookId: 'b', page: 1, tool: 'pen', colorIndex: 0, points: [{ x: 1, y: 2 }, { x: 3, y: 4 }], createdAt: 1, updatedAt: 1 }]
+      const renderer = new PdfRenderer(container, new ArrayBuffer(8), {
+        getStrokesForPage: () => strokes,
+      })
+      await renderer.initialize()
 
-      expect(onTextSelect).toHaveBeenCalled()
-      expect(onTextSelect.mock.calls[0][0].text).toBe('selected text')
+      expect(container.querySelectorAll('g[data-stroke-id]')).toHaveLength(1)
+      renderer.destroy()
+    })
 
-      window.getSelection = originalGetSelection
+    it('propagates tool/color changes to the active stroke layer', async () => {
+      const renderer = new PdfRenderer(container, new ArrayBuffer(8), { getStrokesForPage: () => [] })
+      await renderer.initialize()
+
+      const svg = container.querySelector('svg.pdf-draw-layer') as SVGSVGElement
+      expect(svg.style.pointerEvents).toBe('none')
+
+      renderer.setDrawTool('pen')
+      expect(svg.style.pointerEvents).toBe('auto')
+
+      renderer.setDrawColor(3)
+      renderer.destroy()
+    })
+
+    it('redrawStrokes re-reads the strokes callback', async () => {
+      let strokes: any[] = []
+      const renderer = new PdfRenderer(container, new ArrayBuffer(8), {
+        getStrokesForPage: () => strokes,
+      })
+      await renderer.initialize()
+
+      expect(container.querySelectorAll('g[data-stroke-id]')).toHaveLength(0)
+      strokes = [{ id: 's1', bookId: 'b', page: 1, tool: 'pen', colorIndex: 0, points: [{ x: 1, y: 2 }, { x: 3, y: 4 }], createdAt: 1, updatedAt: 1 }]
+      renderer.redrawStrokes()
+      expect(container.querySelectorAll('g[data-stroke-id]')).toHaveLength(1)
       renderer.destroy()
     })
   })
