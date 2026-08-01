@@ -1,4 +1,4 @@
-import { getDocument, GlobalWorkerOptions, TextLayer } from 'pdfjs-dist'
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist'
 import type { TocItem } from '@/types/book'
 
@@ -10,8 +10,9 @@ GlobalWorkerOptions.workerSrc = new URL(
 
 export interface PdfRendererOptions {
   scale?: number
+  /** Force spread (double-page) mode. `null` = auto-detect by container width. */
+  spread?: boolean | null
   onLocationChange?: (location: { page: number; totalPages: number; percentage: number; pageEnd?: number }) => void
-  onTextSelect?: (data: { text: string; x: number; y: number }) => void
 }
 
 export class PdfRenderer {
@@ -23,15 +24,17 @@ export class PdfRenderer {
   private _currentPage = 1
   private _totalPages = 0
   private _scale: number
+  private _spreadOverride: boolean | null = null
   private rendering = false
   private destroyed = false
-  private textSelectHandler: (() => void) | null = null
+  private panCleanup: (() => void) | null = null
 
   constructor(container: HTMLElement, fileData: ArrayBuffer, options: PdfRendererOptions = {}) {
     this.container = container
     this.fileData = fileData
     this.options = options
     this._scale = options.scale ?? 1.5
+    this._spreadOverride = options.spread ?? null
   }
 
   async initialize(): Promise<void> {
@@ -50,8 +53,8 @@ export class PdfRenderer {
     // Render first page
     await this.renderPage(this._currentPage)
 
-    // Setup text selection
-    this.setupTextSelection()
+    // Setup drag-to-pan interaction
+    this.setupPan()
 
     // Notify initial location
     this.notifyLocationChange()
@@ -121,7 +124,23 @@ export class PdfRenderer {
   }
 
   private get isSpread(): boolean {
+    if (this._spreadOverride !== null) return this._spreadOverride
     return (this.container.clientWidth || this.container.offsetWidth || 800) >= 900
+  }
+
+  /** Returns the effective spread (double-page) state. */
+  getSpread(): boolean {
+    return this.isSpread
+  }
+
+  /** Force single (false) or double (true) page mode, then re-render. */
+  async setSpread(enabled: boolean): Promise<void> {
+    if (this._spreadOverride === enabled) return
+    this._spreadOverride = enabled
+    if (this.destroyed) return
+    await this.renderPage(this._currentPage)
+    if (this.destroyed) return
+    this.notifyLocationChange()
   }
 
   resize(width: number, height: number): void {
@@ -133,9 +152,9 @@ export class PdfRenderer {
 
   destroy(): void {
     this.destroyed = true
-    if (this.textSelectHandler) {
-      this.container.removeEventListener('pointerup', this.textSelectHandler)
-      this.textSelectHandler = null
+    if (this.panCleanup) {
+      this.panCleanup()
+      this.panCleanup = null
     }
     this.container.innerHTML = ''
     if (this.pdfDoc) {
@@ -159,6 +178,7 @@ export class PdfRenderer {
       }
 
       this.container.scrollTop = 0
+      this.updatePanCursor()
     } finally {
       this.rendering = false
     }
@@ -225,47 +245,62 @@ export class PdfRenderer {
     await page.render({ canvas, canvasContext: ctx, viewport }).promise
     if (this.destroyed) return null
 
-    const textLayerDiv = document.createElement('div')
-    textLayerDiv.className = 'pdf-text-layer'
-    textLayerDiv.style.width = displayWidth + 'px'
-    textLayerDiv.style.height = displayHeight + 'px'
-
-    const textContent = await page.getTextContent()
-    if (this.destroyed) return null
-
-    const textLayer = new TextLayer({
-      textContentSource: textContent,
-      container: textLayerDiv,
-      viewport: viewport,
-    })
-    await textLayer.render()
-    if (this.destroyed) return null
-
     const wrapper = document.createElement('div')
     wrapper.className = 'pdf-page-wrapper'
     wrapper.style.width = displayWidth + 'px'
     wrapper.appendChild(canvas)
-    wrapper.appendChild(textLayerDiv)
 
     return wrapper
   }
 
-  private setupTextSelection(): void {
-    this.textSelectHandler = () => {
-      const selection = window.getSelection()
-      if (!selection || selection.isCollapsed || !selection.rangeCount) return
-      const text = selection.toString().trim()
-      if (!text) return
-      const range = selection.getRangeAt(0)
-      const rect = range.getBoundingClientRect()
+  private setupPan(): void {
+    let panning = false
+    let startX = 0
+    let startY = 0
+    let startScrollLeft = 0
+    let startScrollTop = 0
 
-      this.options.onTextSelect?.({
-        text,
-        x: rect.left + rect.width / 2,
-        y: rect.bottom,
-      })
+    const onDown = (e: PointerEvent) => {
+      if (!this.contentOverflows()) return
+      panning = true
+      startX = e.clientX
+      startY = e.clientY
+      startScrollLeft = this.container.scrollLeft
+      startScrollTop = this.container.scrollTop
+      this.container.style.cursor = 'grabbing'
     }
-    this.container.addEventListener('pointerup', this.textSelectHandler)
+    const onMove = (e: PointerEvent) => {
+      if (!panning) return
+      this.container.scrollLeft = startScrollLeft - (e.clientX - startX)
+      this.container.scrollTop = startScrollTop - (e.clientY - startY)
+    }
+    const onUp = () => {
+      if (!panning) return
+      panning = false
+      this.updatePanCursor()
+    }
+
+    this.container.addEventListener('pointerdown', onDown)
+    this.container.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+
+    this.panCleanup = () => {
+      this.container.removeEventListener('pointerdown', onDown)
+      this.container.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+  }
+
+  private contentOverflows(): boolean {
+    return this.container.scrollWidth > this.container.clientWidth + 1 ||
+      this.container.scrollHeight > this.container.clientHeight + 1
+  }
+
+  private updatePanCursor(): void {
+    if (this.destroyed) return
+    const overflows = this.contentOverflows()
+    this.container.style.cursor = overflows ? 'grab' : 'default'
+    this.container.style.touchAction = overflows ? 'none' : 'auto'
   }
 
   private notifyLocationChange(): void {
