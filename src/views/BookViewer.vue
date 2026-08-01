@@ -29,6 +29,15 @@
           <button class="nav-btn" @click="handlePrevPage" :disabled="!canGoPrev">&larr; Previous</button>
           <template v-if="bookFileType === 'pdf'">
             <div class="pdf-controls">
+              <button class="nav-btn spread-btn" @click="togglePageMode" :title="pdfDoublePage ? 'Double page — click for single' : 'Single page — click for double'">
+                <svg v-if="pdfDoublePage" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 5h6a2 2 0 0 1 2 2v12a1 1 0 0 0-1-1H3z"/>
+                  <path d="M21 5h-6a2 2 0 0 0-2 2v12a1 1 0 0 1 1-1h7z"/>
+                </svg>
+                <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="6" y="3" width="12" height="18" rx="1"/>
+                </svg>
+              </button>
               <button class="nav-btn zoom-btn" @click="zoomOut" :disabled="pdfScale <= 0.5">−</button>
               <span class="zoom-info">{{ Math.round(pdfScale * 100) }}%</span>
               <button class="nav-btn zoom-btn" @click="zoomIn" :disabled="pdfScale >= 4">+</button>
@@ -110,9 +119,19 @@ const contextMenu = reactive({ visible: false, x: 0, y: 0, text: '', context: ''
 const dictionary = reactive({ show: false, word: '', definition: '', pronunciation: '', context: '' })
 const response = reactive({ show: false, title: '', content: '', streaming: false })
 
+const PDF_DOUBLE_PAGE_KEY = 'pdf-double-page'
+function loadDoublePagePref(): boolean {
+  try {
+    const stored = localStorage.getItem(PDF_DOUBLE_PAGE_KEY)
+    if (stored !== null) return stored === 'true'
+  } catch {}
+  return (typeof window !== 'undefined' ? window.innerWidth : 1024) >= 900
+}
+
 // PDF-specific state (plain variable — same pattern as epub renderer, avoids Vue reactive proxy wrapping pdfjs internals)
 let pdfRenderer: PdfRenderer | null = null
 const pdfScale = ref(1.0)
+const pdfDoublePage = ref(loadDoublePagePref())
 const currentPage = ref(1)
 const pageEnd = ref<number | undefined>()
 const totalPages = ref(0)
@@ -328,13 +347,7 @@ async function renderPdf(bookId: string, fileData: ArrayBuffer) {
 
   const pr = new PdfRenderer(viewerContainer.value!, fileData, {
     scale: pdfScale.value,
-    onTextSelect(data) {
-      contextMenu.x = data.x
-      contextMenu.y = data.y
-      contextMenu.text = data.text
-      contextMenu.context = data.context || ''
-      contextMenu.visible = true
-    },
+    spread: pdfDoublePage.value,
     onLocationChange(location) {
       currentPage.value = location.page
       pageEnd.value = location.pageEnd
@@ -496,6 +509,14 @@ function zoomOut() {
   pdfRenderer?.setScale(pdfScale.value)
 }
 
+function togglePageMode() {
+  pdfDoublePage.value = !pdfDoublePage.value
+  try {
+    localStorage.setItem(PDF_DOUBLE_PAGE_KEY, String(pdfDoublePage.value))
+  } catch {}
+  pdfRenderer?.setSpread(pdfDoublePage.value)
+}
+
 function destroyRenderer() {
   resizeObserver?.disconnect()
   resizeObserver = null
@@ -584,13 +605,12 @@ onBeforeUnmount(() => {
 .book-header h2 { font-family: Georgia, serif; font-weight: 400; color: var(--color-text-message); margin: 0; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .book-author { color: var(--color-text-muted); font-size: 0.85rem; font-weight: 400; }
 .progress-bar { flex-shrink: 0; }
-.viewer-container { flex: 1; overflow: auto; max-width: var(--book-max-width, 100%); margin: 0 auto; width: 100%; display: flex; justify-content: center; }
+.viewer-container { flex: 1; overflow: auto; max-width: var(--book-max-width, 100%); margin: 0 auto; width: 100%; display: flex; scrollbar-width: none; }
+.viewer-container::-webkit-scrollbar { display: none; }
 .viewer-container :deep(.epub-container) { margin: 0 auto; }
 .viewer-container :deep(.pdf-page-wrapper) { position: relative; margin: 1rem auto; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
 .viewer-container :deep(.pdf-spread) { display: flex; justify-content: center; gap: 1rem; margin: 1rem auto; }
 .viewer-container :deep(.pdf-spread .pdf-page-wrapper) { margin: 0; }
-.viewer-container :deep(.pdf-text-layer) { position: absolute; left: 0; top: 0; right: 0; bottom: 0; overflow: hidden; opacity: 0.25; line-height: 1.0; }
-.viewer-container :deep(.pdf-text-layer > span) { color: transparent; position: absolute; white-space: pre; cursor: text; }
 .page-nav { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 2rem; border-top: 1px solid var(--color-border-base); flex-shrink: 0; }
 .nav-btn { padding: 0.4rem 1rem; background: var(--color-bg-base); border: 1px solid var(--color-border-base); border-radius: 4px; color: var(--color-text-message); cursor: pointer; }
 .nav-btn:hover:not(:disabled) { background: var(--color-bg-hover); }
@@ -598,6 +618,7 @@ onBeforeUnmount(() => {
 .page-info { font-size: 0.85rem; color: var(--color-text-muted); }
 .pdf-controls { display: flex; align-items: center; gap: 0.5rem; }
 .zoom-btn { padding: 0.3rem 0.6rem; min-width: 2rem; }
+.spread-btn { display: flex; align-items: center; justify-content: center; padding: 0.3rem 0.5rem; }
 .zoom-info { font-size: 0.8rem; color: var(--color-text-muted); min-width: 3rem; text-align: center; }
 @media (max-width: 768px) { .book-header { padding: 0.75rem 1rem; } }
 </style>

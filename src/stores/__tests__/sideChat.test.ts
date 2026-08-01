@@ -14,6 +14,7 @@ describe('useSideChatStore', () => {
   let store: ReturnType<typeof useSideChatStore>
 
   beforeEach(() => {
+    localStorage.clear()
     setActivePinia(createPinia())
     store = useSideChatStore()
     vi.clearAllMocks()
@@ -119,6 +120,34 @@ describe('useSideChatStore', () => {
     it('leaves normal content untouched', async () => {
       await store.sendMessage('test')
       expect(store.messages[1].content).toBe('Hello! How can I help?')
+    })
+  })
+
+  describe('local persistence', () => {
+    it('persists messages to localStorage after sending', async () => {
+      await store.sendMessage('Hello')
+      const raw = localStorage.getItem('side-chat')
+      expect(raw).not.toBeNull()
+      const parsed = JSON.parse(raw!)
+      expect(parsed.messages).toHaveLength(2)
+      expect(parsed.sessionId).toBe('mock-session-id')
+    })
+
+    it('hydrates messages from localStorage on init', async () => {
+      await store.sendMessage('Persisted')
+      const fresh = createPinia()
+      setActivePinia(fresh)
+      const reloaded = useSideChatStore()
+      expect(reloaded.messages).toHaveLength(2)
+      expect(reloaded.messages[0].content).toBe('Persisted')
+      expect(reloaded.sessionId).toBe('mock-session-id')
+    })
+
+    it('removes persisted chat on clearChat', async () => {
+      await store.sendMessage('Hello')
+      expect(localStorage.getItem('side-chat')).not.toBeNull()
+      store.clearChat()
+      expect(localStorage.getItem('side-chat')).toBeNull()
     })
   })
 })

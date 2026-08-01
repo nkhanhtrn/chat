@@ -38,9 +38,6 @@ vi.mock('pdfjs-dist', () => {
   return {
     getDocument: vi.fn().mockReturnValue(mockLoadingTask),
     GlobalWorkerOptions: { workerSrc: '' },
-    TextLayer: vi.fn().mockImplementation(function () {
-      return { render: vi.fn().mockResolvedValue(undefined), cancel: vi.fn() }
-    }),
   }
 })
 
@@ -49,12 +46,11 @@ const { mockNumPages, mockGetPage, mockGetOutline, mockGetMetadata, mockGetDesti
 // Import after mocks
 import { PdfRenderer, extractPdfInfo, extractPdfToc } from '../pdfRenderer'
 
-function createMockPage(text = 'Hello world') {
+function createMockPage() {
   const viewport = { width: 200, height: 300 }
   return {
     getViewport: vi.fn().mockReturnValue(viewport),
     render: vi.fn().mockResolvedValue({ promise: Promise.resolve() }),
-    getTextContent: vi.fn().mockResolvedValue({ items: [{ str: text, transform: [12, 0, 0, 12, 10, 20], width: 50, height: 12 }] }),
   }
 }
 
@@ -415,29 +411,22 @@ describe('PdfRenderer', () => {
     })
   })
 
-  describe('text selection', () => {
-    it('fires onTextSelect on container pointerup', async () => {
-      const onTextSelect = vi.fn()
-      const renderer = new PdfRenderer(container, new ArrayBuffer(8), { onTextSelect })
+  describe('spread mode', () => {
+    it('respects explicit spread override via getSpread', async () => {
+      const renderer = new PdfRenderer(container, new ArrayBuffer(8), { spread: true })
       await renderer.initialize()
 
-      const originalGetSelection = window.getSelection
-      const mockRange = {
-        getBoundingClientRect: () => ({ left: 10, width: 50, top: 10, bottom: 30, right: 60, height: 20, x: 10, y: 10, toJSON: () => ({}) }),
-      }
-      window.getSelection = vi.fn().mockReturnValue({
-        isCollapsed: false,
-        rangeCount: 1,
-        toString: () => 'selected text',
-        getRangeAt: () => mockRange,
-      }) as any
+      expect(renderer.getSpread()).toBe(true)
+      renderer.destroy()
+    })
 
-      container.dispatchEvent(new Event('pointerup'))
+    it('toggles spread via setSpread and re-renders', async () => {
+      const renderer = new PdfRenderer(container, new ArrayBuffer(8))
+      await renderer.initialize()
+      expect(renderer.getSpread()).toBe(false)
 
-      expect(onTextSelect).toHaveBeenCalled()
-      expect(onTextSelect.mock.calls[0][0].text).toBe('selected text')
-
-      window.getSelection = originalGetSelection
+      await renderer.setSpread(true)
+      expect(renderer.getSpread()).toBe(true)
       renderer.destroy()
     })
   })
