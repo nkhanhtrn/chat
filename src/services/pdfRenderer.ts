@@ -1,6 +1,8 @@
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist'
 import type { TocItem } from '@/types/book'
+import type { Stroke, StrokeDraft } from '@/types/stroke'
+import { StrokeLayer, type DrawTool } from '@/services/strokeLayer'
 
 // Set up the web worker for pdfjs
 GlobalWorkerOptions.workerSrc = new URL(
@@ -8,11 +10,17 @@ GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString()
 
+export type SpreadMode = 'single' | 'double' | 'auto'
+
 export interface PdfRendererOptions {
   scale?: number
-  /** Force spread (double-page) mode. `null` = auto-detect by container width. */
-  spread?: boolean | null
+  spreadMode?: SpreadMode
   onLocationChange?: (location: { page: number; totalPages: number; percentage: number; pageEnd?: number }) => void
+  getStrokesForPage?: (page: number) => Stroke[]
+  onStrokeAdd?: (draft: StrokeDraft) => void
+  onStrokeRemove?: (strokeId: string) => void
+  drawTool?: DrawTool
+  drawColorIndex?: number
 }
 
 export class PdfRenderer {
@@ -24,17 +32,21 @@ export class PdfRenderer {
   private _currentPage = 1
   private _totalPages = 0
   private _scale: number
-  private _spreadOverride: boolean | null = null
+  private _spreadOverride: Exclude<SpreadMode, 'auto'> | null = null
   private rendering = false
   private destroyed = false
-  private panCleanup: (() => void) | null = null
+  private strokeLayers: StrokeLayer[] = []
+  private _drawTool: DrawTool
+  private _drawColor: number
 
   constructor(container: HTMLElement, fileData: ArrayBuffer, options: PdfRendererOptions = {}) {
     this.container = container
     this.fileData = fileData
     this.options = options
     this._scale = options.scale ?? 1.5
-    this._spreadOverride = options.spread ?? null
+    this._drawTool = options.drawTool ?? 'select'
+    this._drawColor = options.drawColorIndex ?? 0
+    this._spreadOverride = options.spreadMode && options.spreadMode !== 'auto' ? options.spreadMode : null
   }
 
   async initialize(): Promise<void> {
@@ -52,9 +64,6 @@ export class PdfRenderer {
 
     // Render first page
     await this.renderPage(this._currentPage)
-
-    // Setup drag-to-pan interaction
-    this.setupPan()
 
     // Notify initial location
     this.notifyLocationChange()
@@ -119,28 +128,40 @@ export class PdfRenderer {
     return this._scale
   }
 
+  setDrawTool(tool: DrawTool): void {
+    this._drawTool = tool
+    this.strokeLayers.forEach(l => l.setTool(tool))
+  }
+
+  setDrawColor(colorIndex: number): void {
+    this._drawColor = colorIndex
+    this.strokeLayers.forEach(l => l.setColor(colorIndex))
+  }
+
+  redrawStrokes(): void {
+    this.strokeLayers.forEach(l => l.redraw())
+  }
+
+  setSpreadMode(mode: SpreadMode): void {
+    this._spreadOverride = mode === 'auto' ? null : mode
+    if (this.destroyed || !this.pdfDoc) return
+    this.renderPage(this._currentPage).then(() => {
+      if (!this.destroyed) this.notifyLocationChange()
+    })
+  }
+
+  getSpreadMode(): SpreadMode {
+    return this._spreadOverride ?? 'auto'
+  }
+
   get totalPages(): number {
     return this._totalPages
   }
 
   private get isSpread(): boolean {
-    if (this._spreadOverride !== null) return this._spreadOverride
+    if (this._spreadOverride === 'single') return false
+    if (this._spreadOverride === 'double') return true
     return (this.container.clientWidth || this.container.offsetWidth || 800) >= 900
-  }
-
-  /** Returns the effective spread (double-page) state. */
-  getSpread(): boolean {
-    return this.isSpread
-  }
-
-  /** Force single (false) or double (true) page mode, then re-render. */
-  async setSpread(enabled: boolean): Promise<void> {
-    if (this._spreadOverride === enabled) return
-    this._spreadOverride = enabled
-    if (this.destroyed) return
-    await this.renderPage(this._currentPage)
-    if (this.destroyed) return
-    this.notifyLocationChange()
   }
 
   resize(width: number, height: number): void {
@@ -152,10 +173,7 @@ export class PdfRenderer {
 
   destroy(): void {
     this.destroyed = true
-    if (this.panCleanup) {
-      this.panCleanup()
-      this.panCleanup = null
-    }
+    this.detachStrokeLayers()
     this.container.innerHTML = ''
     if (this.pdfDoc) {
       this.pdfDoc.destroy()
@@ -163,9 +181,15 @@ export class PdfRenderer {
     }
   }
 
+  private detachStrokeLayers(): void {
+    this.strokeLayers.forEach(l => l.detach())
+    this.strokeLayers = []
+  }
+
   private async renderPage(pageNum: number): Promise<void> {
     if (!this.pdfDoc || this.rendering || this.destroyed) return
     this.rendering = true
+    this.detachStrokeLayers()
 
     try {
       if (this.isSpread) {
@@ -178,7 +202,6 @@ export class PdfRenderer {
       }
 
       this.container.scrollTop = 0
-      this.updatePanCursor()
     } finally {
       this.rendering = false
     }
@@ -248,59 +271,24 @@ export class PdfRenderer {
     const wrapper = document.createElement('div')
     wrapper.className = 'pdf-page-wrapper'
     wrapper.style.width = displayWidth + 'px'
+    wrapper.style.position = 'relative'
     wrapper.appendChild(canvas)
 
+    const strokeLayer = new StrokeLayer(wrapper, {
+      page: pageNum,
+      viewBoxWidth: naturalViewport.width,
+      viewBoxHeight: naturalViewport.height,
+      displayWidth,
+      displayHeight,
+      tool: this._drawTool,
+      colorIndex: this._drawColor,
+      getStrokes: () => this.options.getStrokesForPage?.(pageNum) ?? [],
+      onCreate: (draft) => { this.options.onStrokeAdd?.(draft) },
+      onErase: (id) => { this.options.onStrokeRemove?.(id) },
+    })
+    this.strokeLayers.push(strokeLayer)
+
     return wrapper
-  }
-
-  private setupPan(): void {
-    let panning = false
-    let startX = 0
-    let startY = 0
-    let startScrollLeft = 0
-    let startScrollTop = 0
-
-    const onDown = (e: PointerEvent) => {
-      if (!this.contentOverflows()) return
-      panning = true
-      startX = e.clientX
-      startY = e.clientY
-      startScrollLeft = this.container.scrollLeft
-      startScrollTop = this.container.scrollTop
-      this.container.style.cursor = 'grabbing'
-    }
-    const onMove = (e: PointerEvent) => {
-      if (!panning) return
-      this.container.scrollLeft = startScrollLeft - (e.clientX - startX)
-      this.container.scrollTop = startScrollTop - (e.clientY - startY)
-    }
-    const onUp = () => {
-      if (!panning) return
-      panning = false
-      this.updatePanCursor()
-    }
-
-    this.container.addEventListener('pointerdown', onDown)
-    this.container.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onUp)
-
-    this.panCleanup = () => {
-      this.container.removeEventListener('pointerdown', onDown)
-      this.container.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
-    }
-  }
-
-  private contentOverflows(): boolean {
-    return this.container.scrollWidth > this.container.clientWidth + 1 ||
-      this.container.scrollHeight > this.container.clientHeight + 1
-  }
-
-  private updatePanCursor(): void {
-    if (this.destroyed) return
-    const overflows = this.contentOverflows()
-    this.container.style.cursor = overflows ? 'grab' : 'default'
-    this.container.style.touchAction = overflows ? 'none' : 'auto'
   }
 
   private notifyLocationChange(): void {

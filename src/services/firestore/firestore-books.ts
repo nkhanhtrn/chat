@@ -2,6 +2,7 @@ import { getFirestore, doc, setDoc, deleteDoc, collection, getDocs } from 'fireb
 import { getStorage, ref, uploadBytesResumable, getBlob, deleteObject } from 'firebase/storage'
 import { getFirebaseAuth } from '@/services/firebase'
 import type { BookData } from '@/types/book'
+import { wipeStrokesForBook } from './firestore-strokes'
 
 function getUid(): string | null {
   const auth = getFirebaseAuth()
@@ -31,6 +32,9 @@ export async function deleteBookFromFirestore(bookId: string): Promise<void> {
   } catch (error) {
     console.warn('[FirestoreBooks] Failed to delete book doc:', error)
   }
+
+  // Purge any drawing annotations for this book (best-effort)
+  wipeStrokesForBook(bookId).catch(() => {})
 
   // Also try to delete files from storage
   try {
