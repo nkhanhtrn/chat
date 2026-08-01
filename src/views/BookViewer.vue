@@ -29,24 +29,55 @@
               </button>
               <span class="ctrl-sep"></span>
               <button class="nav-btn zoom-btn" @click="zoomOut" :disabled="pdfScale <= 0.5" title="Zoom out">−</button>
-              <span class="zoom-info">{{ Math.round(pdfScale * 100) }}%</span>
+              <div class="tool-anchor">
+                <span class="zoom-info" @click="togglePopover('zoom')" title="Click to adjust zoom">{{ Math.round(pdfScale * 100) }}%</span>
+                <div v-if="openPopover === 'zoom'" class="tool-popover" @pointerdown.stop>
+                  <div class="popover-label">Zoom</div>
+                  <div class="popover-slider-row">
+                    <input type="range" class="size-slider" min="50" max="400" step="10" :value="Math.round(pdfScale * 100)" @input="onZoomSliderInput" @change="onZoomChange" />
+                    <input type="number" class="zoom-num-input" min="50" max="400" :value="Math.round(pdfScale * 100)" @change="onZoomInputChange" />
+                    <span class="size-unit">%</span>
+                  </div>
+                  <div class="popover-presets">
+                    <button v-for="p in ZOOM_PRESETS" :key="p" class="preset-btn" @click="setZoom(p / 100)">{{ p }}%</button>
+                  </div>
+                </div>
+              </div>
               <button class="nav-btn zoom-btn" @click="zoomIn" :disabled="pdfScale >= 4" title="Zoom in">+</button>
               <button class="nav-btn tool-btn" :class="{ active: spreadMode === 'double' }" :title="spreadMode === 'double' ? 'Double-page view' : 'Single-page view'" @click="toggleSpread">
                 <svg v-if="spreadMode === 'double'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="7" height="14" rx="1"/><rect x="14" y="5" width="7" height="14" rx="1"/></svg>
                 <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="5" width="8" height="14" rx="1"/></svg>
               </button>
               <span class="ctrl-sep"></span>
-              <button
+              <div
                 v-for="t in DRAW_TOOLS"
                 :key="t.tool"
-                class="nav-btn tool-btn"
-                :class="{ active: drawTool === t.tool }"
-                :title="t.label"
-                :aria-label="t.label"
-                @click="setTool(t.tool)"
+                class="tool-anchor"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path :d="t.icon" /></svg>
-              </button>
+                <button
+                  class="nav-btn tool-btn"
+                  :class="{ active: drawTool === t.tool }"
+                  :title="t.hasSettings ? `${t.label} (click again when active for size)` : t.label"
+                  :aria-label="t.label"
+                  @click="onToolClick(t.tool)"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path :d="t.icon" /></svg>
+                </button>
+                <div v-if="openPopover === 'pen' && t.tool === 'pen'" class="tool-popover" @pointerdown.stop>
+                  <div class="popover-label">Pen size</div>
+                  <div class="popover-slider-row">
+                    <input type="range" class="size-slider" min="0.5" max="8" step="0.1" :value="penSize" @input="onPenSizeInput" />
+                    <span class="size-value">{{ penSize.toFixed(1) }}</span>
+                  </div>
+                </div>
+                <div v-if="openPopover === 'highlighter' && t.tool === 'highlighter'" class="tool-popover" @pointerdown.stop>
+                  <div class="popover-label">Highlighter size</div>
+                  <div class="popover-slider-row">
+                    <input type="range" class="size-slider" min="4" max="40" step="0.5" :value="highlighterSize" @input="onHighlighterSizeInput" />
+                    <span class="size-value">{{ highlighterSize.toFixed(1) }}</span>
+                  </div>
+                </div>
+              </div>
               <div class="stroke-color-picker">
                 <button
                   v-for="(_, i) in STROKE_COLORS"
@@ -134,7 +165,7 @@ import { useBooksStore } from '@/stores/books'
 import { useStrokesStore } from '@/stores/strokes'
 import { EpubRenderer } from '@/services/epubRenderer'
 import { PdfRenderer, type SpreadMode } from '@/services/pdfRenderer'
-import { Settings } from '@/services/settings'
+import { Settings, type SettingsData } from '@/services/settings'
 import lmService from '@/services/llm/LMService'
 import { getQuickExplainPrompts, getMainPrompts, getSummaryPrompts } from '@/services/extraPrompt'
 import { useVocabulary } from '@/composables/useVocabulary'
@@ -163,52 +194,163 @@ const response = reactive({ show: false, title: '', content: '', streaming: fals
 
 // PDF-specific state (plain variable — same pattern as epub renderer, avoids Vue reactive proxy wrapping pdfjs internals)
 let pdfRenderer: PdfRenderer | null = null
-const PDF_SCALE_KEY = 'pdf-scale'
-function loadPdfScale(): number {
-  const v = typeof localStorage !== 'undefined' ? localStorage.getItem(PDF_SCALE_KEY) : null
+
+// Zoom is per-book and stays local (not cloud-synced)
+let currentPdfBookId: string | null = null
+function loadPdfScaleForBook(bookId: string): number {
+  const v = typeof localStorage !== 'undefined' ? localStorage.getItem(`pdf-scale-${bookId}`) : null
   const n = v ? parseFloat(v) : NaN
   return Number.isFinite(n) && n >= 0.5 && n <= 4 ? n : 1.0
 }
-const pdfScale = ref<number>(loadPdfScale())
+function savePdfScale(): void {
+  if (!currentPdfBookId) return
+  try { localStorage.setItem(`pdf-scale-${currentPdfBookId}`, String(pdfScale.value)) } catch {}
+}
+const pdfScale = ref<number>(1.0)
 const currentPage = ref(1)
 const pageEnd = ref<number | undefined>()
 const totalPages = ref(0)
 
-// Drawing annotations (PDF only)
-const PDF_DRAW_TOOL_KEY = 'pdf-draw-tool'
+// Drawing annotations (PDF only) — synced to cloud as global prefs via Settings
+
+// One-time migration from legacy localStorage keys to cloud-synced Settings
+function migrateLegacyPdfSettings(): void {
+  if (typeof localStorage === 'undefined') return
+  const pairs: [string, string][] = [
+    ['pdf-draw-tool', 'pdfDrawTool'],
+    ['pdf-pen-size', 'pdfPenSize'],
+    ['pdf-highlighter-size', 'pdfHighlighterSize'],
+    ['pdf-spread-mode', 'pdfSpreadMode'],
+  ]
+  for (const [oldKey, settingsKey] of pairs) {
+    const v = localStorage.getItem(oldKey)
+    if (v === null) continue
+    if (Settings.get(settingsKey as keyof typeof Settings) === undefined) {
+      const parsed = isNaN(Number(v)) ? v : Number(v)
+      Settings.set({ [settingsKey]: parsed } as Partial<SettingsData>)
+    }
+    try { localStorage.removeItem(oldKey) } catch {}
+  }
+}
+migrateLegacyPdfSettings()
+
 function loadDrawTool(): DrawTool {
-  const v = typeof localStorage !== 'undefined' ? localStorage.getItem(PDF_DRAW_TOOL_KEY) : null
+  const v = Settings.get('pdfDrawTool')
   return v === 'select' || v === 'pen' || v === 'highlighter' || v === 'eraser' ? v : 'select'
 }
 const drawTool = ref<DrawTool>(loadDrawTool())
-const drawColorIndex = ref(0)
-const PDF_SPREAD_KEY = 'pdf-spread-mode'
+function loadDrawColor(): number {
+  const v = Settings.get('pdfDrawColor')
+  return typeof v === 'number' && v >= 0 && v <= 4 ? v : 0
+}
+const drawColorIndex = ref<number>(loadDrawColor())
+const openPopover = ref<null | 'pen' | 'highlighter' | 'zoom'>(null)
+
+function loadPenSize(): number {
+  const v = Settings.get('pdfPenSize')
+  return typeof v === 'number' && v >= 0.5 && v <= 8 ? v : 1.8
+}
+const penSize = ref<number>(loadPenSize())
+
+function loadHighlighterSize(): number {
+  const v = Settings.get('pdfHighlighterSize')
+  return typeof v === 'number' && v >= 4 && v <= 40 ? v : 14
+}
+const highlighterSize = ref<number>(loadHighlighterSize())
+
+const ZOOM_PRESETS = [75, 100, 150, 200]
 function loadSpreadMode(): SpreadMode {
-  const v = typeof localStorage !== 'undefined' ? localStorage.getItem(PDF_SPREAD_KEY) : null
+  const v = Settings.get('pdfSpreadMode')
   return v === 'single' || v === 'double' ? v : 'auto'
 }
 const spreadMode = ref<SpreadMode>(loadSpreadMode())
-const DRAW_TOOLS: { tool: DrawTool; label: string; icon: string }[] = [
+const DRAW_TOOLS: { tool: DrawTool; label: string; icon: string; hasSettings?: boolean }[] = [
   { tool: 'select', label: 'Select', icon: 'M5 3l5.5 15.5L13 12l6.5-2.5z' },
-  { tool: 'pen', label: 'Pen', icon: 'M16 3l5 5L8 21H3v-5z' },
-  { tool: 'highlighter', label: 'Highlighter', icon: 'M9 11l3-3 5 5-3 3zM6 14l3 3-2.5 2.5H3.5V17z' },
+  { tool: 'pen', label: 'Pen', icon: 'M16 3l5 5L8 21H3v-5z', hasSettings: true },
+  { tool: 'highlighter', label: 'Highlighter', icon: 'M9 11l3-3 5 5-3 3zM6 14l3 3-2.5 2.5H3.5V17z', hasSettings: true },
   { tool: 'eraser', label: 'Eraser', icon: 'M5 19h14M9 15l5-5 5 5-5 5z' },
 ]
 
 function setTool(tool: DrawTool): void {
   drawTool.value = tool
-  try { localStorage.setItem(PDF_DRAW_TOOL_KEY, tool) } catch {}
+  Settings.set({ pdfDrawTool: tool })
   pdfRenderer?.setDrawTool(tool)
+}
+
+function onToolClick(tool: DrawTool): void {
+  if (drawTool.value === tool && (tool === 'pen' || tool === 'highlighter')) {
+    togglePopover(tool)
+  } else {
+    openPopover.value = null
+    setTool(tool)
+  }
 }
 
 function setStrokeColor(i: number): void {
   drawColorIndex.value = i
+  Settings.set({ pdfDrawColor: i })
   pdfRenderer?.setDrawColor(i)
 }
 
+function togglePopover(tool: 'pen' | 'highlighter' | 'zoom'): void {
+  openPopover.value = openPopover.value === tool ? null : tool
+}
+
+function onPenSizeInput(e: Event): void {
+  penSize.value = Number((e.target as HTMLInputElement).value)
+  Settings.set({ pdfPenSize: penSize.value })
+  pdfRenderer?.setPenWidth(penSize.value)
+}
+
+function onHighlighterSizeInput(e: Event): void {
+  highlighterSize.value = Number((e.target as HTMLInputElement).value)
+  Settings.set({ pdfHighlighterSize: highlighterSize.value })
+  pdfRenderer?.setHighlighterWidth(highlighterSize.value)
+}
+
+function onZoomSliderInput(e: Event): void {
+  const pct = Number((e.target as HTMLInputElement).value)
+  pdfScale.value = pct / 100
+  savePdfScale()
+}
+
+function onZoomChange(): void {
+  pdfRenderer?.setScale(pdfScale.value)
+}
+
+function onZoomInputChange(e: Event): void {
+  const pct = Number((e.target as HTMLInputElement).value)
+  const clamped = Math.max(50, Math.min(400, Number.isNaN(pct) ? 100 : pct))
+  pdfScale.value = clamped / 100
+  savePdfScale()
+  pdfRenderer?.setScale(pdfScale.value)
+}
+
+function setZoom(scale: number): void {
+  pdfScale.value = Math.max(0.5, Math.min(4, scale))
+  savePdfScale()
+  pdfRenderer?.setScale(pdfScale.value)
+}
+
+function onPopoverOutsideClick(e: PointerEvent): void {
+  if (openPopover.value === null) return
+  const target = e.target as HTMLElement | null
+  if (!target?.closest('.tool-popover') && !target?.closest('.tool-anchor')) {
+    openPopover.value = null
+  }
+}
+
+watch(openPopover, (val, oldVal) => {
+  if (val && !oldVal) {
+    window.addEventListener('pointerdown', onPopoverOutsideClick)
+  } else if (!val && oldVal) {
+    window.removeEventListener('pointerdown', onPopoverOutsideClick)
+  }
+})
+
 function toggleSpread(): void {
   spreadMode.value = spreadMode.value === 'double' ? 'single' : 'double'
-  try { localStorage.setItem(PDF_SPREAD_KEY, spreadMode.value) } catch {}
+  Settings.set({ pdfSpreadMode: spreadMode.value })
   pdfRenderer?.setSpreadMode(spreadMode.value)
 }
 
@@ -338,7 +480,7 @@ async function endGesture(): Promise<void> {
   gestureActive.value = false
   pdfRenderer?.setGestureActive(false)
   if (Math.abs(finalScale - startScale) > 0.01) {
-    try { localStorage.setItem(PDF_SCALE_KEY, String(finalScale)) } catch {}
+    savePdfScale()
     await pdfRenderer?.setScale(finalScale)
   }
   gestureScaleRatio = 1
@@ -595,6 +737,9 @@ async function renderPdf(bookId: string, fileData: ArrayBuffer) {
   // Don't save position during init/restoration — only after setup is complete
   let positionSaveEnabled = false
 
+  currentPdfBookId = bookId
+  pdfScale.value = loadPdfScaleForBook(bookId)
+
   await strokesStore.loadForBook(bookId)
 
   const pr = new PdfRenderer(viewerContainer.value!, fileData, {
@@ -602,6 +747,8 @@ async function renderPdf(bookId: string, fileData: ArrayBuffer) {
     spreadMode: spreadMode.value,
     drawTool: drawTool.value,
     drawColorIndex: drawColorIndex.value,
+    penWidth: penSize.value,
+    highlighterWidth: highlighterSize.value,
     getStrokesForPage: (page) => strokesStore.forPage(bookId, page),
     onStrokeAdd: handleStrokeAdd,
     onStrokeRemove: handleStrokeRemove,
@@ -758,13 +905,13 @@ async function handleNextPage() {
 
 function zoomIn() {
   pdfScale.value = Math.min(4, Math.floor(pdfScale.value * 10) / 10 + 0.1)
-  try { localStorage.setItem(PDF_SCALE_KEY, String(pdfScale.value)) } catch {}
+  savePdfScale()
   pdfRenderer?.setScale(pdfScale.value)
 }
 
 function zoomOut() {
   pdfScale.value = Math.max(0.5, Math.ceil(pdfScale.value * 10) / 10 - 0.1)
-  try { localStorage.setItem(PDF_SCALE_KEY, String(pdfScale.value)) } catch {}
+  savePdfScale()
   pdfRenderer?.setScale(pdfScale.value)
 }
 
@@ -786,6 +933,7 @@ function destroyRenderer() {
   activePointers.clear()
   pinch = null
   gestureActive.value = false
+  currentPdfBookId = null
 }
 
 watch(currentBook, (book) => {
@@ -847,6 +995,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   destroyRenderer()
   window.removeEventListener('keydown', handleKeydown)
+  window.removeEventListener('pointerdown', onPopoverOutsideClick)
 })
 </script>
 
@@ -855,7 +1004,7 @@ onBeforeUnmount(() => {
 .loading-state, .error-state, .empty-state { text-align: center; padding: 4rem 2rem; color: var(--color-text-muted); }
 .empty-state h2 { font-family: Georgia, serif; font-weight: 400; color: var(--color-text-message); margin: 0 0 0.5rem; }
 .empty-state a { color: var(--color-primary); }
-.book-header { padding: 0.5rem 2rem; border-bottom: 1px solid var(--color-border-base); flex-shrink: 0; }
+.book-header { padding: 0.5rem 2rem; border-bottom: 1px solid var(--color-border-base); flex-shrink: 0; position: relative; z-index: 10; }
 .book-header h2 { font-family: Georgia, serif; font-weight: 400; color: var(--color-text-message); margin: 0; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .book-author { color: var(--color-text-muted); font-size: 0.85rem; font-weight: 400; }
 .progress-bar { flex-shrink: 0; }
@@ -881,7 +1030,8 @@ onBeforeUnmount(() => {
 .page-info { font-size: 0.85rem; color: var(--color-text-muted); }
 .pdf-controls { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0.4rem; }
 .zoom-btn { padding: 0.3rem 0.6rem; min-width: 2rem; }
-.zoom-info { font-size: 0.8rem; color: var(--color-text-muted); min-width: 3rem; text-align: center; }
+.zoom-info { font-size: 0.8rem; color: var(--color-text-muted); min-width: 3rem; text-align: center; cursor: pointer; user-select: none; }
+.zoom-info:hover { color: var(--color-text-base); }
 .ctrl-sep { width: 1px; height: 22px; background: var(--color-border-base); flex-shrink: 0; }
 .tool-btn { padding: 0.3rem; color: var(--color-text-muted); display: flex; align-items: center; justify-content: center; }
 .tool-btn:hover:not(:disabled) { color: var(--color-text-base); }
@@ -893,6 +1043,22 @@ onBeforeUnmount(() => {
 .color-circle { width: 16px; height: 16px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
 .color-circle:hover { transform: scale(1.12); }
 .color-circle.selected { border-color: var(--color-text-strong); }
+.tool-anchor { position: relative; display: inline-flex; align-items: center; }
+.tool-popover {
+  position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  background: var(--color-bg-base); border: 1px solid var(--color-border-base); border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18); padding: 0.7rem 0.85rem; z-index: 200; min-width: 230px;
+}
+.popover-label { font-size: 0.72rem; color: var(--color-text-muted); margin-bottom: 0.45rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.popover-slider-row { display: flex; align-items: center; gap: 0.5rem; }
+.size-slider { flex: 1; cursor: pointer; accent-color: var(--color-primary, var(--color-text-message)); }
+.size-value { font-size: 0.8rem; color: var(--color-text-base); min-width: 2rem; text-align: right; font-variant-numeric: tabular-nums; }
+.size-unit { font-size: 0.8rem; color: var(--color-text-muted); }
+.zoom-num-input { width: 3.5rem; padding: 0.2rem 0.35rem; border: 1px solid var(--color-border-base); border-radius: 4px; background: var(--color-bg-base); color: var(--color-text-base); font-size: 0.8rem; text-align: center; }
+.zoom-num-input:focus { outline: none; border-color: var(--color-border-accent, var(--color-primary)); }
+.popover-presets { display: flex; gap: 0.3rem; margin-top: 0.6rem; }
+.preset-btn { flex: 1; padding: 0.25rem 0; font-size: 0.75rem; border: 1px solid var(--color-border-base); border-radius: 4px; background: var(--color-bg-base); color: var(--color-text-base); cursor: pointer; }
+.preset-btn:hover { background: var(--color-bg-hover); }
 .page-info-short { display: none; }
 @media (max-width: 768px) {
   .book-header { padding: 0.3rem 0.4rem; }
@@ -905,6 +1071,7 @@ onBeforeUnmount(() => {
   .pdf-controls .color-circle { width: 14px; height: 14px; }
   .pdf-controls .ctrl-sep { display: none; }
   .pdf-controls .page-info { font-size: 0.75rem; }
+  .pdf-controls .tool-popover { min-width: 200px; }
   .page-info-full { display: none; }
   .page-info-short { display: inline; }
 }

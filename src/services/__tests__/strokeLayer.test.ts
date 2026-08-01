@@ -9,6 +9,7 @@ function makeStroke(overrides: Partial<Stroke> = {}): Stroke {
     page: 1,
     tool: 'pen',
     colorIndex: 0,
+    width: 1.8,
     points: [{ x: 10, y: 10 }, { x: 20, y: 20 }],
     createdAt: 1,
     updatedAt: 1,
@@ -227,6 +228,57 @@ describe('StrokeLayer', () => {
 
       expect(onErase).toHaveBeenCalledWith('persisted-1')
       expect(svg.querySelectorAll('g[data-stroke-id]')).toHaveLength(0)
+    })
+  })
+
+  describe('brush width', () => {
+    it('renders persisted strokes at their own width', () => {
+      const { svg } = makeLayer({ getStrokes: () => [makeStroke({ width: 5 })] })
+      const visible = svg.querySelector('g[data-stroke-id] polyline:not([data-hit])') as SVGElement
+      expect(visible.getAttribute('stroke-width')).toBe('5')
+    })
+
+    it('falls back to default width for legacy strokes without width', () => {
+      const { svg } = makeLayer({ getStrokes: () => [makeStroke({ width: undefined })] })
+      const visible = svg.querySelector('g[data-stroke-id] polyline:not([data-hit])') as SVGElement
+      expect(visible.getAttribute('stroke-width')).toBe('1.8')
+    })
+
+    it('uses configured penWidth for new strokes', () => {
+      const onCreate = vi.fn()
+      const { layer, svg } = makeLayer({ tool: 'pen', penWidth: 3.5, onCreate })
+
+      svg.dispatchEvent(new PointerEvent('pointerdown', { clientX: 10, clientY: 15, pointerId: 1 }))
+      svg.dispatchEvent(new PointerEvent('pointermove', { clientX: 40, clientY: 45, pointerId: 1 }))
+      svg.dispatchEvent(new PointerEvent('pointerup', { clientX: 40, clientY: 45, pointerId: 1 }))
+
+      expect(onCreate).toHaveBeenCalledTimes(1)
+      expect(onCreate.mock.calls[0][0].width).toBe(3.5)
+      const visible = svg.querySelector('g[data-stroke-id] polyline:not([data-hit])') as SVGElement
+      expect(visible.getAttribute('stroke-width')).toBe('3.5')
+    })
+
+    it('uses configured highlighterWidth for new highlighter strokes', () => {
+      const onCreate = vi.fn()
+      const { layer, svg } = makeLayer({ tool: 'highlighter', highlighterWidth: 20, onCreate })
+
+      svg.dispatchEvent(new PointerEvent('pointerdown', { clientX: 0, clientY: 0, pointerId: 1 }))
+      svg.dispatchEvent(new PointerEvent('pointermove', { clientX: 30, clientY: 30, pointerId: 1 }))
+      svg.dispatchEvent(new PointerEvent('pointerup', { clientX: 30, clientY: 30, pointerId: 1 }))
+
+      expect(onCreate.mock.calls[0][0].width).toBe(20)
+    })
+
+    it('setPenWidth updates width for subsequent strokes', () => {
+      const onCreate = vi.fn()
+      const { layer, svg } = makeLayer({ tool: 'pen', penWidth: 1.8, onCreate })
+      layer.setPenWidth(6)
+
+      svg.dispatchEvent(new PointerEvent('pointerdown', { clientX: 10, clientY: 10, pointerId: 1 }))
+      svg.dispatchEvent(new PointerEvent('pointermove', { clientX: 50, clientY: 50, pointerId: 1 }))
+      svg.dispatchEvent(new PointerEvent('pointerup', { clientX: 50, clientY: 50, pointerId: 1 }))
+
+      expect(onCreate.mock.calls[0][0].width).toBe(6)
     })
   })
 })

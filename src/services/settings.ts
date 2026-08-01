@@ -16,6 +16,11 @@ interface SettingsData {
   bookApiKey?: string
   extraService?: string
   devToolbar?: boolean
+  pdfDrawTool?: string
+  pdfDrawColor?: number
+  pdfPenSize?: number
+  pdfHighlighterSize?: number
+  pdfSpreadMode?: string
   [key: string]: unknown
 }
 
