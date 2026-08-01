@@ -119,9 +119,26 @@ export class PdfRenderer {
   }
 
   async setScale(scale: number): Promise<void> {
+    const oldScale = this._scale
     this._scale = Math.max(0.5, Math.min(4, scale))
     if (this.destroyed) return
-    await this.renderPage(this._currentPage)
+
+    const el = this.container
+    const zoomRatio = oldScale > 0 ? this._scale / oldScale : 1
+    const savedLeft = el.scrollLeft
+    const savedTop = el.scrollTop
+
+    while (this.rendering && !this.destroyed) {
+      await new Promise(r => setTimeout(r, 16))
+    }
+    if (this.destroyed) return
+
+    await this.renderPage(this._currentPage, true)
+
+    const targetLeft = savedLeft * zoomRatio
+    const targetTop = savedTop * zoomRatio
+    el.scrollLeft = targetLeft
+    el.scrollTop = targetTop
   }
 
   getScale(): number {
@@ -138,6 +155,10 @@ export class PdfRenderer {
     this.strokeLayers.forEach(l => l.setColor(colorIndex))
   }
 
+  setGestureActive(active: boolean): void {
+    this.strokeLayers.forEach(l => l.setGestureActive(active))
+  }
+
   redrawStrokes(): void {
     this.strokeLayers.forEach(l => l.redraw())
   }
@@ -145,7 +166,7 @@ export class PdfRenderer {
   setSpreadMode(mode: SpreadMode): void {
     this._spreadOverride = mode === 'auto' ? null : mode
     if (this.destroyed || !this.pdfDoc) return
-    this.renderPage(this._currentPage).then(() => {
+    this.renderPage(this._currentPage, false).then(() => {
       if (!this.destroyed) this.notifyLocationChange()
     })
   }
@@ -166,7 +187,7 @@ export class PdfRenderer {
 
   resize(width: number, height: number): void {
     if (this.destroyed || !this.pdfDoc || this.rendering) return
-    this.renderPage(this._currentPage).then(() => {
+    this.renderPage(this._currentPage, false).then(() => {
       if (!this.destroyed) this.notifyLocationChange()
     })
   }
@@ -186,10 +207,16 @@ export class PdfRenderer {
     this.strokeLayers = []
   }
 
-  private async renderPage(pageNum: number): Promise<void> {
+  private async renderPage(pageNum: number, resetScroll = true): Promise<void> {
     if (!this.pdfDoc || this.rendering || this.destroyed) return
     this.rendering = true
     this.detachStrokeLayers()
+
+    const el = this.container
+    const maxLeft = el.scrollWidth - el.clientWidth
+    const maxTop = el.scrollHeight - el.clientHeight
+    const ratioLeft = maxLeft > 0 ? el.scrollLeft / maxLeft : 0
+    const ratioTop = maxTop > 0 ? el.scrollTop / maxTop : 0
 
     try {
       if (this.isSpread) {
@@ -201,7 +228,15 @@ export class PdfRenderer {
         await this.renderSinglePage(pageNum)
       }
 
-      this.container.scrollTop = 0
+      if (resetScroll) {
+        el.scrollTop = 0
+        el.scrollLeft = 0
+      } else {
+        const newMaxLeft = el.scrollWidth - el.clientWidth
+        const newMaxTop = el.scrollHeight - el.clientHeight
+        el.scrollLeft = Math.round(ratioLeft * newMaxLeft)
+        el.scrollTop = Math.round(ratioTop * newMaxTop)
+      }
     } finally {
       this.rendering = false
     }
@@ -212,8 +247,7 @@ export class PdfRenderer {
     const maxWidth = containerWidth > 0 ? Math.max(100, containerWidth - 32) : 0
     const wrapper = await this.createPageElement(pageNum, maxWidth)
     if (!wrapper || this.destroyed) return
-    this.container.innerHTML = ''
-    this.container.appendChild(wrapper)
+    this.container.replaceChildren(wrapper)
   }
 
   private async renderSpread(): Promise<void> {
@@ -237,8 +271,7 @@ export class PdfRenderer {
     spreadDiv.appendChild(leftWrapper)
     if (rightWrapper) spreadDiv.appendChild(rightWrapper)
 
-    this.container.innerHTML = ''
-    this.container.appendChild(spreadDiv)
+    this.container.replaceChildren(spreadDiv)
   }
 
   private async createPageElement(pageNum: number, maxWidth: number): Promise<HTMLElement | null> {

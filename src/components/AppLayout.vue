@@ -3,7 +3,7 @@
     <Transition name="fade">
       <div v-if="sideExpanded && isMobile" class="mobile-backdrop" @click="closeSide"></div>
     </Transition>
-    <nav class="nav-bar">
+    <nav class="nav-bar" :class="{ collapsed: navCollapsed }">
       <button class="nav-btn back-nav-btn" @click="goBack" title="Back">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
       </button>
@@ -18,6 +18,10 @@
         <span v-if="vocabDueCount > 0" class="nav-badge">{{ vocabDueCount }}</span>
       </button>
       <button class="nav-btn" @click="showSettings = true" title="Settings"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97s-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1s.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66z"/></svg></button>
+      <button class="nav-btn collapse-nav-btn" @click="toggleNavCollapse" :title="navCollapsed ? 'Expand menu' : 'Collapse menu'">
+        <svg v-if="navCollapsed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18l5-6-5-6 M13 18l5-6-5-6"/></svg>
+        <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 18l-5-6 5-6 M18 18l-5-6 5-6"/></svg>
+      </button>
     </nav>
     <div class="main-area">
       <main class="main-panel"><slot></slot></main>
@@ -80,6 +84,13 @@ const isDragging = ref(false)
 const startX = ref(0)
 const startWidth = ref(0)
 const isMobile = ref(false)
+const navCollapsed = ref(false)
+const NAV_COLLAPSE_KEY = 'app-nav-collapsed'
+
+function toggleNavCollapse() {
+  navCollapsed.value = !navCollapsed.value
+  try { localStorage.setItem(NAV_COLLAPSE_KEY, String(navCollapsed.value)) } catch {}
+}
 
 function checkMobile() { isMobile.value = window.innerWidth <= 768 }
 
@@ -132,6 +143,7 @@ onMounted(() => {
   window.addEventListener('resize', checkMobile)
   const storedWidth = localStorage.getItem(`${props.storageKey}-width`)
   if (storedWidth !== null) sideWidth.value = parseInt(storedWidth, 10)
+  navCollapsed.value = localStorage.getItem(NAV_COLLAPSE_KEY) === 'true'
 })
 
 onUnmounted(() => {
@@ -190,7 +202,11 @@ defineExpose({ sideExpanded, toggleSide })
 
 <style scoped>
 .app-layout { display: flex; height: 100vh; height: 100dvh; overflow: hidden; }
-.nav-bar { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; padding: 0.5rem; background: var(--color-bg-base); border-right: 1px solid var(--color-border-subtle); flex-shrink: 0; }
+.nav-bar { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; padding: 0.5rem; background: var(--color-bg-base); border-right: 1px solid var(--color-border-subtle); flex-shrink: 0; width: 52px; }
+.nav-bar.collapsed { position: fixed; bottom: 0.5rem; left: 0.5rem; width: auto; height: auto; background: transparent; border-right: none; padding: 0; z-index: 50; }
+.nav-bar.collapsed .nav-btn:not(.collapse-nav-btn) { display: none; }
+.nav-bar.collapsed .nav-spacer { display: none; }
+.nav-bar.collapsed .collapse-nav-btn { background: var(--color-bg-base); border-color: var(--color-border-subtle); box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
 .nav-btn { width: 36px; height: 36px; padding: 0; display: flex; align-items: center; justify-content: center; background: transparent; border: 1px solid transparent; border-radius: 6px; color: var(--color-text-muted); cursor: pointer; transition: all 0.2s ease; position: relative; }
 .nav-btn:hover { background: var(--color-bg-hover); color: var(--color-text-base); transform: scale(1.05); }
 .nav-btn:active { transform: scale(0.95); }
@@ -203,6 +219,7 @@ defineExpose({ sideExpanded, toggleSide })
 .nav-badge { position: absolute; top: 2px; right: 2px; background: var(--color-primary, var(--color-border-accent)); color: #fff; font-size: 0.6rem; font-weight: 700; min-width: 14px; height: 14px; border-radius: 7px; display: flex; align-items: center; justify-content: center; padding: 0 3px; }
 .back-nav-btn { margin-bottom: 0.5rem; }
 .nav-spacer { flex: 1; }
+.collapse-nav-btn { flex-shrink: 0; }
 .main-area { flex: 1; min-width: 0; min-height: 0; position: relative; display: flex; }
 .main-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--color-bg-page); }
 .side-panel { position: absolute; top: 0; left: 0; bottom: 0; z-index: 20; display: flex; flex-direction: column; height: 100%; overflow: hidden; background: var(--color-bg-base); box-shadow: 2px 0 10px rgba(0, 0, 0, 0.12); }
@@ -224,6 +241,8 @@ defineExpose({ sideExpanded, toggleSide })
 @media (max-width: 768px) {
   .app-layout { flex-direction: column; }
   .nav-bar { flex-direction: row; order: 2; width: 100%; border-right: none; border-top: 1px solid var(--color-border-subtle); padding: 0.15rem 0.5rem; justify-content: space-around; }
+  .nav-bar.collapsed { position: fixed; bottom: 0.5rem; right: 0.5rem; left: auto; width: auto; background: transparent; border: none; padding: 0; z-index: 50; }
+  .collapse-nav-btn svg { transform: rotate(-90deg); }
   .nav-spacer, .divider { display: none; }
   .nav-btn.active::after { left: 50%; top: auto; bottom: -0.25rem; transform: translateX(-50%); width: 18px; height: 2px; border-radius: 2px 2px 0 0; }
   .nav-btn.active svg { transform: none; }

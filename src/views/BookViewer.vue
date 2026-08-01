@@ -67,7 +67,7 @@
             <h2>{{ currentBook.title }}<span v-if="currentBook.author" class="book-author"> by {{ currentBook.author }}</span></h2>
           </template>
         </div>
-        <div v-if="progress > 0" class="progress-bar">
+        <div v-if="progress > 0 && bookFileType !== 'pdf'" class="progress-bar">
           <ProgressBar :progress="Math.round(progress * 100)" />
         </div>
         <div
@@ -222,42 +222,161 @@ function handleStrokeRemove(strokeId: string): void {
   strokesStore.remove(currentBook.value.id, strokeId)
 }
 
-// Grab-to-pan: in Select mode, click-and-drag moves the document.
+// Grab-to-pan (Select mode) + multi-touch gestures (pinch-zoom, two-finger pan).
+// Works in every tool: one finger draws/pans, two fingers always zoom + pan.
 const panning = ref(false)
+const gestureActive = ref(false)
 const panStart = { x: 0, y: 0, left: 0, top: 0 }
+let panPointerId: number | null = null
+
+const activePointers = new Map<number, { x: number; y: number }>()
+let gestureScaleRatio = 1
+let pinch: {
+  startDist: number
+  startScale: number
+  startMidX: number
+  startMidY: number
+  startScrollLeft: number
+  startScrollTop: number
+} | null = null
+
 const viewerCursor = computed(() => {
   if (bookFileType.value !== 'pdf') return 'default'
-  if (panning.value) return 'grabbing'
+  if (gestureActive.value || panning.value) return 'grabbing'
   return drawTool.value === 'select' ? 'grab' : 'default'
 })
 
-function onViewerPointerDown(e: PointerEvent) {
-  if (bookFileType.value !== 'pdf' || drawTool.value !== 'select') return
+function startPan(e: PointerEvent): void {
   const el = viewerContainer.value
   if (!el) return
-  if (e.pointerType === 'mouse' && e.button !== 0) return
   e.preventDefault()
   panStart.x = e.clientX
   panStart.y = e.clientY
   panStart.left = el.scrollLeft
   panStart.top = el.scrollTop
   panning.value = true
+  panPointerId = e.pointerId
   try { el.setPointerCapture?.(e.pointerId) } catch {}
 }
 
-function onViewerPointerMove(e: PointerEvent) {
-  if (!panning.value) return
+function updatePan(e: PointerEvent): void {
   const el = viewerContainer.value
   if (!el) return
   el.scrollLeft = panStart.left - (e.clientX - panStart.x)
   el.scrollTop = panStart.top - (e.clientY - panStart.y)
 }
 
-function onViewerPointerUp(e: PointerEvent) {
-  if (!panning.value) return
+function endPan(): void {
   panning.value = false
   const el = viewerContainer.value
-  if (el) { try { el.releasePointerCapture?.(e.pointerId) } catch {} }
+  if (el && panPointerId !== null) { try { el.releasePointerCapture?.(panPointerId) } catch {} }
+  panPointerId = null
+}
+
+function applyGestureTransform(scaleFactor: number): void {
+  const el = viewerContainer.value
+  if (!el) return
+  for (const child of Array.from(el.children)) {
+    if (child instanceof HTMLElement) {
+      child.style.transform = `scale(${scaleFactor})`
+      child.style.transformOrigin = 'center center'
+    }
+  }
+}
+
+function clearGestureTransform(): void {
+  const el = viewerContainer.value
+  if (!el) return
+  for (const child of Array.from(el.children)) {
+    if (child instanceof HTMLElement) {
+      child.style.transform = ''
+      child.style.transformOrigin = ''
+    }
+  }
+}
+
+function startGesture(): void {
+  const pts = Array.from(activePointers.values())
+  if (pts.length < 2) return
+  if (panning.value) endPan()
+  pdfRenderer?.setGestureActive(true)
+  gestureActive.value = true
+  gestureScaleRatio = 1
+  const el = viewerContainer.value!
+  pinch = {
+    startDist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
+    startScale: pdfScale.value,
+    startMidX: (pts[0].x + pts[1].x) / 2,
+    startMidY: (pts[0].y + pts[1].y) / 2,
+    startScrollLeft: el.scrollLeft,
+    startScrollTop: el.scrollTop,
+  }
+}
+
+function updateGesture(): void {
+  if (!pinch) return
+  const pts = Array.from(activePointers.values())
+  if (pts.length < 2) return
+  const el = viewerContainer.value
+  if (!el) return
+  const midX = (pts[0].x + pts[1].x) / 2
+  const midY = (pts[0].y + pts[1].y) / 2
+  el.scrollLeft = pinch.startScrollLeft - (midX - pinch.startMidX)
+  el.scrollTop = pinch.startScrollTop - (midY - pinch.startMidY)
+  const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)
+  const ratio = pinch.startDist > 0 ? dist / pinch.startDist : 1
+  gestureScaleRatio = Math.max(0.5 / pinch.startScale, Math.min(4 / pinch.startScale, ratio))
+  pdfScale.value = pinch.startScale * gestureScaleRatio
+  applyGestureTransform(gestureScaleRatio)
+}
+
+async function endGesture(): Promise<void> {
+  if (!pinch) return
+  const startScale = pinch.startScale
+  const finalScale = pdfScale.value
+  pinch = null
+  gestureActive.value = false
+  pdfRenderer?.setGestureActive(false)
+  if (Math.abs(finalScale - startScale) > 0.01) {
+    try { localStorage.setItem(PDF_SCALE_KEY, String(finalScale)) } catch {}
+    await pdfRenderer?.setScale(finalScale)
+  }
+  gestureScaleRatio = 1
+  clearGestureTransform()
+}
+
+function onViewerPointerDown(e: PointerEvent) {
+  if (bookFileType.value !== 'pdf') return
+  if (e.pointerType === 'mouse' && e.button !== 0) return
+  // Pen input is handled entirely by the stroke layer — never pan or gesture.
+  if (e.pointerType === 'pen') return
+  if (e.pointerType === 'touch') {
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+  }
+  if (activePointers.size >= 2) {
+    if (!pinch) startGesture()
+    return
+  }
+  if (drawTool.value === 'select') startPan(e)
+}
+
+function onViewerPointerMove(e: PointerEvent) {
+  if (bookFileType.value !== 'pdf') return
+  if (e.pointerType === 'touch' && activePointers.has(e.pointerId)) {
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+  }
+  if (pinch) { updateGesture(); return }
+  if (panning.value) updatePan(e)
+}
+
+function onViewerPointerUp(e: PointerEvent) {
+  if (bookFileType.value !== 'pdf') return
+  if (e.pointerType === 'touch') activePointers.delete(e.pointerId)
+  if (pinch) {
+    if (activePointers.size < 2) endGesture()
+    return
+  }
+  if (panning.value) endPan()
 }
 
 async function handleDictionary() {
@@ -638,13 +757,13 @@ async function handleNextPage() {
 }
 
 function zoomIn() {
-  pdfScale.value = Math.min(4, pdfScale.value + 0.1)
+  pdfScale.value = Math.min(4, Math.floor(pdfScale.value * 10) / 10 + 0.1)
   try { localStorage.setItem(PDF_SCALE_KEY, String(pdfScale.value)) } catch {}
   pdfRenderer?.setScale(pdfScale.value)
 }
 
 function zoomOut() {
-  pdfScale.value = Math.max(0.5, pdfScale.value - 0.1)
+  pdfScale.value = Math.max(0.5, Math.ceil(pdfScale.value * 10) / 10 - 0.1)
   try { localStorage.setItem(PDF_SCALE_KEY, String(pdfScale.value)) } catch {}
   pdfRenderer?.setScale(pdfScale.value)
 }
@@ -664,6 +783,9 @@ function destroyRenderer() {
   }
   toc.value = []
   activeHref.value = null
+  activePointers.clear()
+  pinch = null
+  gestureActive.value = false
 }
 
 watch(currentBook, (book) => {
@@ -747,8 +869,8 @@ onBeforeUnmount(() => {
    centers it when it fits. */
 .viewer-container.is-pdf-viewer { justify-content: flex-start; }
 .viewer-container :deep(.epub-container) { margin: 0 auto; }
-.viewer-container :deep(.pdf-page-wrapper) { position: relative; margin: 1rem auto; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
-.viewer-container :deep(.pdf-spread) { display: flex; justify-content: center; gap: 1rem; margin: 1rem auto; }
+.viewer-container :deep(.pdf-page-wrapper) { position: relative; margin: 0 auto; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+.viewer-container :deep(.pdf-spread) { display: flex; justify-content: center; gap: 1rem; margin: 0 auto; }
 .viewer-container :deep(.pdf-spread .pdf-page-wrapper) { margin: 0; }
 .viewer-container :deep(.pdf-text-layer) { position: absolute; left: 0; top: 0; right: 0; bottom: 0; overflow: hidden; opacity: 0.25; line-height: 1.0; }
 .viewer-container :deep(.pdf-text-layer > span) { color: transparent; position: absolute; white-space: pre; cursor: text; }

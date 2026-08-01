@@ -50,9 +50,14 @@ export class StrokeLayer {
   private tool: DrawTool
   private color: number
   private drawing = false
+  private penErasing = false
   private currentPoints: StrokePoint[] = []
   private liveEl: SVGElement | null = null
   private destroyed = false
+  private gestureActive = false
+  private activePointerId: number | null = null
+  private activeTool: StrokeTool = 'pen'
+  private drawingPointerType: string = ''
   private boundDown: (e: PointerEvent) => void
   private boundMove: ((e: PointerEvent) => void) | null = null
   private boundUp: ((e: PointerEvent) => void) | null = null
@@ -102,6 +107,33 @@ export class StrokeLayer {
     this.color = colorIndex
   }
 
+  setGestureActive(active: boolean): void {
+    this.gestureActive = active
+    if (active && this.drawingPointerType !== 'pen') this.cancelDraw()
+  }
+
+  cancelDraw(): void {
+    if (!this.drawing && !this.penErasing) return
+    this.drawing = false
+    this.penErasing = false
+    if (this.liveEl) { this.liveEl.remove(); this.liveEl = null }
+    this.currentPoints = []
+    if (this.boundMove) {
+      this.svg.removeEventListener('pointermove', this.boundMove)
+      this.boundMove = null
+    }
+    if (this.boundUp) {
+      this.svg.removeEventListener('pointerup', this.boundUp)
+      this.svg.removeEventListener('pointercancel', this.boundUp)
+      this.boundUp = null
+    }
+    if (this.activePointerId !== null) {
+      try { this.svg.releasePointerCapture?.(this.activePointerId) } catch {}
+      this.activePointerId = null
+    }
+    this.applyToolPolicy()
+  }
+
   redraw(): void {
     this.clearPersisted()
     this.renderPersisted()
@@ -123,13 +155,44 @@ export class StrokeLayer {
 
   private onPointerDown(e: PointerEvent): void {
     if (this.destroyed) return
-    if (this.tool === 'select' || this.tool === 'eraser') return
+    if (this.drawing || this.penErasing) return
+
+    const isPen = e.pointerType === 'pen'
+    const penBarrel = isPen && (e.buttons & 2) !== 0
+
+    // Pen barrel button held → erase mode (regardless of selected tool).
+    if (penBarrel) {
+      e.preventDefault()
+      this.penErasing = true
+      this.drawingPointerType = 'pen'
+      this.activePointerId = e.pointerId
+      try { this.svg.setPointerCapture?.(e.pointerId) } catch {}
+      this.setHitTargetEvents('all')
+      this.eraseAtClientPoint(e.clientX, e.clientY)
+
+      this.boundMove = this.onPointerMove.bind(this)
+      this.boundUp = this.onPointerUp.bind(this)
+      this.svg.addEventListener('pointermove', this.boundMove)
+      this.svg.addEventListener('pointerup', this.boundUp)
+      this.svg.addEventListener('pointercancel', this.boundUp)
+      return
+    }
+
+    // Pen always draws, even during gestures or in select mode.
+    // Touch/mouse follow the normal tool rules.
+    if (!isPen && this.gestureActive) return
+    if (!isPen && (this.tool === 'select' || this.tool === 'eraser')) return
+    if (isPen && this.tool === 'eraser') return
+
     e.preventDefault()
-    this.svg.setPointerCapture?.(e.pointerId)
+    this.drawingPointerType = e.pointerType
+    this.activeTool = this.tool === 'select' ? 'pen' : this.tool as StrokeTool
+    this.activePointerId = e.pointerId
+    try { this.svg.setPointerCapture?.(e.pointerId) } catch {}
     this.drawing = true
     this.currentPoints = [this.toUser(e)]
-    this.liveEl = this.createVisibleEl(this.tool as StrokeTool, this.color, this.currentPoints)
-    this.strokeParent(this.tool as StrokeTool).appendChild(this.liveEl)
+    this.liveEl = this.createVisibleEl(this.activeTool, this.color, this.currentPoints)
+    this.strokeParent(this.activeTool).appendChild(this.liveEl)
 
     this.boundMove = this.onPointerMove.bind(this)
     this.boundUp = this.onPointerUp.bind(this)
@@ -139,14 +202,29 @@ export class StrokeLayer {
   }
 
   private onPointerMove(e: PointerEvent): void {
+    if (this.penErasing) {
+      this.eraseAtClientPoint(e.clientX, e.clientY)
+      return
+    }
     if (!this.drawing) return
     this.currentPoints.push(this.toUser(e))
     if (this.liveEl) this.updateGeometry(this.liveEl, this.currentPoints)
   }
 
   private onPointerUp(e: PointerEvent): void {
+    if (this.penErasing) {
+      this.penErasing = false
+      this.cleanupListeners(e.pointerId)
+      this.applyToolPolicy()
+      return
+    }
     if (!this.drawing) return
     this.drawing = false
+    this.cleanupListeners(e.pointerId)
+    this.finalize()
+  }
+
+  private cleanupListeners(pointerId: number): void {
     if (this.boundMove) {
       this.svg.removeEventListener('pointermove', this.boundMove)
       this.boundMove = null
@@ -156,8 +234,27 @@ export class StrokeLayer {
       this.svg.removeEventListener('pointercancel', this.boundUp)
       this.boundUp = null
     }
-    try { this.svg.releasePointerCapture?.(e.pointerId) } catch {}
-    this.finalize()
+    if (this.activePointerId !== null) {
+      try { this.svg.releasePointerCapture?.(pointerId) } catch {}
+      this.activePointerId = null
+    }
+  }
+
+  private eraseAtClientPoint(clientX: number, clientY: number): void {
+    const el = document.elementFromPoint(clientX, clientY) as Element | null
+    if (!el || !(el instanceof SVGElement) || !el.hasAttribute('data-hit')) return
+    if (!this.svg.contains(el)) return
+    const group = el.closest('g[data-stroke-id]')
+    if (!group) return
+    const id = group.getAttribute('data-stroke-id')
+    group.remove()
+    if (id) this.opts.onErase?.(id)
+  }
+
+  private setHitTargetEvents(value: string): void {
+    this.svg.querySelectorAll<SVGElement>('[data-hit]').forEach(el => {
+      el.setAttribute('pointer-events', value)
+    })
   }
 
   private toUser(e: PointerEvent): StrokePoint {
@@ -178,7 +275,7 @@ export class StrokeLayer {
     const draft: StrokeDraft = {
       id: crypto.randomUUID(),
       page: this.opts.page,
-      tool: this.tool as StrokeTool,
+      tool: this.activeTool,
       colorIndex: this.color,
       points: pts,
     }
@@ -248,9 +345,11 @@ export class StrokeLayer {
   }
 
   private applyToolPolicy(): void {
-    const drawable = this.tool !== 'select' && this.tool !== 'eraser'
-    this.svg.style.pointerEvents = drawable ? 'auto' : 'none'
-    this.svg.style.cursor = drawable ? 'crosshair' : (this.tool === 'eraser' ? 'pointer' : 'default')
+    // SVG always receives pointer events so that a stylus can draw
+    // even in select mode. Touch/mouse are filtered by pointerType
+    // in onPointerDown.
+    this.svg.style.pointerEvents = 'auto'
+    this.svg.style.cursor = this.tool === 'select' ? '' : (this.tool === 'eraser' ? 'pointer' : 'crosshair')
     const hitTarget = this.tool === 'eraser' ? 'all' : 'none'
     this.svg.querySelectorAll<SVGElement>('[data-hit]').forEach(el => {
       el.setAttribute('pointer-events', hitTarget)
