@@ -486,7 +486,8 @@ describe('PdfRenderer', () => {
       await renderer.initialize()
 
       const svg = container.querySelector('svg.pdf-draw-layer') as SVGSVGElement
-      expect(svg.style.pointerEvents).toBe('none')
+      // SVG always has pointer-events auto now (pen always draws, even in select mode)
+      expect(svg.style.pointerEvents).toBe('auto')
 
       renderer.setDrawTool('pen')
       expect(svg.style.pointerEvents).toBe('auto')
