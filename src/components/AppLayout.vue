@@ -225,7 +225,7 @@ defineExpose({ sideExpanded, toggleSide })
 .side-panel { position: absolute; top: 0; left: 0; bottom: 0; z-index: 20; display: flex; flex-direction: column; height: 100%; overflow: hidden; background: var(--color-bg-base); box-shadow: 2px 0 10px rgba(0, 0, 0, 0.12); }
 .side-header-slot { flex-shrink: 0; }
 .side-tab-bar { display: flex; align-items: center; gap: 0.25rem; padding: 0.5rem; border-bottom: 1px solid var(--color-border-subtle); flex-shrink: 0; }
-.side-tab { flex: 1; padding: 0.4rem 0.6rem; font-size: 0.75rem; font-weight: 500; background: transparent; border: none; border-radius: 4px; color: var(--color-text-muted); cursor: pointer; transition: all 0.15s; }
+.side-tab { flex: 1; min-width: 0; padding: 0.4rem 0.6rem; font-size: 0.75rem; font-weight: 500; background: transparent; border: none; border-radius: 4px; color: var(--color-text-muted); cursor: pointer; transition: all 0.15s; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-tab:hover { background: var(--color-bg-hover); color: var(--color-text-base); }
 .side-tab.active { background: var(--color-bg-hover); color: var(--color-primary, var(--color-text-base)); }
 .side-tab-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }

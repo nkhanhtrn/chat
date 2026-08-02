@@ -1,11 +1,5 @@
 <template>
   <div class="book-toc-sidebar">
-    <div v-if="bookTitle" class="sidebar-header">
-      <div class="book-title">{{ bookTitle }}</div>
-    </div>
-    <div class="sidebar-search">
-      <input v-model="searchQuery" type="text" class="search-input" placeholder="Search chapters..." @keydown.escape="searchQuery = ''" />
-    </div>
     <div class="toc-list">
       <template v-if="searchQuery.trim()">
         <div v-if="searchResults.length > 0" class="search-results-list">
@@ -36,6 +30,9 @@
         <div v-if="!toc.length" class="empty-state">No chapters found</div>
       </template>
     </div>
+    <div class="sidebar-search">
+      <input v-model="searchQuery" type="text" class="search-input" placeholder="Search chapters..." @keydown.escape="searchQuery = ''" />
+    </div>
   </div>
 </template>
 
@@ -46,7 +43,6 @@ import BookTocItem from './BookTocItem.vue'
 
 const props = defineProps<{
   toc: TocItem[]
-  bookTitle: string
   activeHref?: string | null
 }>()
 
@@ -83,19 +79,17 @@ const searchResults = computed(() => {
 
 <style scoped>
 .book-toc-sidebar { width: 100%; height: 100%; background-color: var(--color-bg-base); display: flex; flex-direction: column; overflow: hidden; font-family: system-ui, -apple-system, sans-serif; }
-.sidebar-header { display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; border-bottom: 1px solid var(--color-border-subtle); }
-.book-title { font-size: 0.9rem; font-weight: 600; color: var(--color-text-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-
-.sidebar-search { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--color-border-subtle); }
-.search-input { width: 100%; padding: 0.5rem 0.75rem; font-size: 0.85rem; font-family: inherit; background-color: var(--color-bg-page); border: 1px solid var(--color-border-subtle); border-radius: 6px; color: var(--color-text-secondary); transition: border-color 0.2s, box-shadow 0.2s; }
-.search-input:focus { outline: none; border-color: var(--color-border-accent); box-shadow: 0 0 0 2px var(--shadow-primary); }
-.search-input::placeholder { color: var(--color-text-muted); }
 
 .toc-list { flex: 1; overflow-y: auto; padding: 0.5rem; }
 .toc-list::-webkit-scrollbar { width: 8px; }
 .toc-list::-webkit-scrollbar-track { background: var(--color-scrollbar-track); }
 .toc-list::-webkit-scrollbar-thumb { background: var(--color-scrollbar-thumb); border-radius: 4px; }
 .toc-list::-webkit-scrollbar-thumb:hover { background: var(--color-scrollbar-thumb-hover); }
+
+.sidebar-search { padding: 0.75rem 1.25rem; border-top: 1px solid var(--color-border-subtle); background-color: var(--color-bg-base); flex-shrink: 0; }
+.search-input { width: 100%; padding: 0.7rem 0.9rem; font-size: 0.9rem; font-family: Georgia, serif; line-height: 1.5; background-color: var(--color-bg-base); border: 1px solid var(--color-border-base); border-radius: 0; color: var(--color-text-base); transition: border-color 0.15s; box-sizing: border-box; }
+.search-input:focus { outline: none; border-color: var(--color-border-strong); }
+.search-input::placeholder { color: var(--color-text-muted); }
 
 .toc-item { display: flex; align-items: flex-start; padding: 0.35rem 0.5rem; cursor: pointer; transition: all 0.15s; border-radius: 4px; user-select: none; }
 .toc-item:hover, .toc-item.active { background-color: var(--color-bg-hover); }
