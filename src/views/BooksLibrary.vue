@@ -249,11 +249,10 @@ const openBook = async (book: BookData) => {
       await BookStorage.saveBookFile(book.id, fileData)
       navigate()
     } else {
-      alert('Could not download book. Make sure you are signed in.')
+      console.warn('[BooksLibrary] Book file not available in cloud')
     }
   } catch (err) {
     console.error('[BooksLibrary] Failed to download book:', err)
-    alert('Failed to download book: ' + (err as Error).message)
   } finally {
     setTimeout(() => {
       booksStore.$patch({
