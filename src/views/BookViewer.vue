@@ -572,6 +572,7 @@ async function renderPdf(bookId: string, fileData: ArrayBuffer) {
     penWidth: pdfToolbar.value?.penSize.value ?? 1.8,
     highlighterWidth: pdfToolbar.value?.highlighterSize.value ?? 14,
     eraserWidth: pdfToolbar.value?.eraserSize.value ?? 20,
+    eraserOpacity: pdfToolbar.value?.eraserOpacity.value ?? 0.4,
     getStrokesForPage: (page) => strokesStore.forPage(bookId, page),
     onStrokeAdd: handleStrokeAdd,
     onStrokeRemove: handleStrokeRemove,
@@ -810,16 +811,11 @@ const debugPenDown = (e: PointerEvent) => {
     window.alert('[pen pointerdown] pointerType=' + e.pointerType + ' button=' + e.button + ' buttons=' + e.buttons + ' (0b' + e.buttons.toString(2) + ') pressure=' + e.pressure + ' tiltX=' + e.tiltX + ' tiltY=' + e.tiltY)
   }
 }
-const debugCtxMenu = (e: Event) => {
-  window.alert('[contextmenu] fired — browser may have intercepted the barrel button')
-}
 function updatePenDebug(on: boolean) {
   if (on) {
     window.addEventListener('pointerdown', debugPenDown, true)
-    window.addEventListener('contextmenu', debugCtxMenu, true)
   } else {
     window.removeEventListener('pointerdown', debugPenDown, true)
-    window.removeEventListener('contextmenu', debugCtxMenu, true)
   }
 }
 watch(() => Settings.get('penDebugLog') === true, (on) => updatePenDebug(on), { immediate: true })
