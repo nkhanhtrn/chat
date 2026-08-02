@@ -823,7 +823,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
   destroyRenderer()
   window.removeEventListener('keydown', handleKeydown)
-  updatePenDebug(false)
 })
 </script>
 

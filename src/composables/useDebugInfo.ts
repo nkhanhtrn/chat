@@ -63,6 +63,7 @@ const browserInfo = ref<Partial<Record<keyof DebugBrowserInfo, string>>>({})
 const firestoreInfo = ref<DebugFirestoreInfo | null>(null)
 const cloudStorageInfo = ref<DebugCloudStorageInfo | null>(null)
 let debugInfoLoaded = false
+const cloudFileCache = new Map<string, CloudStorageItem>()
 
 const nativeConsole = {
   log: console.log.bind(console),
@@ -268,13 +269,26 @@ async function gatherCloudStorageInfo(): Promise<DebugCloudStorageInfo> {
     const allItems = await listRecursive(ref(storage, `users/${uid}`))
 
     const fileInfos = await Promise.all(allItems.map(async (item) => {
+      const name = item.fullPath.replace(`users/${uid}/`, '')
+      const cached = cloudFileCache.get(name)
+      if (cached) return cached
       try {
         const meta = await getMetadata(item)
-        return { name: item.fullPath.replace(`users/${uid}/`, ''), bytes: meta.size }
+        const info: CloudStorageItem = { name, bytes: meta.size }
+        cloudFileCache.set(name, info)
+        return info
       } catch {
-        return { name: item.fullPath.replace(`users/${uid}/`, ''), bytes: 0 }
+        const info: CloudStorageItem = { name, bytes: 0 }
+        cloudFileCache.set(name, info)
+        return info
       }
     }))
+
+    // prune cache entries that no longer exist in cloud
+    const currentNames = new Set(fileInfos.map(f => f.name))
+    for (const key of cloudFileCache.keys()) {
+      if (!currentNames.has(key)) cloudFileCache.delete(key)
+    }
 
     result.files = fileInfos.sort((a, b) => b.bytes - a.bytes)
     result.fileCount = fileInfos.length
@@ -290,13 +304,16 @@ export function useDebugInfo() {
     browserInfo.value = gatherBrowserInfo()
     storageInfo.value = await gatherStorageInfo()
     firestoreInfo.value = await gatherFirestoreInfo()
-    cloudStorageInfo.value = await gatherCloudStorageInfo()
     debugInfoLoaded = true
+    cloudStorageInfo.value = await gatherCloudStorageInfo()
   }
 
   async function ensureLoaded() {
     if (debugInfoLoaded) return
-    await refresh()
+    browserInfo.value = gatherBrowserInfo()
+    storageInfo.value = await gatherStorageInfo()
+    firestoreInfo.value = await gatherFirestoreInfo()
+    debugInfoLoaded = true
   }
 
   return {
