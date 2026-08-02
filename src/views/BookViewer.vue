@@ -49,7 +49,7 @@
           @pointermove="onViewerPointerMove"
           @pointerup="onViewerPointerUp"
           @pointercancel="onViewerPointerUp"
-          @contextmenu.prevent
+          @contextmenu.prevent="onViewerContextMenu"
         >
           <!-- book renders here -->
         </div>
@@ -185,6 +185,8 @@ const panStart = { x: 0, y: 0, left: 0, top: 0 }
 let panPointerId: number | null = null
 
 const activePointers = new Map<number, { x: number; y: number }>()
+let lastPointerType = ''
+let lastPointerId: number | null = null
 let gestureScaleRatio = 1
 let gestureMode: 'pan' | 'zoom' = 'pan'
 let pinch: {
@@ -313,8 +315,17 @@ async function endGesture(): Promise<void> {
   clearGestureTransform()
 }
 
+function onViewerContextMenu(e: Event) {
+  if (bookFileType.value !== 'pdf') return
+  if (lastPointerType !== 'pen' || lastPointerId === null) return
+  const me = e as MouseEvent
+  pdfRenderer.value?.startBarrelErase(me.clientX, me.clientY, lastPointerId)
+}
+
 function onViewerPointerDown(e: PointerEvent) {
   if (bookFileType.value !== 'pdf') return
+  lastPointerType = e.pointerType
+  lastPointerId = e.pointerId
   if (e.pointerType === 'mouse' && e.button !== 0) return
   // Pen input is handled entirely by the stroke layer — never pan or gesture.
   if (e.pointerType === 'pen') return
@@ -572,6 +583,7 @@ async function renderPdf(bookId: string, fileData: ArrayBuffer) {
     penWidth: pdfToolbar.value?.penSize.value ?? 1.8,
     highlighterWidth: pdfToolbar.value?.highlighterSize.value ?? 14,
     eraserWidth: pdfToolbar.value?.eraserSize.value ?? 20,
+    eraserOpacity: pdfToolbar.value?.eraserOpacity.value ?? 0.4,
     getStrokesForPage: (page) => strokesStore.forPage(bookId, page),
     onStrokeAdd: handleStrokeAdd,
     onStrokeRemove: handleStrokeRemove,
@@ -810,16 +822,11 @@ const debugPenDown = (e: PointerEvent) => {
     window.alert('[pen pointerdown] pointerType=' + e.pointerType + ' button=' + e.button + ' buttons=' + e.buttons + ' (0b' + e.buttons.toString(2) + ') pressure=' + e.pressure + ' tiltX=' + e.tiltX + ' tiltY=' + e.tiltY)
   }
 }
-const debugCtxMenu = (e: Event) => {
-  window.alert('[contextmenu] fired — browser may have intercepted the barrel button')
-}
 function updatePenDebug(on: boolean) {
   if (on) {
     window.addEventListener('pointerdown', debugPenDown, true)
-    window.addEventListener('contextmenu', debugCtxMenu, true)
   } else {
     window.removeEventListener('pointerdown', debugPenDown, true)
-    window.removeEventListener('contextmenu', debugCtxMenu, true)
   }
 }
 watch(() => Settings.get('penDebugLog') === true, (on) => updatePenDebug(on), { immediate: true })
