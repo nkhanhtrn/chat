@@ -219,14 +219,6 @@ export class StrokeLayer {
     this.svg.addEventListener('pointercancel', this.boundUp)
   }
 
-  startBarrelErase(clientX: number, clientY: number, pointerId: number): void {
-    if (this.destroyed || this.penErasing) return
-    const r = this.svg.getBoundingClientRect()
-    if (clientX < r.left || clientX > r.right || clientY < r.top || clientY > r.bottom) return
-    if (this.drawing) this.cancelDraw()
-    this.beginErase(clientX, clientY, pointerId, 'pen')
-  }
-
   private onPointerDown(e: PointerEvent): void {
     if (this.destroyed) return
     if (this.drawing || this.penErasing) return
