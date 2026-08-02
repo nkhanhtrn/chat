@@ -49,6 +49,7 @@
           @pointermove="onViewerPointerMove"
           @pointerup="onViewerPointerUp"
           @pointercancel="onViewerPointerUp"
+          @contextmenu.prevent
         >
           <!-- book renders here -->
         </div>
@@ -198,7 +199,9 @@ let pinch: {
 const viewerCursor = computed(() => {
   if (bookFileType.value !== 'pdf') return 'default'
   if (gestureActive.value || panning.value) return 'grabbing'
-  return drawTool.value === 'select' ? 'grab' : 'default'
+  if (drawTool.value === 'select') return 'grab'
+  if (drawTool.value === 'eraser') return 'cell'
+  return 'default'
 })
 
 function startPan(e: PointerEvent): void {
@@ -568,6 +571,7 @@ async function renderPdf(bookId: string, fileData: ArrayBuffer) {
     drawColorIndex: pdfToolbar.value?.drawColorIndex.value ?? 0,
     penWidth: pdfToolbar.value?.penSize.value ?? 1.8,
     highlighterWidth: pdfToolbar.value?.highlighterSize.value ?? 14,
+    eraserWidth: pdfToolbar.value?.eraserSize.value ?? 20,
     getStrokesForPage: (page) => strokesStore.forPage(bookId, page),
     onStrokeAdd: handleStrokeAdd,
     onStrokeRemove: handleStrokeRemove,
@@ -800,13 +804,29 @@ function handleKeydown(e: KeyboardEvent) {
   }
 }
 
+// Debug: catch ALL pen events at window level
+let debugPenDown: ((e: PointerEvent) => void) | null = null
+let debugCtxMenu: ((e: Event) => void) | null = null
+
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
+  debugPenDown = (e: PointerEvent) => {
+    if (e.pointerType === 'pen' && e.button !== 0) {
+      window.alert('[window pointerdown] button=' + e.button + ' buttons=' + e.buttons + ' (0b' + e.buttons.toString(2) + ') pressure=' + e.pressure)
+    }
+  }
+  debugCtxMenu = (e: Event) => {
+    window.alert('[window contextmenu] fired — browser intercepted the barrel button')
+  }
+  window.addEventListener('pointerdown', debugPenDown, true)
+  window.addEventListener('contextmenu', debugCtxMenu, true)
 })
 
 onBeforeUnmount(() => {
   destroyRenderer()
   window.removeEventListener('keydown', handleKeydown)
+  if (debugPenDown) window.removeEventListener('pointerdown', debugPenDown, true)
+  if (debugCtxMenu) window.removeEventListener('contextmenu', debugCtxMenu, true)
 })
 </script>
 
