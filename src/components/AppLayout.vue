@@ -221,7 +221,7 @@ defineExpose({ sideExpanded, toggleSide })
 .nav-spacer { flex: 1; }
 .collapse-nav-btn { flex-shrink: 0; }
 .main-area { flex: 1; min-width: 0; min-height: 0; position: relative; display: flex; }
-.main-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--color-bg-page); }
+.main-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--color-bg-page); position: relative; z-index: 1; }
 .side-panel { position: absolute; top: 0; left: 0; bottom: 0; z-index: 20; display: flex; flex-direction: column; height: 100%; overflow: hidden; background: var(--color-bg-base); box-shadow: 2px 0 10px rgba(0, 0, 0, 0.12); }
 .side-header-slot { flex-shrink: 0; }
 .side-tab-bar { display: flex; align-items: center; gap: 0.25rem; padding: 0.5rem; border-bottom: 1px solid var(--color-border-subtle); flex-shrink: 0; }

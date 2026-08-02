@@ -87,7 +87,7 @@ onUnmounted(() => window.removeEventListener('resize', positionDropdown))
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.3rem 0.6rem;
+  padding: 0.3rem 1.25rem;
   background: none;
   border: none;
   color: var(--color-text-muted);
