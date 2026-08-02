@@ -174,6 +174,21 @@ export class StrokeLayer {
     const isPen = e.pointerType === 'pen'
     const penBarrel = isPen && (e.buttons & 2) !== 0
 
+    if (isPen) {
+      const parts = [
+        'pointerType: ' + e.pointerType,
+        'button: ' + e.button,
+        'buttons: ' + e.buttons + ' (0b' + e.buttons.toString(2) + ')',
+        'penBarrel detected: ' + penBarrel,
+        'pointerId: ' + e.pointerId,
+        'pressure: ' + e.pressure,
+        'tiltX: ' + e.tiltX,
+        'tiltY: ' + e.tiltY,
+        'current tool: ' + this.tool,
+      ]
+      window.alert(parts.join('\n'))
+    }
+
     // Pen barrel button held → erase mode (regardless of selected tool).
     if (penBarrel) {
       e.preventDefault()
@@ -374,5 +389,19 @@ export class StrokeLayer {
     this.svg.querySelectorAll<SVGElement>('[data-hit]').forEach(el => {
       el.setAttribute('pointer-events', hitTarget)
     })
+  }
+
+  getDebugInfo(): Record<string, unknown> {
+    return {
+      tool: this.tool,
+      color: this.color,
+      penWidth: this.penWidth,
+      highlighterWidth: this.highlighterWidth,
+      pointerEvents: this.svg.style.pointerEvents,
+      cursor: this.svg.style.cursor,
+      strokeCount: this.svg.querySelectorAll('g[data-stroke-id]').length,
+      hitTargetCount: this.svg.querySelectorAll('[data-hit]').length,
+      destroyed: this.destroyed,
+    }
   }
 }

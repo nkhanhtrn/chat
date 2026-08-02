@@ -179,6 +179,10 @@ export class PdfRenderer {
     this.strokeLayers.forEach(l => l.redraw())
   }
 
+  getStrokeLayerDebug(): Record<string, unknown>[] {
+    return this.strokeLayers.map(l => l.getDebugInfo())
+  }
+
   setSpreadMode(mode: SpreadMode): void {
     this._spreadOverride = mode === 'auto' ? null : mode
     if (this.destroyed || !this.pdfDoc) return
