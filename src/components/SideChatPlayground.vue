@@ -67,18 +67,31 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
-import { useSideChatStore } from '@/stores/sideChat'
+import { ref, nextTick, watch, onMounted, onBeforeUnmount, computed } from 'vue'
+import { useRoute } from 'vue-router'
+import { useSideChatStore, bookScopeId, GLOBAL_SCOPE } from '@/stores/sideChat'
 import { handleCommand, type CommandContext } from '@/utils/chatCommands'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import ExpandableInput from './ExpandableInput.vue'
 
 const store = useSideChatStore()
+const route = useRoute()
 
 const inputText = ref('')
 const commandFeedback = ref('')
 const messagesContainer = ref<HTMLElement | null>(null)
 const showScrollBtn = ref(false)
+
+const desiredScope = computed(() => {
+  if (route.name === 'book-viewer' && route.params.bookId) {
+    return bookScopeId(String(route.params.bookId))
+  }
+  return GLOBAL_SCOPE
+})
+
+watch(desiredScope, (scope) => {
+  store.setActiveScope(scope)
+}, { immediate: true })
 
 const checkScroll = () => {
   const el = messagesContainer.value

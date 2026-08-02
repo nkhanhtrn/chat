@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { useSideChatStore } from '../sideChat'
+import { useSideChatStore, bookScopeId, GLOBAL_SCOPE } from '../sideChat'
 import lmService from '@/services/llm/LMService'
 
 vi.mock('@/services/llm/LMService', () => ({
@@ -9,6 +9,11 @@ vi.mock('@/services/llm/LMService', () => ({
     chat: vi.fn().mockResolvedValue('Hello! How can I help?'),
   },
 }))
+
+function readPersisted(): { scopes: Record<string, { messages: unknown[]; sessionId: string | null }>; activeScope: string } {
+  const raw = localStorage.getItem('side-chat')
+  return JSON.parse(raw!)
+}
 
 describe('useSideChatStore', () => {
   let store: ReturnType<typeof useSideChatStore>
@@ -21,6 +26,7 @@ describe('useSideChatStore', () => {
   })
 
   describe('initial state', () => {
+    it('starts on the global scope', () => expect(store.activeScope).toBe(GLOBAL_SCOPE))
     it('starts with empty messages', () => expect(store.messages).toEqual([]))
     it('starts with no session', () => expect(store.sessionId).toBeNull())
     it('is not streaming', () => expect(store.isStreaming).toBe(false))
@@ -116,21 +122,64 @@ describe('useSideChatStore', () => {
     })
   })
 
-  describe('stripThinking', () => {
+  describe('stripThink', () => {
     it('leaves normal content untouched', async () => {
       await store.sendMessage('test')
       expect(store.messages[1].content).toBe('Hello! How can I help?')
     })
   })
 
+  describe('per-content scoping', () => {
+    it('bookScopeId prefixes with book-', () => {
+      expect(bookScopeId('abc-123')).toBe('book-abc-123')
+    })
+
+    it('isolates messages per scope', async () => {
+      await store.sendMessage('global question')
+
+      const bookScope = bookScopeId('book-1')
+      store.setActiveScope(bookScope)
+      expect(store.activeScope).toBe(bookScope)
+      expect(store.messages).toEqual([])
+
+      await store.sendMessage('book question')
+      expect(store.messages).toHaveLength(2)
+      expect(store.messages[0].content).toBe('book question')
+
+      // Switching back to global preserves its thread
+      store.setActiveScope(GLOBAL_SCOPE)
+      expect(store.messages).toHaveLength(2)
+      expect(store.messages[0].content).toBe('global question')
+    })
+
+    it('persists all scopes to localStorage', async () => {
+      await store.sendMessage('global question')
+      store.setActiveScope(bookScopeId('book-1'))
+      await store.sendMessage('book question')
+
+      const parsed = readPersisted()
+      expect(parsed.scopes.global.messages).toHaveLength(2)
+      expect(parsed.scopes['book-book-1'].messages).toHaveLength(2)
+    })
+
+    it('clearChat only clears the active scope', async () => {
+      await store.sendMessage('global question')
+      store.setActiveScope(bookScopeId('book-1'))
+      await store.sendMessage('book question')
+      store.clearChat()
+
+      const parsed = readPersisted()
+      expect(parsed.scopes['book-book-1'].messages).toEqual([])
+      expect(parsed.scopes.global.messages).toHaveLength(2)
+    })
+  })
+
   describe('local persistence', () => {
     it('persists messages to localStorage after sending', async () => {
       await store.sendMessage('Hello')
-      const raw = localStorage.getItem('side-chat')
-      expect(raw).not.toBeNull()
-      const parsed = JSON.parse(raw!)
-      expect(parsed.messages).toHaveLength(2)
-      expect(parsed.sessionId).toBe('mock-session-id')
+      const parsed = readPersisted()
+      expect(parsed.scopes.global.messages).toHaveLength(2)
+      expect(parsed.scopes.global.sessionId).toBe('mock-session-id')
     })
 
     it('hydrates messages from localStorage on init', async () => {
@@ -143,11 +192,28 @@ describe('useSideChatStore', () => {
       expect(reloaded.sessionId).toBe('mock-session-id')
     })
 
-    it('removes persisted chat on clearChat', async () => {
+    it('clears active scope messages on clearChat', async () => {
       await store.sendMessage('Hello')
-      expect(localStorage.getItem('side-chat')).not.toBeNull()
       store.clearChat()
-      expect(localStorage.getItem('side-chat')).toBeNull()
+      const parsed = readPersisted()
+      expect(parsed.scopes.global.messages).toEqual([])
+      expect(parsed.scopes.global.sessionId).toBeNull()
+    })
+
+    it('migrates legacy single-thread localStorage shape', async () => {
+      localStorage.setItem('side-chat', JSON.stringify({
+        messages: [{ id: 'old-1', role: 'user', content: 'legacy' }],
+        sessionId: 'legacy-session',
+      }))
+
+      const fresh = createPinia()
+      setActivePinia(fresh)
+      const migrated = useSideChatStore()
+
+      expect(migrated.activeScope).toBe(GLOBAL_SCOPE)
+      expect(migrated.messages).toHaveLength(1)
+      expect(migrated.messages[0].content).toBe('legacy')
+      expect(migrated.sessionId).toBe('legacy-session')
     })
   })
 })

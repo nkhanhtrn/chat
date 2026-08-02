@@ -2,44 +2,72 @@
   <div
     v-if="window.displayState === 'open'"
     class="output-window"
+    :class="{ maximized: isMaximized, animating: isAnimating }"
     :style="windowStyle"
     @pointerdown="$emit('bring-to-front')"
   >
-    <div class="window-header" @pointerdown="startDrag">
+    <div class="window-header" @pointerdown="startDrag" @dblclick="toggleMaximize">
       <div class="window-title-area">
         <InlineEdit
+          ref="titleEditRef"
           :modelValue="window.title"
+          editOnClick
+          @click="onTitleClick"
           @save="(newTitle: string) => $emit('update:title', newTitle)"
         />
       </div>
       <div class="window-controls" @pointerdown.stop>
-        <button v-if="window.type === 'tool' && window.code" class="control-btn" @click="$emit('promote', window)" title="Save as global tool">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 19V5M5 12l7-7 7 7" />
-          </svg>
-        </button>
-        <button v-if="window.type === 'tool' && window.code" class="control-btn" :class="{ 'revert-active': window.previousCode }" :disabled="!window.previousCode" @click="$emit('revert', window.id)" :title="window.previousCode ? 'Switch version' : 'No previous version'">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :style="window.isReverted ? 'transform: scaleX(-1)' : ''">
-            <polyline points="1 4 1 10 7 10"></polyline>
-            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
-          </svg>
-        </button>
         <button v-if="window.type === 'tool' && window.code" class="control-btn" :class="{ active: showCode }" @click="toggleCodeView" title="View code">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="16 18 22 12 16 6"></polyline>
             <polyline points="8 6 2 12 8 18"></polyline>
           </svg>
         </button>
-        <button class="control-btn" @click="$emit('clone', window)" title="Clone">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        <div class="menu-wrapper" ref="menuWrapperRef">
+          <button class="control-btn" @click="toggleMenu" title="More actions">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="1"></circle>
+              <circle cx="19" cy="12" r="1"></circle>
+              <circle cx="5" cy="12" r="1"></circle>
+            </svg>
+          </button>
+          <div v-if="menuOpen" class="menu-dropdown" @click.stop>
+            <button v-if="window.type === 'tool' && window.code" class="menu-item" @click="menuAction(() => $emit('promote', window))">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 19V5M5 12l7-7 7 7" />
+              </svg>
+              <span>Save as global tool</span>
+            </button>
+            <button v-if="window.type === 'tool' && window.code" class="menu-item" :disabled="!window.previousCode" @click="menuAction(() => $emit('revert', window.id))">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :style="window.isReverted ? 'transform: scaleX(-1)' : ''">
+                <polyline points="1 4 1 10 7 10"></polyline>
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+              </svg>
+              <span>{{ window.previousCode ? 'Switch version' : 'No previous version' }}</span>
+            </button>
+            <button class="menu-item" @click="menuAction(() => $emit('clone', window))">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <span>Clone</span>
+            </button>
+            <div class="menu-divider"></div>
+            <button class="menu-item danger" @click="menuAction(() => $emit('delete', window.id))">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              <span>Delete</span>
+            </button>
+          </div>
+        </div>
+        <button class="control-btn" @click="toggleMaximize" :title="isMaximized ? 'Restore' : 'Maximize'">
+          <svg v-if="!isMaximized" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
           </svg>
-        </button>
-        <button class="control-btn delete" @click="$emit('delete', window.id)" title="Delete">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="3 6 5 6 21 6"></polyline>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
           </svg>
         </button>
         <button class="control-btn close" @click="$emit('close')" title="Minimize">
@@ -50,9 +78,11 @@
         </button>
       </div>
     </div>
-    <div class="resize-handle right" @pointerdown.stop="startResize('e', $event)"></div>
-    <div class="resize-handle bottom" @pointerdown.stop="startResize('s', $event)"></div>
-    <div class="resize-handle corner" @pointerdown.stop="startResize('se', $event)"></div>
+    <template v-if="!isMaximized">
+      <div class="resize-handle right" @pointerdown.stop="startResize('e', $event)"></div>
+      <div class="resize-handle bottom" @pointerdown.stop="startResize('s', $event)"></div>
+      <div class="resize-handle corner" @pointerdown.stop="startResize('se', $event)"></div>
+    </template>
     <div class="window-body">
       <template v-if="window.type === 'tool' && window.code">
         <CodeDisplay v-if="showCode && !editingCode" :content="window.code" language="vue" @edit="startEdit" />
@@ -123,6 +153,68 @@ const showCode = ref(false)
 const editingCode = ref(false)
 const editDraft = ref('')
 
+const menuOpen = ref(false)
+const menuWrapperRef = ref<HTMLElement | null>(null)
+
+function toggleMenu() {
+  menuOpen.value = !menuOpen.value
+}
+
+function menuAction(fn: () => void) {
+  fn()
+  menuOpen.value = false
+}
+
+function onDocClick(e: MouseEvent) {
+  if (menuOpen.value && menuWrapperRef.value && !menuWrapperRef.value.contains(e.target as Node)) {
+    menuOpen.value = false
+  }
+}
+
+const titleEditRef = ref<InstanceType<typeof InlineEdit> | null>(null)
+let clickTimer: ReturnType<typeof setTimeout> | null = null
+
+const isMaximized = ref(false)
+const isAnimating = ref(false)
+const savedGeometry = ref<{ x: number; y: number; width: number; height: number } | null>(null)
+
+function onTitleClick() {
+  if (clickTimer) return
+  clickTimer = setTimeout(() => {
+    titleEditRef.value?.startEditing()
+    clickTimer = null
+  }, 150)
+}
+
+function clearClickTimer() {
+  if (clickTimer) {
+    clearTimeout(clickTimer)
+    clickTimer = null
+  }
+}
+
+function toggleMaximize() {
+  clearClickTimer()
+  isAnimating.value = true
+  if (isMaximized.value) {
+    if (savedGeometry.value) {
+      emit('update:position', { x: savedGeometry.value.x, y: savedGeometry.value.y })
+      emit('update:size', { width: savedGeometry.value.width, height: savedGeometry.value.height })
+    }
+    isMaximized.value = false
+    savedGeometry.value = null
+  } else {
+    savedGeometry.value = {
+      x: props.window.position.x,
+      y: props.window.position.y,
+      width: props.window.size.width,
+      height: props.window.size.height,
+    }
+    isMaximized.value = true
+  }
+  setTimeout(() => { isAnimating.value = false }, 220)
+}
+
 function toggleCodeView() {
   showCode.value = !showCode.value
   editingCode.value = false
@@ -174,11 +266,13 @@ onMounted(() => {
   }
 
   window.addEventListener('tool-data-updated', handleDataUpdate)
+  document.addEventListener('click', onDocClick)
 })
 
 onUnmounted(() => {
   compiler?.cleanup()
   window.removeEventListener('tool-data-updated', handleDataUpdate)
+  document.removeEventListener('click', onDocClick)
 })
 
 watch(() => props.window.code, (newCode) => {
@@ -188,15 +282,27 @@ watch(() => props.window.code, (newCode) => {
   }
 })
 
-const windowStyle = computed(() => ({
-  left: `${props.window.position.x}px`,
-  top: `${props.window.position.y}px`,
-  width: `${props.window.size.width}px`,
-  height: `${props.window.size.height}px`,
-  zIndex: props.window.zIndex,
-}))
+const windowStyle = computed(() => {
+  if (isMaximized.value) {
+    return {
+      left: '0px',
+      top: `${props.topBoundary}px`,
+      width: '100%',
+      height: `calc(100% - ${props.topBoundary}px)`,
+      zIndex: props.window.zIndex,
+    }
+  }
+  return {
+    left: `${props.window.position.x}px`,
+    top: `${props.window.position.y}px`,
+    width: `${props.window.size.width}px`,
+    height: `${props.window.size.height}px`,
+    zIndex: props.window.zIndex,
+  }
+})
 
 function startDrag(e: PointerEvent) {
+  if (isMaximized.value) return
   const startX = e.clientX
   const startY = e.clientY
   const startPos = { ...props.window.position }
@@ -240,13 +346,49 @@ function startResize(direction: string, e: PointerEvent) {
 
 <style scoped>
 .output-window { position: absolute; display: flex; flex-direction: column; background: var(--color-bg-page); border: 1px solid var(--color-border-base); box-shadow: 0 4px 20px var(--shadow-primary); min-width: 200px; min-height: 100px; }
+.output-window.animating { transition: left 0.2s ease, top 0.2s ease, width 0.2s ease, height 0.2s ease; }
 .window-header { display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0.6rem; background: var(--color-bg-base); border-bottom: 1px solid var(--color-border-base); cursor: grab; user-select: none; flex-shrink: 0; touch-action: none; }
 .window-header:active { cursor: grabbing; }
 .window-title-area { flex: 1; min-width: 0; font-size: 0.8rem; font-family: system-ui, sans-serif; font-weight: 500; color: var(--color-text-base); }
 .window-title-area :deep(.inline-edit-wrapper) { width: 100%; }
 .window-title-area :deep(.inline-edit-text) { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8rem; }
 .window-title-area :deep(.inline-edit-input) { font-size: 0.8rem; width: 100%; padding: 2px 4px; }
-.window-controls { display: flex; gap: 0.25rem; flex-shrink: 0; }
+.window-controls { display: flex; align-items: center; gap: 0.25rem; flex-shrink: 0; }
+.menu-wrapper { position: relative; }
+.menu-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.25rem;
+  background: var(--color-bg-elevated, var(--color-bg-base));
+  border: 1px solid var(--color-border-base);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  z-index: 100;
+  padding: 0.25rem;
+  min-width: 170px;
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  background: none;
+  border: none;
+  color: var(--color-text-base);
+  cursor: pointer;
+  font-family: system-ui, sans-serif;
+  font-size: 0.75rem;
+  border-radius: 4px;
+  text-align: left;
+  transition: background 0.1s;
+}
+.menu-item:hover:not(:disabled) { background: var(--color-bg-hover); }
+.menu-item:disabled { opacity: 0.3; cursor: not-allowed; }
+.menu-item.danger { color: var(--color-error, #ef4444); }
+.menu-item.danger:hover:not(:disabled) { background: var(--color-error-subtle, #fee2e2); }
+.menu-divider { height: 1px; background: var(--color-border-subtle); margin: 0.25rem 0; }
 .control-btn { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; background: none; border: none; color: var(--color-text-muted); cursor: pointer; transition: all 0.15s; }
 .control-btn:hover { background: var(--color-bg-hover); color: var(--color-text-base); }
 .control-btn.active { color: var(--color-primary, #6366f1); background: var(--color-primary-subtle, rgba(99, 102, 241, 0.1)); }

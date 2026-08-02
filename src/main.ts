@@ -14,6 +14,7 @@ import { useVocabStore } from './stores/vocab'
 import { useStreamingStore } from './stores/streaming'
 import { useSyncStore } from './stores/sync'
 import { useBooksStore } from './stores/books'
+import { useSideChatStore } from './stores/sideChat'
 import { debugLog } from './utils/debug'
 
 // Handle chunk loading failures
@@ -114,6 +115,12 @@ const initializeApp = async () => {
 
   // Initialize books store
   await booksStore.initializeStore()
+
+  // Load side chat scopes from cloud (per-content chat sync)
+  const sideChatStore = useSideChatStore(pinia)
+  sideChatStore.initFromCloud().catch((error: unknown) => {
+    console.warn('[App] Side chat cloud init failed:', error)
+  })
 
   // Subscribe to notebook store for persistence
   notebookStore.$subscribe(async () => {

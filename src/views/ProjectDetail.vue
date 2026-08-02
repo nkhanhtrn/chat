@@ -457,7 +457,7 @@ function handlePromoteTool(win: ProjectWindow) {
 .input-wrapper {
   display: flex;
   flex-direction: column;
-  padding: 0 1rem 0.5rem 1rem;
+  padding: 0;
   background: var(--color-bg-base);
 }
 
@@ -467,7 +467,7 @@ function handlePromoteTool(win: ProjectWindow) {
   padding: 0.4rem 0.6rem;
   border-radius: 4px;
   font-size: 0.8rem;
-  margin-bottom: 0.35rem;
+  margin: 0 1.25rem 0.35rem;
   border-left: 3px solid var(--color-primary);
   white-space: pre-wrap;
   font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;

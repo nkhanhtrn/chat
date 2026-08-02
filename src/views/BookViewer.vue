@@ -1,9 +1,13 @@
 <template>
   <AppLayout storage-key="sidebar" side-tab-label="Contents">
+    <template #side-header>
+      <div v-if="currentBook?.title" class="sidebar-header">
+        <div class="book-title">{{ currentBook.title }}</div>
+      </div>
+    </template>
     <template #side>
       <BookTocSidebar
         :toc="toc"
-        :book-title="currentBook?.title ?? ''"
         :active-href="activeHref"
         @navigate="handleTocNavigate"
       />
@@ -828,6 +832,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .book-viewer-page { height: 100%; min-height: 0; overflow-y: hidden; background: var(--color-bg-page); display: flex; flex-direction: column; }
+.sidebar-header { display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.75rem; border-bottom: 1px solid var(--color-border-subtle); }
+.book-title { font-size: 0.9rem; font-weight: 600; color: var(--color-text-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .loading-state, .error-state, .empty-state { text-align: center; padding: 4rem 2rem; color: var(--color-text-muted); }
 .empty-state h2 { font-family: Georgia, serif; font-weight: 400; color: var(--color-text-message); margin: 0 0 0.5rem; }
 .empty-state a { color: var(--color-primary); }
