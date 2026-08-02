@@ -185,6 +185,7 @@ let panPointerId: number | null = null
 
 const activePointers = new Map<number, { x: number; y: number }>()
 let gestureScaleRatio = 1
+let gestureMode: 'pan' | 'zoom' = 'pan'
 let pinch: {
   startDist: number
   startScale: number
@@ -256,6 +257,7 @@ function startGesture(): void {
   pdfRenderer.value?.setGestureActive(true)
   gestureActive.value = true
   gestureScaleRatio = 1
+  gestureMode = 'pan'
   const el = viewerContainer.value!
   pinch = {
     startDist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
@@ -278,20 +280,29 @@ function updateGesture(): void {
   el.scrollLeft = pinch.startScrollLeft - (midX - pinch.startMidX)
   el.scrollTop = pinch.startScrollTop - (midY - pinch.startMidY)
   const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)
-  const ratio = pinch.startDist > 0 ? dist / pinch.startDist : 1
-  gestureScaleRatio = Math.max(0.5 / pinch.startScale, Math.min(4 / pinch.startScale, ratio))
-  pdfScale.value = pinch.startScale * gestureScaleRatio
-  applyGestureTransform(gestureScaleRatio)
+  // Lock into zoom mode only when distance changes by at least 30px
+  // (absolute, not percentage — prevents accidental zoom during pan)
+  if (gestureMode === 'pan' && Math.abs(dist - pinch.startDist) > 30) {
+    gestureMode = 'zoom'
+  }
+  if (gestureMode === 'zoom') {
+    const ratio = pinch.startDist > 0 ? dist / pinch.startDist : 1
+    gestureScaleRatio = Math.max(0.5 / pinch.startScale, Math.min(4 / pinch.startScale, ratio))
+    pdfScale.value = pinch.startScale * gestureScaleRatio
+    applyGestureTransform(gestureScaleRatio)
+  }
 }
 
 async function endGesture(): Promise<void> {
   if (!pinch) return
   const startScale = pinch.startScale
+  const wasZoom = gestureMode === 'zoom'
   const finalScale = pdfScale.value
   pinch = null
   gestureActive.value = false
+  gestureMode = 'pan'
   pdfRenderer.value?.setGestureActive(false)
-  if (Math.abs(finalScale - startScale) > 0.01) {
+  if (wasZoom && Math.abs(finalScale - startScale) > 0.01) {
     savePdfScale()
     await pdfRenderer.value?.setScale(finalScale)
   }
