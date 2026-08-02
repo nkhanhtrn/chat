@@ -17,33 +17,57 @@
         />
       </div>
       <div class="window-controls" @pointerdown.stop>
-        <button v-if="window.type === 'tool' && window.code" class="control-btn" @click="$emit('promote', window)" title="Save as global tool">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 19V5M5 12l7-7 7 7" />
-          </svg>
-        </button>
-        <button v-if="window.type === 'tool' && window.code" class="control-btn" :class="{ 'revert-active': window.previousCode }" :disabled="!window.previousCode" @click="$emit('revert', window.id)" :title="window.previousCode ? 'Switch version' : 'No previous version'">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :style="window.isReverted ? 'transform: scaleX(-1)' : ''">
-            <polyline points="1 4 1 10 7 10"></polyline>
-            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
-          </svg>
-        </button>
         <button v-if="window.type === 'tool' && window.code" class="control-btn" :class="{ active: showCode }" @click="toggleCodeView" title="View code">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="16 18 22 12 16 6"></polyline>
             <polyline points="8 6 2 12 8 18"></polyline>
           </svg>
         </button>
-        <button class="control-btn" @click="$emit('clone', window)" title="Clone">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        <div class="menu-wrapper" ref="menuWrapperRef">
+          <button class="control-btn" @click="toggleMenu" title="More actions">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="1"></circle>
+              <circle cx="19" cy="12" r="1"></circle>
+              <circle cx="5" cy="12" r="1"></circle>
+            </svg>
+          </button>
+          <div v-if="menuOpen" class="menu-dropdown" @click.stop>
+            <button v-if="window.type === 'tool' && window.code" class="menu-item" @click="menuAction(() => $emit('promote', window))">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 19V5M5 12l7-7 7 7" />
+              </svg>
+              <span>Save as global tool</span>
+            </button>
+            <button v-if="window.type === 'tool' && window.code" class="menu-item" :disabled="!window.previousCode" @click="menuAction(() => $emit('revert', window.id))">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :style="window.isReverted ? 'transform: scaleX(-1)' : ''">
+                <polyline points="1 4 1 10 7 10"></polyline>
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+              </svg>
+              <span>{{ window.previousCode ? 'Switch version' : 'No previous version' }}</span>
+            </button>
+            <button class="menu-item" @click="menuAction(() => $emit('clone', window))">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <span>Clone</span>
+            </button>
+            <div class="menu-divider"></div>
+            <button class="menu-item danger" @click="menuAction(() => $emit('delete', window.id))">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              <span>Delete</span>
+            </button>
+          </div>
+        </div>
+        <button class="control-btn" @click="toggleMaximize" :title="isMaximized ? 'Restore' : 'Maximize'">
+          <svg v-if="!isMaximized" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
           </svg>
-        </button>
-        <button class="control-btn delete" @click="$emit('delete', window.id)" title="Delete">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="3 6 5 6 21 6"></polyline>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
           </svg>
         </button>
         <button class="control-btn close" @click="$emit('close')" title="Minimize">
@@ -128,6 +152,24 @@ const emit = defineEmits<{
 const showCode = ref(false)
 const editingCode = ref(false)
 const editDraft = ref('')
+
+const menuOpen = ref(false)
+const menuWrapperRef = ref<HTMLElement | null>(null)
+
+function toggleMenu() {
+  menuOpen.value = !menuOpen.value
+}
+
+function menuAction(fn: () => void) {
+  fn()
+  menuOpen.value = false
+}
+
+function onDocClick(e: MouseEvent) {
+  if (menuOpen.value && menuWrapperRef.value && !menuWrapperRef.value.contains(e.target as Node)) {
+    menuOpen.value = false
+  }
+}
 
 const titleEditRef = ref<InstanceType<typeof InlineEdit> | null>(null)
 let clickTimer: ReturnType<typeof setTimeout> | null = null
@@ -224,11 +266,13 @@ onMounted(() => {
   }
 
   window.addEventListener('tool-data-updated', handleDataUpdate)
+  document.addEventListener('click', onDocClick)
 })
 
 onUnmounted(() => {
   compiler?.cleanup()
   window.removeEventListener('tool-data-updated', handleDataUpdate)
+  document.removeEventListener('click', onDocClick)
 })
 
 watch(() => props.window.code, (newCode) => {
@@ -309,7 +353,42 @@ function startResize(direction: string, e: PointerEvent) {
 .window-title-area :deep(.inline-edit-wrapper) { width: 100%; }
 .window-title-area :deep(.inline-edit-text) { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8rem; }
 .window-title-area :deep(.inline-edit-input) { font-size: 0.8rem; width: 100%; padding: 2px 4px; }
-.window-controls { display: flex; gap: 0.25rem; flex-shrink: 0; }
+.window-controls { display: flex; align-items: center; gap: 0.25rem; flex-shrink: 0; }
+.menu-wrapper { position: relative; }
+.menu-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.25rem;
+  background: var(--color-bg-elevated, var(--color-bg-base));
+  border: 1px solid var(--color-border-base);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  z-index: 100;
+  padding: 0.25rem;
+  min-width: 170px;
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  background: none;
+  border: none;
+  color: var(--color-text-base);
+  cursor: pointer;
+  font-family: system-ui, sans-serif;
+  font-size: 0.75rem;
+  border-radius: 4px;
+  text-align: left;
+  transition: background 0.1s;
+}
+.menu-item:hover:not(:disabled) { background: var(--color-bg-hover); }
+.menu-item:disabled { opacity: 0.3; cursor: not-allowed; }
+.menu-item.danger { color: var(--color-error, #ef4444); }
+.menu-item.danger:hover:not(:disabled) { background: var(--color-error-subtle, #fee2e2); }
+.menu-divider { height: 1px; background: var(--color-border-subtle); margin: 0.25rem 0; }
 .control-btn { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; background: none; border: none; color: var(--color-text-muted); cursor: pointer; transition: all 0.15s; }
 .control-btn:hover { background: var(--color-bg-hover); color: var(--color-text-base); }
 .control-btn.active { color: var(--color-primary, #6366f1); background: var(--color-primary-subtle, rgba(99, 102, 241, 0.1)); }
