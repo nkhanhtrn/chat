@@ -2,16 +2,17 @@
   <div
     v-if="window.displayState === 'open'"
     class="output-window"
-    :class="{ maximized: isMaximized }"
+    :class="{ maximized: isMaximized, animating: isAnimating }"
     :style="windowStyle"
     @pointerdown="$emit('bring-to-front')"
   >
     <div class="window-header" @pointerdown="startDrag" @dblclick="toggleMaximize">
-      <div class="window-title-area" @click.stop="onTitleClick">
+      <div class="window-title-area">
         <InlineEdit
           ref="titleEditRef"
           :modelValue="window.title"
           editOnClick
+          @click="onTitleClick"
           @save="(newTitle: string) => $emit('update:title', newTitle)"
         />
       </div>
@@ -132,6 +133,7 @@ const titleEditRef = ref<InstanceType<typeof InlineEdit> | null>(null)
 let clickTimer: ReturnType<typeof setTimeout> | null = null
 
 const isMaximized = ref(false)
+const isAnimating = ref(false)
 const savedGeometry = ref<{ x: number; y: number; width: number; height: number } | null>(null)
 
 function onTitleClick() {
@@ -139,7 +141,7 @@ function onTitleClick() {
   clickTimer = setTimeout(() => {
     titleEditRef.value?.startEditing()
     clickTimer = null
-  }, 220)
+  }, 150)
 }
 
 function clearClickTimer() {
@@ -151,6 +153,7 @@ function clearClickTimer() {
 
 function toggleMaximize() {
   clearClickTimer()
+  isAnimating.value = true
   if (isMaximized.value) {
     if (savedGeometry.value) {
       emit('update:position', { x: savedGeometry.value.x, y: savedGeometry.value.y })
@@ -167,6 +170,7 @@ function toggleMaximize() {
     }
     isMaximized.value = true
   }
+  setTimeout(() => { isAnimating.value = false }, 220)
 }
 
 function toggleCodeView() {
@@ -298,7 +302,7 @@ function startResize(direction: string, e: PointerEvent) {
 
 <style scoped>
 .output-window { position: absolute; display: flex; flex-direction: column; background: var(--color-bg-page); border: 1px solid var(--color-border-base); box-shadow: 0 4px 20px var(--shadow-primary); min-width: 200px; min-height: 100px; }
-.output-window.maximized { transition: left 0.2s ease, top 0.2s ease, width 0.2s ease, height 0.2s ease; }
+.output-window.animating { transition: left 0.2s ease, top 0.2s ease, width 0.2s ease, height 0.2s ease; }
 .window-header { display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0.6rem; background: var(--color-bg-base); border-bottom: 1px solid var(--color-border-base); cursor: grab; user-select: none; flex-shrink: 0; touch-action: none; }
 .window-header:active { cursor: grabbing; }
 .window-title-area { flex: 1; min-width: 0; font-size: 0.8rem; font-family: system-ui, sans-serif; font-weight: 500; color: var(--color-text-base); }
