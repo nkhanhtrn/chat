@@ -58,6 +58,13 @@
           <span class="size-value">{{ highlighterSize.toFixed(1) }}</span>
         </div>
       </div>
+      <div v-if="openPopover === 'eraser' && t.tool === 'eraser'" class="tool-popover" @pointerdown.stop>
+        <div class="popover-label">Eraser size</div>
+        <div class="popover-slider-row">
+          <input type="range" class="size-slider" min="5" max="80" step="1" :value="eraserSize" @input="onEraserSizeInput" />
+          <span class="size-value">{{ eraserSize.toFixed(0) }}</span>
+        </div>
+      </div>
     </div>
     <div class="stroke-color-picker">
       <button
@@ -90,6 +97,7 @@
               <tr><td>drawColorIndex</td><td>{{ drawColorIndex }}</td></tr>
               <tr><td>penSize</td><td>{{ penSize }}</td></tr>
               <tr><td>highlighterSize</td><td>{{ highlighterSize }}</td></tr>
+              <tr><td>eraserSize</td><td>{{ eraserSize }}</td></tr>
               <tr><td>pdfScale</td><td>{{ pdfScale }}</td></tr>
               <tr><td>spreadMode</td><td>{{ spreadMode }}</td></tr>
               <tr><td>pdfRenderer</td><td>{{ pdfRenderer ? 'exists' : 'null' }}</td></tr>
@@ -201,7 +209,7 @@ function loadDrawColor(): number {
   return typeof v === 'number' && v >= 0 && v <= 4 ? v : 0
 }
 const drawColorIndex = ref<number>(loadDrawColor())
-const openPopover = ref<null | 'pen' | 'highlighter' | 'zoom'>(null)
+const openPopover = ref<null | 'pen' | 'highlighter' | 'eraser' | 'zoom'>(null)
 
 function loadPenSize(): number {
   const v = Settings.get('pdfPenSize')
@@ -215,13 +223,19 @@ function loadHighlighterSize(): number {
 }
 const highlighterSize = ref<number>(loadHighlighterSize())
 
+function loadEraserSize(): number {
+  const v = Settings.get('pdfEraserSize')
+  return typeof v === 'number' && v >= 5 && v <= 80 ? v : 20
+}
+const eraserSize = ref<number>(loadEraserSize())
+
 const ZOOM_PRESETS = [75, 100, 150, 200]
 
 const DRAW_TOOLS: { tool: DrawTool; label: string; icon: string; hasSettings?: boolean }[] = [
   { tool: 'select', label: 'Select', icon: 'M5 3l5.5 15.5L13 12l6.5-2.5z' },
   { tool: 'pen', label: 'Pen', icon: 'M16 3l5 5L8 21H3v-5z', hasSettings: true },
   { tool: 'highlighter', label: 'Highlighter', icon: 'M9 11l3-3 5 5-3 3zM6 14l3 3-2.5 2.5H3.5V17z', hasSettings: true },
-  { tool: 'eraser', label: 'Eraser', icon: 'M5 19h14M9 15l5-5 5 5-5 5z' },
+  { tool: 'eraser', label: 'Eraser', icon: 'M5 19h14M9 15l5-5 5 5-5 5z', hasSettings: true },
 ]
 
 const pageDisplayText = computed(() => {
@@ -271,7 +285,7 @@ function setTool(tool: DrawTool): void {
 
 function onToolClick(tool: DrawTool): void {
   debugPush(`onToolClick('${tool}') — drawTool was '${drawTool.value}'`)
-  if (drawTool.value === tool && (tool === 'pen' || tool === 'highlighter')) {
+  if (drawTool.value === tool && (tool === 'pen' || tool === 'highlighter' || tool === 'eraser')) {
     togglePopover(tool)
     debugPush(`  → togglePopover('${tool}') → openPopover='${openPopover.value}'`)
   } else {
@@ -286,7 +300,7 @@ function setStrokeColor(i: number): void {
   props.pdfRenderer?.setDrawColor(i)
 }
 
-function togglePopover(tool: 'pen' | 'highlighter' | 'zoom'): void {
+function togglePopover(tool: 'pen' | 'highlighter' | 'eraser' | 'zoom'): void {
   openPopover.value = openPopover.value === tool ? null : tool
 }
 
@@ -300,6 +314,12 @@ function onHighlighterSizeInput(e: Event): void {
   highlighterSize.value = Number((e.target as HTMLInputElement).value)
   Settings.set({ pdfHighlighterSize: highlighterSize.value })
   props.pdfRenderer?.setHighlighterWidth(highlighterSize.value)
+}
+
+function onEraserSizeInput(e: Event): void {
+  eraserSize.value = Number((e.target as HTMLInputElement).value)
+  Settings.set({ pdfEraserSize: eraserSize.value })
+  props.pdfRenderer?.setEraserWidth(eraserSize.value)
 }
 
 // Zoom handlers — notify BookViewer to persist after a toolbar-initiated change
@@ -362,6 +382,16 @@ watch(openPopover, (val, oldVal) => {
   }
 })
 
+// Push all tool sizes to the renderer when it becomes available (handles
+// timing where renderPdf reads pdfToolbar before it's fully mounted)
+watch(() => props.pdfRenderer, (r) => {
+  if (!r) return
+  r.setPenWidth(penSize.value)
+  r.setHighlighterWidth(highlighterSize.value)
+  r.setEraserWidth(eraserSize.value)
+  r.setDrawColor(drawColorIndex.value)
+})
+
 onBeforeUnmount(() => {
   window.removeEventListener('pointerdown', onPopoverOutsideClick)
 })
@@ -370,6 +400,7 @@ defineExpose({
   drawColorIndex,
   penSize,
   highlighterSize,
+  eraserSize,
   toggleDebug,
 })
 </script>

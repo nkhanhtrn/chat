@@ -12,6 +12,7 @@ export interface StrokeLayerOptions {
   colorIndex: number
   penWidth?: number
   highlighterWidth?: number
+  eraserWidth?: number
   getStrokes: () => Stroke[]
   onCreate?: (draft: StrokeDraft) => void
   onErase?: (id: string) => void
@@ -22,6 +23,7 @@ const DEFAULT_PEN_WIDTH = 1.8
 const DEFAULT_HIGHLIGHTER_WIDTH = 14
 const HIGHLIGHTER_OPACITY = 0.7
 const HIT_PADDING = 8
+const DEFAULT_ERASER_WIDTH = 20
 
 function defaultToolWidth(tool: StrokeTool): number {
   return tool === 'highlighter' ? DEFAULT_HIGHLIGHTER_WIDTH : DEFAULT_PEN_WIDTH
@@ -53,6 +55,7 @@ export class StrokeLayer {
   private color: number
   private penWidth: number
   private highlighterWidth: number
+  private eraserWidth: number
   private drawing = false
   private penErasing = false
   private currentPoints: StrokePoint[] = []
@@ -62,6 +65,10 @@ export class StrokeLayer {
   private activePointerId: number | null = null
   private activeTool: StrokeTool = 'pen'
   private drawingPointerType: string = ''
+  private lastEraseX = 0
+  private lastEraseY = 0
+  private eraseEl: SVGElement | null = null
+  private erasePath: { x: number; y: number }[] = []
   private boundDown: (e: PointerEvent) => void
   private boundMove: ((e: PointerEvent) => void) | null = null
   private boundUp: ((e: PointerEvent) => void) | null = null
@@ -73,6 +80,7 @@ export class StrokeLayer {
     this.color = opts.colorIndex
     this.penWidth = opts.penWidth ?? DEFAULT_PEN_WIDTH
     this.highlighterWidth = opts.highlighterWidth ?? DEFAULT_HIGHLIGHTER_WIDTH
+    this.eraserWidth = opts.eraserWidth ?? DEFAULT_ERASER_WIDTH
     this.scale = opts.viewBoxWidth > 0 && opts.displayWidth > 0
       ? opts.displayWidth / opts.viewBoxWidth
       : 1
@@ -121,6 +129,10 @@ export class StrokeLayer {
     this.highlighterWidth = width
   }
 
+  setEraserWidth(width: number): void {
+    this.eraserWidth = width
+  }
+
   setGestureActive(active: boolean): void {
     this.gestureActive = active
     if (active && this.drawingPointerType !== 'pen') this.cancelDraw()
@@ -131,7 +143,9 @@ export class StrokeLayer {
     this.drawing = false
     this.penErasing = false
     if (this.liveEl) { this.liveEl.remove(); this.liveEl = null }
+    if (this.eraseEl) { this.eraseEl.remove(); this.eraseEl = null }
     this.currentPoints = []
+    this.erasePath = []
     if (this.boundMove) {
       this.svg.removeEventListener('pointermove', this.boundMove)
       this.boundMove = null
@@ -173,31 +187,32 @@ export class StrokeLayer {
 
     const isPen = e.pointerType === 'pen'
     const penBarrel = isPen && (e.buttons & 2) !== 0
+    const shouldErase = penBarrel || this.tool === 'eraser'
 
-    if (isPen) {
-      const parts = [
-        'pointerType: ' + e.pointerType,
-        'button: ' + e.button,
-        'buttons: ' + e.buttons + ' (0b' + e.buttons.toString(2) + ')',
-        'penBarrel detected: ' + penBarrel,
-        'pointerId: ' + e.pointerId,
-        'pressure: ' + e.pressure,
-        'tiltX: ' + e.tiltX,
-        'tiltY: ' + e.tiltY,
-        'current tool: ' + this.tool,
-      ]
-      window.alert(parts.join('\n'))
-    }
-
-    // Pen barrel button held → erase mode (regardless of selected tool).
-    if (penBarrel) {
+    if (shouldErase) {
       e.preventDefault()
       this.penErasing = true
-      this.drawingPointerType = 'pen'
+      this.drawingPointerType = e.pointerType
       this.activePointerId = e.pointerId
       try { this.svg.setPointerCapture?.(e.pointerId) } catch {}
       this.setHitTargetEvents('all')
-      this.eraseAtClientPoint(e.clientX, e.clientY)
+
+      // White erase cursor line — strokes are NOT deleted during the drag,
+      // only on pointerup when the full erase path is processed.
+      this.eraseEl = createSvgEl('polyline')
+      this.eraseEl.setAttribute('fill', 'none')
+      this.eraseEl.style.stroke = 'var(--color-bg-page, #fff)'
+      this.eraseEl.setAttribute('stroke-width', String(this.eraserWidth))
+      this.eraseEl.setAttribute('stroke-linecap', 'round')
+      this.eraseEl.setAttribute('stroke-linejoin', 'round')
+      this.eraseEl.setAttribute('opacity', '0.4')
+      this.eraseEl.style.mixBlendMode = 'difference'
+      this.eraseEl.style.pointerEvents = 'none'
+      const p = this.toUser(e)
+      this.eraseEl.setAttribute('points', `${p.x},${p.y}`)
+      this.svg.appendChild(this.eraseEl)
+
+      this.erasePath = [{ x: e.clientX, y: e.clientY }]
 
       this.boundMove = this.onPointerMove.bind(this)
       this.boundUp = this.onPointerUp.bind(this)
@@ -207,11 +222,8 @@ export class StrokeLayer {
       return
     }
 
-    // Pen always draws, even during gestures or in select mode.
-    // Touch/mouse follow the normal tool rules.
     if (!isPen && this.gestureActive) return
-    if (!isPen && (this.tool === 'select' || this.tool === 'eraser')) return
-    if (isPen && this.tool === 'eraser') return
+    if (!isPen && this.tool === 'select') return
 
     e.preventDefault()
     this.drawingPointerType = e.pointerType
@@ -232,7 +244,12 @@ export class StrokeLayer {
 
   private onPointerMove(e: PointerEvent): void {
     if (this.penErasing) {
-      this.eraseAtClientPoint(e.clientX, e.clientY)
+      this.erasePath.push({ x: e.clientX, y: e.clientY })
+      if (this.eraseEl) {
+        const p = this.toUser(e)
+        const pts = this.eraseEl.getAttribute('points') ?? ''
+        this.eraseEl.setAttribute('points', pts + ` ${p.x},${p.y}`)
+      }
       return
     }
     if (!this.drawing) return
@@ -243,6 +260,18 @@ export class StrokeLayer {
   private onPointerUp(e: PointerEvent): void {
     if (this.penErasing) {
       this.penErasing = false
+      if (this.eraseEl) { this.eraseEl.remove(); this.eraseEl = null }
+      // Process the full erase path now — delete all touched strokes
+      for (let i = 0; i < this.erasePath.length; i++) {
+        const p = this.erasePath[i]
+        if (i > 0) {
+          const prev = this.erasePath[i - 1]
+          this.eraseAlongPath(prev.x, prev.y, p.x, p.y)
+        } else {
+          this.eraseAtClientPoint(p.x, p.y)
+        }
+      }
+      this.erasePath = []
       this.cleanupListeners(e.pointerId)
       this.applyToolPolicy()
       return
@@ -270,14 +299,27 @@ export class StrokeLayer {
   }
 
   private eraseAtClientPoint(clientX: number, clientY: number): void {
-    const el = document.elementFromPoint(clientX, clientY) as Element | null
-    if (!el || !(el instanceof SVGElement) || !el.hasAttribute('data-hit')) return
-    if (!this.svg.contains(el)) return
-    const group = el.closest('g[data-stroke-id]')
-    if (!group) return
-    const id = group.getAttribute('data-stroke-id')
-    group.remove()
-    if (id) this.opts.onErase?.(id)
+    const els = document.elementsFromPoint(clientX, clientY)
+    for (const el of els) {
+      if (!(el instanceof SVGElement) || !el.hasAttribute('data-hit')) continue
+      if (!this.svg.contains(el)) continue
+      const group = el.closest('g[data-stroke-id]')
+      if (!group || !group.parentNode) continue
+      const id = group.getAttribute('data-stroke-id')
+      group.remove()
+      if (id) this.opts.onErase?.(id)
+    }
+  }
+
+  private eraseAlongPath(prevX: number, prevY: number, currX: number, currY: number): void {
+    const dx = currX - prevX
+    const dy = currY - prevY
+    const dist = Math.hypot(dx, dy)
+    const steps = Math.max(1, Math.ceil(dist / 4))
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps
+      this.eraseAtClientPoint(prevX + dx * t, prevY + dy * t)
+    }
   }
 
   private setHitTargetEvents(value: string): void {
@@ -348,21 +390,13 @@ export class StrokeLayer {
     visible.setAttribute('pointer-events', 'none')
     g.appendChild(visible)
 
-    // Invisible, wider hit target for easy erase selection
+    // Invisible, wider hit target for erase detection via elementsFromPoint
     const hit = this.createVisibleEl(draft.tool, draft.colorIndex, draft.points, width)
     hit.setAttribute('data-hit', 'true')
     hit.style.stroke = 'transparent'
     hit.style.fill = 'transparent'
     hit.setAttribute('stroke-width', String(width + HIT_PADDING))
-    hit.style.cursor = 'pointer'
     hit.setAttribute('pointer-events', 'none')
-    hit.addEventListener('pointerdown', (e) => {
-      if (this.tool !== 'eraser' || this.destroyed) return
-      e.stopPropagation()
-      e.preventDefault()
-      g.remove()
-      this.opts.onErase?.(draft.id)
-    })
     g.appendChild(hit)
 
     return g
@@ -384,7 +418,7 @@ export class StrokeLayer {
     // even in select mode. Touch/mouse are filtered by pointerType
     // in onPointerDown.
     this.svg.style.pointerEvents = 'auto'
-    this.svg.style.cursor = this.tool === 'select' ? '' : (this.tool === 'eraser' ? 'pointer' : 'crosshair')
+    this.svg.style.cursor = this.tool === 'select' ? '' : (this.tool === 'eraser' ? 'cell' : 'crosshair')
     const hitTarget = this.tool === 'eraser' ? 'all' : 'none'
     this.svg.querySelectorAll<SVGElement>('[data-hit]').forEach(el => {
       el.setAttribute('pointer-events', hitTarget)

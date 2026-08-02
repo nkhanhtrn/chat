@@ -49,6 +49,7 @@
           @pointermove="onViewerPointerMove"
           @pointerup="onViewerPointerUp"
           @pointercancel="onViewerPointerUp"
+          @contextmenu.prevent
         >
           <!-- book renders here -->
         </div>
@@ -198,7 +199,9 @@ let pinch: {
 const viewerCursor = computed(() => {
   if (bookFileType.value !== 'pdf') return 'default'
   if (gestureActive.value || panning.value) return 'grabbing'
-  return drawTool.value === 'select' ? 'grab' : 'default'
+  if (drawTool.value === 'select') return 'grab'
+  if (drawTool.value === 'eraser') return 'cell'
+  return 'default'
 })
 
 function startPan(e: PointerEvent): void {
@@ -568,6 +571,7 @@ async function renderPdf(bookId: string, fileData: ArrayBuffer) {
     drawColorIndex: pdfToolbar.value?.drawColorIndex.value ?? 0,
     penWidth: pdfToolbar.value?.penSize.value ?? 1.8,
     highlighterWidth: pdfToolbar.value?.highlighterSize.value ?? 14,
+    eraserWidth: pdfToolbar.value?.eraserSize.value ?? 20,
     getStrokesForPage: (page) => strokesStore.forPage(bookId, page),
     onStrokeAdd: handleStrokeAdd,
     onStrokeRemove: handleStrokeRemove,
@@ -800,6 +804,26 @@ function handleKeydown(e: KeyboardEvent) {
   }
 }
 
+// Debug: pen event logging controlled by Settings > Debug > Pen event log
+const debugPenDown = (e: PointerEvent) => {
+  if (e.pointerType === 'pen') {
+    window.alert('[pen pointerdown] pointerType=' + e.pointerType + ' button=' + e.button + ' buttons=' + e.buttons + ' (0b' + e.buttons.toString(2) + ') pressure=' + e.pressure + ' tiltX=' + e.tiltX + ' tiltY=' + e.tiltY)
+  }
+}
+const debugCtxMenu = (e: Event) => {
+  window.alert('[contextmenu] fired — browser may have intercepted the barrel button')
+}
+function updatePenDebug(on: boolean) {
+  if (on) {
+    window.addEventListener('pointerdown', debugPenDown, true)
+    window.addEventListener('contextmenu', debugCtxMenu, true)
+  } else {
+    window.removeEventListener('pointerdown', debugPenDown, true)
+    window.removeEventListener('contextmenu', debugCtxMenu, true)
+  }
+}
+watch(() => Settings.get('penDebugLog') === true, (on) => updatePenDebug(on), { immediate: true })
+
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
 })
@@ -807,6 +831,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   destroyRenderer()
   window.removeEventListener('keydown', handleKeydown)
+  updatePenDebug(false)
 })
 </script>
 

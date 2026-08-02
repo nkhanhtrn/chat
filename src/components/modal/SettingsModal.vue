@@ -6,6 +6,7 @@
         <button :class="['tab-button', { active: activeTab === 'theme' }]" @click="activeTab = 'theme'">Theme</button>
         <button :class="['tab-button', { active: activeTab === 'llm' }]" @click="activeTab = 'llm'">LLM</button>
         <button :class="['tab-button', { active: activeTab === 'account' }]" @click="activeTab = 'account'">Account</button>
+        <button :class="['tab-button', { active: activeTab === 'debug' }]" @click="activeTab = 'debug'">Debug</button>
       </div>
 
       <!-- Tab Content -->
@@ -135,9 +136,16 @@
               <span class="setting-hint">Download all messages from cloud for offline use</span>
               <div v-if="syncStore.syncStatus && syncStore.syncMessage" :class="['connection-status', syncStore.syncStatus]">{{ syncStore.syncMessage }}</div>
             </div>
-            <div class="setting-item dev-toolbar-section">
-              <label class="setting-label">Dev Toolbar</label>
-              <button :class="['toggle-button', { active: devToolbarVisible }]" @click="handleToggleDevToolbar">{{ devToolbarVisible ? 'Visible' : 'Hidden' }}</button>
+          </div>
+
+          <!-- Debug Tab -->
+          <div v-else-if="activeTab === 'debug'" key="debug" class="settings-body">
+            <div class="setting-item">
+              <label class="setting-label">Pen event log</label>
+              <button :class="['toggle-button', { active: penDebugLog }]" @click="togglePenDebugLog">{{ penDebugLog ? 'On' : 'Off' }}</button>
+            </div>
+            <div v-if="penDebugLog" class="setting-item setting-item-vertical">
+              <span class="setting-hint">Touch the screen with the pen (including side button) to see pointer event details via alert.</span>
             </div>
           </div>
         </Transition>
@@ -149,7 +157,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, inject } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import Modal from './Modal.vue'
 import LoginModal from './LoginModal.vue'
 import { onAuthChange, signOutUser } from '@/services/auth'
@@ -166,10 +174,6 @@ const props = defineProps<{ modelValue?: boolean }>()
 const visible = computed(() => props.modelValue ?? false)
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
 
-// Dev toolbar (injected from AppLayout)
-const devToolbarVisible = inject('showDevToolbar', ref(false))
-const toggleDevToolbar = inject<(val: boolean) => void>('toggleDevToolbar', () => {})
-
 // Stores
 const notebookStore = useNotebookStore()
 const treeStore = useMessageTreeStore()
@@ -185,6 +189,13 @@ let unsubscribeAuth: (() => void) | null = null
 
 // Tab state
 const activeTab = ref('theme')
+
+// Debug state
+const penDebugLog = ref(Settings.get('penDebugLog') === true)
+function togglePenDebugLog() {
+  penDebugLog.value = !penDebugLog.value
+  Settings.set({ penDebugLog: penDebugLog.value })
+}
 
 // Theme state
 const currentTheme = ref<Theme>('light')
@@ -488,10 +499,6 @@ async function handleSyncAll() {
   // TODO: implement downloadAllData when cloud sync is fully ported
 }
 
-function handleToggleDevToolbar() {
-  toggleDevToolbar(!devToolbarVisible.value)
-}
-
 // ── Lifecycle ──
 
 onMounted(async () => {
@@ -615,8 +622,6 @@ onUnmounted(() => {
 .sync-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .sync-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(0,0,0,0.1); border-radius: 50%; border-top-color: currentColor; animation: spin 0.8s linear infinite; }
 
-.dev-toolbar-section { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--color-border-subtle); }
-.dev-toolbar-section .toggle-button { border: 1px solid var(--color-border-base); border-radius: 4px; }
 
 .account-info { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem; background: var(--color-bg-page); border: 1px solid var(--color-border-base); border-radius: 6px; }
 .user-email { font-size: 0.9rem; color: var(--color-text-base); }

@@ -23,6 +23,7 @@ export interface PdfRendererOptions {
   drawColorIndex?: number
   penWidth?: number
   highlighterWidth?: number
+  eraserWidth?: number
 }
 
 export class PdfRenderer {
@@ -42,6 +43,7 @@ export class PdfRenderer {
   private _drawColor: number
   private _penWidth: number
   private _highlighterWidth: number
+  private _eraserWidth: number
 
   constructor(container: HTMLElement, fileData: ArrayBuffer, options: PdfRendererOptions = {}) {
     this.container = container
@@ -52,6 +54,7 @@ export class PdfRenderer {
     this._drawColor = options.drawColorIndex ?? 0
     this._penWidth = options.penWidth ?? 1.8
     this._highlighterWidth = options.highlighterWidth ?? 14
+    this._eraserWidth = options.eraserWidth ?? 20
     this._spreadOverride = options.spreadMode && options.spreadMode !== 'auto' ? options.spreadMode : null
   }
 
@@ -169,6 +172,11 @@ export class PdfRenderer {
   setHighlighterWidth(width: number): void {
     this._highlighterWidth = width
     this.strokeLayers.forEach(l => l.setHighlighterWidth(width))
+  }
+
+  setEraserWidth(width: number): void {
+    this._eraserWidth = width
+    this.strokeLayers.forEach(l => l.setEraserWidth(width))
   }
 
   setGestureActive(active: boolean): void {
@@ -337,6 +345,7 @@ export class PdfRenderer {
       colorIndex: this._drawColor,
       penWidth: this._penWidth,
       highlighterWidth: this._highlighterWidth,
+      eraserWidth: this._eraserWidth,
       getStrokes: () => this.options.getStrokesForPage?.(pageNum) ?? [],
       onCreate: (draft) => { this.options.onStrokeAdd?.(draft) },
       onErase: (id) => { this.options.onStrokeRemove?.(id) },

@@ -1,7 +1,4 @@
 <template>
-  <DevToolbar v-if="showDevToolbar" />
-  <div v-if="showDevToolbar" class="dev-toolbar-spacer"></div>
-
   <StaleDataBanner
     :visible="showStaleDataBanner"
     :isReadOnlyMode="isReadOnlyMode"
@@ -17,16 +14,13 @@
 import { ref, provide, onMounted, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import StaleDataBanner from '@/components/StaleDataBanner.vue'
-import DevToolbar from '@/components/DevToolbar.vue'
 import { Toaster } from 'vue-sonner'
 import 'vue-sonner/style.css'
 import type { Theme } from 'vue-sonner'
 import { useNotebookStore } from '@/stores/notebook'
 import { useStaleDataDetection } from '@/composables/useStaleDataDetection'
-import { getDevToolbarEnabled, setDevToolbarEnabled } from '@/composables/useEnvironment'
 
 const router = useRouter()
-const showDevToolbar = ref(getDevToolbarEnabled())
 
 const themeRef = ref(document.documentElement.getAttribute('data-theme') || 'light')
 
@@ -46,18 +40,11 @@ const toasterStyle = {
   padding: '0.875rem 1.25rem',
 }
 
-const toggleDevToolbar = (enabled: boolean) => {
-  setDevToolbarEnabled(enabled)
-  showDevToolbar.value = enabled
-}
-
 const notebookStore = useNotebookStore()
 
 const { showStaleDataBanner, isReadOnlyMode, refresh, dismissBanner, triggerBanner } = useStaleDataDetection()
 
 provide('triggerStaleDataBanner', triggerBanner)
-provide('showDevToolbar', showDevToolbar)
-provide('toggleDevToolbar', toggleDevToolbar)
 
 onMounted(() => {
   if ((window as any).__notebookDeleted) {
@@ -66,9 +53,3 @@ onMounted(() => {
   }
 })
 </script>
-
-<style>
-.dev-toolbar-spacer {
-  height: 41px;
-}
-</style>

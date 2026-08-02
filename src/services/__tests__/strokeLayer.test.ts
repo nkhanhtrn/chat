@@ -224,7 +224,16 @@ describe('StrokeLayer', () => {
 
       expect(svg.querySelectorAll('g[data-stroke-id]')).toHaveLength(1)
       const hit = svg.querySelector('[data-hit]') as SVGElement
-      hit.dispatchEvent(new PointerEvent('pointerdown', { clientX: 10, clientY: 10, pointerId: 2 }))
+
+      const spy = vi.fn(() => [hit])
+      Object.defineProperty(document, 'elementsFromPoint', { value: spy, configurable: true })
+
+      svg.dispatchEvent(new PointerEvent('pointerdown', { clientX: 10, clientY: 10, pointerId: 2 }))
+
+      // Erase is deferred to pointerup — verify nothing deleted yet
+      expect(onErase).not.toHaveBeenCalled()
+
+      svg.dispatchEvent(new PointerEvent('pointerup', { clientX: 10, clientY: 10, pointerId: 2 }))
 
       expect(onErase).toHaveBeenCalledWith('persisted-1')
       expect(svg.querySelectorAll('g[data-stroke-id]')).toHaveLength(0)
