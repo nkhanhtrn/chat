@@ -139,15 +139,7 @@
           </div>
 
           <!-- Debug Tab -->
-          <div v-else-if="activeTab === 'debug'" key="debug" class="settings-body">
-            <div class="setting-item">
-              <label class="setting-label">Pen event log</label>
-              <button :class="['toggle-button', { active: penDebugLog }]" @click="togglePenDebugLog">{{ penDebugLog ? 'On' : 'Off' }}</button>
-            </div>
-            <div v-if="penDebugLog" class="setting-item setting-item-vertical">
-              <span class="setting-hint">Touch the screen with the pen (including side button) to see pointer event details via alert.</span>
-            </div>
-          </div>
+          <DebugPanel v-else-if="activeTab === 'debug'" key="debug" />
         </Transition>
       </div>
     </div>
@@ -160,6 +152,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import Modal from './Modal.vue'
 import LoginModal from './LoginModal.vue'
+import DebugPanel from './DebugPanel.vue'
 import { onAuthChange, signOutUser } from '@/services/auth'
 import { useNotebookStore } from '@/stores/notebook'
 import { useMessageTreeStore } from '@/stores/messageTree'
@@ -189,13 +182,6 @@ let unsubscribeAuth: (() => void) | null = null
 
 // Tab state
 const activeTab = ref('theme')
-
-// Debug state
-const penDebugLog = ref(Settings.get('penDebugLog') === true)
-function togglePenDebugLog() {
-  penDebugLog.value = !penDebugLog.value
-  Settings.set({ penDebugLog: penDebugLog.value })
-}
 
 // Theme state
 const currentTheme = ref<Theme>('light')

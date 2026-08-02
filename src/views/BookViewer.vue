@@ -816,21 +816,6 @@ function handleKeydown(e: KeyboardEvent) {
   }
 }
 
-// Debug: pen event logging controlled by Settings > Debug > Pen event log
-const debugPenDown = (e: PointerEvent) => {
-  if (e.pointerType === 'pen') {
-    window.alert('[pen pointerdown] pointerType=' + e.pointerType + ' button=' + e.button + ' buttons=' + e.buttons + ' (0b' + e.buttons.toString(2) + ') pressure=' + e.pressure + ' tiltX=' + e.tiltX + ' tiltY=' + e.tiltY)
-  }
-}
-function updatePenDebug(on: boolean) {
-  if (on) {
-    window.addEventListener('pointerdown', debugPenDown, true)
-  } else {
-    window.removeEventListener('pointerdown', debugPenDown, true)
-  }
-}
-watch(() => Settings.get('penDebugLog') === true, (on) => updatePenDebug(on), { immediate: true })
-
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
 })
