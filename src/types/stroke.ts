@@ -11,6 +11,7 @@ export interface Stroke {
   page: number
   tool: StrokeTool
   colorIndex: number
+  width?: number
   points: StrokePoint[]
   createdAt: number
   updatedAt: number
@@ -22,5 +23,6 @@ export interface StrokeDraft {
   page: number
   tool: StrokeTool
   colorIndex: number
+  width: number
   points: StrokePoint[]
 }

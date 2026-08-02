@@ -10,16 +10,22 @@ export interface StrokeLayerOptions {
   displayHeight: number
   tool: DrawTool
   colorIndex: number
+  penWidth?: number
+  highlighterWidth?: number
   getStrokes: () => Stroke[]
   onCreate?: (draft: StrokeDraft) => void
   onErase?: (id: string) => void
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
-const PEN_WIDTH = 1.8
-const HIGHLIGHTER_WIDTH = 14
+const DEFAULT_PEN_WIDTH = 1.8
+const DEFAULT_HIGHLIGHTER_WIDTH = 14
 const HIGHLIGHTER_OPACITY = 0.7
 const HIT_PADDING = 8
+
+function defaultToolWidth(tool: StrokeTool): number {
+  return tool === 'highlighter' ? DEFAULT_HIGHLIGHTER_WIDTH : DEFAULT_PEN_WIDTH
+}
 
 /** Solid fallback palette (matches the light-theme --color-stroke-* hues). */
 export const STROKE_COLORS = ['#cc9833', '#38a053', '#2f80d6', '#d65a7c', '#8b5cc7']
@@ -31,10 +37,6 @@ export function strokeColor(tool: StrokeTool, colorIndex: number): string {
   const i = Math.max(0, Math.min(STROKE_COLORS.length - 1, colorIndex))
   const base = `var(--color-stroke-${i}, ${STROKE_COLORS[i]})`
   return tool === 'pen' ? `color-mix(in srgb, ${base}, black ${PEN_DARKEN})` : base
-}
-
-function toolWidth(tool: StrokeTool): number {
-  return tool === 'highlighter' ? HIGHLIGHTER_WIDTH : PEN_WIDTH
 }
 
 function createSvgEl<K extends keyof SVGElementTagNameMap>(name: K): SVGElementTagNameMap[K] {
@@ -49,6 +51,8 @@ export class StrokeLayer {
   private scale: number
   private tool: DrawTool
   private color: number
+  private penWidth: number
+  private highlighterWidth: number
   private drawing = false
   private penErasing = false
   private currentPoints: StrokePoint[] = []
@@ -67,6 +71,8 @@ export class StrokeLayer {
     this.opts = opts
     this.tool = opts.tool
     this.color = opts.colorIndex
+    this.penWidth = opts.penWidth ?? DEFAULT_PEN_WIDTH
+    this.highlighterWidth = opts.highlighterWidth ?? DEFAULT_HIGHLIGHTER_WIDTH
     this.scale = opts.viewBoxWidth > 0 && opts.displayWidth > 0
       ? opts.displayWidth / opts.viewBoxWidth
       : 1
@@ -105,6 +111,14 @@ export class StrokeLayer {
 
   setColor(colorIndex: number): void {
     this.color = colorIndex
+  }
+
+  setPenWidth(width: number): void {
+    this.penWidth = width
+  }
+
+  setHighlighterWidth(width: number): void {
+    this.highlighterWidth = width
   }
 
   setGestureActive(active: boolean): void {
@@ -160,6 +174,21 @@ export class StrokeLayer {
     const isPen = e.pointerType === 'pen'
     const penBarrel = isPen && (e.buttons & 2) !== 0
 
+    if (isPen) {
+      const parts = [
+        'pointerType: ' + e.pointerType,
+        'button: ' + e.button,
+        'buttons: ' + e.buttons + ' (0b' + e.buttons.toString(2) + ')',
+        'penBarrel detected: ' + penBarrel,
+        'pointerId: ' + e.pointerId,
+        'pressure: ' + e.pressure,
+        'tiltX: ' + e.tiltX,
+        'tiltY: ' + e.tiltY,
+        'current tool: ' + this.tool,
+      ]
+      window.alert(parts.join('\n'))
+    }
+
     // Pen barrel button held → erase mode (regardless of selected tool).
     if (penBarrel) {
       e.preventDefault()
@@ -191,7 +220,7 @@ export class StrokeLayer {
     try { this.svg.setPointerCapture?.(e.pointerId) } catch {}
     this.drawing = true
     this.currentPoints = [this.toUser(e)]
-    this.liveEl = this.createVisibleEl(this.activeTool, this.color, this.currentPoints)
+    this.liveEl = this.createVisibleEl(this.activeTool, this.color, this.currentPoints, this.toolWidth(this.activeTool))
     this.strokeParent(this.activeTool).appendChild(this.liveEl)
 
     this.boundMove = this.onPointerMove.bind(this)
@@ -277,6 +306,7 @@ export class StrokeLayer {
       page: this.opts.page,
       tool: this.activeTool,
       colorIndex: this.color,
+      width: this.toolWidth(this.activeTool),
       points: pts,
     }
     this.strokeParent(draft.tool).appendChild(this.createPersistedGroup(draft))
@@ -290,11 +320,15 @@ export class StrokeLayer {
 
   // --- element builders ---
 
-  private createVisibleEl(tool: StrokeTool, colorIndex: number, pts: StrokePoint[]): SVGElement {
+  private toolWidth(tool: StrokeTool): number {
+    return tool === 'highlighter' ? this.highlighterWidth : this.penWidth
+  }
+
+  private createVisibleEl(tool: StrokeTool, colorIndex: number, pts: StrokePoint[], width: number): SVGElement {
     const el = createSvgEl('polyline')
     el.setAttribute('fill', 'none')
     el.style.stroke = strokeColor(tool, colorIndex)
-    el.setAttribute('stroke-width', String(toolWidth(tool)))
+    el.setAttribute('stroke-width', String(width))
     el.setAttribute('stroke-linecap', 'round')
     el.setAttribute('stroke-linejoin', 'round')
     this.updateGeometry(el, pts)
@@ -305,20 +339,21 @@ export class StrokeLayer {
     el.setAttribute('points', pts.map(p => `${p.x},${p.y}`).join(' '))
   }
 
-  private createPersistedGroup(draft: { id: string; tool: StrokeTool; colorIndex: number; points: StrokePoint[] }): SVGGElement {
+  private createPersistedGroup(draft: { id: string; tool: StrokeTool; colorIndex: number; width?: number; points: StrokePoint[] }): SVGGElement {
     const g = createSvgEl('g')
     g.setAttribute('data-stroke-id', draft.id)
+    const width = draft.width ?? defaultToolWidth(draft.tool)
 
-    const visible = this.createVisibleEl(draft.tool, draft.colorIndex, draft.points)
+    const visible = this.createVisibleEl(draft.tool, draft.colorIndex, draft.points, width)
     visible.setAttribute('pointer-events', 'none')
     g.appendChild(visible)
 
     // Invisible, wider hit target for easy erase selection
-    const hit = this.createVisibleEl(draft.tool, draft.colorIndex, draft.points)
+    const hit = this.createVisibleEl(draft.tool, draft.colorIndex, draft.points, width)
     hit.setAttribute('data-hit', 'true')
     hit.style.stroke = 'transparent'
     hit.style.fill = 'transparent'
-    hit.setAttribute('stroke-width', String(toolWidth(draft.tool) + HIT_PADDING))
+    hit.setAttribute('stroke-width', String(width + HIT_PADDING))
     hit.style.cursor = 'pointer'
     hit.setAttribute('pointer-events', 'none')
     hit.addEventListener('pointerdown', (e) => {
@@ -354,5 +389,19 @@ export class StrokeLayer {
     this.svg.querySelectorAll<SVGElement>('[data-hit]').forEach(el => {
       el.setAttribute('pointer-events', hitTarget)
     })
+  }
+
+  getDebugInfo(): Record<string, unknown> {
+    return {
+      tool: this.tool,
+      color: this.color,
+      penWidth: this.penWidth,
+      highlighterWidth: this.highlighterWidth,
+      pointerEvents: this.svg.style.pointerEvents,
+      cursor: this.svg.style.cursor,
+      strokeCount: this.svg.querySelectorAll('g[data-stroke-id]').length,
+      hitTargetCount: this.svg.querySelectorAll('[data-hit]').length,
+      destroyed: this.destroyed,
+    }
   }
 }

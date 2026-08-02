@@ -52,6 +52,7 @@ export const useStrokesStore = defineStore('strokes', {
         page: draft.page,
         tool: draft.tool,
         colorIndex: draft.colorIndex,
+        width: draft.width,
         points: draft.points,
         createdAt: now,
         updatedAt: now,

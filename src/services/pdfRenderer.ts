@@ -21,6 +21,8 @@ export interface PdfRendererOptions {
   onStrokeRemove?: (strokeId: string) => void
   drawTool?: DrawTool
   drawColorIndex?: number
+  penWidth?: number
+  highlighterWidth?: number
 }
 
 export class PdfRenderer {
@@ -38,6 +40,8 @@ export class PdfRenderer {
   private strokeLayers: StrokeLayer[] = []
   private _drawTool: DrawTool
   private _drawColor: number
+  private _penWidth: number
+  private _highlighterWidth: number
 
   constructor(container: HTMLElement, fileData: ArrayBuffer, options: PdfRendererOptions = {}) {
     this.container = container
@@ -46,6 +50,8 @@ export class PdfRenderer {
     this._scale = options.scale ?? 1.5
     this._drawTool = options.drawTool ?? 'select'
     this._drawColor = options.drawColorIndex ?? 0
+    this._penWidth = options.penWidth ?? 1.8
+    this._highlighterWidth = options.highlighterWidth ?? 14
     this._spreadOverride = options.spreadMode && options.spreadMode !== 'auto' ? options.spreadMode : null
   }
 
@@ -155,12 +161,26 @@ export class PdfRenderer {
     this.strokeLayers.forEach(l => l.setColor(colorIndex))
   }
 
+  setPenWidth(width: number): void {
+    this._penWidth = width
+    this.strokeLayers.forEach(l => l.setPenWidth(width))
+  }
+
+  setHighlighterWidth(width: number): void {
+    this._highlighterWidth = width
+    this.strokeLayers.forEach(l => l.setHighlighterWidth(width))
+  }
+
   setGestureActive(active: boolean): void {
     this.strokeLayers.forEach(l => l.setGestureActive(active))
   }
 
   redrawStrokes(): void {
     this.strokeLayers.forEach(l => l.redraw())
+  }
+
+  getStrokeLayerDebug(): Record<string, unknown>[] {
+    return this.strokeLayers.map(l => l.getDebugInfo())
   }
 
   setSpreadMode(mode: SpreadMode): void {
@@ -315,6 +335,8 @@ export class PdfRenderer {
       displayHeight,
       tool: this._drawTool,
       colorIndex: this._drawColor,
+      penWidth: this._penWidth,
+      highlighterWidth: this._highlighterWidth,
       getStrokes: () => this.options.getStrokesForPage?.(pageNum) ?? [],
       onCreate: (draft) => { this.options.onStrokeAdd?.(draft) },
       onErase: (id) => { this.options.onStrokeRemove?.(id) },
