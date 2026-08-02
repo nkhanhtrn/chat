@@ -15,12 +15,12 @@ interface SettingsData {
   bookApiUrl?: string
   bookApiKey?: string
   extraService?: string
-  devToolbar?: boolean
   pdfDrawTool?: string
   pdfDrawColor?: number
   pdfPenSize?: number
   pdfHighlighterSize?: number
   pdfEraserSize?: number
+  penDebugLog?: boolean
   pdfSpreadMode?: string
   [key: string]: unknown
 }

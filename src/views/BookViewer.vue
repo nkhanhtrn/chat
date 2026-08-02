@@ -804,29 +804,34 @@ function handleKeydown(e: KeyboardEvent) {
   }
 }
 
-// Debug: catch ALL pen events at window level
-let debugPenDown: ((e: PointerEvent) => void) | null = null
-let debugCtxMenu: ((e: Event) => void) | null = null
+// Debug: pen event logging controlled by Settings > Debug > Pen event log
+const debugPenDown = (e: PointerEvent) => {
+  if (e.pointerType === 'pen') {
+    window.alert('[pen pointerdown] pointerType=' + e.pointerType + ' button=' + e.button + ' buttons=' + e.buttons + ' (0b' + e.buttons.toString(2) + ') pressure=' + e.pressure + ' tiltX=' + e.tiltX + ' tiltY=' + e.tiltY)
+  }
+}
+const debugCtxMenu = (e: Event) => {
+  window.alert('[contextmenu] fired — browser may have intercepted the barrel button')
+}
+function updatePenDebug(on: boolean) {
+  if (on) {
+    window.addEventListener('pointerdown', debugPenDown, true)
+    window.addEventListener('contextmenu', debugCtxMenu, true)
+  } else {
+    window.removeEventListener('pointerdown', debugPenDown, true)
+    window.removeEventListener('contextmenu', debugCtxMenu, true)
+  }
+}
+watch(() => Settings.get('penDebugLog') === true, (on) => updatePenDebug(on), { immediate: true })
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
-  debugPenDown = (e: PointerEvent) => {
-    if (e.pointerType === 'pen' && e.button !== 0) {
-      window.alert('[window pointerdown] button=' + e.button + ' buttons=' + e.buttons + ' (0b' + e.buttons.toString(2) + ') pressure=' + e.pressure)
-    }
-  }
-  debugCtxMenu = (e: Event) => {
-    window.alert('[window contextmenu] fired — browser intercepted the barrel button')
-  }
-  window.addEventListener('pointerdown', debugPenDown, true)
-  window.addEventListener('contextmenu', debugCtxMenu, true)
 })
 
 onBeforeUnmount(() => {
   destroyRenderer()
   window.removeEventListener('keydown', handleKeydown)
-  if (debugPenDown) window.removeEventListener('pointerdown', debugPenDown, true)
-  if (debugCtxMenu) window.removeEventListener('contextmenu', debugCtxMenu, true)
+  updatePenDebug(false)
 })
 </script>
 

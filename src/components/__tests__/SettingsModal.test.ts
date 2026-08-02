@@ -10,6 +10,7 @@ import * as settingsFunctions from '@/services/settings'
 vi.mock('@/services/settings', () => ({
   Settings: {
     getAll: vi.fn().mockReturnValue({}),
+    get: vi.fn().mockReturnValue(undefined),
     set: vi.fn(),
   },
   setTheme: vi.fn(),
@@ -54,10 +55,7 @@ function mountSettings(props = {}) {
         LoginModal: LoginModalStub,
         PromptInput: { template: '<div />' },
       },
-      provide: {
-        showDevToolbar: { value: false },
-        toggleDevToolbar: vi.fn(),
-      },
+      provide: {},
     },
     attachTo: document.body,
   })
