@@ -45,7 +45,7 @@
           :class="{ 'is-pdf-viewer': bookFileType === 'pdf' }"
           ref="viewerContainer"
           :style="{ cursor: viewerCursor }"
-          @pointerdown="onViewerPointerDown"
+          @pointerdown.capture="onViewerPointerDown"
           @pointermove="onViewerPointerMove"
           @pointerup="onViewerPointerUp"
           @pointercancel="onViewerPointerUp"
@@ -304,14 +304,24 @@ function onViewerPointerDown(e: PointerEvent) {
   if (e.pointerType === 'mouse' && e.button !== 0) return
   // Pen input is handled entirely by the stroke layer — never pan or gesture.
   if (e.pointerType === 'pen') return
+
   if (e.pointerType === 'touch') {
     activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
   }
+
   if (activePointers.size >= 2) {
+    // Second finger — cancel any active touch stroke and start gesture
+    // BEFORE the SVG can process this event.
     if (!pinch) startGesture()
+    e.stopPropagation()
     return
   }
-  if (drawTool.value === 'select') startPan(e)
+
+  if (drawTool.value === 'select') {
+    startPan(e)
+    e.stopPropagation()
+  }
+  // In pen/highlighter mode: let the event continue to the SVG (drawing)
 }
 
 function onViewerPointerMove(e: PointerEvent) {
