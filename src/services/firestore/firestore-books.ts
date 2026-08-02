@@ -1,5 +1,5 @@
 import { getFirestore, doc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore'
-import { getStorage, ref, uploadBytesResumable, getStream, getMetadata, deleteObject } from 'firebase/storage'
+import { getStorage, ref, uploadBytesResumable, getBlob, deleteObject } from 'firebase/storage'
 import { getFirebaseAuth } from '@/services/firebase'
 import type { BookData } from '@/types/book'
 import { wipeStrokesForBook } from './firestore-strokes'
@@ -107,11 +107,11 @@ export async function downloadBookFileFromStorage(
 
   const downloadWithExtension = async (ext: string): Promise<ArrayBuffer | null> => {
     const fileRef = ref(storage, `users/${uid}/books/${bookId}/book.${ext}`)
-    const meta = await getMetadata(fileRef)
-    const total = meta.size
+    const blob = await getBlob(fileRef)
+    const total = blob.size
     if (total === 0) return null
 
-    const reader = getStream(fileRef).getReader()
+    const reader = blob.stream().getReader()
     const chunks: Uint8Array[] = []
     let received = 0
 
