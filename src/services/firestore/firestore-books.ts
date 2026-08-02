@@ -1,5 +1,5 @@
 import { getFirestore, doc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore'
-import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage'
+import { getStorage, ref, uploadBytesResumable, getStream, getMetadata, deleteObject } from 'firebase/storage'
 import { getFirebaseAuth } from '@/services/firebase'
 import type { BookData } from '@/types/book'
 import { wipeStrokesForBook } from './firestore-strokes'
@@ -95,24 +95,23 @@ export async function loadBooksFromFirestore(): Promise<BookData[]> {
   }
 }
 
-export function downloadBookFileFromStorage(
+export async function downloadBookFileFromStorage(
   bookId: string,
   onProgress?: (progress: number) => void,
   fileType?: 'epub' | 'pdf',
 ): Promise<ArrayBuffer | null> {
   const uid = getUid()
-  if (!uid) return Promise.resolve(null)
+  if (!uid) return null
 
   const storage = getStorage()
 
   const downloadWithExtension = async (ext: string): Promise<ArrayBuffer | null> => {
     const fileRef = ref(storage, `users/${uid}/books/${bookId}/book.${ext}`)
-    const url = await getDownloadURL(fileRef)
-    const response = await fetch(url)
-    if (!response.ok || !response.body) throw new Error(`Download failed: ${response.status}`)
+    const meta = await getMetadata(fileRef)
+    const total = meta.size
+    if (total === 0) return null
 
-    const total = Number(response.headers.get('Content-Length')) || 0
-    const reader = response.body.getReader()
+    const reader = getStream(fileRef).getReader()
     const chunks: Uint8Array[] = []
     let received = 0
 
@@ -121,10 +120,8 @@ export function downloadBookFileFromStorage(
       if (done) break
       chunks.push(value)
       received += value.length
-      if (total > 0) onProgress?.(received / total)
+      onProgress?.(received / total)
     }
-
-    if (received === 0) return null
 
     const result = new Uint8Array(received)
     let offset = 0
@@ -138,14 +135,19 @@ export function downloadBookFileFromStorage(
   if (fileType) {
     // Known type — download directly
     const ext = fileType === 'pdf' ? 'pdf' : 'epub'
-    return downloadWithExtension(ext).catch((error: unknown) => {
-      console.warn('[FirestoreBooks] Failed to download book file:', error)
-      return null
-    })
+    return downloadWithExtension(ext)
   }
 
   // Unknown type — try epub first (legacy), then pdf
-  return downloadWithExtension('epub').catch(() =>
-    downloadWithExtension('pdf').catch(() => null),
-  )
+  try {
+    return await downloadWithExtension('epub')
+  } catch (epubError) {
+    try {
+      return await downloadWithExtension('pdf')
+    } catch (pdfError) {
+      throw new Error(
+        `Book download failed — epub: ${(epubError as Error).message}; pdf: ${(pdfError as Error).message}`,
+      )
+    }
+  }
 }
