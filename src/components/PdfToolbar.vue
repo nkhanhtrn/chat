@@ -61,8 +61,13 @@
       <div v-if="openPopover === 'eraser' && t.tool === 'eraser'" class="tool-popover" @pointerdown.stop>
         <div class="popover-label">Eraser size</div>
         <div class="popover-slider-row">
-          <input type="range" class="size-slider" min="5" max="80" step="1" :value="eraserSize" @input="onEraserSizeInput" />
+          <input type="range" class="size-slider" min="5" max="30" step="1" :value="eraserSize" @input="onEraserSizeInput" />
           <span class="size-value">{{ eraserSize.toFixed(0) }}</span>
+        </div>
+        <div class="popover-label popover-label-secondary">Transparency</div>
+        <div class="popover-slider-row">
+          <input type="range" class="size-slider" min="0.1" max="1" step="0.05" :value="eraserOpacity" @input="onEraserOpacityInput" />
+          <span class="size-value">{{ Math.round(eraserOpacity * 100) }}%</span>
         </div>
       </div>
     </div>
@@ -225,9 +230,15 @@ const highlighterSize = ref<number>(loadHighlighterSize())
 
 function loadEraserSize(): number {
   const v = Settings.get('pdfEraserSize')
-  return typeof v === 'number' && v >= 5 && v <= 80 ? v : 20
+  return typeof v === 'number' && v >= 5 && v <= 30 ? v : 20
 }
 const eraserSize = ref<number>(loadEraserSize())
+
+function loadEraserOpacity(): number {
+  const v = Settings.get('pdfEraserOpacity')
+  return typeof v === 'number' && v >= 0.1 && v <= 1 ? v : 0.4
+}
+const eraserOpacity = ref<number>(loadEraserOpacity())
 
 const ZOOM_PRESETS = [75, 100, 150, 200]
 
@@ -322,6 +333,12 @@ function onEraserSizeInput(e: Event): void {
   props.pdfRenderer?.setEraserWidth(eraserSize.value)
 }
 
+function onEraserOpacityInput(e: Event): void {
+  eraserOpacity.value = Number((e.target as HTMLInputElement).value)
+  Settings.set({ pdfEraserOpacity: eraserOpacity.value })
+  props.pdfRenderer?.setEraserOpacity(eraserOpacity.value)
+}
+
 // Zoom handlers — notify BookViewer to persist after a toolbar-initiated change
 function onZoomSliderInput(e: Event): void {
   const pct = Number((e.target as HTMLInputElement).value)
@@ -389,6 +406,7 @@ watch(() => props.pdfRenderer, (r) => {
   r.setPenWidth(penSize.value)
   r.setHighlighterWidth(highlighterSize.value)
   r.setEraserWidth(eraserSize.value)
+  r.setEraserOpacity(eraserOpacity.value)
   r.setDrawColor(drawColorIndex.value)
 })
 
@@ -401,6 +419,7 @@ defineExpose({
   penSize,
   highlighterSize,
   eraserSize,
+  eraserOpacity,
   toggleDebug,
 })
 </script>
@@ -432,6 +451,7 @@ defineExpose({
   box-shadow: 0 4px 16px rgba(0,0,0,0.18); padding: 0.7rem 0.85rem; z-index: 200; min-width: 230px;
 }
 .popover-label { font-size: 0.72rem; color: var(--color-text-muted); margin-bottom: 0.45rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.popover-label-secondary { margin-top: 0.7rem; }
 .popover-slider-row { display: flex; align-items: center; gap: 0.5rem; }
 .size-slider { flex: 1; cursor: pointer; accent-color: var(--color-primary, var(--color-text-message)); }
 .size-value { font-size: 0.8rem; color: var(--color-text-base); min-width: 2rem; text-align: right; font-variant-numeric: tabular-nums; }

@@ -20,6 +20,7 @@ interface SettingsData {
   pdfPenSize?: number
   pdfHighlighterSize?: number
   pdfEraserSize?: number
+  pdfEraserOpacity?: number
   penDebugLog?: boolean
   pdfSpreadMode?: string
   [key: string]: unknown
