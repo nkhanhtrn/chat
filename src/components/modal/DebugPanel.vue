@@ -65,7 +65,8 @@
             </template>
           </template>
           <span class="debug-info-key">Files</span>
-          <span class="debug-info-val">{{ cloudStorageInfo?.error ? '—' : formatBytes(cloudStorageInfo?.totalBytes ?? null) }}<template v-if="cloudStorageInfo && !cloudStorageInfo.error"> ({{ cloudStorageInfo.fileCount }} files)</template></span>
+          <span class="debug-info-val" v-if="!cloudStorageInfo"><span class="setting-hint">click &#x21bb; to load</span></span>
+          <span class="debug-info-val" v-else>{{ cloudStorageInfo.error ? '—' : formatBytes(cloudStorageInfo.totalBytes) }}<template v-if="!cloudStorageInfo.error"> ({{ cloudStorageInfo.fileCount }} files)</template></span>
           <template v-if="cloudStorageExpanded && cloudStorageInfo && !cloudStorageInfo.error">
             <template v-for="f in cloudStorageInfo.files" :key="f.name">
               <span class="debug-info-key debug-info-sub">&#x2514; {{ f.name }}</span>

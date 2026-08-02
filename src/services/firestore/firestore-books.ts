@@ -1,5 +1,5 @@
 import { getFirestore, doc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore'
-import { getStorage, ref, uploadBytesResumable, getBlob, deleteObject } from 'firebase/storage'
+import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage'
 import { getFirebaseAuth } from '@/services/firebase'
 import type { BookData } from '@/types/book'
 import { wipeStrokesForBook } from './firestore-strokes'
@@ -107,11 +107,12 @@ export function downloadBookFileFromStorage(
 
   const downloadWithExtension = async (ext: string): Promise<ArrayBuffer | null> => {
     const fileRef = ref(storage, `users/${uid}/books/${bookId}/book.${ext}`)
-    const blob = await getBlob(fileRef)
-    const total = blob.size
-    if (total === 0) return null
+    const url = await getDownloadURL(fileRef)
+    const response = await fetch(url)
+    if (!response.ok || !response.body) throw new Error(`Download failed: ${response.status}`)
 
-    const reader = blob.stream().getReader()
+    const total = Number(response.headers.get('Content-Length')) || 0
+    const reader = response.body.getReader()
     const chunks: Uint8Array[] = []
     let received = 0
 
@@ -120,8 +121,10 @@ export function downloadBookFileFromStorage(
       if (done) break
       chunks.push(value)
       received += value.length
-      onProgress?.(received / total)
+      if (total > 0) onProgress?.(received / total)
     }
+
+    if (received === 0) return null
 
     const result = new Uint8Array(received)
     let offset = 0

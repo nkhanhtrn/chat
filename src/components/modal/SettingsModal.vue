@@ -1,5 +1,5 @@
 <template>
-  <Modal :visible="visible" title="Settings" size="large" @close="$emit('update:modelValue', false)">
+  <Modal :visible="visible" title="Settings" size="large" :content-style="{ maxWidth: '460px' }" @close="$emit('update:modelValue', false)">
     <div class="settings-container">
       <!-- Tabs -->
       <div class="settings-tabs">
@@ -539,7 +539,7 @@ onUnmounted(() => {
 .tab-button { flex: 1; padding: 0.75rem 1rem; background: transparent; border: none; border-bottom: 2px solid transparent; cursor: pointer; font-size: 0.95rem; font-family: system-ui, -apple-system, sans-serif; color: var(--color-text-muted); transition: all 0.15s ease; }
 .tab-button:hover { color: var(--color-text-base); background: var(--color-bg-hover); }
 .tab-button.active { color: var(--color-text-strong); border-bottom-color: var(--color-text-strong); }
-.tab-content-wrapper { position: relative; height: 420px; overflow-y: auto; overflow-x: hidden; }
+.tab-content-wrapper { position: relative; max-height: 70vh; overflow-y: auto; overflow-x: hidden; }
 .tab-fade-enter-active, .tab-fade-leave-active { transition: opacity 0.15s ease, transform 0.15s ease; }
 .tab-fade-enter-from { opacity: 0; transform: translateX(10px); }
 .tab-fade-leave-to { opacity: 0; transform: translateX(-10px); }
