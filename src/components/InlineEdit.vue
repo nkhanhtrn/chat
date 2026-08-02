@@ -4,11 +4,11 @@
     :class="['inline-edit-text', textClass]"
     v-bind="attrs"
     @click="$emit('click', $event)"
-    @dblclick.stop="startEditing"
+    @dblclick="onDblClick"
   >
     <slot>{{ modelValue }}</slot>
   </span>
-  <div v-else ref="wrapperRef" class="inline-edit-wrapper">
+  <div v-else ref="wrapperRef" class="inline-edit-wrapper" @dblclick.stop>
     <input
       ref="inputRef"
       v-model="editText"
@@ -41,6 +41,7 @@ const props = defineProps<{
   modelValue: string
   textClass?: string
   inputClass?: string
+  editOnClick?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -64,6 +65,12 @@ const startEditing = () => {
     inputRef.value?.focus()
     inputRef.value?.select()
   })
+}
+
+function onDblClick(e: MouseEvent) {
+  if (props.editOnClick) return
+  e.stopPropagation()
+  startEditing()
 }
 
 const finishEditing = () => {

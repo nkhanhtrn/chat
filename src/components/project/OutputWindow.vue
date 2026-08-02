@@ -2,13 +2,16 @@
   <div
     v-if="window.displayState === 'open'"
     class="output-window"
+    :class="{ maximized: isMaximized }"
     :style="windowStyle"
     @pointerdown="$emit('bring-to-front')"
   >
-    <div class="window-header" @pointerdown="startDrag">
-      <div class="window-title-area">
+    <div class="window-header" @pointerdown="startDrag" @dblclick="toggleMaximize">
+      <div class="window-title-area" @click.stop="onTitleClick">
         <InlineEdit
+          ref="titleEditRef"
           :modelValue="window.title"
+          editOnClick
           @save="(newTitle: string) => $emit('update:title', newTitle)"
         />
       </div>
@@ -50,9 +53,11 @@
         </button>
       </div>
     </div>
-    <div class="resize-handle right" @pointerdown.stop="startResize('e', $event)"></div>
-    <div class="resize-handle bottom" @pointerdown.stop="startResize('s', $event)"></div>
-    <div class="resize-handle corner" @pointerdown.stop="startResize('se', $event)"></div>
+    <template v-if="!isMaximized">
+      <div class="resize-handle right" @pointerdown.stop="startResize('e', $event)"></div>
+      <div class="resize-handle bottom" @pointerdown.stop="startResize('s', $event)"></div>
+      <div class="resize-handle corner" @pointerdown.stop="startResize('se', $event)"></div>
+    </template>
     <div class="window-body">
       <template v-if="window.type === 'tool' && window.code">
         <CodeDisplay v-if="showCode && !editingCode" :content="window.code" language="vue" @edit="startEdit" />
@@ -123,6 +128,47 @@ const showCode = ref(false)
 const editingCode = ref(false)
 const editDraft = ref('')
 
+const titleEditRef = ref<InstanceType<typeof InlineEdit> | null>(null)
+let clickTimer: ReturnType<typeof setTimeout> | null = null
+
+const isMaximized = ref(false)
+const savedGeometry = ref<{ x: number; y: number; width: number; height: number } | null>(null)
+
+function onTitleClick() {
+  if (clickTimer) return
+  clickTimer = setTimeout(() => {
+    titleEditRef.value?.startEditing()
+    clickTimer = null
+  }, 220)
+}
+
+function clearClickTimer() {
+  if (clickTimer) {
+    clearTimeout(clickTimer)
+    clickTimer = null
+  }
+}
+
+function toggleMaximize() {
+  clearClickTimer()
+  if (isMaximized.value) {
+    if (savedGeometry.value) {
+      emit('update:position', { x: savedGeometry.value.x, y: savedGeometry.value.y })
+      emit('update:size', { width: savedGeometry.value.width, height: savedGeometry.value.height })
+    }
+    isMaximized.value = false
+    savedGeometry.value = null
+  } else {
+    savedGeometry.value = {
+      x: props.window.position.x,
+      y: props.window.position.y,
+      width: props.window.size.width,
+      height: props.window.size.height,
+    }
+    isMaximized.value = true
+  }
+}
+
 function toggleCodeView() {
   showCode.value = !showCode.value
   editingCode.value = false
@@ -188,15 +234,27 @@ watch(() => props.window.code, (newCode) => {
   }
 })
 
-const windowStyle = computed(() => ({
-  left: `${props.window.position.x}px`,
-  top: `${props.window.position.y}px`,
-  width: `${props.window.size.width}px`,
-  height: `${props.window.size.height}px`,
-  zIndex: props.window.zIndex,
-}))
+const windowStyle = computed(() => {
+  if (isMaximized.value) {
+    return {
+      left: '0px',
+      top: `${props.topBoundary}px`,
+      width: '100%',
+      height: `calc(100% - ${props.topBoundary}px)`,
+      zIndex: props.window.zIndex,
+    }
+  }
+  return {
+    left: `${props.window.position.x}px`,
+    top: `${props.window.position.y}px`,
+    width: `${props.window.size.width}px`,
+    height: `${props.window.size.height}px`,
+    zIndex: props.window.zIndex,
+  }
+})
 
 function startDrag(e: PointerEvent) {
+  if (isMaximized.value) return
   const startX = e.clientX
   const startY = e.clientY
   const startPos = { ...props.window.position }
@@ -240,6 +298,7 @@ function startResize(direction: string, e: PointerEvent) {
 
 <style scoped>
 .output-window { position: absolute; display: flex; flex-direction: column; background: var(--color-bg-page); border: 1px solid var(--color-border-base); box-shadow: 0 4px 20px var(--shadow-primary); min-width: 200px; min-height: 100px; }
+.output-window.maximized { transition: left 0.2s ease, top 0.2s ease, width 0.2s ease, height 0.2s ease; }
 .window-header { display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0.6rem; background: var(--color-bg-base); border-bottom: 1px solid var(--color-border-base); cursor: grab; user-select: none; flex-shrink: 0; touch-action: none; }
 .window-header:active { cursor: grabbing; }
 .window-title-area { flex: 1; min-width: 0; font-size: 0.8rem; font-family: system-ui, sans-serif; font-weight: 500; color: var(--color-text-base); }
