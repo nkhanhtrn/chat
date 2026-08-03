@@ -22,12 +22,12 @@
         </div>
         <div v-if="!readOnly" class="context-menu-row">
           <button class="context-menu-btn" @click="onNote">{{ hasExistingItem ? (hasNote ? 'Edit Note' : 'Add Note') : 'Add Note' }}</button>
-          <button class="context-menu-btn" @click="onLinkToQuestion">Link to Question</button>
+          <button v-if="showLinkToQuestion" class="context-menu-btn" @click="onLinkToQuestion">Link to Question</button>
         </div>
         <div class="context-menu-row">
           <button class="context-menu-btn" @click="onDictionary" :disabled="isStreaming">Dictionary</button>
           <button class="context-menu-btn" @click="onSummary" :disabled="isStreaming">Summary</button>
-          <button class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming">Deepdive</button>
+          <button v-if="showDeepdive" class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming">Deepdive</button>
         </div>
         <div class="context-menu-row prompt-row">
           <PromptInput
@@ -64,7 +64,9 @@ const props = withDefaults(defineProps<{
   colorIndex?: number
   highlightId?: string | null
   hasNote?: boolean
-}>(), { visible: false, x: 0, y: 0, highlightedText: '', isStreaming: false, readOnly: false, colorIndex: 0, highlightId: null, hasNote: false })
+  showLinkToQuestion?: boolean
+  showDeepdive?: boolean
+}>(), { visible: false, x: 0, y: 0, highlightedText: '', isStreaming: false, readOnly: false, colorIndex: 0, highlightId: null, hasNote: false, showLinkToQuestion: true, showDeepdive: true })
 
 const emit = defineEmits<{
   close: []

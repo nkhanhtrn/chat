@@ -4,7 +4,8 @@ export interface EpubRendererOptions {
   width?: string | number
   height?: string | number
   onLocationChange?: (location: { cfi: string; percentage: number; atStart: boolean; atEnd: boolean }) => void
-  onTextSelect?: (data: { text: string; x: number; y: number; context?: string }) => void
+  onTextSelect?: (data: { text: string; x: number; y: number; context?: string; cfiRange: string }) => void
+  onHighlightClick?: (cfiRange: string, x: number, y: number, ctrlKey: boolean) => void
   theme?: { bg: string; color: string; accent: string; fontFamily?: string; fontSize?: number; lineHeight?: number }
 }
 
@@ -134,7 +135,7 @@ export class EpubRenderer {
           }
         } catch {}
 
-        this.options.onTextSelect?.({ text, x: Math.max(10, vx), y: Math.max(10, vy), context })
+        this.options.onTextSelect?.({ text, x: Math.max(10, vx), y: Math.max(10, vy), context, cfiRange: _cfiRange })
       }
       this.rendition.on('selected', onSelect)
       this.selectCleanup = () => {
@@ -209,6 +210,57 @@ export class EpubRenderer {
     } catch {
       return { title: '', author: '' }
     }
+  }
+
+  private getHighlightColor(colorIndex: number): string {
+    const style = getComputedStyle(document.documentElement)
+    const idx = Math.max(0, Math.min(4, colorIndex))
+    return (
+      style.getPropertyValue(`--color-highlight-${idx}`).trim() ||
+      style.getPropertyValue('--color-highlight-0').trim() ||
+      'rgba(215, 190, 62, 0.6)'
+    )
+  }
+
+  addHighlight(cfiRange: string, colorIndex: number): void {
+    if (!this.rendition) return
+    const fill = this.getHighlightColor(colorIndex)
+    let lastClick = 0
+    const cb = (e: Event) => {
+      const now = Date.now()
+      if (now - lastClick < 400) return
+      lastClick = now
+      const me = e as MouseEvent
+      this.options.onHighlightClick?.(cfiRange, me.clientX, me.clientY, me.ctrlKey || me.metaKey)
+    }
+    this.rendition.annotations.highlight(
+      cfiRange,
+      {},
+      cb,
+      'epub-highlight',
+      { fill, 'fill-opacity': '0.5', 'mix-blend-mode': 'multiply', 'pointer-events': 'all', 'cursor': 'pointer' },
+    )
+  }
+
+  removeHighlight(cfiRange: string): void {
+    if (!this.rendition) return
+    this.rendition.annotations.remove(cfiRange, 'highlight')
+  }
+
+  updateHighlightColor(cfiRange: string, colorIndex: number): void {
+    this.removeHighlight(cfiRange)
+    this.addHighlight(cfiRange, colorIndex)
+  }
+
+  clearSelection(): void {
+    if (!this.rendition) return
+    try {
+      const contents = (this.rendition as any).getContents() as any[]
+      contents?.forEach((c: any) => {
+        const sel = c?.window?.getSelection?.()
+        if (sel && !sel.isCollapsed) sel.removeAllRanges()
+      })
+    } catch {}
   }
 
   updateTheme(theme: NonNullable<EpubRendererOptions['theme']>): void {
