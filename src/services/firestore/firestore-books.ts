@@ -3,6 +3,7 @@ import { getStorage, ref, uploadBytesResumable, getBlob, deleteObject } from 'fi
 import { getFirebaseAuth } from '@/services/firebase'
 import type { BookData } from '@/types/book'
 import { wipeStrokesForBook } from './firestore-strokes'
+import { wipeHighlightsForBook } from './firestore-highlights'
 
 function getUid(): string | null {
   const auth = getFirebaseAuth()
@@ -33,8 +34,9 @@ export async function deleteBookFromFirestore(bookId: string): Promise<void> {
     console.warn('[FirestoreBooks] Failed to delete book doc:', error)
   }
 
-  // Purge any drawing annotations for this book (best-effort)
+  // Purge any drawing annotations and highlights for this book (best-effort)
   wipeStrokesForBook(bookId).catch(() => {})
+  wipeHighlightsForBook(bookId).catch(() => {})
 
   // Also try to delete files from storage
   try {

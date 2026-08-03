@@ -1,5 +1,5 @@
 <template>
-  <Modal :visible="visible" size="medium" :close-on-outside-click="false" :close-on-escape="false" :title-style="{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '340px' }" @close="$emit('close')">
+  <Modal :visible="visible" size="medium" :close-on-outside-click="closeOnOutsideClick" :close-on-escape="closeOnEscape" :title-style="{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '340px' }" @close="$emit('close')">
     <template #header>
       <div class="resp-header-info">
         <span class="resp-title">{{ title }}</span>
@@ -56,7 +56,9 @@ const props = withDefaults(defineProps<{
   saveLabel?: string
   editMode?: boolean
   showEdit?: boolean
-}>(), { visible: false, title: '', content: '', isStreaming: false, showSave: false, saveLabel: 'Save as Note', editMode: false, showEdit: false })
+  closeOnOutsideClick?: boolean
+  closeOnEscape?: boolean
+}>(), { visible: false, title: '', content: '', isStreaming: false, showSave: false, saveLabel: 'Save as Note', editMode: false, showEdit: false, closeOnOutsideClick: false, closeOnEscape: false })
 
 const emit = defineEmits<{ close: []; save: []; 'save-text': [text: string]; edit: [] }>()
 
@@ -92,7 +94,7 @@ function onSave() {
 }
 .icon-btn:hover { background: var(--color-bg-hover); color: var(--color-text-strong); }
 
-.resp-header-info { text-align: left; }
+.resp-header-info { text-align: left; flex: 1; min-width: 0; overflow: hidden; }
 .resp-title {
   font-size: 1.05rem; font-weight: 600; color: var(--color-text-strong);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block;

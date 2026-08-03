@@ -46,7 +46,7 @@
         </div>
         <div
           class="viewer-container"
-          :class="{ 'is-pdf-viewer': bookFileType === 'pdf' }"
+          :class="{ 'is-pdf-viewer': bookFileType === 'pdf', [pageAnim]: pageAnim }"
           ref="viewerContainer"
           :style="{ cursor: viewerCursor }"
           @pointerdown.capture="onViewerPointerDown"
@@ -69,13 +69,22 @@
       :x="contextMenu.x"
       :y="contextMenu.y"
       :highlighted-text="contextMenu.text"
-      :read-only="true"
+      :read-only="bookFileType === 'pdf'"
+      :color-index="contextMenu.colorIndex"
+      :highlight-id="contextMenu.highlightId"
+      :has-note="contextMenu.hasNote"
+      :show-link-to-question="false"
+      :show-deepdive="false"
       @close="contextMenu.visible = false"
       @dictionary="handleDictionary"
       @ask-question="handleDeepdive"
       @summary="handleSummary"
       @custom-prompt="handleCustomPrompt"
       @custom-prompt-deep-dive="handleCustomPromptDeepDive"
+      @highlight="handleEpubHighlight"
+      @remove="handleEpubRemove"
+      @set-selection-color="handleSetSelectionColor"
+      @note="handleEpubNote"
     />
     <DictionaryModal
       :visible="dictionary.show"
@@ -93,6 +102,18 @@
       :is-streaming="response.streaming"
       @close="response.show = false"
     />
+    <ResponseModal
+      :visible="noteEditor.show"
+      title="Note"
+      :content="noteEditor.text"
+      :edit-mode="noteEditor.editMode"
+      :show-edit="!noteEditor.editMode"
+      :close-on-outside-click="true"
+      :close-on-escape="true"
+      @close="noteEditor.show = false"
+      @edit="noteEditor.editMode = true"
+      @save-text="handleSaveNote"
+    />
   </AppLayout>
 </template>
 
@@ -108,6 +129,7 @@ import ResponseModal from '@/components/modal/ResponseModal.vue'
 import PdfToolbar from '@/components/PdfToolbar.vue'
 import { useBooksStore } from '@/stores/books'
 import { useStrokesStore } from '@/stores/strokes'
+import { useHighlightsStore } from '@/stores/highlights'
 import { EpubRenderer } from '@/services/epubRenderer'
 import { PdfRenderer, type SpreadMode } from '@/services/pdfRenderer'
 import { Settings } from '@/services/settings'
@@ -123,6 +145,7 @@ const route = useRoute()
 const router = useRouter()
 const booksStore = useBooksStore()
 const strokesStore = useStrokesStore()
+const highlightsStore = useHighlightsStore()
 const { addVocabCard, findByWord } = useVocabulary()
 
 const loading = ref(false)
@@ -131,11 +154,17 @@ const viewerContainer = ref<HTMLElement | null>(null)
 const progress = ref(0)
 const canGoPrev = ref(false)
 const canGoNext = ref(true)
+const pageAnim = ref('')
 const toc = ref<TocItem[]>([])
 const activeHref = ref<string | null>(null)
-const contextMenu = reactive({ visible: false, x: 0, y: 0, text: '', context: '' })
+const contextMenu = reactive({
+  visible: false, x: 0, y: 0, text: '', context: '',
+  cfiRange: '', highlightId: null as string | null, colorIndex: 0, hasNote: false,
+})
 const dictionary = reactive({ show: false, word: '', definition: '', pronunciation: '', context: '' })
 const response = reactive({ show: false, title: '', content: '', streaming: false })
+const noteEditor = reactive({ show: false, highlightId: null as string | null, text: '', isNew: false, editMode: false })
+const selectionColorIndex = ref(0)
 
 // PDF-specific state (shallowRef — avoids Vue reactive proxy wrapping pdfjs internals)
 const pdfRenderer = shallowRef<PdfRenderer | null>(null)
@@ -488,6 +517,96 @@ async function handleCustomPromptDeepDive(prompt: string) {
   }
 }
 
+async function handleEpubHighlight() {
+  if (bookFileType.value !== 'epub') return
+  contextMenu.visible = false
+  const { cfiRange, text, context } = contextMenu
+  if (!currentBook.value || !cfiRange || !text) return
+  const hl = await highlightsStore.add(currentBook.value.id, {
+    cfiRange, text, context,
+    colorIndex: selectionColorIndex.value,
+  })
+  renderer?.addHighlight(cfiRange, hl.colorIndex)
+  renderer?.clearSelection()
+}
+
+async function handleEpubRemove() {
+  if (bookFileType.value !== 'epub') return
+  contextMenu.visible = false
+  const { highlightId, cfiRange } = contextMenu
+  if (!currentBook.value || !highlightId) return
+  renderer?.removeHighlight(cfiRange)
+  await highlightsStore.remove(currentBook.value.id, highlightId)
+}
+
+async function handleSetSelectionColor(index: number) {
+  if (bookFileType.value !== 'epub') return
+  selectionColorIndex.value = index
+  contextMenu.colorIndex = index
+  if (!currentBook.value) return
+
+  if (contextMenu.highlightId) {
+    await highlightsStore.update(currentBook.value.id, contextMenu.highlightId, { colorIndex: index })
+    renderer?.updateHighlightColor(contextMenu.cfiRange, index)
+  } else if (contextMenu.cfiRange && contextMenu.text) {
+    const hl = await highlightsStore.add(currentBook.value.id, {
+      cfiRange: contextMenu.cfiRange,
+      text: contextMenu.text,
+      context: contextMenu.context,
+      colorIndex: index,
+    })
+    contextMenu.highlightId = hl.id
+    renderer?.addHighlight(contextMenu.cfiRange, index)
+    renderer?.clearSelection()
+  }
+}
+
+async function handleEpubNote() {
+  if (bookFileType.value !== 'epub' || !currentBook.value) return
+  const bookId = currentBook.value.id
+  const { cfiRange, text, context, highlightId } = contextMenu
+
+  contextMenu.visible = false
+  await nextTick()
+
+  if (highlightId) {
+    const hl = highlightsStore.forBook(bookId).find(h => h.id === highlightId)
+    noteEditor.highlightId = highlightId
+    noteEditor.text = hl?.note || ''
+    noteEditor.isNew = !hl?.note
+    noteEditor.editMode = true
+    noteEditor.show = true
+    return
+  }
+
+  if (!cfiRange || !text) return
+  try {
+    const hl = await highlightsStore.add(bookId, {
+      cfiRange, text, context,
+      colorIndex: selectionColorIndex.value,
+    })
+    renderer?.addHighlight(cfiRange, hl.colorIndex)
+    renderer?.clearSelection()
+    noteEditor.highlightId = hl.id
+    noteEditor.text = ''
+    noteEditor.isNew = true
+    noteEditor.editMode = true
+    noteEditor.show = true
+  } catch (err) {
+    console.error('[BookViewer] Failed to create highlight for note:', err)
+  }
+}
+
+async function handleSaveNote(text: string) {
+  noteEditor.show = false
+  if (!currentBook.value || !noteEditor.highlightId) return
+  try {
+    await highlightsStore.update(currentBook.value.id, noteEditor.highlightId, { note: text })
+  } catch (err) {
+    console.error('[BookViewer] Failed to save note:', err)
+  }
+}
+
 let renderer: EpubRenderer | null = null
 let resizeObserver: ResizeObserver | null = null
 let styleObserver: MutationObserver | null = null
@@ -657,6 +776,33 @@ async function renderEpub(bookId: string, fileData: ArrayBuffer) {
       contextMenu.y = data.y
       contextMenu.text = data.text
       contextMenu.context = data.context || ''
+      contextMenu.cfiRange = data.cfiRange
+      contextMenu.highlightId = null
+      contextMenu.colorIndex = selectionColorIndex.value
+      contextMenu.hasNote = false
+      contextMenu.visible = true
+    },
+    onHighlightClick(cfiRange, x, y, ctrlKey) {
+      const highlight = highlightsStore.findByCfi(bookId, cfiRange)
+      if (!highlight) return
+
+      if (!ctrlKey && highlight.note) {
+        noteEditor.highlightId = highlight.id
+        noteEditor.text = highlight.note
+        noteEditor.editMode = false
+        noteEditor.show = true
+        return
+      }
+
+      contextMenu.x = Math.max(10, Math.min(x, window.innerWidth - 230))
+      contextMenu.y = Math.max(10, Math.min(y, window.innerHeight - 100))
+      contextMenu.text = highlight.text
+      contextMenu.context = highlight.context || ''
+      contextMenu.cfiRange = cfiRange
+      contextMenu.highlightId = highlight.id
+      contextMenu.colorIndex = highlight.colorIndex
+      contextMenu.hasNote = !!highlight.note
+      selectionColorIndex.value = highlight.colorIndex
       contextMenu.visible = true
     },
     onLocationChange(location) {
@@ -675,6 +821,12 @@ async function renderEpub(bookId: string, fileData: ArrayBuffer) {
 
   // Populate TOC in sidebar
   toc.value = renderer.getTableOfContents()
+
+  // Load and render saved highlights
+  await highlightsStore.loadForBook(bookId)
+  for (const hl of highlightsStore.forBook(bookId)) {
+    renderer?.addHighlight(hl.cfiRange, hl.colorIndex)
+  }
 
   // Navigate to saved reading position
   const book = booksStore.getBookById(bookId)
@@ -722,7 +874,9 @@ async function handleTocNavigate(href: string) {
       await pdfRenderer.value?.display(pageNum)
     }
   } else {
+    pageAnim.value = 'page-fade'
     await renderer?.display(href)
+    requestAnimationFrame(() => { pageAnim.value = '' })
   }
 }
 
@@ -730,7 +884,9 @@ async function handlePrevPage() {
   if (bookFileType.value === 'pdf') {
     await pdfRenderer.value?.prevPage()
   } else {
+    pageAnim.value = 'page-prev'
     await renderer?.prevPage()
+    requestAnimationFrame(() => { pageAnim.value = '' })
   }
 }
 
@@ -738,7 +894,9 @@ async function handleNextPage() {
   if (bookFileType.value === 'pdf') {
     await pdfRenderer.value?.nextPage()
   } else {
+    pageAnim.value = 'page-next'
     await renderer?.nextPage()
+    requestAnimationFrame(() => { pageAnim.value = '' })
   }
 }
 
@@ -850,7 +1008,10 @@ onBeforeUnmount(() => {
    page look like it only grows vertically; the wrapper's `margin: auto` still
    centers it when it fits. */
 .viewer-container.is-pdf-viewer { justify-content: flex-start; }
-.viewer-container :deep(.epub-container) { margin: 0 auto; }
+.viewer-container :deep(.epub-container) { margin: 0 auto; transition: opacity 0.25s ease, transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1); }
+.viewer-container.page-next :deep(.epub-container) { opacity: 0.5; transform: translateX(-8px); }
+.viewer-container.page-prev :deep(.epub-container) { opacity: 0.5; transform: translateX(8px); }
+.viewer-container.page-fade :deep(.epub-container) { opacity: 0.5; }
 .viewer-container :deep(.pdf-page-wrapper) { position: relative; margin: 0 auto; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
 .viewer-container :deep(.pdf-spread) { display: flex; justify-content: center; gap: 1rem; margin: 0 auto; }
 .viewer-container :deep(.pdf-spread .pdf-page-wrapper) { margin: 0; }

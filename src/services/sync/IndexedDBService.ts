@@ -2,13 +2,14 @@ import { openDB, type IDBPDatabase } from 'idb'
 import { debugLog } from '@/utils/debug'
 
 const DB_NAME = 'chat-clone-db'
-const DB_VERSION = 12
+const DB_VERSION = 15
 
 const STORE_NAME = 'app-data'
 const TOOLS_STORE = 'saved-tools'
 const BOOKS_STORE = 'books'
 const BOOK_FILES_STORE = 'book-files'
 const STROKES_STORE = 'strokes'
+const HIGHLIGHTS_STORE = 'highlights'
 const TOOL_INSTANCES_STORE = 'tool-instances'
 const SESSION_CANVAS_STORE = 'session-canvas'
 const SESSION_TOOLS_STORE = 'session-tools'
@@ -75,6 +76,10 @@ export async function getDB(): Promise<IDBPDatabase> {
       // Always ensure these stores exist regardless of version
       if (!db.objectStoreNames.contains(BOOK_FILES_STORE)) {
         db.createObjectStore(BOOK_FILES_STORE)
+      }
+      if (!db.objectStoreNames.contains(HIGHLIGHTS_STORE)) {
+        const highlightsStore = db.createObjectStore(HIGHLIGHTS_STORE, { keyPath: 'id' })
+        highlightsStore.createIndex('bookId', 'bookId', { unique: false })
       }
     },
     blocked() {
@@ -326,4 +331,11 @@ export async function resolveChatListConflict(
   }
   await saveChatList(result)
   return result
+}
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    dbInstance?.close()
+    dbInstance = null
+  })
 }
