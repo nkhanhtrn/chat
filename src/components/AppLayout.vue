@@ -144,10 +144,15 @@ const pageKey = computed(() => {
 
 watch(pageKey, () => {
   restoreSideExpanded()
+  restoreSideTab()
 })
 
 watch(sideExpanded, () => {
   saveSideExpanded()
+})
+
+watch(activeSideTab, () => {
+  saveSideTab()
 })
 
 const { vocabDueCount } = useVocabulary()
@@ -166,6 +171,23 @@ function saveSideExpanded(): void {
   try { localStorage.setItem(sideExpandedStorageKey(), String(sideExpanded.value)) } catch {}
 }
 
+function sideTabStorageKey(): string {
+  return `${props.storageKey}-${pageKey.value}-tab`
+}
+
+function restoreSideTab(): void {
+  try {
+    const v = localStorage.getItem(sideTabStorageKey())
+    if (v === 'sketch' || v === 'chat' || (v === 'content' && hasSideContent.value)) {
+      activeSideTab.value = v
+    }
+  } catch {}
+}
+
+function saveSideTab(): void {
+  try { localStorage.setItem(sideTabStorageKey(), activeSideTab.value) } catch {}
+}
+
 onMounted(() => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
@@ -173,6 +195,7 @@ onMounted(() => {
   if (storedWidth !== null) sideWidth.value = parseInt(storedWidth, 10)
   navCollapsed.value = localStorage.getItem(NAV_COLLAPSE_KEY) === 'true'
   restoreSideExpanded()
+  restoreSideTab()
 })
 
 onUnmounted(() => {
