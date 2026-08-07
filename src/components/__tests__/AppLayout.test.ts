@@ -55,7 +55,7 @@ describe('AppLayout', () => {
       await openSide(wrapper)
       expect(wrapper.find('.divider').exists()).toBe(true)
       expect(wrapper.find('.side-tab-bar').exists()).toBe(true)
-      expect(wrapper.findAll('.side-tab')).toHaveLength(2)
+      expect(wrapper.findAll('.side-tab')).toHaveLength(3)
       wrapper.unmount()
     })
 

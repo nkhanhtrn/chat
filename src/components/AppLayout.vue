@@ -28,8 +28,9 @@
       <main class="main-panel"><slot></slot></main>
       <Transition name="slide-side">
         <aside v-if="sideExpanded" class="side-panel" :class="{ 'is-mobile': isMobile }" :style="isMobile ? {} : { width: sideWidth + 'px' }">
-        <div v-if="hasSideContent" class="side-tab-bar">
-          <button class="side-tab" :class="{ active: activeSideTab === 'content' }" @click="activeSideTab = 'content'">{{ sideTabLabel }}</button>
+        <div class="side-tab-bar">
+          <button v-if="hasSideContent" class="side-tab" :class="{ active: activeSideTab === 'content' }" @click="activeSideTab = 'content'">{{ sideTabLabel }}</button>
+          <button class="side-tab" :class="{ active: activeSideTab === 'sketch' }" @click="activeSideTab = 'sketch'">Sketch</button>
           <button class="side-tab" :class="{ active: activeSideTab === 'chat' }" @click="activeSideTab = 'chat'">Chat</button>
         </div>
           <div v-if="$slots['side-header']" class="side-header-slot">
@@ -38,7 +39,10 @@
           <div v-show="hasSideContent && activeSideTab === 'content'" class="side-tab-body">
             <slot name="side"></slot>
           </div>
-          <div v-show="!hasSideContent || activeSideTab === 'chat'" class="side-tab-body">
+          <div v-show="activeSideTab === 'sketch'" class="side-tab-body">
+            <SideSketchPlayground />
+          </div>
+          <div v-show="activeSideTab === 'chat'" class="side-tab-body">
             <SideChatPlayground />
           </div>
         </aside>
@@ -61,6 +65,7 @@ import { useRouter, useRoute } from 'vue-router'
 import SettingsModal from './modal/SettingsModal.vue'
 import VocabReviewModal from './modal/VocabReviewModal.vue'
 import SideChatPlayground from './SideChatPlayground.vue'
+import SideSketchPlayground from './SideSketchPlayground.vue'
 import { useVocabulary } from '@/composables/useVocabulary'
 import { useBooksStore } from '@/stores/books'
 
@@ -96,7 +101,7 @@ function toggleNavCollapse() {
 function checkMobile() { isMobile.value = window.innerWidth <= 768 }
 
 const hasSideContent = computed(() => !!slots.side)
-const activeSideTab = ref<'content' | 'chat'>(hasSideContent.value ? 'content' : 'chat')
+const activeSideTab = ref<'content' | 'sketch' | 'chat'>(hasSideContent.value ? 'content' : 'chat')
 
 const activePage = computed(() => {
   const name = route.name as string
