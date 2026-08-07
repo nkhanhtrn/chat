@@ -11,6 +11,7 @@
       <button class="nav-btn" :class="{ active: activePage === 'notebooks' }" @click="goTo('notebooks')" title="Notebooks"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"/></svg></button>
       <button class="nav-btn" :class="{ active: activePage === 'books' }" @click="goTo('books')" title="Books"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/></svg></button>
       <button class="nav-btn" :class="{ active: activePage === 'papers' }" @click="goTo('papers')" title="Papers"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6zm2-6h8v2H8v-2zm0-4h8v2H8v-2zm0 8h5v2H8v-2z"/></svg></button>
+      <button class="nav-btn" :class="{ active: activePage === 'sketchpad' }" @click="goTo('sketchpad')" title="Sketchpad"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
       <button class="nav-btn" :class="{ active: activePage === 'projects' }" @click="goTo('projects')" title="Projects"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>
       <div class="nav-spacer"></div>
       <button class="nav-btn" @click="showVocab = true" title="Vocabulary">
@@ -105,6 +106,7 @@ const activePage = computed(() => {
   if (name === 'projects' || name === 'project-detail' || name === 'project-subproject') return 'projects'
   if (name === 'books' || name === 'book-viewer') return 'books'
   if (name === 'papers') return 'papers'
+  if (name === 'sketchpad' || name === 'sketchbook') return 'sketchpad'
   return ''
 })
 
@@ -116,6 +118,7 @@ const backTarget = computed<string>(() => {
     return booksStore.papers.some(p => p.id === id) ? 'papers' : 'books'
   }
   if (name === 'project-detail' || name === 'project-subproject') return 'projects'
+  if (name === 'sketchbook') return 'sketchpad'
   return 'home'
 })
 
@@ -127,16 +130,36 @@ const pageKey = computed(() => {
   if (name === 'books') return 'books-list'
   if (name === 'book-viewer') return 'book-viewer'
   if (name === 'papers') return 'papers-list'
+  if (name === 'sketchpad') return 'sketchpad-list'
+  if (name === 'sketchbook') return 'sketchbook-detail'
   if (name === 'projects') return 'projects-list'
   if (name === 'project-detail' || name === 'project-subproject') return 'project-detail'
   return name ?? ''
 })
 
 watch(pageKey, () => {
-  sideExpanded.value = false
+  restoreSideExpanded()
+})
+
+watch(sideExpanded, () => {
+  saveSideExpanded()
 })
 
 const { vocabDueCount } = useVocabulary()
+
+function sideExpandedStorageKey(): string {
+  return `${props.storageKey}-${pageKey.value}-expanded`
+}
+
+function restoreSideExpanded(): void {
+  try {
+    sideExpanded.value = localStorage.getItem(sideExpandedStorageKey()) === 'true'
+  } catch { sideExpanded.value = false }
+}
+
+function saveSideExpanded(): void {
+  try { localStorage.setItem(sideExpandedStorageKey(), String(sideExpanded.value)) } catch {}
+}
 
 onMounted(() => {
   checkMobile()
@@ -144,6 +167,7 @@ onMounted(() => {
   const storedWidth = localStorage.getItem(`${props.storageKey}-width`)
   if (storedWidth !== null) sideWidth.value = parseInt(storedWidth, 10)
   navCollapsed.value = localStorage.getItem(NAV_COLLAPSE_KEY) === 'true'
+  restoreSideExpanded()
 })
 
 onUnmounted(() => {
@@ -169,6 +193,7 @@ function goTo(page: string) {
   else if (page === 'notebooks') router.push({ name: 'notebooks' })
   else if (page === 'books') router.push({ name: 'books' })
   else if (page === 'papers') router.push({ name: 'papers' })
+  else if (page === 'sketchpad') router.push({ name: 'sketchpad' })
   else if (page === 'projects') router.push({ name: 'projects' })
 }
 

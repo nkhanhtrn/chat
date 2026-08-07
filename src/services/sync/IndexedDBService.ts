@@ -2,7 +2,7 @@ import { openDB, type IDBPDatabase } from 'idb'
 import { debugLog } from '@/utils/debug'
 
 const DB_NAME = 'chat-clone-db'
-const DB_VERSION = 15
+const DB_VERSION = 17
 
 const STORE_NAME = 'app-data'
 const TOOLS_STORE = 'saved-tools'
@@ -16,6 +16,7 @@ const SESSION_TOOLS_STORE = 'session-tools'
 const CHAT_LIST_STORE = 'chat-list'
 const CHAT_MESSAGES_PREFIX = 'chat-messages-'
 const STUDIO_SESSIONS_STORE = 'studio-sessions'
+export const SKETCHBOOKS_STORE = 'sketchbooks'
 
 let dbInstance: IDBPDatabase | null = null
 
@@ -74,6 +75,10 @@ export async function getDB(): Promise<IDBPDatabase> {
       }
 
       // Always ensure these stores exist regardless of version
+      if (!db.objectStoreNames.contains(SKETCHBOOKS_STORE)) {
+        const sketchbooksStore = db.createObjectStore(SKETCHBOOKS_STORE, { keyPath: 'id' })
+        sketchbooksStore.createIndex('createdAt', 'createdAt', { unique: false })
+      }
       if (!db.objectStoreNames.contains(BOOK_FILES_STORE)) {
         db.createObjectStore(BOOK_FILES_STORE)
       }

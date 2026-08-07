@@ -17,6 +17,7 @@ export interface StrokeLayerOptions {
   getStrokes: () => Stroke[]
   onCreate?: (draft: StrokeDraft) => void
   onErase?: (id: string) => void
+  scrollOnSelect?: boolean
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
@@ -75,6 +76,9 @@ export class StrokeLayer {
   private boundDown: (e: PointerEvent) => void
   private boundMove: ((e: PointerEvent) => void) | null = null
   private boundUp: ((e: PointerEvent) => void) | null = null
+  private cursorEl: HTMLDivElement | null = null
+  private boundCursorMove: (e: PointerEvent) => void
+  private boundCursorLeave: () => void
 
   constructor(wrapper: HTMLElement, opts: StrokeLayerOptions) {
     this.wrapper = wrapper
@@ -98,7 +102,9 @@ export class StrokeLayer {
     this.svg.style.position = 'absolute'
     this.svg.style.left = '0'
     this.svg.style.top = '0'
-    this.svg.style.overflow = 'visible'
+    this.svg.style.width = '100%'
+    this.svg.style.height = '100%'
+    this.svg.style.overflow = 'hidden'
 
     this.wrapper.appendChild(this.svg)
 
@@ -114,6 +120,21 @@ export class StrokeLayer {
 
     this.boundDown = this.onPointerDown.bind(this)
     this.svg.addEventListener('pointerdown', this.boundDown)
+
+    // Brush-size preview cursor — follows mouse/pen hover over the canvas
+    this.cursorEl = document.createElement('div')
+    this.cursorEl.className = 'pdf-brush-cursor'
+    this.cursorEl.style.position = 'absolute'
+    this.cursorEl.style.pointerEvents = 'none'
+    this.cursorEl.style.borderRadius = '50%'
+    this.cursorEl.style.transform = 'translate(-50%, -50%)'
+    this.cursorEl.style.zIndex = '10'
+    this.cursorEl.style.display = 'none'
+    this.wrapper.appendChild(this.cursorEl)
+    this.boundCursorMove = this.onCursorMove.bind(this)
+    this.boundCursorLeave = this.onCursorLeave.bind(this)
+    this.svg.addEventListener('pointermove', this.boundCursorMove)
+    this.svg.addEventListener('pointerleave', this.boundCursorLeave)
   }
 
   setTool(tool: DrawTool): void {
@@ -121,20 +142,29 @@ export class StrokeLayer {
     this.applyToolPolicy()
   }
 
+  setPage(page: number): void {
+    this.opts.page = page
+    this.redraw()
+  }
+
   setColor(colorIndex: number): void {
     this.color = colorIndex
+    this.updateCursorStyle()
   }
 
   setPenWidth(width: number): void {
     this.penWidth = width
+    this.updateCursorStyle()
   }
 
   setHighlighterWidth(width: number): void {
     this.highlighterWidth = width
+    this.updateCursorStyle()
   }
 
   setEraserWidth(width: number): void {
     this.eraserWidth = width
+    this.updateCursorStyle()
   }
 
   setEraserOpacity(opacity: number): void {
@@ -179,11 +209,15 @@ export class StrokeLayer {
   detach(): void {
     this.destroyed = true
     this.svg.removeEventListener('pointerdown', this.boundDown)
+    this.svg.removeEventListener('pointermove', this.boundCursorMove)
+    this.svg.removeEventListener('pointerleave', this.boundCursorLeave)
     if (this.boundMove) this.svg.removeEventListener('pointermove', this.boundMove)
     if (this.boundUp) {
       this.svg.removeEventListener('pointerup', this.boundUp)
       this.svg.removeEventListener('pointercancel', this.boundUp)
     }
+    this.cursorEl?.remove()
+    this.cursorEl = null
     this.svg.remove()
   }
 
@@ -206,8 +240,8 @@ export class StrokeLayer {
     this.eraseEl.style.mixBlendMode = 'difference'
     this.eraseEl.style.pointerEvents = 'none'
     const r = this.svg.getBoundingClientRect()
-    const s = this.scale || 1
-    this.eraseEl.setAttribute('points', `${(clientX - r.left) / s},${(clientY - r.top) / s}`)
+    const { scale, offsetX, offsetY } = this.liveScale(r)
+    this.eraseEl.setAttribute('points', `${(clientX - r.left - offsetX) / scale},${(clientY - r.top - offsetY) / scale}`)
     this.svg.appendChild(this.eraseEl)
 
     this.erasePath = [{ x: clientX, y: clientY }]
@@ -339,12 +373,65 @@ export class StrokeLayer {
     })
   }
 
+  /**
+   * Derives the uniform display scale and centering offsets from the SVG's
+   * *current* rendered size vs its viewBox.  With `preserveAspectRatio: meet`
+   * the browser scales uniformly by `min(sx, sy)` and centres along the other
+   * axis — callers must subtract the offsets before dividing by the scale.
+   */
+  private liveScale(r: DOMRect): { scale: number; offsetX: number; offsetY: number } {
+    if (r.width <= 0 || r.height <= 0) {
+      return { scale: this.scale || 1, offsetX: 0, offsetY: 0 }
+    }
+    const sx = r.width / this.opts.viewBoxWidth
+    const sy = r.height / this.opts.viewBoxHeight
+    const scale = Math.min(sx, sy)
+    const offsetX = (r.width - this.opts.viewBoxWidth * scale) / 2
+    const offsetY = (r.height - this.opts.viewBoxHeight * scale) / 2
+    return { scale, offsetX, offsetY }
+  }
+
   private toUser(e: PointerEvent): StrokePoint {
     const r = this.svg.getBoundingClientRect()
-    const scale = this.scale || 1
+    const { scale, offsetX, offsetY } = this.liveScale(r)
     return {
-      x: (e.clientX - r.left) / scale,
-      y: (e.clientY - r.top) / scale,
+      x: (e.clientX - r.left - offsetX) / scale,
+      y: (e.clientY - r.top - offsetY) / scale,
+    }
+  }
+
+  private onCursorMove(e: PointerEvent): void {
+    if (this.destroyed || !this.cursorEl) return
+    if (this.tool === 'select') { this.cursorEl.style.display = 'none'; return }
+    const r = this.svg.getBoundingClientRect()
+    this.cursorEl.style.left = (e.clientX - r.left) + 'px'
+    this.cursorEl.style.top = (e.clientY - r.top) + 'px'
+    this.cursorEl.style.display = ''
+  }
+
+  private onCursorLeave(): void {
+    if (this.cursorEl) this.cursorEl.style.display = 'none'
+  }
+
+  private updateCursorStyle(): void {
+    if (!this.cursorEl) return
+    if (this.tool === 'select') { this.cursorEl.style.display = 'none'; return }
+    const r = this.svg.getBoundingClientRect()
+    const { scale } = this.liveScale(r)
+    const isEraser = this.tool === 'eraser'
+    const tool: StrokeTool = isEraser ? 'pen' : (this.tool === 'select' ? 'pen' : this.tool as StrokeTool)
+    const w = isEraser ? this.eraserWidth : this.toolWidth(tool)
+    const size = Math.max(4, w * scale)
+    this.cursorEl.style.width = size + 'px'
+    this.cursorEl.style.height = size + 'px'
+    if (isEraser) {
+      this.cursorEl.style.border = '1.5px dashed var(--color-text-muted, #888)'
+      this.cursorEl.style.background = 'transparent'
+      this.cursorEl.style.opacity = '1'
+    } else {
+      this.cursorEl.style.border = `1.5px solid ${strokeColor(tool, this.color)}`
+      this.cursorEl.style.background = tool === 'highlighter' ? strokeColor(tool, this.color) : 'transparent'
+      this.cursorEl.style.opacity = tool === 'highlighter' ? '0.25' : '0.7'
     }
   }
 
@@ -425,11 +512,12 @@ export class StrokeLayer {
   }
 
   private applyToolPolicy(): void {
-    // SVG always receives pointer events so that a stylus can draw
-    // even in select mode. Touch/mouse are filtered by pointerType
-    // in onPointerDown.
-    this.svg.style.pointerEvents = 'auto'
-    this.svg.style.cursor = this.tool === 'select' ? '' : (this.tool === 'eraser' ? 'cell' : 'crosshair')
+    const isSelect = this.tool === 'select'
+    const passThrough = isSelect && (this.opts.scrollOnSelect ?? false)
+    this.svg.style.pointerEvents = passThrough ? 'none' : 'auto'
+    this.wrapper.style.touchAction = passThrough ? 'auto' : 'none'
+    this.svg.style.cursor = isSelect ? 'default' : 'none'
+    this.updateCursorStyle()
     const hitTarget = this.tool === 'eraser' ? 'all' : 'none'
     this.svg.querySelectorAll<SVGElement>('[data-hit]').forEach(el => {
       el.setAttribute('pointer-events', hitTarget)
