@@ -118,6 +118,7 @@ export const useSideChatStore = defineStore('sideChat', {
       isStreaming: false,
       streamingContent: '',
       error: null as string | null,
+      contextLabel: '' as string,
     }
   },
 
@@ -151,6 +152,10 @@ export const useSideChatStore = defineStore('sideChat', {
       this.streamingContent = ''
       this.persist()
       this.ensureScopeLoaded(scopeId)
+    },
+
+    setContextLabel(label: string): void {
+      this.contextLabel = label
     },
 
     async ensureScopeLoaded(scopeId: string): Promise<void> {
@@ -219,8 +224,9 @@ export const useSideChatStore = defineStore('sideChat', {
         const llmMessages: LLMMessage[] = [
           {
             role: 'system',
-            content:
-              'You are a helpful assistant. Be concise and clear. Use markdown formatting when helpful.',
+            content: this.contextLabel
+              ? `You are a helpful assistant. Be concise and clear. Use markdown formatting when helpful.\n\nCurrent context: ${this.contextLabel}`
+              : 'You are a helpful assistant. Be concise and clear. Use markdown formatting when helpful.',
           },
         ]
 

@@ -70,12 +70,18 @@
 import { ref, nextTick, watch, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useSideChatStore, bookScopeId, GLOBAL_SCOPE } from '@/stores/sideChat'
+import { useBooksStore } from '@/stores/books'
+import { useNotebookStore } from '@/stores/notebook'
+import { useProjectStore } from '@/stores/project'
 import { handleCommand, type CommandContext } from '@/utils/chatCommands'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import ExpandableInput from './ExpandableInput.vue'
 
 const store = useSideChatStore()
 const route = useRoute()
+const booksStore = useBooksStore()
+const notebookStore = useNotebookStore()
+const projectStore = useProjectStore()
 
 const inputText = ref('')
 const commandFeedback = ref('')
@@ -91,6 +97,58 @@ const desiredScope = computed(() => {
 
 watch(desiredScope, (scope) => {
   store.setActiveScope(scope)
+}, { immediate: true })
+
+const contextLabel = computed(() => {
+  const name = route.name
+  const params = route.params
+
+  if (name === 'book-viewer' && params.bookId) {
+    const book = booksStore.getBookById(String(params.bookId))
+    if (!book) return ''
+    const parts: string[] = []
+    const typeLabel = book.category === 'paper' ? 'paper' : 'book'
+    parts.push(`Reading ${typeLabel}: "${book.title}"` + (book.author ? ` by ${book.author}` : ''))
+    if (book.totalPages) {
+      const page = book.lastPage ?? 1
+      parts.push(`(page ${page} of ${book.totalPages}` +
+        (book.readingProgress ? `, ${Math.round(book.readingProgress * 100)}%` : '') + ')')
+    }
+    const meta = book.meta
+    if (meta?.abstract) {
+      const abs = meta.abstract.length > 500 ? meta.abstract.slice(0, 500) + '...' : meta.abstract
+      parts.push(`Abstract: ${abs}`)
+    }
+    if (meta?.keywords?.length) {
+      parts.push(`Keywords: ${meta.keywords.join(', ')}`)
+    }
+    return parts.join(' ')
+  }
+
+  if (name === 'notebook' && params.id) {
+    const nb = notebookStore.chats.find(c => c.id === String(params.id))
+    if (nb?.name) return `Notebook: "${nb.name}"`
+    return ''
+  }
+
+  if ((name === 'project-detail' || name === 'project-subproject') && params.id) {
+    const proj = projectStore.projects.find(p => p.id === String(params.id))
+    if (proj) {
+      let label = `Project: "${proj.name}"`
+      if (name === 'project-subproject' && params.subId) {
+        const sub = proj.subprojects?.find(s => s.id === String(params.subId))
+        if (sub) label += ` > ${sub.name}`
+      }
+      return label
+    }
+    return ''
+  }
+
+  return ''
+})
+
+watch(contextLabel, (label) => {
+  store.setContextLabel(label)
 }, { immediate: true })
 
 const checkScroll = () => {
