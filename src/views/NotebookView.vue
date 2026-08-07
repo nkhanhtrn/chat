@@ -40,6 +40,11 @@
           <svg v-if="isLastPage" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
           <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
         </button>
+        <span class="tb-sep"></span>
+        <button class="tb-btn" @click="togglePaperDark" :title="paperDark ? 'Switch to light paper' : 'Switch to dark paper'">
+          <svg v-if="paperDark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
       </div>
       <div
         class="notebook-scroll"
@@ -52,6 +57,7 @@
       >
         <div
           class="notebook-paper"
+          :class="{ 'paper-dark': paperDark }"
           ref="canvasEl"
           :style="{ width: paperWidth + 'px', transform: gestureScale !== 1 ? `scale(${gestureScale})` : '' }"
         ></div>
@@ -99,6 +105,12 @@ const currentPage = ref(1)
 const canvasEl = ref<HTMLElement | null>(null)
 const scrollEl = ref<HTMLElement | null>(null)
 const showClearConfirm = ref(false)
+
+const paperDark = ref(localStorage.getItem('notebook-paper-dark') === 'true')
+function togglePaperDark(): void {
+  paperDark.value = !paperDark.value
+  localStorage.setItem('notebook-paper-dark', String(paperDark.value))
+}
 
 const zoom = ref(1)
 const paperWidth = computed(() => 820 * zoom.value)
@@ -365,6 +377,7 @@ onMounted(async () => {
   border-radius: 2px; touch-action: none; flex-shrink: 0; overflow: hidden;
   transform-origin: center center;
 }
+.notebook-paper.paper-dark { background: #1a1a1a; }
 .notebook-paper :deep(svg.pdf-draw-layer) { border-radius: 2px; }
 .zoom-btn { padding: 0.3rem 0.6rem; min-width: 2rem; }
 .zoom-info { font-size: 0.8rem; color: var(--color-text-muted); min-width: 3rem; text-align: center; user-select: none; }
