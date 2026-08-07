@@ -107,12 +107,14 @@ watch(desiredKey, async (key) => {
 
 function undo(): void {
   strokesStore.removeLastOnPage(sketchKey.value, 0)
+  canvas.redraw()
 }
 
 async function clearAll(): Promise<void> {
   showClearConfirm.value = false
   const strokes = strokesStore.byBook[sketchKey.value] ?? []
   await Promise.all(strokes.map(s => strokesStore.remove(sketchKey.value, s.id)))
+  canvas.redraw()
 }
 </script>
 
