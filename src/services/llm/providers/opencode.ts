@@ -122,41 +122,44 @@ class OpenCodeProvider {
           if (!trimmed.startsWith('data: ')) continue
           const raw = trimmed.slice(6)
 
+          let outer: any
           try {
-            const outer = JSON.parse(raw)
-            const event = outer.payload ?? outer
-            if (event.type === 'message.part.updated') {
-              const props = event.properties
-              if (props?.sessionID === sessionId) {
-                const part = props?.part
-                if (part?.type === 'reasoning' && part?.id) {
-                  reasoningParts.add(part.id)
-                }
+            outer = JSON.parse(raw)
+          } catch {
+            continue
+          }
+          const event = outer.payload ?? outer
+          if (event.type === 'message.part.updated') {
+            const props = event.properties
+            if (props?.sessionID === sessionId) {
+              const part = props?.part
+              if (part?.type === 'reasoning' && part?.id) {
+                reasoningParts.add(part.id)
               }
             }
-            if (event.type === 'message.part.delta') {
-              const props = event.properties
-              if (!props?.delta) continue
-              if (props.sessionID !== sessionId) continue
-              if (reasoningParts.has(props.partID)) continue
-              if (props.field === 'text') yield props.delta
+          }
+          if (event.type === 'message.part.delta') {
+            const props = event.properties
+            if (!props?.delta) continue
+            if (props.sessionID !== sessionId) continue
+            if (reasoningParts.has(props.partID)) continue
+            if (props.field === 'text') yield props.delta
+          }
+          if (event.type === 'session.idle' && event.properties?.sessionID === sessionId) {
+            return
+          }
+          if (event.type === 'session.status' && event.properties?.sessionID === sessionId) {
+            const status = event.properties?.status
+            if (status?.type === 'error') {
+              throw new Error(status.message || 'Session error')
             }
-            if (event.type === 'session.idle' && event.properties?.sessionID === sessionId) {
-              return
-            }
-            if (event.type === 'session.status' && event.properties?.sessionID === sessionId) {
-              const status = event.properties?.status
-              if (status?.type === 'error') {
-                throw new Error(status.message || 'Session error')
+            if (status?.type === 'retry') {
+              retryCount++
+              if (retryCount >= 5) {
+                throw new Error(status.message || 'Server cannot connect to LLM API after multiple retries')
               }
-              if (status?.type === 'retry') {
-                retryCount++
-                if (retryCount >= 5) {
-                  throw new Error(status.message || 'Server cannot connect to LLM API after multiple retries')
-                }
-              }
             }
-          } catch {}
+          }
         }
       }
     } finally {
