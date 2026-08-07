@@ -82,6 +82,29 @@ export const useStrokesStore = defineStore('strokes', {
       await this.remove(bookId, last.id)
     },
 
+    async deletePage(bookId: string, page: number): Promise<void> {
+      const list = this.byBook[bookId]
+      if (!list) return
+      const toDelete = list.filter(s => s.page === page)
+      const shifted: Stroke[] = []
+      this.byBook[bookId] = list
+        .filter(s => s.page !== page)
+        .map(s => {
+          if (s.page > page) {
+            const updated = { ...s, page: s.page - 1, updatedAt: Date.now() }
+            shifted.push(updated)
+            return updated
+          }
+          return s
+        })
+      await Promise.all(toDelete.map(s => StrokeStorage.deleteStroke(s.id).catch(() => {})))
+      toDelete.forEach(s => deleteStrokeFromFirestore(bookId, s.id).catch(() => {}))
+      shifted.forEach(s => {
+        StrokeStorage.saveStroke(s).catch(() => {})
+        saveStrokeToFirestore(bookId, s).catch(() => {})
+      })
+    },
+
     clearBook(bookId: string): void {
       delete this.byBook[bookId]
       delete this.loadedBooks[bookId]

@@ -42,6 +42,16 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/BookViewer.vue')
   },
   {
+    path: '/sketchpad',
+    name: 'sketchpad',
+    component: () => import('@/views/SketchpadLibrary.vue')
+  },
+  {
+    path: '/sketchpad/:id',
+    name: 'sketchbook',
+    component: () => import('@/views/NotebookView.vue')
+  },
+  {
     path: '/notebook/:id',
     name: 'notebook',
     component: () => import('@/views/ChatView.vue')

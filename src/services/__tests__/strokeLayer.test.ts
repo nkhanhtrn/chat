@@ -50,9 +50,14 @@ describe('StrokeLayer', () => {
       expect(svg.style.position).toBe('absolute')
     })
 
-    it('keeps pointer-events auto in select mode (pen always draws)', () => {
+    it('keeps pointer-events auto in select mode by default (pen draws)', () => {
       const { svg } = makeLayer({ tool: 'select' })
       expect(svg.style.pointerEvents).toBe('auto')
+    })
+
+    it('disables pointer-events in select mode with scrollOnSelect', () => {
+      const { svg } = makeLayer({ tool: 'select', scrollOnSelect: true })
+      expect(svg.style.pointerEvents).toBe('none')
     })
 
     it('enables pointer-events in pen mode', () => {
