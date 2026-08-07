@@ -42,7 +42,7 @@ import DrawToolbar from '@/components/DrawToolbar.vue'
 import { useStrokeCanvas } from '@/composables/useStrokeCanvas'
 import { useDrawSettings } from '@/composables/useDrawSettings'
 import { useStrokesStore } from '@/stores/strokes'
-import { bookScopeId, GLOBAL_SCOPE } from '@/stores/sideChat'
+import { GLOBAL_SCOPE } from '@/stores/sideChat'
 
 const SKETCH_W = 800
 const SKETCH_H = 1100
@@ -57,8 +57,19 @@ const showClearConfirm = ref(false)
 const sketchKey = ref<string>(`side-sketch:${GLOBAL_SCOPE}`)
 
 const desiredKey = computed(() => {
-  if (route.name === 'book-viewer' && route.params.bookId) {
-    return `side-sketch:${bookScopeId(String(route.params.bookId))}`
+  const name = route.name as string
+  if (name === 'book-viewer' && route.params.bookId) {
+    return `side-sketch:book-${route.params.bookId}`
+  }
+  if (name === 'notebook' && route.params.id) {
+    return `side-sketch:notebook-${route.params.id}`
+  }
+  if (name === 'sketchbook' && route.params.id) {
+    return `side-sketch:sketchbook-${route.params.id}`
+  }
+  if ((name === 'project-detail' || name === 'project-subproject') && route.params.id) {
+    const sub = route.params.subId ? `-${route.params.subId}` : ''
+    return `side-sketch:project-${route.params.id}${sub}`
   }
   return `side-sketch:${GLOBAL_SCOPE}`
 })
