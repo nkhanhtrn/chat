@@ -246,7 +246,7 @@ select:focus,
 /* ========== TOOLBAR (shared between PDF viewer, sketchpad, DrawToolbar) ========== */
 
 .tb-btn {
-  padding: 0.3rem;
+  padding: 0.4rem;
   background: var(--color-bg-base);
   border: 1px solid var(--color-border-base);
   border-radius: 4px;
@@ -265,8 +265,8 @@ select:focus,
   cursor: not-allowed;
 }
 .tb-btn svg {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   display: block;
 }
 .tb-btn.active {
@@ -284,7 +284,7 @@ select:focus,
 
 .tb-sep {
   width: 1px;
-  height: 22px;
+  height: 26px;
   background: var(--color-border-base);
   flex-shrink: 0;
 }
@@ -359,8 +359,8 @@ select:focus,
 .tb-color-circle.selected { border-color: var(--color-text-strong); }
 
 @media (max-width: 768px) {
-  .tb-btn { padding: 0.2rem; }
-  .tb-btn svg { width: 14px; height: 14px; }
+  .tb-btn { padding: 0.25rem; }
+  .tb-btn svg { width: 17px; height: 17px; }
   .tb-popover { min-width: 200px; }
   .tb-color-circle { width: 14px; height: 14px; }
 }
