@@ -28,6 +28,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
         </button>
         <span class="tb-sep"></span>
+        <button class="tb-btn zoom-btn" @click="zoomOut" :disabled="zoom <= 0.3" title="Zoom out">−</button>
+        <span class="zoom-info">{{ Math.round(zoom * 100) }}%</span>
+        <button class="tb-btn zoom-btn" @click="zoomIn" :disabled="zoom >= 4" title="Zoom in">+</button>
+        <span class="tb-sep"></span>
         <button class="tb-btn" @click="prevPage" :disabled="currentPage <= 1" title="Previous page">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
         </button>
@@ -46,7 +50,11 @@
         @pointerup="onScrollPointerUp"
         @pointercancel="onScrollPointerUp"
       >
-        <div class="notebook-paper" ref="canvasEl"></div>
+        <div
+          class="notebook-paper"
+          ref="canvasEl"
+          :style="{ maxWidth: paperWidth + 'px', transform: gestureScale !== 1 ? `scale(${gestureScale})` : '' }"
+        ></div>
       </div>
       <Transition name="fade">
         <div v-if="showClearConfirm" class="clear-confirm" @click.self="showClearConfirm = false">
@@ -92,14 +100,34 @@ const canvasEl = ref<HTMLElement | null>(null)
 const scrollEl = ref<HTMLElement | null>(null)
 const showClearConfirm = ref(false)
 
+const zoom = ref(1)
+const paperWidth = computed(() => 820 * zoom.value)
+
+// --- Pan + pinch-zoom gesture state (mirrors BookViewer) ---
 const panning = ref(false)
+const gestureActive = ref(false)
+const gestureScale = ref(1)
 const panStart = { x: 0, y: 0, left: 0, top: 0 }
 let panPointerId: number | null = null
 
-function onScrollPointerDown(e: PointerEvent): void {
-  if (drawTool.value !== 'select') return
-  if (e.pointerType === 'pen') return
-  if (e.pointerType === 'mouse' && e.button !== 0) return
+const activePointers = new Map<number, { x: number; y: number }>()
+let gestureMode: 'pan' | 'zoom' = 'pan'
+let pinch: {
+  startDist: number
+  startZoom: number
+  startMidX: number
+  startMidY: number
+  startScrollLeft: number
+  startScrollTop: number
+} | null = null
+
+const scrollCursor = computed(() => {
+  if (gestureActive.value || panning.value) return 'grabbing'
+  if (drawTool.value === 'select') return 'grab'
+  return 'default'
+})
+
+function startPan(e: PointerEvent): void {
   const el = scrollEl.value
   if (!el) return
   e.preventDefault()
@@ -113,7 +141,7 @@ function onScrollPointerDown(e: PointerEvent): void {
   try { el.setPointerCapture?.(e.pointerId) } catch {}
 }
 
-function onScrollPointerMove(e: PointerEvent): void {
+function updatePan(e: PointerEvent): void {
   if (!panning.value || panPointerId !== e.pointerId) return
   const el = scrollEl.value
   if (!el) return
@@ -121,12 +149,110 @@ function onScrollPointerMove(e: PointerEvent): void {
   el.scrollTop = panStart.top - (e.clientY - panStart.y)
 }
 
-function onScrollPointerUp(e: PointerEvent): void {
+function endPan(e: PointerEvent): void {
   if (panPointerId !== e.pointerId) return
   panning.value = false
   const el = scrollEl.value
   if (el) { try { el.releasePointerCapture?.(e.pointerId) } catch {} }
   panPointerId = null
+}
+
+function startGesture(): void {
+  const pts = Array.from(activePointers.values())
+  if (pts.length < 2) return
+  if (panning.value) {
+    // Can't release pointer capture without the id; just reset state
+    panning.value = false
+    panPointerId = null
+  }
+  setGestureActive(true)
+  gestureActive.value = true
+  gestureScale.value = 1
+  gestureMode = 'pan'
+  const el = scrollEl.value!
+  pinch = {
+    startDist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
+    startZoom: zoom.value,
+    startMidX: (pts[0].x + pts[1].x) / 2,
+    startMidY: (pts[0].y + pts[1].y) / 2,
+    startScrollLeft: el.scrollLeft,
+    startScrollTop: el.scrollTop,
+  }
+}
+
+function updateGesture(): void {
+  if (!pinch) return
+  const pts = Array.from(activePointers.values())
+  if (pts.length < 2) return
+  const el = scrollEl.value
+  if (!el) return
+  const midX = (pts[0].x + pts[1].x) / 2
+  const midY = (pts[0].y + pts[1].y) / 2
+  el.scrollLeft = pinch.startScrollLeft - (midX - pinch.startMidX)
+  el.scrollTop = pinch.startScrollTop - (midY - pinch.startMidY)
+  const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)
+  if (gestureMode === 'pan' && Math.abs(dist - pinch.startDist) > 30) {
+    gestureMode = 'zoom'
+  }
+  if (gestureMode === 'zoom') {
+    const ratio = pinch.startDist > 0 ? dist / pinch.startDist : 1
+    const newZoom = Math.max(0.3, Math.min(4, pinch.startZoom * ratio))
+    gestureScale.value = newZoom / pinch.startZoom
+    zoom.value = newZoom
+  }
+}
+
+function endGesture(): void {
+  if (!pinch) return
+  pinch = null
+  gestureActive.value = false
+  gestureMode = 'pan'
+  setGestureActive(false)
+  gestureScale.value = 1
+}
+
+function onScrollPointerDown(e: PointerEvent): void {
+  if (e.pointerType === 'pen') return
+  if (e.pointerType === 'mouse' && e.button !== 0) return
+
+  if (e.pointerType === 'touch') {
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+  }
+
+  if (activePointers.size >= 2) {
+    if (!pinch) startGesture()
+    e.stopPropagation()
+    return
+  }
+
+  if (drawTool.value === 'select') {
+    startPan(e)
+    return
+  }
+}
+
+function onScrollPointerMove(e: PointerEvent): void {
+  if (e.pointerType === 'touch' && activePointers.has(e.pointerId)) {
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+  }
+  if (pinch) { updateGesture(); return }
+  if (panning.value) updatePan(e)
+}
+
+function onScrollPointerUp(e: PointerEvent): void {
+  if (e.pointerType === 'touch') activePointers.delete(e.pointerId)
+  if (pinch) {
+    if (activePointers.size < 2) endGesture()
+    return
+  }
+  if (panning.value) endPan(e)
+}
+
+function zoomIn(): void {
+  zoom.value = Math.min(4, Math.floor(zoom.value * 10) / 10 + 0.1)
+}
+function zoomOut(): void {
+  zoom.value = Math.max(0.3, Math.ceil(zoom.value * 10) / 10 - 0.1)
 }
 
 function numSetting(key: 'pdfDrawColor' | 'pdfPenSize' | 'pdfHighlighterSize' | 'pdfEraserSize' | 'pdfEraserOpacity', fallback: number): number {
@@ -156,11 +282,6 @@ const pageStrokes = computed(() => strokesStore.forPage(notebookKey.value, curre
 const pageStrokeCount = computed(() => pageStrokes.value.length)
 const canUndo = computed(() => pageStrokeCount.value > 0)
 const isLastPage = computed(() => currentPage.value >= (sketchbook.value?.pageCount ?? 1))
-const scrollCursor = computed(() => {
-  if (panning.value) return 'grabbing'
-  if (drawTool.value === 'select') return 'grab'
-  return 'default'
-})
 
 function handleCreate(draft: StrokeDraft): void {
   strokesStore.add(notebookKey.value, { ...draft, page: currentPage.value })
@@ -175,7 +296,7 @@ function handleErase(id: string): void {
 
 const {
   setTool, setColor, setPenWidth, setHighlighterWidth, setEraserWidth, setEraserOpacity,
-  setPage, redraw,
+  setPage, redraw, setGestureActive,
 } = useStrokeCanvas(canvasEl, {
   logicalWidth: PAGE_WIDTH,
   logicalHeight: PAGE_HEIGHT,
@@ -260,11 +381,14 @@ onMounted(async () => {
 }
 .notebook-scroll { flex: 1; min-height: 0; overflow: auto; display: flex; justify-content: center; align-items: flex-start; padding: 1.5rem; }
 .notebook-paper {
-  width: 100%; max-width: 820px; aspect-ratio: 794 / 1123;
+  width: 100%; aspect-ratio: 794 / 1123;
   background: #fff; position: relative; box-shadow: 0 2px 12px rgba(0,0,0,0.12);
   border-radius: 2px; touch-action: none; flex-shrink: 0; overflow: hidden;
+  transform-origin: center center;
 }
 .notebook-paper :deep(svg.pdf-draw-layer) { border-radius: 2px; }
+.zoom-btn { padding: 0.3rem 0.6rem; min-width: 2rem; }
+.zoom-info { font-size: 0.8rem; color: var(--color-text-muted); min-width: 3rem; text-align: center; user-select: none; }
 .clear-confirm { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 9999; display: flex; align-items: center; justify-content: center; }
 .clear-dialog { background: var(--color-bg-base, #fff); border-radius: 8px; padding: 1.5rem; box-shadow: 0 8px 32px rgba(0,0,0,0.3); min-width: 280px; }
 .clear-dialog p { margin: 0 0 1rem; color: var(--color-text-message, #333); }
@@ -275,5 +399,7 @@ onMounted(async () => {
   .notebook-header { padding: 0.3rem 0.4rem; gap: 0.15rem; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .notebook-header::-webkit-scrollbar { display: none; }
   .notebook-scroll { padding: 0.5rem; }
+  .zoom-btn { padding: 0.2rem 0.4rem; min-width: 1.5rem; }
+  .zoom-info { min-width: 2.4rem; font-size: 0.75rem; }
 }
 </style>
