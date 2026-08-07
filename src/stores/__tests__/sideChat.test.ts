@@ -111,6 +111,45 @@ describe('useSideChatStore', () => {
     })
   })
 
+  describe('context label', () => {
+    it('defaults to empty string', () => {
+      expect(store.contextLabel).toBe('')
+    })
+
+    it('setContextLabel updates the label', () => {
+      store.setContextLabel('Reading "Dune" by Frank Herbert')
+      expect(store.contextLabel).toBe('Reading "Dune" by Frank Herbert')
+    })
+
+    it('injects context into system prompt on sendMessage', async () => {
+      store.setContextLabel('Reading "Dune" by Frank Herbert')
+      await store.sendMessage('Who is the author?')
+      const messages = lmService.chat.mock.calls[0][1]
+      expect(messages[0].role).toBe('system')
+      expect(messages[0].content).toContain('Reading "Dune" by Frank Herbert')
+      expect(messages[0].content).toContain('Current context:')
+    })
+
+    it('omits context from system prompt when not set', async () => {
+      await store.sendMessage('Hello')
+      const messages = lmService.chat.mock.calls[0][1]
+      expect(messages[0].role).toBe('system')
+      expect(messages[0].content).not.toContain('Current context:')
+    })
+
+    it('updates context label between messages', async () => {
+      store.setContextLabel('Reading book A')
+      await store.sendMessage('First')
+      store.setContextLabel('Reading book B')
+      await store.sendMessage('Second')
+
+      const firstCall = lmService.chat.mock.calls[0][1]
+      const secondCall = lmService.chat.mock.calls[1][1]
+      expect(firstCall[0].content).toContain('Reading book A')
+      expect(secondCall[0].content).toContain('Reading book B')
+    })
+  })
+
   describe('clearChat', () => {
     it('resets all state', async () => {
       await store.sendMessage('Hello')
