@@ -344,6 +344,7 @@ export class PdfRenderer {
     const wrapper = document.createElement('div')
     wrapper.className = 'pdf-page-wrapper'
     wrapper.style.width = displayWidth + 'px'
+    wrapper.style.height = displayHeight + 'px'
     wrapper.style.position = 'relative'
     wrapper.appendChild(canvas)
 
