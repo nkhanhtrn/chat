@@ -87,6 +87,7 @@
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { type DrawTool } from '@/services/strokeLayer'
 import DrawToolbar from '@/components/DrawToolbar.vue'
+import { useDrawSettings } from '@/composables/useDrawSettings'
 import { type PdfRenderer, type SpreadMode } from '@/services/pdfRenderer'
 import { Settings, type SettingsData } from '@/services/settings'
 
@@ -131,36 +132,8 @@ function migrateLegacyPdfSettings(): void {
 }
 migrateLegacyPdfSettings()
 
-function loadDrawColor(): number {
-  const v = Settings.get('pdfDrawColor')
-  return typeof v === 'number' && v >= 0 && v <= 4 ? v : 0
-}
-const drawColorIndex = ref<number>(loadDrawColor())
+const { drawColorIndex, penSize, highlighterSize, eraserSize, eraserOpacity } = useDrawSettings()
 const openPopover = ref<null | 'zoom'>(null)
-
-function loadPenSize(): number {
-  const v = Settings.get('pdfPenSize')
-  return typeof v === 'number' && v >= 0.5 && v <= 8 ? v : 1.8
-}
-const penSize = ref<number>(loadPenSize())
-
-function loadHighlighterSize(): number {
-  const v = Settings.get('pdfHighlighterSize')
-  return typeof v === 'number' && v >= 4 && v <= 40 ? v : 14
-}
-const highlighterSize = ref<number>(loadHighlighterSize())
-
-function loadEraserSize(): number {
-  const v = Settings.get('pdfEraserSize')
-  return typeof v === 'number' && v >= 5 && v <= 30 ? v : 20
-}
-const eraserSize = ref<number>(loadEraserSize())
-
-function loadEraserOpacity(): number {
-  const v = Settings.get('pdfEraserOpacity')
-  return typeof v === 'number' && v >= 0.1 && v <= 1 ? v : 0.4
-}
-const eraserOpacity = ref<number>(loadEraserOpacity())
 
 const ZOOM_PRESETS = [75, 100, 150, 200]
 
@@ -195,31 +168,13 @@ function toggleDebug(): void {
   if (showDebugDialog.value) refreshDebugDom()
 }
 
-// Persist drawing settings to cloud Settings and propagate to the renderer
-watch(drawTool, (tool) => {
-  Settings.set({ pdfDrawTool: tool })
-  props.pdfRenderer?.setDrawTool(tool)
-})
-watch(drawColorIndex, (i) => {
-  Settings.set({ pdfDrawColor: i })
-  props.pdfRenderer?.setDrawColor(i)
-})
-watch(penSize, (v) => {
-  Settings.set({ pdfPenSize: v })
-  props.pdfRenderer?.setPenWidth(v)
-})
-watch(highlighterSize, (v) => {
-  Settings.set({ pdfHighlighterSize: v })
-  props.pdfRenderer?.setHighlighterWidth(v)
-})
-watch(eraserSize, (v) => {
-  Settings.set({ pdfEraserSize: v })
-  props.pdfRenderer?.setEraserWidth(v)
-})
-watch(eraserOpacity, (v) => {
-  Settings.set({ pdfEraserOpacity: v })
-  props.pdfRenderer?.setEraserOpacity(v)
-})
+// Propagate drawing settings to the renderer (Settings persistence handled by useDrawSettings)
+watch(drawTool, (tool) => { props.pdfRenderer?.setDrawTool(tool) })
+watch(drawColorIndex, (i) => { props.pdfRenderer?.setDrawColor(i) })
+watch(penSize, (v) => { props.pdfRenderer?.setPenWidth(v) })
+watch(highlighterSize, (v) => { props.pdfRenderer?.setHighlighterWidth(v) })
+watch(eraserSize, (v) => { props.pdfRenderer?.setEraserWidth(v) })
+watch(eraserOpacity, (v) => { props.pdfRenderer?.setEraserOpacity(v) })
 
 // Zoom popover
 function togglePopover(tool: 'zoom'): void {

@@ -53,7 +53,7 @@
         <div
           class="notebook-paper"
           ref="canvasEl"
-          :style="{ maxWidth: paperWidth + 'px', transform: gestureScale !== 1 ? `scale(${gestureScale})` : '' }"
+          :style="{ width: paperWidth + 'px', transform: gestureScale !== 1 ? `scale(${gestureScale})` : '' }"
         ></div>
       </div>
       <Transition name="fade">
@@ -78,9 +78,9 @@ import AppLayout from '@/components/AppLayout.vue'
 import DrawToolbar from '@/components/DrawToolbar.vue'
 import SketchPagesSidebar from '@/components/SketchPagesSidebar.vue'
 import { useStrokeCanvas } from '@/composables/useStrokeCanvas'
+import { useDrawSettings } from '@/composables/useDrawSettings'
 import { useStrokesStore } from '@/stores/strokes'
 import { useSketchbooksStore } from '@/stores/sketchbooks'
-import { Settings } from '@/services/settings'
 import { sketchbookKey, PAGE_WIDTH, PAGE_HEIGHT } from '@/types/sketchbook'
 import type { DrawTool } from '@/services/strokeLayer'
 import type { StrokeDraft } from '@/types/stroke'
@@ -255,28 +255,7 @@ function zoomOut(): void {
   zoom.value = Math.max(0.3, Math.ceil(zoom.value * 10) / 10 - 0.1)
 }
 
-function numSetting(key: 'pdfDrawColor' | 'pdfPenSize' | 'pdfHighlighterSize' | 'pdfEraserSize' | 'pdfEraserOpacity', fallback: number): number {
-  const v = Settings.get(key)
-  return typeof v === 'number' ? v : fallback
-}
-function loadDrawTool(): DrawTool {
-  const v = Settings.get('pdfDrawTool')
-  return v === 'pen' || v === 'highlighter' || v === 'eraser' ? v : 'pen'
-}
-
-const drawTool = ref<DrawTool>(loadDrawTool())
-const drawColorIndex = ref<number>(numSetting('pdfDrawColor', 0))
-const penSize = ref<number>(numSetting('pdfPenSize', 1.8))
-const highlighterSize = ref<number>(numSetting('pdfHighlighterSize', 14))
-const eraserSize = ref<number>(numSetting('pdfEraserSize', 20))
-const eraserOpacity = ref<number>(numSetting('pdfEraserOpacity', 0.4))
-
-watch(drawTool, (v) => Settings.set({ pdfDrawTool: v }))
-watch(drawColorIndex, (v) => Settings.set({ pdfDrawColor: v }))
-watch(penSize, (v) => Settings.set({ pdfPenSize: v }))
-watch(highlighterSize, (v) => Settings.set({ pdfHighlighterSize: v }))
-watch(eraserSize, (v) => Settings.set({ pdfEraserSize: v }))
-watch(eraserOpacity, (v) => Settings.set({ pdfEraserOpacity: v }))
+const { drawTool, drawColorIndex, penSize, highlighterSize, eraserSize, eraserOpacity } = useDrawSettings()
 
 const pageStrokes = computed(() => strokesStore.forPage(notebookKey.value, currentPage.value))
 const pageStrokeCount = computed(() => pageStrokes.value.length)
@@ -381,7 +360,7 @@ onMounted(async () => {
 }
 .notebook-scroll { flex: 1; min-height: 0; overflow: auto; display: flex; justify-content: center; align-items: flex-start; padding: 1.5rem; }
 .notebook-paper {
-  width: 100%; aspect-ratio: 794 / 1123;
+  aspect-ratio: 794 / 1123;
   background: #fff; position: relative; box-shadow: 0 2px 12px rgba(0,0,0,0.12);
   border-radius: 2px; touch-action: none; flex-shrink: 0; overflow: hidden;
   transform-origin: center center;
