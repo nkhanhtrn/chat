@@ -90,9 +90,9 @@ function toPoints(points: StrokePoint[]): string {
 
 <style scoped>
 .pages-sidebar { height: 100%; display: flex; flex-direction: column; min-height: 0; }
-.pages-list { flex: 1; min-height: 0; overflow-y: auto; padding: 0.5rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.pages-list { flex: 1; min-height: 0; overflow-y: auto; padding: 0.5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 95px), 1fr)); gap: 0.3rem; }
 .page-thumb {
-  position: relative; display: block; width: 100%; max-width: 140px; margin: 0 auto; aspect-ratio: 794 / 1123;
+  position: relative; width: 100%; aspect-ratio: 794 / 1123;
   background: var(--color-bg-page, #fff); border: 2px solid var(--color-border-base);
   border-radius: 4px; cursor: pointer; padding: 0; overflow: hidden; transition: border-color 0.15s, box-shadow 0.15s;
 }
