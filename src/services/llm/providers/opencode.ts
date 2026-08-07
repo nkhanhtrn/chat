@@ -76,21 +76,42 @@ class OpenCodeProvider {
     const eventReader = eventRes.body.getReader()
     const eventDecoder = new TextDecoder()
 
-    await fetch(`${baseUrl}/session/${sessionId}/prompt_async`, {
+    const promptRes = await fetch(`${baseUrl}/session/${sessionId}/prompt_async`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         parts: [{ type: 'text', text }],
       }),
     })
+    if (!promptRes.ok) {
+      throw new Error(`prompt_async failed: ${promptRes.status}`)
+    }
 
+    const STREAM_TIMEOUT_MS = 120_000
     let buffer = ''
     const reasoningParts = new Set<string>()
+    let retryCount = 0
+    let timedOut = false
+    let watchdog: ReturnType<typeof setTimeout> | undefined
+
+    const resetWatchdog = (): void => {
+      if (watchdog) clearTimeout(watchdog)
+      watchdog = setTimeout(() => {
+        timedOut = true
+        eventReader.cancel().catch(() => {})
+      }, STREAM_TIMEOUT_MS)
+    }
+    resetWatchdog()
+
     try {
       while (true) {
         if (signal?.aborted) break
         const { done, value } = await eventReader.read()
-        if (done) break
+        if (done) {
+          if (timedOut) throw new Error('Stream timed out — no response from server')
+          break
+        }
+        resetWatchdog()
 
         buffer += eventDecoder.decode(value, { stream: true })
         const lines = buffer.split('\n')
@@ -123,10 +144,23 @@ class OpenCodeProvider {
             if (event.type === 'session.idle' && event.properties?.sessionID === sessionId) {
               return
             }
+            if (event.type === 'session.status' && event.properties?.sessionID === sessionId) {
+              const status = event.properties?.status
+              if (status?.type === 'error') {
+                throw new Error(status.message || 'Session error')
+              }
+              if (status?.type === 'retry') {
+                retryCount++
+                if (retryCount >= 5) {
+                  throw new Error(status.message || 'Server cannot connect to LLM API after multiple retries')
+                }
+              }
+            }
           } catch {}
         }
       }
     } finally {
+      if (watchdog) clearTimeout(watchdog)
       try { await eventReader.cancel() } catch {}
     }
   }

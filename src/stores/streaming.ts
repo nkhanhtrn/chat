@@ -7,6 +7,11 @@ export const useStreamingStore = defineStore('streaming', {
     streamAbortController: null as AbortController | null,
     error: null as string | null,
   }),
+  getters: {
+    signal(state): AbortSignal | undefined {
+      return state.streamAbortController?.signal
+    },
+  },
   actions: {
     startStreaming(messageId: string | null = null): AbortSignal {
       this.streamAbortController = new AbortController()

@@ -270,6 +270,7 @@ async function handleAskQuestion(question: string) {
 
   isChildStreaming.value = true
   streamingStore.startStreaming(childMsg.id)
+  const signal = streamingStore.signal
   error.value = null
 
   const previousMessages = buildConversationChain(treeStore.messagesById, parentId)
@@ -283,14 +284,16 @@ async function handleAskQuestion(question: string) {
         messages,
         (chunk: string) => {
           treeStore.appendToResponse(childMsg.id, chunk)
-        }
+        },
+        signal,
       )
     } else {
       await lmService.ephemeralChat(
         messages,
         (chunk: string) => {
           treeStore.appendToResponse(childMsg.id, chunk)
-        }
+        },
+        signal,
       )
     }
   } catch (err: any) {
@@ -387,6 +390,7 @@ async function handleCustomPromptDeepDive(prompt: string) {
 
   isChildStreaming.value = true
   streamingStore.startStreaming(childMsg.id)
+  const signal = streamingStore.signal
   error.value = null
 
   const previousMessages = buildConversationChain(treeStore.messagesById, parentId)
@@ -400,14 +404,16 @@ async function handleCustomPromptDeepDive(prompt: string) {
         messages,
         (chunk: string) => {
           treeStore.appendToResponse(childMsg.id, chunk)
-        }
+        },
+        signal,
       )
     } else {
       await lmService.ephemeralChat(
         messages,
         (chunk: string) => {
           treeStore.appendToResponse(childMsg.id, chunk)
-        }
+        },
+        signal,
       )
     }
   } catch (err: any) {

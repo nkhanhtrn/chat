@@ -243,7 +243,8 @@ export const useSideChatStore = defineStore('sideChat', {
           (chunk: string) => {
             rawContent += chunk
             this.streamingContent = stripThinking(rawContent)
-          }
+          },
+          undefined,
         )
 
         scope.messages.push({

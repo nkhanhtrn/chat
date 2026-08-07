@@ -178,6 +178,7 @@ const handleSendMessage = async (userMessage: string) => {
   scrollToBottom()
 
   streamingStore.startStreaming(msg.id)
+  const signal = streamingStore.signal
 
   const messages = getMainPrompts(msg.question)
 
@@ -190,7 +191,8 @@ const handleSendMessage = async (userMessage: string) => {
     await lmService.chat(
       sessionId,
       messages,
-      (chunk) => { treeStore.appendToResponse(msg.id, chunk) }
+      (chunk) => { treeStore.appendToResponse(msg.id, chunk) },
+      signal,
     )
   } catch (err) {
     error.value = (err as Error).message
