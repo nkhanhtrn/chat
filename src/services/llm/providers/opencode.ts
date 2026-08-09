@@ -76,21 +76,42 @@ class OpenCodeProvider {
     const eventReader = eventRes.body.getReader()
     const eventDecoder = new TextDecoder()
 
-    await fetch(`${baseUrl}/session/${sessionId}/prompt_async`, {
+    const promptRes = await fetch(`${baseUrl}/session/${sessionId}/prompt_async`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         parts: [{ type: 'text', text }],
       }),
     })
+    if (!promptRes.ok) {
+      throw new Error(`prompt_async failed: ${promptRes.status}`)
+    }
 
+    const STREAM_TIMEOUT_MS = 120_000
     let buffer = ''
     const reasoningParts = new Set<string>()
+    let retryCount = 0
+    let timedOut = false
+    let watchdog: ReturnType<typeof setTimeout> | undefined
+
+    const resetWatchdog = (): void => {
+      if (watchdog) clearTimeout(watchdog)
+      watchdog = setTimeout(() => {
+        timedOut = true
+        eventReader.cancel().catch(() => {})
+      }, STREAM_TIMEOUT_MS)
+    }
+    resetWatchdog()
+
     try {
       while (true) {
         if (signal?.aborted) break
         const { done, value } = await eventReader.read()
-        if (done) break
+        if (done) {
+          if (timedOut) throw new Error('Stream timed out — no response from server')
+          break
+        }
+        resetWatchdog()
 
         buffer += eventDecoder.decode(value, { stream: true })
         const lines = buffer.split('\n')
@@ -101,32 +122,50 @@ class OpenCodeProvider {
           if (!trimmed.startsWith('data: ')) continue
           const raw = trimmed.slice(6)
 
+          let outer: any
           try {
-            const outer = JSON.parse(raw)
-            const event = outer.payload ?? outer
-            if (event.type === 'message.part.updated') {
-              const props = event.properties
-              if (props?.sessionID === sessionId) {
-                const part = props?.part
-                if (part?.type === 'reasoning' && part?.id) {
-                  reasoningParts.add(part.id)
-                }
+            outer = JSON.parse(raw)
+          } catch {
+            continue
+          }
+          const event = outer.payload ?? outer
+          if (event.type === 'message.part.updated') {
+            const props = event.properties
+            if (props?.sessionID === sessionId) {
+              const part = props?.part
+              if (part?.type === 'reasoning' && part?.id) {
+                reasoningParts.add(part.id)
               }
             }
-            if (event.type === 'message.part.delta') {
-              const props = event.properties
-              if (!props?.delta) continue
-              if (props.sessionID !== sessionId) continue
-              if (reasoningParts.has(props.partID)) continue
-              if (props.field === 'text') yield props.delta
+          }
+          if (event.type === 'message.part.delta') {
+            const props = event.properties
+            if (!props?.delta) continue
+            if (props.sessionID !== sessionId) continue
+            if (reasoningParts.has(props.partID)) continue
+            if (props.field === 'text') yield props.delta
+          }
+          if (event.type === 'session.idle' && event.properties?.sessionID === sessionId) {
+            return
+          }
+          if (event.type === 'session.status' && event.properties?.sessionID === sessionId) {
+            const status = event.properties?.status
+            if (status?.type === 'error') {
+              throw new Error(status.message || 'Session error')
             }
-            if (event.type === 'session.idle' && event.properties?.sessionID === sessionId) {
-              return
+            if (status?.type === 'retry') {
+              retryCount++
+              const msg = status.message || ''
+              const connectionFailure = /cannot connect|unable to connect|unable to reach|unreachable|econnrefused|enotfound|connection refused|failed to fetch/i.test(msg)
+              if (connectionFailure || retryCount >= 5) {
+                throw new Error(msg || 'Server cannot connect to LLM API after multiple retries')
+              }
             }
-          } catch {}
+          }
         }
       }
     } finally {
+      if (watchdog) clearTimeout(watchdog)
       try { await eventReader.cancel() } catch {}
     }
   }

@@ -47,12 +47,39 @@ cmd_uninstall() {
     info "Service uninstalled."
 }
 
+cmd_stop() {
+    if systemctl --user list-unit-files "$SERVICE_NAME" 2>/dev/null | grep -q "$SERVICE_NAME"; then
+        systemctl --user stop "$SERVICE_NAME" 2>/dev/null || true
+        info "systemctl --user stop $SERVICE_NAME"
+    fi
+
+    pids=$(pgrep -f "opencode serve" || true)
+    if [ -n "$pids" ]; then
+        info "Killing opencode serve: $(echo $pids | tr '\n' ' ')"
+        kill $pids 2>/dev/null || true
+        sleep 0.5
+        pids=$(pgrep -f "opencode serve" || true)
+        [ -n "$pids" ] && kill -9 $pids 2>/dev/null || true
+    fi
+
+    rm -f "$PID_FILE"
+
+    if check_health > /dev/null 2>&1; then
+        warn "Server still responding on ${HOST}:${PORT}."
+    else
+        info "Server stopped."
+    fi
+}
+
 case "${1:-run}" in
     setup)
         cmd_setup
         ;;
     uninstall)
         cmd_uninstall
+        ;;
+    stop)
+        cmd_stop
         ;;
     run|*)
         if [ -z "${INVOCATION_ID:-}" ]; then
