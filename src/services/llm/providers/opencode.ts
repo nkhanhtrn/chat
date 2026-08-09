@@ -155,8 +155,10 @@ class OpenCodeProvider {
             }
             if (status?.type === 'retry') {
               retryCount++
-              if (retryCount >= 5) {
-                throw new Error(status.message || 'Server cannot connect to LLM API after multiple retries')
+              const msg = status.message || ''
+              const connectionFailure = /cannot connect|unable to connect|unable to reach|unreachable|econnrefused|enotfound|connection refused|failed to fetch/i.test(msg)
+              if (connectionFailure || retryCount >= 5) {
+                throw new Error(msg || 'Server cannot connect to LLM API after multiple retries')
               }
             }
           }
