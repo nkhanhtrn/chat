@@ -27,6 +27,7 @@
         <div class="context-menu-row">
           <button class="context-menu-btn" @click="onDictionary" :disabled="isStreaming">Dictionary</button>
           <button class="context-menu-btn" @click="onSummary" :disabled="isStreaming">Summary</button>
+          <button class="context-menu-btn" @click="onExplain" :disabled="isStreaming">Explain</button>
           <button v-if="showDeepdive" class="context-menu-btn" @click="onAskQuestion" :disabled="isStreaming">Deepdive</button>
         </div>
         <div class="context-menu-row prompt-row">
@@ -80,6 +81,7 @@ const emit = defineEmits<{
   note: []
   highlight: []
   summary: []
+  explain: []
 }>()
 const hasExistingItem = computed(() => !!props.highlightId)
 const selectedColorIndex = ref(0)
@@ -103,6 +105,7 @@ function onRemove() { emit('remove') }
 function onNote() { emit('note') }
 function onHighlight() { emit('highlight') }
 function onSummary() { emit('summary') }
+function onExplain() { emit('explain') }
 
 async function onCopy() {
   if (props.highlightedText) { try { await navigator.clipboard.writeText(props.highlightedText); emit('close') } catch (err) { console.error('Failed to copy:', err) } }

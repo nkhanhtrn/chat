@@ -53,6 +53,7 @@
       @note="handleNote"
       @highlight="handleHighlight"
       @summary="handleSummary"
+      @explain="handleExplain"
     />
 
     <QuestionSearchModal
@@ -98,7 +99,7 @@ import DictionaryModal from './modal/DictionaryModal.vue'
 import ResponseModal from './modal/ResponseModal.vue'
 import lmService from '@/services/llm/LMService'
 import { Message } from '@/models/Message'
-import { getMainPrompts, getQuickExplainPrompts, getSummaryPrompts } from '@/services/extraPrompt'
+import { getMainPrompts, getQuickExplainPrompts, getSummaryPrompts, getExplainPrompts } from '@/services/extraPrompt'
 import { getSelectedTextAndPosition } from '@/services/DOMSelectionHelper'
 import { usePopupState } from '@/composables/usePopupState'
 import { useHighlights } from '@/composables/useHighlights'
@@ -340,7 +341,13 @@ async function handleCustomPrompt(prompt: string) {
 
   responseTitle.value = prompt
   responseContent.value = ''
-  responseSaveContext.value = null
+  responseSaveContext.value = {
+    selectedText,
+    startOffset,
+    endOffset,
+    parentId: currentMessage.value.id,
+    existingContentId: highlightId ?? undefined,
+  }
   responseEditMode.value = false
   showResponseModal.value = true
 
@@ -475,6 +482,46 @@ async function handleSummary() {
   let fullResponse = ''
   try {
     const messages = getSummaryPrompts(selectedText, previousMessages)
+    await lmService.ephemeralChat(
+      messages,
+      (chunk: string) => {
+        fullResponse += chunk
+        responseContent.value = fullResponse
+      }
+    )
+  } catch (err: any) {
+    error.value = err.message
+  } finally {
+    isResponseStreaming.value = false
+  }
+}
+
+async function handleExplain() {
+  const { selectedText, startOffset, endOffset, highlightId } = popup.state
+  if (!selectedText || startOffset === undefined || endOffset === undefined) return
+
+  closePopup()
+
+  isResponseStreaming.value = true
+  error.value = null
+
+  const previousMessages = buildConversationChain(treeStore.messagesById, currentMessage.value?.id)
+
+  responseTitle.value = 'Explain'
+  responseContent.value = ''
+  responseSaveContext.value = {
+    selectedText,
+    startOffset,
+    endOffset,
+    parentId: currentMessage.value.id,
+    existingContentId: highlightId ?? undefined,
+  }
+  responseEditMode.value = false
+  showResponseModal.value = true
+
+  let fullResponse = ''
+  try {
+    const messages = getExplainPrompts(selectedText, previousMessages)
     await lmService.ephemeralChat(
       messages,
       (chunk: string) => {
