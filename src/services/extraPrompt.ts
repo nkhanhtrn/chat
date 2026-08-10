@@ -41,3 +41,10 @@ export function getSummaryPrompts(text: string, _previousMessages: Array<Record<
     { role: 'user', content: `Summarize the following text:\n\n${text}` }
   ]
 }
+
+export function getExplainPrompts(text: string, _previousMessages: Array<Record<string, unknown>> = []): Array<Record<string, unknown>> {
+  return [
+    { role: 'system', content: 'You are a study assistant. Explain the given text clearly, breaking down its meaning, context, and significance. Use markdown formatting.' },
+    { role: 'user', content: `Explain the following text:\n\n${text}` }
+  ]
+}
