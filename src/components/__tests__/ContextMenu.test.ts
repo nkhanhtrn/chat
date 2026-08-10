@@ -262,10 +262,10 @@ describe('ContextMenu', () => {
   })
 
   describe('readOnly mode', () => {
-    it('shows Copy, Dictionary, Summary, and Deepdive in readOnly mode', () => {
+    it('shows Copy, Dictionary, Summary, Explain, and Deepdive in readOnly mode', () => {
       mountMenu({ readOnly: true })
       const buttons = Array.from(getBody().querySelectorAll('.context-menu-btn')).map(b => b.textContent)
-      expect(buttons).toEqual(['Copy', 'Dictionary', 'Summary', 'Deepdive'])
+      expect(buttons).toEqual(['Copy', 'Dictionary', 'Summary', 'Explain', 'Deepdive'])
     })
 
     it('does not show Highlight or Note in readOnly mode', () => {
