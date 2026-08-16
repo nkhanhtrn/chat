@@ -48,7 +48,7 @@ describe('openCodeProvider.sendStream', () => {
     vi.unstubAllGlobals()
   })
 
-  it('throws on first connection-failure retry so Zen fallback fires fast', async () => {
+  it('throws on first connection-failure retry so fallback fires fast', async () => {
     const retry = {
       type: 'session.status',
       properties: { sessionID: 'ses', status: { type: 'retry', message: 'Cannot connect to API: Unable to connect.' } },

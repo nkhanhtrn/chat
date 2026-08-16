@@ -2,13 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { lmService } from '../LMService'
 
 const opencode = await import('../providers/opencode').then(m => m.openCodeProvider)
-const zen = await import('../providers/zen').then(m => m.zenProvider)
+const openrouter = await import('../providers/openrouter').then(m => m.openRouterProvider)
 
 describe('LMService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.restoreAllMocks()
-    vi.spyOn(zen, 'isConfigured').mockReturnValue(false)
+    vi.spyOn(openrouter, 'isConfigured').mockReturnValue(false)
     lmService.invalidateClient()
   })
 
@@ -18,15 +18,14 @@ describe('LMService', () => {
       expect(result).toBe('existing-session')
     })
 
-    it('falls back to zen session when local server is unavailable', async () => {
-      vi.spyOn(zen, 'isConfigured').mockReturnValue(true)
+    it('falls back to openrouter session when local server is unavailable', async () => {
+      vi.spyOn(openrouter, 'isConfigured').mockReturnValue(true)
       vi.spyOn(opencode, 'createSession').mockRejectedValueOnce(new Error('network'))
       const result = await lmService.ensureSession('msg-1')
-      expect(result).toBe('zen')
+      expect(result).toBe('openrouter')
     })
 
-    it('throws when local is unavailable and zen is not configured', async () => {
-      vi.spyOn(zen, 'isConfigured').mockReturnValue(false)
+    it('throws when local is unavailable and openrouter is not configured', async () => {
       vi.spyOn(opencode, 'createSession').mockRejectedValueOnce(new Error('network'))
       await expect(lmService.ensureSession('msg-1')).rejects.toThrow()
     })
@@ -47,34 +46,60 @@ describe('LMService', () => {
       expect(chunks).toEqual(['hel', 'lo'])
     })
 
-    it('falls back to zen stream when local stream fails before any chunk', async () => {
-      vi.spyOn(zen, 'isConfigured').mockReturnValue(true)
+    it('falls back to openrouter stream when local stream fails before any chunk', async () => {
+      vi.spyOn(openrouter, 'isConfigured').mockReturnValue(true)
       vi.spyOn(opencode, 'sendStream').mockReturnValue(asyncFnStreamThrow({ error: new Error('network') }))
-      vi.spyOn(zen, 'sendStream').mockReturnValue(asyncFnStream(['zen', '-ok']))
+      vi.spyOn(openrouter, 'sendStream').mockReturnValue(asyncFnStream(['or', '-ok']))
       const chunks: string[] = []
       const result = await lmService.chat('session-1', [{ role: 'user', content: 'hi' }], (chunk) => chunks.push(chunk))
-      expect(result).toBe('zen-ok')
-      expect(chunks).toEqual(['zen', '-ok'])
+      expect(result).toBe('or-ok')
+      expect(chunks).toEqual(['or', '-ok'])
+    })
+
+    it('falls back to openrouter send when local send fails without onChunk', async () => {
+      vi.spyOn(openrouter, 'isConfigured').mockReturnValue(true)
+      vi.spyOn(opencode, 'send').mockRejectedValueOnce(new Error('network'))
+      vi.spyOn(openrouter, 'send').mockResolvedValue('or-response')
+      const result = await lmService.chat('session-1', [{ role: 'user', content: 'hi' }])
+      expect(result).toBe('or-response')
     })
 
     it('does not fall back after partial local stream', async () => {
-      vi.spyOn(zen, 'isConfigured').mockReturnValue(true)
+      vi.spyOn(openrouter, 'isConfigured').mockReturnValue(true)
       vi.spyOn(opencode, 'sendStream').mockReturnValue(asyncFnStreamThrow({ yieldFirst: 'par', error: new Error('drop') }))
-      vi.spyOn(zen, 'sendStream').mockReturnValue(asyncFnStream(['zen']))
+      vi.spyOn(openrouter, 'sendStream').mockReturnValue(asyncFnStream(['or']))
       const chunks: string[] = []
       await expect(
         lmService.chat('session-1', [{ role: 'user', content: 'hi' }], (chunk) => chunks.push(chunk))
       ).rejects.toThrow('drop')
       expect(chunks).toEqual(['par'])
+      expect(openrouter.sendStream).not.toHaveBeenCalled()
     })
 
-    it('routes to zen directly for zen session id', async () => {
-      vi.spyOn(zen, 'isConfigured').mockReturnValue(true)
-      vi.spyOn(zen, 'sendStream').mockReturnValue(asyncFnStream(['direct']))
+    it('does not fall back after partial openrouter stream', async () => {
+      vi.spyOn(openrouter, 'isConfigured').mockReturnValue(true)
+      vi.spyOn(openrouter, 'sendStream').mockReturnValue(asyncFnStreamThrow({ yieldFirst: 'par', error: new Error('drop') }))
       const chunks: string[] = []
-      const result = await lmService.chat('zen', [{ role: 'user', content: 'hi' }], (c) => chunks.push(c))
+      await expect(
+        lmService.chat('openrouter', [{ role: 'user', content: 'hi' }], (chunk) => chunks.push(chunk))
+      ).rejects.toThrow('drop')
+      expect(chunks).toEqual(['par'])
+    })
+
+    it('routes to openrouter directly for openrouter session id', async () => {
+      vi.spyOn(openrouter, 'isConfigured').mockReturnValue(true)
+      vi.spyOn(openrouter, 'sendStream').mockReturnValue(asyncFnStream(['direct']))
+      const chunks: string[] = []
+      const result = await lmService.chat('openrouter', [{ role: 'user', content: 'hi' }], (c) => chunks.push(c))
       expect(result).toBe('direct')
       expect(opencode.sendStream).not.toHaveBeenCalled()
+    })
+
+    it('throws the local error when no fallback is configured', async () => {
+      vi.spyOn(opencode, 'sendStream').mockReturnValue(asyncFnStreamThrow({ error: new Error('network') }))
+      await expect(
+        lmService.chat('session-1', [{ role: 'user', content: 'hi' }], (c) => c)
+      ).rejects.toThrow('network')
     })
   })
 
@@ -88,12 +113,12 @@ describe('LMService', () => {
       expect(opencode.deleteSession).toHaveBeenCalledWith('temp-session')
     })
 
-    it('skips delete when using zen fallback', async () => {
-      vi.spyOn(zen, 'isConfigured').mockReturnValue(true)
+    it('skips delete when using openrouter fallback', async () => {
+      vi.spyOn(openrouter, 'isConfigured').mockReturnValue(true)
       vi.spyOn(opencode, 'createSession').mockRejectedValueOnce(new Error('network'))
-      vi.spyOn(zen, 'send').mockResolvedValue('zen-response')
+      vi.spyOn(openrouter, 'send').mockResolvedValue('or-response')
       const result = await lmService.ephemeralChat([{ role: 'user', content: 'hi' }])
-      expect(result).toBe('zen-response')
+      expect(result).toBe('or-response')
       expect(opencode.deleteSession).not.toHaveBeenCalled()
     })
   })

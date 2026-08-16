@@ -72,9 +72,14 @@
               <span class="setting-hint">URL of the opencode server (see <code>opencode serve</code>)</span>
             </div>
             <div class="setting-item setting-item-vertical">
-              <label class="setting-label">OpenCode Zen API Key</label>
-              <input type="password" v-model="opencodeApiKey" placeholder="opencode-..." class="api-key-input" @input="handleOpencodeApiKeyChange" />
-              <span class="setting-hint">Fallback to <code>deepseek-v4-flash-free</code> on <a href="https://opencode.ai/zen" target="_blank" rel="noopener">OpenCode Zen</a> when the server is unavailable</span>
+              <label class="setting-label">OpenRouter API Key</label>
+              <input type="password" v-model="openrouterApiKey" placeholder="sk-or-..." class="api-key-input" @input="handleOpenRouterApiKeyChange" />
+              <span class="setting-hint">Fallback to free models on <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">OpenRouter</a> when the server is unavailable</span>
+            </div>
+            <div class="setting-item setting-item-vertical">
+              <label class="setting-label">OpenRouter Models</label>
+              <input type="text" v-model="openrouterModels" placeholder="google/gemma-4-31b-it:free" class="api-key-input" @input="handleOpenRouterModelsChange" />
+              <span class="setting-hint">Comma-separated model IDs tried in order (default <code>google/gemma-4-31b-it:free</code>)</span>
             </div>
             <div class="setting-item setting-item-vertical">
               <label class="setting-label">Extra Services</label>
@@ -206,8 +211,9 @@ const widthOptions = [
 const restoreStatus = ref<ConnectionStatus | null>(null)
 const toolsRestoreStatus = ref<ConnectionStatus | null>(null)
 const codeApiUrl = ref('')
-const opencodeApiKey = ref('')
 const customFetchUrl = ref('')
+const openrouterApiKey = ref('')
+const openrouterModels = ref('')
 const bookApiUrl = ref('')
 const bookApiKey = ref('')
 const extraService = ref('public-library')
@@ -254,8 +260,12 @@ function handleCodeApiUrlChange() {
   Settings.set({ codeApiUrl: codeApiUrl.value })
 }
 
-function handleOpencodeApiKeyChange() {
-  Settings.set({ opencodeApiKey: opencodeApiKey.value })
+function handleOpenRouterApiKeyChange() {
+  Settings.set({ openrouterApiKey: openrouterApiKey.value })
+}
+
+function handleOpenRouterModelsChange() {
+  Settings.set({ openrouterModels: openrouterModels.value })
 }
 
 function handleCustomFetchUrlChange() {
@@ -278,8 +288,9 @@ function handleSetExtraService(service: string) {
 function loadSettings() {
   const settings = Settings.getAll()
   if (settings.codeApiUrl) codeApiUrl.value = settings.codeApiUrl as string
-  if (settings.opencodeApiKey) opencodeApiKey.value = settings.opencodeApiKey as string
   if (settings.customFetchUrl) customFetchUrl.value = settings.customFetchUrl as string
+  if (settings.openrouterApiKey) openrouterApiKey.value = settings.openrouterApiKey as string
+  if (settings.openrouterModels) openrouterModels.value = settings.openrouterModels as string
   if (settings.bookApiUrl) bookApiUrl.value = settings.bookApiUrl as string
   if (settings.bookApiKey) bookApiKey.value = settings.bookApiKey as string
   if (settings.extraService) extraService.value = settings.extraService as string
@@ -518,8 +529,9 @@ onMounted(async () => {
     applyContentWidth(settings.contentWidth as string)
   }
   if (settings.codeApiUrl) codeApiUrl.value = settings.codeApiUrl as string
-  if (settings.opencodeApiKey) opencodeApiKey.value = settings.opencodeApiKey as string
   if (settings.customFetchUrl) customFetchUrl.value = settings.customFetchUrl as string
+  if (settings.openrouterApiKey) openrouterApiKey.value = settings.openrouterApiKey as string
+  if (settings.openrouterModels) openrouterModels.value = settings.openrouterModels as string
   if (settings.bookApiUrl) bookApiUrl.value = settings.bookApiUrl as string
   if (settings.bookApiKey) bookApiKey.value = settings.bookApiKey as string
   if (settings.extraService) extraService.value = settings.extraService as string

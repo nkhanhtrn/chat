@@ -65,8 +65,8 @@ vi.mock('@/services/llm/providers/opencode', () => ({
   },
 }))
 
-vi.mock('@/services/llm/providers/zen', () => ({
-  zenProvider: {
+vi.mock('@/services/llm/providers/openrouter', () => ({
+  openRouterProvider: {
     isConfigured: vi.fn(() => false),
     send: vi.fn(),
     sendStream: vi.fn(),
