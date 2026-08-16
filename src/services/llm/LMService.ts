@@ -1,8 +1,8 @@
 import type { LLMMessage } from '@/types/llm'
 import { openCodeProvider } from './providers/opencode'
-import { zenProvider } from './providers/zen'
+import { openRouterProvider } from './providers/openrouter'
 
-const ZEN_SESSION_ID = 'zen'
+const OPENROUTER_SESSION_ID = 'openrouter'
 
 class LMService {
   private localDown = false
@@ -13,13 +13,13 @@ class LMService {
 
   async ensureSession(messageId: string, existingSessionId?: string | null, title?: string): Promise<string> {
     if (existingSessionId) return existingSessionId
-    if (this.localDown && zenProvider.isConfigured()) return ZEN_SESSION_ID
+    if (this.localDown && openRouterProvider.isConfigured()) return OPENROUTER_SESSION_ID
     try {
       return await openCodeProvider.createSession(title)
     } catch {
       this._markLocalDown()
-      if (zenProvider.isConfigured()) return ZEN_SESSION_ID
-      throw new Error('OpenCode server is unavailable and no Zen API key is configured')
+      if (openRouterProvider.isConfigured()) return OPENROUTER_SESSION_ID
+      throw new Error('OpenCode server is unavailable and no OpenRouter API key is configured')
     }
   }
 
@@ -31,12 +31,12 @@ class LMService {
   ): Promise<string | null> {
     const text = buildPromptText(messages)
 
-    if (sessionId === ZEN_SESSION_ID) {
-      return this._chatZen(text, onChunk, signal)
+    if (sessionId === OPENROUTER_SESSION_ID) {
+      return this._chatOpenRouter(text, onChunk, signal)
     }
 
-    if (this.localDown && zenProvider.isConfigured()) {
-      return this._chatZen(text, onChunk, signal)
+    if (this.localDown && openRouterProvider.isConfigured()) {
+      return this._chatOpenRouter(text, onChunk, signal)
     }
 
     if (onChunk) {
@@ -50,35 +50,35 @@ class LMService {
         }
         return fullContent
       } catch (err) {
-        if (signal?.aborted || streamedAny || !zenProvider.isConfigured()) throw err
+        if (signal?.aborted || streamedAny || !openRouterProvider.isConfigured()) throw err
         this._markLocalDown()
-        return this._chatZen(text, onChunk, signal)
+        return this._chatOpenRouter(text, onChunk, signal)
       }
     }
 
     try {
       return await openCodeProvider.send(sessionId, text)
     } catch (err) {
-      if (signal?.aborted || !zenProvider.isConfigured()) throw err
+      if (signal?.aborted || !openRouterProvider.isConfigured()) throw err
       this._markLocalDown()
-      return this._chatZen(text, null, signal)
+      return this._chatOpenRouter(text, null, signal)
     }
   }
 
-  private async _chatZen(
+  private async _chatOpenRouter(
     text: string,
     onChunk: ((chunk: string) => void) | null,
     signal?: AbortSignal
   ): Promise<string | null> {
     if (onChunk) {
       let fullContent = ''
-      for await (const chunk of zenProvider.sendStream(text, signal)) {
+      for await (const chunk of openRouterProvider.sendStream(text, signal)) {
         fullContent += chunk
         onChunk(chunk)
       }
       return fullContent
     }
-    return zenProvider.send(text, signal)
+    return openRouterProvider.send(text, signal)
   }
 
   async ephemeralChat(
@@ -90,7 +90,7 @@ class LMService {
     try {
       return await this.chat(sessionId, messages, onChunk, signal)
     } finally {
-      if (sessionId !== ZEN_SESSION_ID) openCodeProvider.deleteSession(sessionId)
+      if (sessionId !== OPENROUTER_SESSION_ID) openCodeProvider.deleteSession(sessionId)
     }
   }
 

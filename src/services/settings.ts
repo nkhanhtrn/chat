@@ -10,8 +10,9 @@ interface SettingsData {
   lineHeight?: number
   contentWidth?: ContentWidth
   codeApiUrl?: string
-  opencodeApiKey?: string
   customFetchUrl?: string
+  openrouterApiKey?: string
+  openrouterModels?: string
   bookApiUrl?: string
   bookApiKey?: string
   extraService?: string
