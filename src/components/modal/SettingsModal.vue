@@ -74,12 +74,7 @@
             <div class="setting-item setting-item-vertical">
               <label class="setting-label">OpenRouter API Key</label>
               <input type="password" v-model="openrouterApiKey" placeholder="sk-or-..." class="api-key-input" @input="handleOpenRouterApiKeyChange" />
-              <span class="setting-hint">Fallback to free models on <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">OpenRouter</a> when the server is unavailable</span>
-            </div>
-            <div class="setting-item setting-item-vertical">
-              <label class="setting-label">OpenRouter Models</label>
-              <input type="text" v-model="openrouterModels" placeholder="google/gemma-4-31b-it:free" class="api-key-input" @input="handleOpenRouterModelsChange" />
-              <span class="setting-hint">Comma-separated model IDs tried in order (default <code>google/gemma-4-31b-it:free</code>)</span>
+              <span class="setting-hint">Fallback to <code>google/gemma-4-31b-it:free</code> on <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">OpenRouter</a> when the server is unavailable</span>
             </div>
             <div class="setting-item setting-item-vertical">
               <label class="setting-label">Extra Services</label>
@@ -213,7 +208,6 @@ const toolsRestoreStatus = ref<ConnectionStatus | null>(null)
 const codeApiUrl = ref('')
 const customFetchUrl = ref('')
 const openrouterApiKey = ref('')
-const openrouterModels = ref('')
 const bookApiUrl = ref('')
 const bookApiKey = ref('')
 const extraService = ref('public-library')
@@ -264,10 +258,6 @@ function handleOpenRouterApiKeyChange() {
   Settings.set({ openrouterApiKey: openrouterApiKey.value })
 }
 
-function handleOpenRouterModelsChange() {
-  Settings.set({ openrouterModels: openrouterModels.value })
-}
-
 function handleCustomFetchUrlChange() {
   Settings.set({ customFetchUrl: customFetchUrl.value })
 }
@@ -290,7 +280,6 @@ function loadSettings() {
   if (settings.codeApiUrl) codeApiUrl.value = settings.codeApiUrl as string
   if (settings.customFetchUrl) customFetchUrl.value = settings.customFetchUrl as string
   if (settings.openrouterApiKey) openrouterApiKey.value = settings.openrouterApiKey as string
-  if (settings.openrouterModels) openrouterModels.value = settings.openrouterModels as string
   if (settings.bookApiUrl) bookApiUrl.value = settings.bookApiUrl as string
   if (settings.bookApiKey) bookApiKey.value = settings.bookApiKey as string
   if (settings.extraService) extraService.value = settings.extraService as string
@@ -531,7 +520,6 @@ onMounted(async () => {
   if (settings.codeApiUrl) codeApiUrl.value = settings.codeApiUrl as string
   if (settings.customFetchUrl) customFetchUrl.value = settings.customFetchUrl as string
   if (settings.openrouterApiKey) openrouterApiKey.value = settings.openrouterApiKey as string
-  if (settings.openrouterModels) openrouterModels.value = settings.openrouterModels as string
   if (settings.bookApiUrl) bookApiUrl.value = settings.bookApiUrl as string
   if (settings.bookApiKey) bookApiKey.value = settings.bookApiKey as string
   if (settings.extraService) extraService.value = settings.extraService as string

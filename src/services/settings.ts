@@ -12,7 +12,6 @@ interface SettingsData {
   codeApiUrl?: string
   customFetchUrl?: string
   openrouterApiKey?: string
-  openrouterModels?: string
   bookApiUrl?: string
   bookApiKey?: string
   extraService?: string
