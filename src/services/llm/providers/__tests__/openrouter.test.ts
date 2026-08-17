@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const settingsState = vi.hoisted(() => ({
   openrouterApiKey: 'sk-or-test',
-  openrouterModels: '',
 }))
 
 vi.mock('@/services/settings', () => ({
@@ -59,7 +58,6 @@ describe('openRouterProvider', () => {
   beforeEach(() => {
     vi.unstubAllGlobals()
     settingsState.openrouterApiKey = 'sk-or-test'
-    settingsState.openrouterModels = ''
   })
 
   describe('isConfigured', () => {
@@ -74,32 +72,22 @@ describe('openRouterProvider', () => {
   })
 
   describe('send', () => {
-    it('returns the message content using the default model', async () => {
+    it('returns the message content using the pinned gemma model', async () => {
       const fetchMock = vi.fn(async () => okJson('hello'))
       vi.stubGlobal('fetch', fetchMock)
       const out = await openRouterProvider.send('hi')
       expect(out).toBe('hello')
-      const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
       expect(String(fetchMock.mock.calls[0][0])).toBe('https://openrouter.ai/api/v1/chat/completions')
+      const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
       expect(JSON.parse(init.body as string).model).toBe('google/gemma-4-31b-it:free')
+      expect((init.headers as Record<string, string>).Authorization).toBe('Bearer sk-or-test')
     })
 
-    it('retries the next model when the first is rate-limited', async () => {
-      settingsState.openrouterModels = 'google/gemma-4-31b-it:free, nvidia/nemotron-3.5-lightning:free'
-      const fetchMock = vi
-        .fn()
-        .mockResolvedValueOnce(errorResponse(429, 'Rate limit exceeded'))
-        .mockResolvedValueOnce(okJson('second-model'))
+    it('makes a single request and throws the enriched error on 429', async () => {
+      const fetchMock = vi.fn(async () => errorResponse(429, 'Rate limit exceeded'))
       vi.stubGlobal('fetch', fetchMock)
-      const out = await openRouterProvider.send('hi')
-      expect(out).toBe('second-model')
-      const bodies = fetchMock.mock.calls.map((c) => JSON.parse((c[1] as RequestInit).body as string).model)
-      expect(bodies).toEqual(['google/gemma-4-31b-it:free', 'nvidia/nemotron-3.5-lightning:free'])
-    })
-
-    it('throws the enriched error when all models fail', async () => {
-      vi.stubGlobal('fetch', vi.fn(async () => errorResponse(429, 'Rate limit exceeded')))
       await expect(openRouterProvider.send('hi')).rejects.toThrow(/429.*Rate limit exceeded/)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
     })
 
     it('throws when not configured', async () => {
@@ -115,19 +103,14 @@ describe('openRouterProvider', () => {
       expect(out).toBe('hello')
     })
 
-    it('retries the next model when the first fails before any chunk', async () => {
-      settingsState.openrouterModels = 'google/gemma-4-31b-it:free, nvidia/nemotron-3.5-lightning:free'
-      const fetchMock = vi
-        .fn()
-        .mockResolvedValueOnce(errorResponse(429, 'Rate limit exceeded'))
-        .mockResolvedValueOnce(okStream('or', '-ok'))
+    it('surfaces 429 with a single request', async () => {
+      const fetchMock = vi.fn(async () => errorResponse(429, 'Rate limit exceeded'))
       vi.stubGlobal('fetch', fetchMock)
-      const out = await drain(openRouterProvider.sendStream('hi'))
-      expect(out).toBe('or-ok')
+      await expect(drain(openRouterProvider.sendStream('hi'))).rejects.toThrow(/429.*Rate limit exceeded/)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
     })
 
-    it('does not retry after a partial stream', async () => {
-      settingsState.openrouterModels = 'google/gemma-4-31b-it:free, nvidia/nemotron-3.5-lightning:free'
+    it('propagates mid-stream failures', async () => {
       const enc = new TextEncoder()
       const partial = new ReadableStream<Uint8Array>({
         start(controller) {
@@ -138,7 +121,6 @@ describe('openRouterProvider', () => {
       const fetchMock = vi.fn(async () => ({ ok: true, status: 200, body: partial } as unknown as Response))
       vi.stubGlobal('fetch', fetchMock)
       await expect(drain(openRouterProvider.sendStream('hi'))).rejects.toThrow('drop')
-      expect(fetchMock).toHaveBeenCalledTimes(1)
     })
 
     it('throws when not configured', async () => {
